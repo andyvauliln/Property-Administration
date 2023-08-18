@@ -1,10 +1,10 @@
 ## Django Property Administration
 
 
-## Deploying on Rqilway
+## Deploying on Railway
 Create account: https://railway.app/
 Hobby Plan
-The Hobby plan costs $5 per month and includes up to $5 of usage. Additional resource usage is billed separately.
+The Hobby plan costs $5 per month and includes up to 5 of usage. Additional resource usage is billed separately.
 Memory per container: 8 GB
 CPU per container: 8 vCPU
 Shared disk: 100 GB
@@ -19,26 +19,30 @@ https://www.npmjs.com/package/@railway/cli to install raillway locally
 
 ## Python Environment Setup
 
-1) Navigate to Your Project Directory:
-bash: ```cd path/to/your/project```
+### 1. Navigate to Your Project Directory:
+```cd path/to/your/project```
 
-2) Create a Virtual Environment:
-bash: ```pip install virtualenv```
+### 2. Create a Virtual Environment:
+ ```pip install virtualenv```
 
-3) reate a virtual environment in your project directory.
-bash: ```virtualenv property```
+### 3. reate a virtual environment in your project directory.
+```virtualenv venv```
 
-4) Activate the Virtual Environment:
-bash: ```source venv/bin/activate```
+### 4. Activate the Virtual Environment:
+ ```source venv/bin/activate```
 
 ## Python Install
-pip install -r requirements.txt
+```pip install -r requirements.txt```
 
 ## Node Install
-npm install
+```npm install```
 
 ## Watch Tailwind
-npx tailwindcss -i ./static/src/input.css -o ./static/src/output.css --watch
+```npx tailwindcss -i ./static/src/input.css -o ./static/src/output.css --watch```
 
 ## Compile Tailwind
-npx tailwindcss -i ./static/input.css -o ./static/output.css
+```npx tailwindcss -i ./static/input.css -o ./static/output.css```
+
+
+## DEBUG
+```railway logs```
