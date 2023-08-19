@@ -1,0 +1,4 @@
+components:
+  card: "components/card.html"
+  dropdown: "components/dropdown.html"
+  table: "components/table.html"

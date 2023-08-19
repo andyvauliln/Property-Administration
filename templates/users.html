@@ -1,0 +1,12 @@
+{% extends "_base.html" %}
+{% load slippers %}
+{% block content %}
+<script>
+    console.log("{{ items.0.phone }}")
+    console.log("{{ items.0.email }}")
+    console.log("test")
+</script>
+{% #table db="users" items=items show="full_name, email, phone, role" %}
+{% /table %}
+
+{% endblock content %}

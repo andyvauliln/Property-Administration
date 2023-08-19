@@ -1,23 +1,80 @@
 {% extends "_base.html" %}
+{% load slippers %}
 
 
 {% block content %}
 <script>
-    function myFunction1(item) {
-        console.log("Dropdown 1 item clicked:", item);
-    }
+    function toggleNotifications() {
+        const notifications = document.getElementById('notifications');
+        const plusIcon = document.getElementById('plusIcon');
+        const minusIcon = document.getElementById('minusIcon');
 
-    function myFunction2(item) {
-        console.log("Dropdown 2 item clicked:", item);
+        if (notifications.style.display === 'none' || !notifications.style.display) {
+            notifications.style.display = 'flex';
+            plusIcon.style.display = 'none';
+            minusIcon.style.display = 'inline-block';
+        } else {
+            notifications.style.display = 'none';
+            plusIcon.style.display = 'inline-block';
+            minusIcon.style.display = 'none';
+        }
     }
-
-    // Add more functions if needed
 </script>
+<section class="bg-white dark:bg-gray-900">
+    <div class="py-8 px-4 mx-auto max-w-screen-xl lg:py-16 lg:px-6">
+        <div class="mx-auto max-w-screen-md mb-8 lg:mb-12 flex justify-center items-center">
+            <h2 class="text-4xl tracking-tight font-extrabold text-gray-900 dark:text-white mr-4">Notifications</h2>
+            <button onclick="toggleNotifications()" class="focus:outline-none">
+                <svg id="minusIcon" class="w-[25px] h-[25px] text-gray-800 dark:text-white" style="display: none;" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 18 2">
+                    <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M1 1h16"/>
+                </svg>
+                <svg id="plusIcon"  class="w-[25px] h-[25px] text-gray-800 dark:text-white" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 18 18">
+                    <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 1v16M1 9h16"/>
+                </svg>
+            </button>
+        </div>
+        <div id="notifications" class="space-y-8 lg:grid lg:grid-cols-3 sm:gap-6 xl:gap-10 lg:space-y-0">
+          
+            <!-- Pricing Card -->
+            {% #card title="Today" %}
+            <li class="flex items-center space-x-3">
+                <!-- Icon -->
+                <svg class="flex-shrink-0 w-5 h-5 text-green-500 dark:text-green-400" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"></path></svg>
+                <span>Cleaning <span class="font-bold">12.03.2023</span><a href="/users/1" class="font-bold text-blue-400 pointer ml-2">Melisa Monova</a></span>
+            </li>
+          {% /card %}
+          {% #card title="Next Week" %}
+          <li class="flex items-center space-x-3">
+            <li class="flex items-center space-x-3">
+                <!-- Icon -->
+                <svg class="flex-shrink-0 w-5 h-5 text-green-500 dark:text-green-400" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"></path></svg>
+                <span>Rent finishe at <span class="font-bold">12.03.2023</span><a href="/users/1" class="font-bold text-blue-400 pointer ml-2">Artem Mokarov</a></span>
+            </li>
+            <li class="flex items-center space-x-3">
+                <!-- Icon -->
+                <svg class="flex-shrink-0 w-5 h-5 text-green-500 dark:text-green-400" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"></path></svg>
+                <span>Cleaning <span class="font-bold">12.03.2023</span><a href="/users/1" class="font-bold text-blue-400 pointer ml-2">Melisa Monova</a></span>
+            </li>
+          </li>
+        {% /card %}
 
-{% for dropdown in all_dropdowns %}
-    <div>Test<div>
-    {% include 'components/dropdown.html' with items=dropdown.items onchange_function=dropdown.onchange_function %}
-{% endfor %}
+        {% #card title="Next Month" %}
+        <li class="flex items-center space-x-3">
+          <li class="flex items-center space-x-3">
+              <!-- Icon -->
+              <svg class="flex-shrink-0 w-5 h-5 text-green-500 dark:text-green-400" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"></path></svg>
+              <span>Rent finishe at <span class="font-bold">12.03.2023</span><a href="/users/1" class="font-bold text-blue-400 pointer ml-2">Artem Mokarov</a></span>
+          </li>
+          <li class="flex items-center space-x-3">
+              <!-- Icon -->
+              <svg class="flex-shrink-0 w-5 h-5 text-green-500 dark:text-green-400" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"></path></svg>
+              <span>Cleaning <span class="font-bold">12.03.2023</span><a href="/users/1" class="font-bold text-blue-400 pointer ml-2">Melisa Monova</a></span>
+          </li>
+        </li>
+      {% /card %}
+                   
+         
+    </div>
+  </section>
 
-<h1 class="text-3xl text-green-800">Django + Tailwind CSS + Flowbite !!!!</h1>
 {% endblock content %}
