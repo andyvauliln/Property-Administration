@@ -32,10 +32,29 @@ DEBUG = True
 
 ALLOWED_HOSTS = ["*"]
 
+AUTH_USER_MODEL = 'mysite.User'
+LOGIN_URL = '/login'
+LOGIN_REDIRECT_URL = '/' 
+
 # FORM SUBMISSION
 # Comment out the following line and place your railway URL, and your production URL in the array.
 # CSRF_TRUSTED_ORIGINS = ["*"]
-
+# LOGGING = {
+#     'version': 1,
+#     'disable_existing_loggers': False,
+#     'handlers': {
+#         'console': {
+#             'class': 'logging.StreamHandler',
+#         },
+#     },
+#     'loggers': {
+#         'django': {
+#             'handlers': ['console'],
+#             'level': 'DEBUG',
+#             'propagate': True,
+#         },
+#     },
+# }
 # Application definition
 
 INSTALLED_APPS = [
@@ -45,7 +64,10 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
+    "mysite",
+    "widget_tweaks",
     'compressor',
+    'slippers',
 ]
 
 MIDDLEWARE = [
@@ -73,6 +95,7 @@ TEMPLATES = [
                 'django.contrib.auth.context_processors.auth',
                 'django.contrib.messages.context_processors.messages',
             ],
+        "builtins": ["slippers.templatetags.slippers"],
         },
     },
 ]
