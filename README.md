@@ -1,5 +1,6 @@
 ## Django Property Administration
 
+```python manage.py runserver       ```
 
 ## Deploying on Railway
 Create account: https://railway.app/
@@ -46,3 +47,17 @@ https://www.npmjs.com/package/@railway/cli to install raillway locally
 
 ## DEBUG
 ```railway logs```
+
+## Apply migration
+```python manage.py migrate```
+
+## Make Migrations after changes
+```python manage.py makemigrations```
+
+
+## Seeds
+```python manage.py seed_db```
+
+
+## Dumb 
+```python manage.py dumpdata --output=data.json```

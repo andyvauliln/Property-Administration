@@ -1,0 +1,12 @@
+{% extends "_base.html" %}
+{% load slippers %}
+{% block content %}
+<script>
+    console.log("{{ items.0.phone }}")
+    console.log("{{ search_query}}", "search queary")
+    console.log(`{{request.GET.q}}`, "request")
+</script>
+{% #table db="payments" search_query=request.GET.q items=items search_fields="notes, tenant.name" show="payment_date, bank, payment_method, payment_type, amount, payment_status" %}
+{% /table %}
+
+{% endblock content %}
