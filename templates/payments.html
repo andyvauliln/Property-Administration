@@ -6,7 +6,9 @@
     console.log("{{ search_query}}", "search queary")
     console.log(`{{request.GET.q}}`, "request")
 </script>
-{% #table db="payments" search_query=request.GET.q items=items search_fields="notes, tenant.name" show="payment_date, bank, payment_method, payment_type, amount, payment_status" %}
+
+
+{% #table field_data=field_data special_fields=special_fields  model="payments" search_query=request.GET.q items=items search_fields="property.name, tenant.full_name" show="payment_date, bank.bank_name, payment_method.method_name, payment_type, amount, payment_status" %}
 {% /table %}
 
 {% endblock content %}

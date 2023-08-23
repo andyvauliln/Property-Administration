@@ -6,7 +6,9 @@
     console.log("{{ search_query}}", "search queary")
     console.log(`{{request.GET.q}}`, "request")
 </script>
-{% #table db="cleanings" search_query=request.GET.q items=items search_fields="full_name,role" show=", date, booking, status" %}
+
+
+{% #table field_data=field_data special_fields=special_fields  model="cleanings" search_query=request.GET.q items=items search_fields="cleaner.name, property.name" show="date, cleaner.full_name, property.name, status" %}
 {% /table %}
 
 {% endblock content %}

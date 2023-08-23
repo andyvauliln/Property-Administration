@@ -14,6 +14,7 @@ from django.db.models import Q
 from django.contrib.contenttypes.models import ContentType
 import html
 from django.db import models
+from django.forms.models import model_to_dict
 
 logger = logging.getLogger(__name__)
 
@@ -55,17 +56,35 @@ def get_special_fields(model):
                 'type': 'checkbox'
             }
         # Handle manager and owner fields for the Property model
-        if model == Property:
-            if field.name == 'manager':
-                special_fields[field.name] = {
-                    'type': 'dropdown',
-                    'options': [{'value': user.id, 'label': user.full_name} for user in User.objects.filter(role='Manager')]
-                }
-            elif field.name == 'owner':
-                special_fields[field.name] = {
-                    'type': 'dropdown',
-                    'options': [{'value': user.id, 'label': user.full_name} for user in User.objects.filter(role='Owner')]
-                }
+        logger.error("**************SPECIAL FIELD*************\n\n\n")
+        logger.error(field.name)
+        logger.error("**************ITEMS*************\n\n\n")
+        
+        if field.name == 'manager':
+            special_fields[field.name] = {
+                'type': 'dropdown',
+                'options': [{'value': user.id, 'label': user.full_name} for user in User.objects.filter(role='Manager')]
+            }
+        elif field.name == 'owner':
+            special_fields[field.name] = {
+                'type': 'dropdown',
+                'options': [{'value': user.id, 'label': user.full_name} for user in User.objects.filter(role='Owner')]
+            }
+        elif field.name == 'bank':
+            special_fields[field.name] = {
+                'type': 'dropdown',
+                'options': [{'value': bank.id, 'label': bank.bank_name} for bank in Bank.objects.all()]
+            }
+        elif field.name == 'payment_method':
+            special_fields[field.name] = {
+                'type': 'dropdown',
+                'options': [{'value': payment_method.id, 'label': payment_method.method_name} for payment_method in PaymentMethod.objects.all()]
+            }
+        elif field.name == 'property':
+            special_fields[field.name] = {
+                'type': 'dropdown',
+                'options': [{'value': property.id, 'label': property.name} for property in Property.objects.all()]
+            }
     
     return special_fields
 
@@ -104,6 +123,11 @@ def generic_view(request, model_name, form_class, template_name, pages=10):
         items = model.objects.select_related(*fk_or_o2o_fields).prefetch_related(*m2m_fields).filter(query)
     else:
         items = model.objects.select_related(*fk_or_o2o_fields).prefetch_related(*m2m_fields).all()
+        
+    logger.error("**************ITEMS*************\n\n\n")
+    items_list = [model_to_dict(item) for item in items]
+    logger.error(items_list)
+    logger.error("**************ITEMS*************\n\n\n")
 
     paginator = Paginator(items, pages)
     items_on_page = paginator.get_page(page)
@@ -115,12 +139,15 @@ def generic_view(request, model_name, form_class, template_name, pages=10):
         if 'edit_add' in request.POST:
             item_id =request.POST['id']
             if item_id:
-                # Update logic
+                
+                
+
                 instance = model.objects.get(id=item_id)
                 form = form_class(request.POST, instance=instance)
+                logger.error("**************FORM*************\n\n\n")
+                logger.error(form.errors, form.is_valid(), form.cleaned_data)
+                logger.error("**************FORM*************\n\n\n")
                 if form.is_valid():
-                    logger.error("**************FORM*************")
-                    logger.error(form.cleaned_data)
                     form.save()
             else:
                 # Create logic
