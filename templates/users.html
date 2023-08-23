@@ -2,11 +2,11 @@
 {% load slippers %}
 {% block content %}
 <script>
-    console.log("{{ items.0.phone }}")
-    console.log("{{ items.0.email }}")
-    console.log("test")
+    {% comment %} console.log("{{ items.0.phone }}")
+    console.log("{{ search_query}}", "search queary")
+    console.log(`{{request.GET.q}}`, "request") {% endcomment %}
 </script>
-{% #table db="users" items=items show="full_name, email, phone, role" %}
+{% #table model="users" special_fields=special_fields field_data=field_data search_query=request.GET.q items=items search_fields="full_name,role" show="full_name, email, phone, role" %}
 {% /table %}
 
 {% endblock content %}

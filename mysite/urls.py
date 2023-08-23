@@ -26,4 +26,12 @@ urlpatterns = [
     path('login/', custom_login_view, name='login'),
     path('logout/', CustomLogoutView.as_view(), name='logout'),
     path('users/', views.users, name='users'),
+    path('properties/', views.properties, name='properties'),
+    path('cleanings/', views.cleanings, name='cleanings'),
+    path('bookings/', views.bookings, name='bookings'),
+    path('contracts/', views.contracts, name='contracts'),
+    path('payments/', views.payments, name='payments'),
+    path('notifications/', views.notifications, name='notifications'),
+    path('paymentmethod/', views.payment_methods, name='paymentmethod'),
+    path('banks/', views.banks, name='banks'),
 ]

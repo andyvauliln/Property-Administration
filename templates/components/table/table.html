@@ -2,37 +2,37 @@
 {% load custom_filters %}
 <script>
     console.log("{{ items }}")
+    console.log("{{ field_data|safe }}", "field_data")
+    console.log("{{ special_fields }}", "special_fields")
 </script>
 <section class="bg-gray-50 dark:bg-gray-900 p-3 sm:p-5 antialiased">
     <div class="mx-auto max-w-screen-xl px-4 lg:px-12">
         <div class="bg-white dark:bg-gray-800 relative shadow-md sm:rounded-lg overflow-hidden">
             <div class="flex flex-col md:flex-row items-center justify-between space-y-3 md:space-y-0 md:space-x-4 p-4">
                 <div class="w-full md:w-1/2">
-                    {% include "components/table_search.html" %}
+                    {% include "components/table/table_search.html" %}
                 </div>
                 <div class="w-full md:w-auto flex flex-col md:flex-row space-y-2 md:space-y-0 items-stretch md:items-center justify-end md:space-x-3 flex-shrink-0">
-                    {% include "components/table_create_new.html" %}
-                    {% include "components/table_filter.html" %}
-                  
+                    {% include "components/table/table_filter.html" %}
                 </div>
             </div>
             <div class="overflow-x-auto">
                 {% with show_keys=show|split:", " %}
                 <table class="w-full text-sm text-left text-gray-500 dark:text-gray-400">
-                    {% include "components/table_header.html" %}
-                    {% include "components/table_body.html" %}
+                    {% include "components/table/table_header.html" %}
+                    {% include "components/table/table_body.html" %}
                 </table>
                 {% endwith %}
             </div>
-            {% include "components/table_nav.html" %}
+            {% include "components/table/table_nav.html" %}
         </div>
     </div>
 </section>
 
 
-{% include "components/table_edit.html" %}
-{% include "components/table_delete.html" %}
-{% include "components/table_show.html" %}
+{% include "components/table/table_edit.html" %}
+{% include "components/table/table_delete.html" %}
+
 
 
 

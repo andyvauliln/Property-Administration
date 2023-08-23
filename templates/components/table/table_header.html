@@ -4,11 +4,8 @@
     <tr>
         {% if items %}
             {% for key in show_keys %}
-                <th scope="col" class="px-4 py-4">{{ key|split_underscore }}</th>
+                <th scope="col" class="px-4 py-4">{{ key|get_field_name|split_underscore }}</th>
             {% endfor %}
         {% endif %}
-        <th scope="col" class="px-4 py-3">
-            <span class="sr-only">Actions</span>
-        </th>
     </tr>
 </thead>

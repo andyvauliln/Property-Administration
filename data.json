@@ -1,0 +1,375 @@
+[
+    {
+        "model": "mysite.user",
+        "pk": 1,
+        "fields": {
+            "last_login": null,
+            "is_superuser": false,
+            "email": "admin@gmail.com",
+            "full_name": "Admin",
+            "password": null,
+            "phone": null,
+            "role": "admin",
+            "created_at": "2023-08-21T11:59:06.923Z",
+            "updated_at": "2023-08-21T11:59:06.924Z",
+            "is_active": true,
+            "is_staff": false,
+            "groups": [],
+            "user_permissions": []
+        }
+    },
+    {
+        "model": "mysite.user",
+        "pk": 2,
+        "fields": {
+            "last_login": null,
+            "is_superuser": false,
+            "email": "cleaner1@example.com",
+            "full_name": "Cleaner One",
+            "password": null,
+            "phone": null,
+            "role": "cleaner",
+            "created_at": "2023-08-21T11:59:07.309Z",
+            "updated_at": "2023-08-21T11:59:07.309Z",
+            "is_active": true,
+            "is_staff": false,
+            "groups": [],
+            "user_permissions": []
+        }
+    },
+    {
+        "model": "mysite.user",
+        "pk": 3,
+        "fields": {
+            "last_login": null,
+            "is_superuser": false,
+            "email": "cleaner2@example.com",
+            "full_name": "Cleaner Two",
+            "password": null,
+            "phone": null,
+            "role": "cleaner",
+            "created_at": "2023-08-21T11:59:07.519Z",
+            "updated_at": "2023-08-21T11:59:07.519Z",
+            "is_active": true,
+            "is_staff": false,
+            "groups": [],
+            "user_permissions": []
+        }
+    },
+    {
+        "model": "mysite.user",
+        "pk": 4,
+        "fields": {
+            "last_login": null,
+            "is_superuser": false,
+            "email": "manager1@example.com",
+            "full_name": "Manager One",
+            "password": null,
+            "phone": null,
+            "role": "manager",
+            "created_at": "2023-08-21T11:59:07.839Z",
+            "updated_at": "2023-08-21T11:59:07.839Z",
+            "is_active": true,
+            "is_staff": false,
+            "groups": [],
+            "user_permissions": []
+        }
+    },
+    {
+        "model": "mysite.user",
+        "pk": 5,
+        "fields": {
+            "last_login": null,
+            "is_superuser": false,
+            "email": "manager2@example.com",
+            "full_name": "Manager Two",
+            "password": null,
+            "phone": null,
+            "role": "manager",
+            "created_at": "2023-08-21T11:59:08.131Z",
+            "updated_at": "2023-08-21T11:59:08.131Z",
+            "is_active": true,
+            "is_staff": false,
+            "groups": [],
+            "user_permissions": []
+        }
+    },
+    {
+        "model": "mysite.user",
+        "pk": 6,
+        "fields": {
+            "last_login": null,
+            "is_superuser": false,
+            "email": "tenant1@example.com",
+            "full_name": "Tenant One",
+            "password": null,
+            "phone": null,
+            "role": "tenant",
+            "created_at": "2023-08-21T11:59:08.356Z",
+            "updated_at": "2023-08-21T11:59:08.356Z",
+            "is_active": true,
+            "is_staff": false,
+            "groups": [],
+            "user_permissions": []
+        }
+    },
+    {
+        "model": "mysite.user",
+        "pk": 7,
+        "fields": {
+            "last_login": null,
+            "is_superuser": false,
+            "email": "tenant2@example.com",
+            "full_name": "Tenant Two",
+            "password": null,
+            "phone": null,
+            "role": "tenant",
+            "created_at": "2023-08-21T11:59:08.569Z",
+            "updated_at": "2023-08-21T11:59:08.569Z",
+            "is_active": true,
+            "is_staff": false,
+            "groups": [],
+            "user_permissions": []
+        }
+    },
+    {
+        "model": "mysite.user",
+        "pk": 8,
+        "fields": {
+            "last_login": null,
+            "is_superuser": false,
+            "email": "tenant3@example.com",
+            "full_name": "Tenant Three",
+            "password": null,
+            "phone": null,
+            "role": "tenant",
+            "created_at": "2023-08-21T11:59:08.779Z",
+            "updated_at": "2023-08-21T11:59:08.779Z",
+            "is_active": true,
+            "is_staff": false,
+            "groups": [],
+            "user_permissions": []
+        }
+    },
+    {
+        "model": "mysite.user",
+        "pk": 9,
+        "fields": {
+            "last_login": null,
+            "is_superuser": false,
+            "email": "owner1@example.com",
+            "full_name": "Owner One",
+            "password": null,
+            "phone": null,
+            "role": "owner",
+            "created_at": "2023-08-21T11:59:08.988Z",
+            "updated_at": "2023-08-21T11:59:08.988Z",
+            "is_active": true,
+            "is_staff": false,
+            "groups": [],
+            "user_permissions": []
+        }
+    },
+    {
+        "model": "mysite.user",
+        "pk": 10,
+        "fields": {
+            "last_login": null,
+            "is_superuser": false,
+            "email": "owner2@example.com",
+            "full_name": "Owner Two",
+            "password": null,
+            "phone": null,
+            "role": "owner",
+            "created_at": "2023-08-21T11:59:09.251Z",
+            "updated_at": "2023-08-21T11:59:09.251Z",
+            "is_active": true,
+            "is_staff": false,
+            "groups": [],
+            "user_permissions": []
+        }
+    },
+    {
+        "model": "mysite.user",
+        "pk": 11,
+        "fields": {
+            "last_login": null,
+            "is_superuser": false,
+            "email": "owner3@example.com",
+            "full_name": "Owner Three",
+            "password": null,
+            "phone": null,
+            "role": "owner",
+            "created_at": "2023-08-21T11:59:09.458Z",
+            "updated_at": "2023-08-21T11:59:09.458Z",
+            "is_active": true,
+            "is_staff": false,
+            "groups": [],
+            "user_permissions": []
+        }
+    },
+    {
+        "model": "mysite.property",
+        "pk": 1,
+        "fields": {
+            "name": "Property 1",
+            "property_type": "in_management",
+            "status": "unavailable",
+            "notes": "This is a note for Property 1",
+            "web_link": "http://example.com/property1",
+            "address": "123 Main St, City, Country",
+            "amount_bedrooms": 3,
+            "amount_bathrooms": 2,
+            "manager": 4,
+            "owner": 9,
+            "created_at": "2023-08-21T11:59:12.128Z",
+            "updated_at": "2023-08-21T11:59:12.128Z"
+        }
+    },
+    {
+        "model": "mysite.property",
+        "pk": 2,
+        "fields": {
+            "name": "Property 2",
+            "property_type": "in_management",
+            "status": "available",
+            "notes": "This is a note for Property 2",
+            "web_link": "http://example.com/property2",
+            "address": "456 Second St, City, Country",
+            "amount_bedrooms": 4,
+            "amount_bathrooms": 3,
+            "manager": 5,
+            "owner": 10,
+            "created_at": "2023-08-21T11:59:12.358Z",
+            "updated_at": "2023-08-21T11:59:12.358Z"
+        }
+    },
+    {
+        "model": "mysite.property",
+        "pk": 3,
+        "fields": {
+            "name": "Property 3",
+            "property_type": "in_ownership",
+            "status": "available",
+            "notes": "This is a note for Property 3",
+            "web_link": "http://example.com/property3",
+            "address": "789 Third St, City, Country",
+            "amount_bedrooms": 2,
+            "amount_bathrooms": 1,
+            "manager": null,
+            "owner": 11,
+            "created_at": "2023-08-21T11:59:12.567Z",
+            "updated_at": "2023-08-21T11:59:12.567Z"
+        }
+    },
+    {
+        "model": "mysite.contract",
+        "pk": 1,
+        "fields": {
+            "sign_date": "2023-07-21",
+            "link": "http://example.com/contract",
+            "tenant": 6,
+            "owner": 9,
+            "property": 1,
+            "created_at": "2023-08-21T11:59:14.375Z",
+            "updated_at": "2023-08-21T11:59:14.375Z"
+        }
+    },
+    {
+        "model": "mysite.booking",
+        "pk": 1,
+        "fields": {
+            "start_date": "2023-07-21",
+            "end_date": "2023-08-10",
+            "tenant": 6,
+            "contract": null,
+            "property": 1,
+            "notes": null,
+            "status": "confirmed",
+            "period": "daily",
+            "price": "100.00",
+            "created_at": "2023-08-21T11:59:13.668Z",
+            "updated_at": "2023-08-21T11:59:13.668Z"
+        }
+    },
+    {
+        "model": "mysite.paymentmethod",
+        "pk": 1,
+        "fields": {
+            "method_name": "Zelle",
+            "description": null,
+            "created_at": "2023-08-21T11:59:09.768Z",
+            "updated_at": "2023-08-21T11:59:09.768Z"
+        }
+    },
+    {
+        "model": "mysite.paymentmethod",
+        "pk": 2,
+        "fields": {
+            "method_name": "CC",
+            "description": null,
+            "created_at": "2023-08-21T11:59:09.978Z",
+            "updated_at": "2023-08-21T11:59:09.978Z"
+        }
+    },
+    {
+        "model": "mysite.paymentmethod",
+        "pk": 3,
+        "fields": {
+            "method_name": "Paypal",
+            "description": null,
+            "created_at": "2023-08-21T11:59:10.188Z",
+            "updated_at": "2023-08-21T11:59:10.188Z"
+        }
+    },
+    {
+        "model": "mysite.paymentmethod",
+        "pk": 4,
+        "fields": {
+            "method_name": "Cash",
+            "description": null,
+            "created_at": "2023-08-21T11:59:10.484Z",
+            "updated_at": "2023-08-21T11:59:10.484Z"
+        }
+    },
+    {
+        "model": "mysite.paymentmethod",
+        "pk": 5,
+        "fields": {
+            "method_name": "Venmo",
+            "description": null,
+            "created_at": "2023-08-21T11:59:10.698Z",
+            "updated_at": "2023-08-21T11:59:10.698Z"
+        }
+    },
+    {
+        "model": "mysite.bank",
+        "pk": 1,
+        "fields": {
+            "bank_name": "BA",
+            "bank_details": null,
+            "created_at": "2023-08-21T11:59:10.996Z",
+            "updated_at": "2023-08-21T11:59:10.996Z"
+        }
+    },
+    {
+        "model": "mysite.bank",
+        "pk": 2,
+        "fields": {
+            "bank_name": "TD",
+            "bank_details": null,
+            "created_at": "2023-08-21T11:59:11.208Z",
+            "updated_at": "2023-08-21T11:59:11.208Z"
+        }
+    },
+    {
+        "model": "mysite.bank",
+        "pk": 3,
+        "fields": {
+            "bank_name": "PNC",
+            "bank_details": null,
+            "created_at": "2023-08-21T11:59:11.418Z",
+            "updated_at": "2023-08-21T11:59:11.418Z"
+        }
+    }
+]

@@ -1,0 +1,12 @@
+{% extends "_base.html" %}
+{% load slippers %}
+{% block content %}
+<script>
+    console.log("{{ items.0.phone }}")
+    console.log("{{ search_query}}", "search queary")
+    console.log(`{{request.GET.q}}`, "request")
+</script>
+{% #table db="contracts" search_query=request.GET.q items=items search_fields="user.name, property.name" show="sign_date, tenant, property, link, status" %}
+{% /table %}
+
+{% endblock content %}

@@ -25,10 +25,10 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # See https://docs.djangoproject.com/en/4.0/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = 'django-insecure-rc^*w^w&6g9_(uvx#6s*bnt!w)l0rdi%!l7mv#y%uc&x%wo5pk'
+SECRET_KEY = os.environ["SECRET_KEY"],
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+DEBUG = os.environ["DEBUG"] or False
 
 ALLOWED_HOSTS = ["*"]
 
@@ -39,24 +39,25 @@ LOGIN_REDIRECT_URL = '/'
 # FORM SUBMISSION
 # Comment out the following line and place your railway URL, and your production URL in the array.
 # CSRF_TRUSTED_ORIGINS = ["*"]
-# LOGGING = {
-#     'version': 1,
-#     'disable_existing_loggers': False,
-#     'handlers': {
-#         'console': {
-#             'class': 'logging.StreamHandler',
-#         },
-#     },
-#     'loggers': {
-#         'django': {
-#             'handlers': ['console'],
-#             'level': 'DEBUG',
-#             'propagate': True,
-#         },
-#     },
-# }
-# Application definition
+LOGGING = {
+    'version': 1,
+    'disable_existing_loggers': False,
+    'handlers': {
+        'console': {
+            'class': 'logging.StreamHandler',
+        },
+    },
+    'loggers': {
+        'django': {
+            'handlers': ['console'],
+            'level': 'DEBUG',
+            'propagate': True,
+        },
+    },
+}
 
+# Application definition
+#CSRF_COOKIE_DOMAIN = '127.0.0.1'
 INSTALLED_APPS = [
     'django.contrib.admin',
     'django.contrib.auth',
@@ -74,7 +75,7 @@ MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
-    'django.middleware.csrf.CsrfViewMiddleware',
+    # 'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
@@ -82,6 +83,11 @@ MIDDLEWARE = [
 ]
 
 ROOT_URLCONF = 'mysite.urls'
+
+# SESSION_COOKIE_SAMESITE = None
+# CSRF_COOKIE_SAMESITE = None
+# CSRF_COOKIE_SECURE = False
+# SESSION_COOKIE_SECURE = False
 
 TEMPLATES = [
     {
@@ -93,6 +99,8 @@ TEMPLATES = [
                 'django.template.context_processors.debug',
                 'django.template.context_processors.request',
                 'django.contrib.auth.context_processors.auth',
+                # 'django.template.context_processors.csrf',
+                'mysite.context_processors.current_user_context',
                 'django.contrib.messages.context_processors.messages',
             ],
         "builtins": ["slippers.templatetags.slippers"],

@@ -1,0 +1,13 @@
+{% extends "_base.html" %}
+{% load slippers %}
+{% block content %}
+<script>
+    console.log("{{ special_fields|safe }}", "special_fields")
+</script>
+{% comment %} {% #table db="bookings" search_query=request.GET.q items=items search_fields="propery.name,role" show="start_date, end_date, tenant, status, period, price" %}
+{% /table %} {% endcomment %}
+
+{% #table field_data=field_data special_fields=special_fields  model="bookings" search_query=request.GET.q items=items search_fields="property.name, tenant.full_name, manager.full_name owner.full_name" show="property.name, start_date, end_date, tenant.full_name, manager.full_name, owner.full_name, status" %}
+{% /table %}
+
+{% endblock content %}
