@@ -3,6 +3,9 @@
 
 <tbody>
     {% for item in items %}
+    <script>
+        console.log("{{ item|safe }}", "item")
+    </script>
     <tr class="border-b cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-800 dark:border-gray-700 {{model}}-row" 
         data-modal-target="updateModal"
         data-modal-toggle="updateModal" 
