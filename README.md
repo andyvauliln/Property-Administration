@@ -39,7 +39,7 @@ https://www.npmjs.com/package/@railway/cli to install raillway locally
 ```npm install```
 
 ## Watch Tailwind
-```npx tailwindcss -i ./static/src/input.css -o ./static/src/output.css --watch```
+```npx tailwindcss -i ./static/input.css -o ./static/output.css --watch```
 
 ## Compile Tailwind
 ```npx tailwindcss -i ./static/input.css -o ./static/output.css```
