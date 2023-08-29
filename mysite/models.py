@@ -28,21 +28,21 @@ class User(AbstractBaseUser, PermissionsMixin):
         ('Tenant', 'Tenant'),
         ('Owner', 'Owner'),
     ]
+    USERNAME_FIELD = 'email'
+    REQUIRED_FIELDS = ['full_name']
     email = models.EmailField(unique=True)
-    full_name = models.CharField(max_length=255, db_index=True)
     password = models.CharField(max_length=128, null=True, blank=True)
+    full_name = models.CharField(max_length=255, db_index=True)
     phone = models.CharField(max_length=15, blank=True, null=True)
     role = models.CharField(max_length=14, choices=ROLES)
+    notes = models.TextField(blank=True, null=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     is_active = models.BooleanField(default=True)
     is_staff = models.BooleanField(default=False)
     objects = CustomUserManager()
-    notes = models.TextField(blank=True, null=True)
-    USERNAME_FIELD = 'email'
-    REQUIRED_FIELDS = ['full_name']
-
-
+   
+    
 # Properties Model
 class Property(models.Model):
     def __str__(self):
@@ -56,17 +56,17 @@ class Property(models.Model):
         ('Unavailable', 'Unavailable'),
     ]
     name = models.CharField(max_length=255,  db_index=True)
-    property_type = models.CharField(max_length=15, db_index=True, choices=TYPES)
-    status = models.CharField(max_length=14, db_index=True, choices=STATUS )
-    notes = models.TextField(blank=True, null=True)
     web_link = models.URLField(blank=True, null=True)
     address = models.CharField(max_length=255)
     bedrooms = models.IntegerField()
     bathrooms = models.IntegerField()
-    manager = models.ForeignKey(User, on_delete=models.SET_NULL,  db_index=True, related_name='managed_properties', null=True, limit_choices_to={'role': 'Manager'})
-    owner = models.ForeignKey(User, on_delete=models.SET_NULL,  db_index=True, related_name='owned_properties', null=True, limit_choices_to={'role': 'Owner'})
+    property_type = models.CharField(max_length=15, db_index=True, choices=TYPES)
+    status = models.CharField(max_length=14, db_index=True, choices=STATUS )
+    notes = models.TextField(blank=True, null=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+    manager = models.ForeignKey(User, on_delete=models.SET_NULL,  db_index=True, related_name='managed_properties', null=True, limit_choices_to={'role': 'Manager'})
+    owner = models.ForeignKey(User, on_delete=models.SET_NULL,  db_index=True, related_name='owned_properties', null=True, limit_choices_to={'role': 'Owner'})
 
 # Contracts Model
 class Contract(models.Model):
@@ -75,18 +75,20 @@ class Contract(models.Model):
         ('Pending', 'Pending'),
         ('Panceled', 'Canceled'),
     ]
+    contract_id = models.CharField(max_length=64, default='')
     sign_date = models.DateField(db_index=True, blank=True, null=True )
     link = models.URLField()
-    tenant = models.ForeignKey(User, on_delete=models.CASCADE,  db_index=True, related_name='tenant_contracts', limit_choices_to={'role': 'Tenant'})
     status = models.CharField(max_length=32, db_index=True, choices=STATUS,  default='Pending')
-    contract_id = models.CharField(max_length=64, default='')
-    owner = models.ForeignKey(User, on_delete=models.CASCADE, db_index=True, related_name='owner_contracts', limit_choices_to={'role': 'Owner'})
-    property = models.ForeignKey(Property, on_delete=models.CASCADE, db_index=True, related_name='property_contracts')
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+    owner = models.ForeignKey(User, on_delete=models.CASCADE, db_index=True, related_name='owner_contracts', limit_choices_to={'role': 'Owner'})
+    property = models.ForeignKey(Property, on_delete=models.CASCADE, db_index=True, related_name='property_contracts')
+    tenant = models.ForeignKey(User, on_delete=models.CASCADE,  db_index=True, related_name='tenant_contracts', limit_choices_to={'role': 'Tenant'})
 
 # Bookings Model
 class Booking(models.Model):
+    def __str__(self):
+        return str(self.property)
     STATUS = [
         ('Confirmed', 'Confirmed'),
         ('Canceled', 'Canceled'),
@@ -96,20 +98,22 @@ class Booking(models.Model):
         ('Dayly', 'Dayly'),
         ('Monthly', 'Monthly'),
     ]
+    price = models.DecimalField(max_digits=32, decimal_places=2)
     start_date = models.DateField(db_index=True)
     end_date = models.DateField(db_index=True,)
+    period = models.CharField(max_length=32, db_index=True, choices=PERIOD)
+    status = models.CharField(max_length=32, db_index=True, choices=STATUS, default='Pending')
+    notes = models.TextField(blank=True, null=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
     tenant = models.ForeignKey(User, on_delete=models.SET_NULL, db_index=True,related_name='bookings', null=True, limit_choices_to={'role': 'Tenant'})
     contract = models.ForeignKey(Contract, on_delete=models.SET_NULL, db_index=True, related_name='bookings', null=True)
     property = models.ForeignKey(Property, on_delete=models.SET_NULL, db_index=True, related_name='booked_properties', null=True)
-    notes = models.TextField(blank=True, null=True)
-    status = models.CharField(max_length=32, db_index=True, choices=STATUS, default='Pending')
-    period = models.CharField(max_length=32, db_index=True, choices=PERIOD)
-    price = models.DecimalField(max_digits=32, decimal_places=2)
-    created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
 
 # PaymentMethods Model
 class PaymentMethod(models.Model):
+    def __str__(self):
+        return self.method_name
     method_name = models.CharField(max_length=50, unique=True)
     description = models.TextField(blank=True, null=True)
     created_at = models.DateTimeField(auto_now_add=True)
@@ -117,6 +121,8 @@ class PaymentMethod(models.Model):
 
 # Banks Model
 class Bank(models.Model):
+    def __str__(self):
+        return self.bank_name
     bank_name = models.CharField(max_length=50, unique=True)
     bank_details = models.TextField(blank=True, null=True)
     created_at = models.DateTimeField(auto_now_add=True)
@@ -125,9 +131,9 @@ class Bank(models.Model):
 # Payments Model
 class Payment(models.Model):
     PAYMENT_STATUS = [
-        ('pending', 'Pending'),
-        ('received', 'Received'),
-        ('cancelled', 'Cancelled'),
+        ('Pending', 'Pending'),
+        ('Received', 'Received'),
+        ('Cancelled', 'Cancelled'),
     ]
     PAYMENT_TYPE = [
         ('Income', 'Income'),
@@ -136,29 +142,29 @@ class Payment(models.Model):
         ('Hold Deposit', 'Hold Deposit'),
     ]
     payment_date = models.DateField(db_index=True)
+    amount = models.DecimalField(max_digits=14, decimal_places=2)
+    payment_type = models.CharField(max_length=32, db_index=True, choices=PAYMENT_TYPE)
+    payment_status = models.CharField(max_length=32, db_index=True, choices=PAYMENT_STATUS,  default='Pending')
     bank = models.ForeignKey(Bank, on_delete=models.SET_NULL, db_index=True, related_name='bank_payments', null=True)
     payment_method = models.ForeignKey(PaymentMethod, on_delete=models.SET_NULL, db_index=True, related_name='payment_methods_payments', null=True)
-    payment_status = models.CharField(max_length=32, db_index=True, choices=PAYMENT_TYPE,  default='Pending')
-    payment_type = models.CharField(max_length=32, db_index=True, choices=PAYMENT_STATUS)
-    amount = models.DecimalField(max_digits=14, decimal_places=2)
-    booking = models.ForeignKey(Booking, on_delete=models.CASCADE, db_index=True, related_name='payments', null=True)
     notes = models.TextField(blank=True, null=True)
+    booking = models.ForeignKey(Booking, on_delete=models.CASCADE, db_index=True, related_name='payments', null=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
 # Cleanings Model
 class Cleaning(models.Model):
     STATUS = [
-        ('scheduled', 'Scheduled'),
-        ('completed', 'Completed'),
-        ('canceled', 'Canceled'),
+        ('Scheduled', 'Scheduled'),
+        ('Completed', 'Completed'),
+        ('Canceled', 'Canceled'),
     ]
     date = models.DateField()
-    booking = models.ForeignKey(Booking, db_index=True, on_delete=models.CASCADE, related_name='cleanings')
+    status = models.CharField(max_length=32, db_index=True, choices=STATUS, default='Scheduled')
     tasks = models.TextField(blank=True, null=True)
     notes = models.TextField(blank=True, null=True)
     cleaner = models.ForeignKey(User, on_delete=models.SET_NULL,  db_index=True, related_name='cleanings', null=True, limit_choices_to={'role': 'Cleaner'})
-    status = models.CharField(max_length=32, db_index=True, choices=STATUS, default='Scheduled')
+    booking = models.ForeignKey(Booking, db_index=True, on_delete=models.CASCADE, related_name='cleanings')
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -171,8 +177,8 @@ class Notification(models.Model):
     ]
     date = models.DateField(db_index=True)
     status = models.CharField(max_length=32, db_index=True, choices=STATUS, default='Pending')
-    message = models.TextField()
     sendInTelegram = models.BooleanField(db_index=True, default=True)
+    message = models.TextField()
     user = models.ForeignKey(User, on_delete=models.CASCADE, db_index=True, related_name='notifications', null=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)

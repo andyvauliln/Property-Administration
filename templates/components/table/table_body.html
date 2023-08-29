@@ -3,9 +3,9 @@
 
 <tbody>
     {% for item in items %}
-    <script>
+     <script>
         console.log("{{ item|safe }}", "item")
-    </script>
+    </script> 
     <tr class="border-b cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-800 dark:border-gray-700 {{model}}-row" 
         data-modal-target="updateModal"
         data-modal-toggle="updateModal" 
@@ -16,7 +16,15 @@
         {% endfor %}
      >
         {% for key in show_keys %} 
-            <td class="px-4 py-4">{% with related_key=key|split:"." %}{% if related_key|length > 1 %}{{ item|get_item:related_key.0|get_item:related_key.1 }}{% else %}{{ item|get_item:key }}{% endif %}{% endwith %}</td>
+            <td class="px-4 py-4">
+                {% with related_key=key|split:"." %}
+                    {% if related_key|length > 1 %}
+                        {{ item|get_item:related_key.0|get_item:related_key.1 }}
+                    {% else %}
+                        {{ item|get_item:key }}
+                    {% endif %}
+                {% endwith %}
+            </td>
         {% endfor %}
     </tr>
         </tr>

@@ -148,8 +148,6 @@ class Command(BaseCommand):
             tenant = tenants[idx % len(tenants)] 
             holding_deposit = 500 * (idx or 1)
             damage_deposit = 200 * (idx or 1)
-            self.stdout.write('********************* BOOKING ********************')
-            
 
             start_date = today + timedelta(days=details["offset"])
             end_date = start_date + timedelta(days=details["duration"])
@@ -257,7 +255,6 @@ class Command(BaseCommand):
             # ******** MONTHLY PAYMENTS *********
             elif details["period"] == "Monthly":
                 for month in range(details["duration"] // 30):
-                    self.stdout.write('********************* PAYMENT ********************')
                     payment_amount = details["price"]
                     if month == 0:
                         payment_amount -= holding_deposit  # Subtracting damage holding for the first month
