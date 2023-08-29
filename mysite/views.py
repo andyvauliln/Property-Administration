@@ -85,6 +85,22 @@ def get_special_fields(model):
                 'type': 'dropdown',
                 'options': [{'value': property.id, 'label': property.name} for property in Property.objects.all()]
             }
+        if model.__name__ == 'Booking':
+            if field.name == 'tenant':
+                special_fields[field.name] = {
+                    'type': 'dropdown',
+                    'options': [{'value': user.id, 'label': user.full_name} for user in User.objects.filter(role='Tenant')]
+                }
+            elif field.name == 'contract':
+                special_fields[field.name] = {
+                    'type': 'dropdown',
+                    'options': [{'value': contract.id, 'label': contract.contract_id} for contract in Contract.objects.all()]
+                }
+            elif field.name == 'property':
+                special_fields[field.name] = {
+                    'type': 'dropdown',
+                    'options': [{'value': property.id, 'label': property.name} for property in Property.objects.all()]
+                }
         # Handle ForeignKey and OneToOneField for related models
         # elif isinstance(field, (models.ForeignKey, models.OneToOneField)):
         #     related_model = field.related_model
