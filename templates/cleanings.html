@@ -8,7 +8,7 @@
 </script>
 
 
-{% #table field_data=field_data special_fields=special_fields  model="cleanings" search_query=request.GET.q items=items search_fields="cleaner.name, property.name" show="date, cleaner.full_name, property.name, status" %}
+{% #table field_data=field_data special_fields=special_fields  model="cleanings" search_query=request.GET.q items=items search_fields="cleaner.name, property.name" show="date, cleaner.full_name, booking.property.name, booking.property.address, status" %}
 {% /table %}
 
 {% endblock content %}

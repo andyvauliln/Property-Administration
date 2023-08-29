@@ -4,7 +4,6 @@ register = template.Library()
 
 @register.filter(name='split_underscore')
 def split_underscore(value):
-    print(value, "*****************")
     if isinstance(value, str):
         return value.replace('_', ' ')
     return value
@@ -14,7 +13,7 @@ def get_field_name(value):
     if not value:
         return ""
     parts = value.split('.')
-    return parts[0] if parts else ""
+    return parts[-2] if len(parts) > 1 else parts[0]
 
 @register.filter(name='get_type')
 def get_type(special_fields, field):

@@ -44,23 +44,23 @@ def get_special_fields(model):
                 'type': 'dropdown',
                 'options': [{'value': choice[0], 'label': choice[1]} for choice in field.choices]
             }
-            
-        if isinstance(field, models.DateField):
+        # Handle DateField
+        elif isinstance(field, models.DateField):
             special_fields[field.name] = {
                 'type': 'datepicker'
             }
-
         # Check for BooleanField
-        if isinstance(field, models.BooleanField):
+        elif isinstance(field, models.BooleanField):
             special_fields[field.name] = {
                 'type': 'checkbox'
             }
-        # Handle manager and owner fields for the Property model
-        logger.error("**************SPECIAL FIELD*************\n\n\n")
-        logger.error(field.name)
-        logger.error("**************ITEMS*************\n\n\n")
+        # Handle TextField as textarea
+        elif isinstance(field, models.TextField):
+            special_fields[field.name] = {
+                'type': 'textarea'
+            }
         
-        if field.name == 'manager':
+        elif field.name == 'manager':
             special_fields[field.name] = {
                 'type': 'dropdown',
                 'options': [{'value': user.id, 'label': user.full_name} for user in User.objects.filter(role='Manager')]
@@ -85,21 +85,65 @@ def get_special_fields(model):
                 'type': 'dropdown',
                 'options': [{'value': property.id, 'label': property.name} for property in Property.objects.all()]
             }
+        # Handle ForeignKey and OneToOneField for related models
+        # elif isinstance(field, (models.ForeignKey, models.OneToOneField)):
+        #     related_model = field.related_model
+        #     if related_model:
+        #         # If the model is Cleaning and the field is booking, add property details
+        #         if model.__name__ == 'Cleaning' and field.name == 'booking':
+        #             booking = related_model.objects.first()  
+        #             if booking and booking.property:
+        #                 special_fields['property_name'] = {
+        #                     'type': 'input',
+        #                     'value': booking.property.name
+        #                 }
+        #                 special_fields['property_address'] = {
+        #                     'type': 'input',
+        #                     'value': booking.property.address  # Assuming the Property model has an address field
+        #                 }
+        #         else:
+        #             special_fields[field.name] = {
+        #                 'type': 'dropdown',
+        #                 'options': [{'value': obj.id, 'label': str(obj)} for obj in related_model.objects.all()],
+        #                 'details_button': True  
+        #             }
     
     return special_fields
+    
 
 
 
-def get_related_fields(model):
+
+# def get_related_fields(model):
+#     fk_or_o2o_fields = []
+#     m2m_fields = []
+#     for field in model._meta.get_fields():
+#         if isinstance(field, (models.ForeignKey, models.OneToOneField)) and field.related_model:
+#             fk_or_o2o_fields.append(field.name)
+#         elif isinstance(field, models.ManyToManyField) and field.related_model:
+#             m2m_fields.append(field.name)
+#     return fk_or_o2o_fields, m2m_fields
+
+def get_related_fields(model, prefix=''):
     fk_or_o2o_fields = []
     m2m_fields = []
     for field in model._meta.get_fields():
         if isinstance(field, (models.ForeignKey, models.OneToOneField)) and field.related_model:
-            fk_or_o2o_fields.append(field.name)
+            fk_name = f"{prefix}{field.name}"
+            fk_or_o2o_fields.append(fk_name)
+            # Recursively fetch nested relationships
+            nested_fk, nested_m2m = get_related_fields(field.related_model, f"{fk_name}__")
+            fk_or_o2o_fields.extend(nested_fk)
+            m2m_fields.extend(nested_m2m)
         elif isinstance(field, models.ManyToManyField) and field.related_model:
-            m2m_fields.append(field.name)
+            m2m_fields.append(f"{prefix}{field.name}")
     return fk_or_o2o_fields, m2m_fields
 
+
+#   logger.error("**************ITEMS*************\n\n\n")
+#     items_list = [model_to_dict(item) for item in items]
+#     logger.error(items_list)
+#     logger.error("**************ITEMS*************\n\n\n")
 
 @login_required
 def generic_view(request, model_name, form_class, template_name, pages=10):
@@ -123,11 +167,6 @@ def generic_view(request, model_name, form_class, template_name, pages=10):
         items = model.objects.select_related(*fk_or_o2o_fields).prefetch_related(*m2m_fields).filter(query)
     else:
         items = model.objects.select_related(*fk_or_o2o_fields).prefetch_related(*m2m_fields).all()
-        
-    logger.error("**************ITEMS*************\n\n\n")
-    items_list = [model_to_dict(item) for item in items]
-    logger.error(items_list)
-    logger.error("**************ITEMS*************\n\n\n")
 
     paginator = Paginator(items, pages)
     items_on_page = paginator.get_page(page)
@@ -139,14 +178,8 @@ def generic_view(request, model_name, form_class, template_name, pages=10):
         if 'edit_add' in request.POST:
             item_id =request.POST['id']
             if item_id:
-                
-                
-
                 instance = model.objects.get(id=item_id)
                 form = form_class(request.POST, instance=instance)
-                logger.error("**************FORM*************\n\n\n")
-                logger.error(form.errors, form.is_valid(), form.cleaned_data)
-                logger.error("**************FORM*************\n\n\n")
                 if form.is_valid():
                     form.save()
             else:
