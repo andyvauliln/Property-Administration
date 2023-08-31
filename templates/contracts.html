@@ -5,7 +5,7 @@
     console.log("{{ items|safe }}", "items")
 </script>
 
-{% #table field_data=field_data special_fields=special_fields  model="contracts" search_query=request.GET.q items=items search_fields="owner.name, tenant.full_name, property.name" show="sign_date, owner.full_name, tenant.full_name, property.name, status" %}
+{% #table  model_fields=model_fields items_json=items_json  model="contracts" search_query=request.GET.q items=items %}
 {% /table %}
 
 {% endblock content %}

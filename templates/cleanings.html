@@ -2,13 +2,11 @@
 {% load slippers %}
 {% block content %}
 <script>
-    console.log("{{ items.0.phone }}")
-    console.log("{{ search_query}}", "search queary")
-    console.log(`{{request.GET.q}}`, "request")
+
 </script>
 
 
-{% #table field_data=field_data special_fields=special_fields  model="cleanings" search_query=request.GET.q items=items search_fields="cleaner.name, property.name" show="date, cleaner.full_name, booking.property.name, booking.property.address, status" %}
+{% #table  model_fields=model_fields items_json=items_json  model="cleanings" search_query=request.GET.q items=items  %}
 {% /table %}
 
 {% endblock content %}

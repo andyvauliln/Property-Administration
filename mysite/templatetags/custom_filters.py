@@ -26,10 +26,24 @@ def get_options(special_fields, field):
 @register.filter
 def get_item(obj, key):
     if isinstance(obj, dict):
-        return obj.get(key, "")
+        fields_data = obj.get('fields', {})
+        return fields_data.get(key, obj.get(key, ""))
     else:
         value = getattr(obj, key, None)
         return value if value is not None else ""
+    
+@register.filter
+def get_custom_item(obj, attr_string):
+    attrs = attr_string.split('.')
+    
+    for attr in attrs:
+        if isinstance(obj, dict):
+            obj = obj.get(attr)
+        else:
+            obj = getattr(obj, attr, None)
+        if obj is None:
+            return ""
+    return obj    
 
 @register.filter(name='split')
 def split(value, key):

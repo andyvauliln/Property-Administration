@@ -6,7 +6,7 @@
         <div class="relative p-4 bg-white rounded-lg shadow dark:bg-gray-800 sm:p-5">
             <!-- Modal header -->
             <div class="flex justify-between items-center pb-4 mb-4 rounded-t border-b sm:mb-5 dark:border-gray-600">
-                <h3 class="text-lg font-semibold text-gray-900 dark:text-white">Update / Delete / Create {{ model|title }}</h3>
+                <h3 class="text-lg font-semibold text-gray-900 dark:text-white">Update / Delete {{ model|title }}</h3>
                 <button id="closeEditModal" type="button" class="text-gray-400 bg-transparent hover:bg-gray-200 hover:text-gray-900 rounded-lg text-sm p-1.5 ml-auto inline-flex items-center dark:hover:bg-gray-600 dark:hover:text-white" data-modal-toggle="updateModal">
                     <!-- ... (close button SVG) ... -->
                     <span class="sr-only">Close modal</span>
@@ -14,73 +14,46 @@
             </div>
             <!-- Modal body -->
             <form  method="POST" action="/{{ model }}/">
-                <input type="hidden" name="edit_add" value="true">
+                <input type="hidden" name="edit" value="true">
                 <div class="grid gap-4 mb-4 sm:grid-cols-2">
-                    {% for field in field_data %}
-                        {% if not field.name|is_excluded %}
-                            
-                                {% if field.name in special_fields %}
-                                    {% with type=special_fields|get_item:field.name %}
-                                    
-                                        {% if type.type == "datepicker" %}
-                                        <div>
-                                            <label for="{{ field.name }}" class="block mb-2 text-sm font-medium text-gray-900 dark:text-white">{{ field.name|split_underscore|title }}</label>
-                                                <div class="relative max-w-sm">
-                                                    <div class="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">
-                                                        <svg class="w-4 h-4 text-gray-500 dark:text-gray-400" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="currentColor" viewBox="0 0 20 20">
-                                                           <path d="M20 4a2 2 0 0 0-2-2h-2V1a1 1 0 0 0-2 0v1h-3V1a1 1 0 0 0-2 0v1H6V1a1 1 0 0 0-2 0v1H2a2 2 0 0 0-2 2v2h20V4ZM0 18a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V8H0v10Zm5-8h10a1 1 0 0 1 0 2H5a1 1 0 0 1 0-2Z"/>
-                                                         </svg>
-                                                     </div>
-                                                    <input  name="{{field.name}}" datepicker type="text" value="" class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full pl-10 p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white dark:focus:ring-blue-500 dark:focus:border-blue-500" placeholder="Select date">
-                                                </div>
-                                            </div>
-                                        {% elif type.type == "checkbox" %}
-                                        <div>
-                                            <label for="{{ field.name }}" class="block mb-2 text-sm font-medium text-gray-900 dark:text-white">{{ field.name|split_underscore|title }}</label>
-                                                <div class="flex items-center">
-                                                    <input checked id="{{field.name}}" type="checkbox" value="" class="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 dark:focus:ring-blue-600 dark:ring-offset-gray-800 focus:ring-2 dark:bg-gray-700 dark:border-gray-600">
-                                                    <label for="{{field.name}}" class="ml-2 text-sm font-medium text-gray-900 dark:text-gray-300">Checked state</label>
-                                                </div>
-                                                </div>
-                                         
-                                        {% elif type.type == "textarea" %}
-                                            <div class="sm:col-span-2">
-                                                    <label for="{{ field.name }}" class="block mb-2 text-sm font-medium text-gray-900 dark:text-white">{{ field.name|split_underscore|title }}</label>
-                                                <textarea id="{{field.name}}" name="{{field.name}}"  rows="5" class="block p-2.5 w-full text-sm text-gray-900 bg-gray-50 rounded-lg border border-gray-300 focus:ring-primary-500 focus:border-primary-500 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white dark:focus:ring-primary-500 dark:focus:border-primary-500" placeholder="Write a description...">Standard glass, 3.8GHz 8-core 10th-generation Intel Core i7 processor, Turbo Boost up to 5.0GHz, 16GB 2666MHz DDR4 memory, Radeon Pro 5500 XT with 8GB of GDDR6 memory, 256GB SSD storage, Gigabit Ethernet, Magic Mouse 2, Magic Keyboard - US</textarea>                    
-                                            </div>     
-                                        {% elif type.type == "dropdown" %}
-                                            {% with options=special_fields|get_options:field.name %}
-                                            <div>
-                                                <label for="{{ field.name }}" class="block mb-2 text-sm font-medium text-gray-900 dark:text-white">{{ field.name|split_underscore|title }}</label>
-                                                <select name="{{ field.name }}" id="{{ field.name }}" class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-primary-500 focus:border-primary-500 block w-full p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white dark:focus:ring-primary-500 dark:focus:border-primary-500">
-                                                    {% for option in options %}
-                                                        <option value="{{ option.value }}" {% if option.value == item|get_item:field.name %}selected{% endif %}>{{ option.label }}</option>
-                                                    {% endfor %}
-                                                </select>
-                                            </div>
-                                            {% endwith %}
-                                        {% else %}
-                                        <div>
-                                            <label for="{{ field.name }}" class="block mb-2 text-sm font-medium text-gray-900 dark:text-white">{{ field.name|split_underscore|title }}</label>
-                                            <input type="text" name="{{ field.name }}" value="" class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-primary-600 focus:border-primary-600 block w-full p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white dark:focus:ring-primary-500 dark:focus:border-primary-500" placeholder="{{ field.name|split_underscore|title }}">
-                                        </div>
-                                        {% endif %}
-                                    {% endwith %}
-                                {% else %}
+                    {% for field in model_fields %}
+                        {% if field.isEdit %}
+                            {% if field.ui_element == "textarea" %}
+                                <div class="sm:col-span-2">
+                                    <label for="{{ field.name }}" class="block mb-2 text-sm font-medium text-gray-900 dark:text-white">{{ field.name|split_underscore|title }}</label>
+                                    <textarea id="{{field.name}}" name="{{field.name}}" rows="5" class="block p-2.5 w-full text-sm text-gray-900 bg-gray-50 rounded-lg border border-gray-300 focus:ring-primary-500 focus:border-primary-500 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white dark:focus:ring-primary-500 dark:focus:border-primary-500" placeholder="Write a description..."></textarea>
+                                </div>
+                            {% else %}
                                 <div>
                                     <label for="{{ field.name }}" class="block mb-2 text-sm font-medium text-gray-900 dark:text-white">{{ field.name|split_underscore|title }}</label>
-                                    <input type="text" name="{{ field.name }}" id="{{ field.name }}" value="" class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-primary-600 focus:border-primary-600 block w-full p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white dark:focus:ring-primary-500 dark:focus:border-primary-500" placeholder="{{ field.name|split_underscore|title }}">
+                                    {% if field.ui_element == "datepicker" %}
+                                        <input name="{{field.name}}" datepicker type="text" value="" class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white dark:focus:ring-blue-500 dark:focus:border-blue-500" placeholder="Select date">
+                                    {% elif field.ui_element == "checkbox" %}
+                                        <input checked id="{{field.name}}" type="checkbox" name="{{field.name}}" value="1" class="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 dark:focus:ring-blue-600 dark:ring-offset-gray-800 focus:ring-2 dark:bg-gray-700 dark:border-gray-600">
+                                    {% elif field.ui_element == "dropdown" %}
+                                        <select name="{{ field.name }}" id="{{ field.name }}" class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-primary-500 focus:border-primary-500 block w-full p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white dark:focus:ring-primary-500 dark:focus:border-primary-500">
+                                            <option value="">None</option>
+                                            {% for option in field.dropdown_options %}
+                                                <option value="{{ option.value }}">{{ option.label }}</option>
+                                            {% endfor %}
+                                        </select>
+                                    {% else %}
+                                        <input type="text" name="{{ field.name }}" value="" class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-primary-600 focus:border-primary-600 block w-full p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white dark:focus:ring-primary-500 dark:focus:border-primary-500" placeholder="{{ field.name|split_underscore|title }}">
+                                    {% endif %}
                                 </div>
-                                {% endif %}
+                            {% endif %}
                         {% endif %}
                     {% endfor %}
-            </div>
+                </div>
+                <div class="mb-4">
+                    <h4 class="text-md font-semibold text-gray-900 dark:text-white mb-2">Related Objects:</h4>
+                    <div class="related-links flex flex-col">
+                        <!-- Links will be populated here by JavaScript -->
+                    </div>
+                </div>            
                 <div class="flex items-center space-x-4">
                     <button type="submit" class="text-white bg-primary-700 hover:bg-primary-800 focus:ring-4 focus:outline-none focus:ring-primary-300 font-medium rounded-lg text-sm px-5 py-2.5 text-center dark:bg-primary-600 dark:hover:bg-primary-700 dark:focus:ring-primary-500">Update</button>
                    
-                    <button type="submit" id="createNewItem" class="text-white inline-flex items-center bg-primary-700 hover:bg-primary-800 focus:ring-4 focus:outline-none focus:ring-primary-300 font-medium rounded-lg text-sm px-5 py-2.5 text-center dark:bg-primary-600 dark:hover:bg-primary-700 dark:focus:ring-primary-800">
-                        Create
-                    </button>
                     <button data-modal-target="deleteModal" data-modal-toggle="deleteModal"  type="button" class="text-red-600 inline-flex items-center hover:text-white border border-red-600 hover:bg-red-600 focus:ring-4 focus:outline-none focus:ring-red-300 font-medium rounded-lg text-sm px-5 py-2.5 text-center dark:border-red-500 dark:text-red-500 dark:hover:text-white dark:hover:bg-red-600 dark:focus:ring-red-900">
                         <svg class="mr-1 -ml-1 w-5 h-5" fill="currentColor" viewbox="0 0 20 20" xmlns="http://www.w3.org/2000/svg">
                             <path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clip-rule="evenodd" />
@@ -116,13 +89,8 @@
                 updateModal.style.display = 'none';
             }
         });
-        const createNewItemButton = document.getElementById('createNewItem');
         const deleteIdInput = document.getElementById('deleteId');
 
-        createNewItemButton.addEventListener('click', function() {
-            const idInput = updateModal.querySelector('[name="id"]');
-            idInput.value = '';
-        });
         window.addEventListener('keydown', function(event) {
             if (event.key === 'Escape' && updateModal.style.display === 'flex') {
                 updateModal.style.display = 'none';
@@ -131,51 +99,58 @@
     
         rows.forEach(row => {
             row.addEventListener('click', function() {
-                const itemId = row.getAttribute('data-id');
-                console.log("*******************************", itemId)
-                deleteIdInput.value = itemId;
-                // Loop through all data attributes of the row
-                for (let attr of row.attributes) {
-                    if (attr.name.startsWith('data-') && attr.name !== 'data-modal-target' && attr.name !== 'data-modal-toggle') {
-                        let fieldName = attr.name.replace('data-', '');
-                        let fieldValue = attr.value;
-                        let inputField = updateModal.querySelector(`[name="${fieldName}"]`);
-                        console.log(inputField, fieldName, fieldValue);
-                        console.log("*******************************")
-    
-                        if(inputField){
+                const itemId = parseInt(row.getAttribute('data-id'));
+                const item = items_json.find(i => i.id === itemId);
+        
+                if (item) {
+                    // Populate the modal fields based on the item data
+                    for (const [fieldName, fieldValue] of Object.entries(item)) {
+                        const inputField = updateModal.querySelector(`[name="${fieldName}"]`);
+                        if (inputField) {
                             if (inputField.tagName === 'SELECT') {
-                                for (let option of inputField.options) {
-                                    console.log(option.value, fieldValue, "should be selected")
-                                    if (option.text === fieldValue) {
-                                    
+                                let valueSet = false;
+                                for (const option of inputField.options) {
+                                    if (option.value == fieldValue) {
                                         option.selected = true;
+                                        valueSet = true;
                                     } else {
                                         option.selected = false;
                                     }
                                 }
-                            }
-                            else if (inputField.tagName === 'INPUT' && inputField.hasAttribute('datepicker')) {
+                                if (!valueSet && !fieldValue) {
+                                    inputField.options[0].selected = true; // This will select the "None" option if no value is set
+                                }
+                            } else if (inputField.tagName === 'INPUT' && inputField.hasAttribute('datepicker')) {
                                 inputField.setAttribute('data-date', formatDate(fieldValue));
                                 inputField.value = formatDate(fieldValue);
-                            }
-                            else if (inputField.tagName === 'TEXTAREA') {
+                            } else if (inputField.tagName === 'TEXTAREA') {
                                 inputField.innerHTML = fieldValue;
                             } else if (inputField.tagName === 'INPUT' && inputField.type === 'checkbox') {
-                                // Handle checkbox fields
-                                console.log("fieldValue_checkbox", fieldValue)
-                                inputField.checked = (fieldValue === 'true' || fieldValue === '1');
+                                inputField.checked = (fieldValue === true || fieldValue === '1');
                             } else {
                                 inputField.value = fieldValue;
                             }
-
                         }
                     }
+        
+                    // Populate the related links
+                    const linksContainer = document.querySelector('#updateModal .related-links');
+                    linksContainer.innerHTML = ''; // Clear previous links
+        
+                    item.links.forEach(link => {
+                        const linkElement = document.createElement('a');
+                        linkElement.href = link.link;  // Assuming each link object has 'link' and 'name' keys
+                        linkElement.textContent = link.name;
+                        linkElement.setAttribute('target', '_blank');
+                        linkElement.classList.add('text-blue-500', 'hover:text-blue-700', 'mr-2'); // Add some classes for styling
+                        linksContainer.appendChild(linkElement);
+                    });
                 }
-    
+        
                 // Show the modal
                 updateModal.style.display = 'flex';
             });
-        });
-    });    
+        });        
+ });
+    
 </script>

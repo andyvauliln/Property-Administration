@@ -1,34 +1,23 @@
 {% load custom_filters %}
 
-
 <tbody>
     {% for item in items %}
-     <script>
-        console.log("{{ item|safe }}", "item")
-    </script> 
     <tr class="border-b cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-800 dark:border-gray-700 {{model}}-row" 
-        data-modal-target="updateModal"
-        data-modal-toggle="updateModal" 
-        {% for field_dict in field_data %}
-            {% with field=field_dict.name %}
-                data-{{ field }}="{% with related_field=field|split:"." %}{% if related_field|length > 1 %}{{ item|get_item:related_field.0|get_item:related_field.1 }}{% else %}{{ item|get_item:field }}{% endif %}{% endwith %}"
-            {% endwith %}
-        {% endfor %}
-     >
-        {% for key in show_keys %} 
-            <td class="px-4 py-4">
-                {% with related_key=key|split:"." %}
-                    {% if related_key|length > 1 %}
-                        {{ item|get_item:related_key.0|get_item:related_key.1 }}
+        data-id="{{ item|get_item:"id" }}">
+        {% for field in model_fields %} 
+            {% if field.isColumn %}
+                <td class="px-4 py-4">
+                    {% if field.display_field %}
+                         {{ item|get_custom_item:field.display_field }}
                     {% else %}
-                        {{ item|get_item:key }}
+                        {{ item|get_item:field.name }}
                     {% endif %}
-                {% endwith %}
-            </td>
+                </td>
+            {% endif %}
         {% endfor %}
     </tr>
-        </tr>
         {% empty %}
+        
         <tr>
             <td colspan="{{ show_keys|length }}" class="text-center py-4">No data found</td>
             <button type="submit" id="createNewItem" class="mt-4 text-white inline-flex items-center bg-primary-700 hover:bg-primary-800 focus:ring-4 focus:outline-none focus:ring-primary-300 font-medium rounded-lg text-sm px-5 py-2.5 text-center dark:bg-primary-600 dark:hover:bg-primary-700 dark:focus:ring-primary-800">
