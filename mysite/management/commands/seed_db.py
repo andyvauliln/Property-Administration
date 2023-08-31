@@ -2,7 +2,7 @@ from django.core.management.base import BaseCommand
 from django.utils import timezone
 from django.apps import apps
 from datetime import timedelta, date
-from mysite.models import User, Property, Booking, Payment, Cleaning, Contract, Notification, PaymentMethod, Bank
+from mysite.models import User, Apartment, Booking, Payment, Cleaning, Contract, Notification, PaymentMethod, Bank
 from django.core.management.color import no_style
 from django.db import connection
 
@@ -73,42 +73,42 @@ class Command(BaseCommand):
         managers = list(User.objects.filter(role="Manager"))
         owners = list(User.objects.filter(role="Owner"))
 
-        # Property 1
-        Property.objects.create(
-            name="Property 1",
-            property_type="In Management",
+        # Apartment 1
+        Apartment.objects.create(
+            name="Apartment 1",
+            apartment_type="In Management",
             status="Unavailable",
             manager=managers[0],
             owner=owners[0],
-            notes="This is a note for Property 1",
-            web_link="http://example.com/property1",
+            notes="This is a note for Apartmentt 1",
+            web_link="http://example.com/apartment1",
             address="123 Main St, City, Country",
             bedrooms=3,
             bathrooms=2
         )
 
-        # Property 2
-        Property.objects.create(
-            name="Property 2",
-            property_type="In Management",
+        # Apartmentt 2
+        Apartment.objects.create(
+            name="Apartmentttt 2",
+            apartment_type="In Management",
             status="Available",
             manager=managers[1],  
             owner=owners[1],
-            notes="This is a note for Property 2",
-            web_link="http://example.com/property2",
+            notes="This is a note for Apartment 2",
+            web_link="http://example.com/apartment2",
             address="456 Second St, City, Country",
             bedrooms=4,
             bathrooms=3
         )
 
-        # Property 3
-        Property.objects.create(
-            name="Property 3",
-            property_type="In Ownership",
+        # Apartment 3
+        Apartment.objects.create(
+            name="Apartment 3",
+            apartment_type="In Ownership",
             status="Available",
             owner=owners[2],  
-            notes="This is a note for Property 3",
-            web_link="http://example.com/property3",
+            notes="This is a note for Apartment 3",
+            web_link="http://example.com/apartment3",
             address="789 Third St, City, Country",
             bedrooms=2,
             bathrooms=1
@@ -120,7 +120,7 @@ class Command(BaseCommand):
         damage_deposit = 200
         tenants = list(User.objects.filter(role="Tenant"))
         cleaners = list(User.objects.filter(role="Cleaner"))
-        properties = list(Property.objects.all())
+        properties = list(Apartment.objects.all())
         payment_methods = list(PaymentMethod.objects.all())  # Fetching multiple payment methods
         banks = list(Bank.objects.all())  # Fetching multiple banks
         
@@ -143,7 +143,7 @@ class Command(BaseCommand):
         properties.append(properties[1])
         properties.append(properties[1])
         # Create bookings for all properties
-        for idx, property in enumerate(properties):
+        for idx, apartment in enumerate(properties):
             details = booking_details[idx % len(booking_details)]
             tenant = tenants[idx % len(tenants)] 
             holding_deposit = 500 * (idx or 1)
@@ -159,7 +159,7 @@ class Command(BaseCommand):
                 end_date=end_date,
                 tenant=tenant,
                 period=details["period"],
-                property=property,
+                apartment=apartment,
                 status=details["booking_status"],
                 price=details["price"]
             )
@@ -182,8 +182,8 @@ class Command(BaseCommand):
                 tenant=tenant,
                 status=contract_status,
                 contract_id="12sdf444154gws2414",
-                owner=property.owner,
-                property=property
+                owner=apartment.owner,
+                apartment=apartment
             )
             
              # *************** CLEANINGS ***************
@@ -275,7 +275,7 @@ class Command(BaseCommand):
                     Notification.objects.create(
                         date=start_date + timedelta(days=30 * (month + 1)),
                         status="Pending",
-                        message=f"Payment of ${payment.amount} for {booking.property.name} at {payment.payment_date}",
+                        message=f"Payment of ${payment.amount} for {booking.apartment.name} at {payment.payment_date}",
                         user=booking.tenant
                     )
 
@@ -285,26 +285,26 @@ class Command(BaseCommand):
             Notification.objects.create(
                 date=end_date,
                 status="Pending",
-                message=f"Rent for {property.name} is finishing at {end_date}.",
+                message=f"Rent for {apartment.name} is finishing at {end_date}.",
                 user=tenant
             )
             Notification.objects.create(
                 date=end_date + timedelta(days=1),
                 status="Pending",
-                message=f"Cleaning for {property.name} is scheduled at {end_date + timedelta(days=1)}.",
+                message=f"Cleaning for {apartment.name} is scheduled at {end_date + timedelta(days=1)}.",
                 user=tenant
             )
             Notification.objects.create(
                 date=end_date,
                 status="Pending",
-                message=f"Contract for {property.name} has been send to tenant {tenant.full_name} at {start_date}",
+                message=f"Contract for {apartment.name} has been send to tenant {tenant.full_name} at {start_date}",
                 user=tenant
             )
             if details["booking_status"] != "Canceled":
                 Notification.objects.create(
                     date=start_date,
                     status="Pending",
-                    message=f"Contract for {property.name} has been signed at {start_date + timedelta(days=1)}",
+                    message=f"Contract for {apartment.name} has been signed at {start_date + timedelta(days=1)}",
                     user=tenant
                 )
             Notification.objects.create(

@@ -5,9 +5,9 @@ from django.shortcuts import render, redirect
 from .forms import CustomUserLoginForm
 from django.urls import reverse_lazy
 from django.contrib.auth.views import LogoutView
-from .models import User, Property, Booking, Contract, Cleaning, Notification, PaymentMethod, Payment, Bank, CustomFieldMixin
+from .models import User, Apartment, Booking, Contract, Cleaning, Notification, PaymentMethod, Payment, Bank, CustomFieldMixin
 import logging
-from mysite.forms import CustomUserForm, BookingForm, PropertyForm, ContractForm, CleaningForm, NotificationForm, PaymentMethodForm, PaymentForm, BankForm
+from mysite.forms import CustomUserForm, BookingForm, ApartmentForm, ContractForm, CleaningForm, NotificationForm, PaymentMethodForm, PaymentForm, BankForm
 from django.contrib.auth.hashers import make_password
 from django.core.paginator import Paginator, EmptyPage, PageNotAnInteger
 from django.db.models import Q
@@ -27,7 +27,7 @@ def index(request):
 
 MODEL_MAP = {
     'user': User,
-    'property': Property,
+    'apartment': Apartment,
     'booking': Booking,
     'contract': Contract,
     'cleaning': Cleaning,
@@ -92,7 +92,7 @@ def generic_view(request, model_name, form_class, template_name, pages=10):
     # Extract the 'fields' from each item in the list
     items_list = [{'id': item['pk'], **item['fields']} for item in data_list]
 
-    # Adding the links property
+    # Adding the links apartment
     for item, original_obj in zip(items_list, items_on_page):
         item['links'] = original_obj.links
 
@@ -130,7 +130,7 @@ def users(request):
     return generic_view(request, 'user', CustomUserForm, 'users.html')
 
 def properties(request):
-    return generic_view(request, 'property', PropertyForm, 'properties.html')
+    return generic_view(request, 'apartment', ApartmentForm, 'properties.html')
 
 def bookings(request):
     return generic_view(request, 'booking', BookingForm, 'bookings.html')
