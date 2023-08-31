@@ -2,7 +2,7 @@
 
 from django import forms
 from django.contrib.auth.forms import AuthenticationForm
-from mysite.models import Booking, User, Property, Payment, Contract, Cleaning, Notification, PaymentMethod, Bank
+from mysite.models import Booking, User, Apartment, Payment, Contract, Cleaning, Notification, PaymentMethod, Bank
 
 
 class CustomUserLoginForm(AuthenticationForm):
@@ -20,10 +20,10 @@ class CustomUserForm(forms.ModelForm):
         fields = ['id', 'email', 'full_name', 'password', 'phone', 'role']
 
         
-class PropertyForm(forms.ModelForm):
+class ApartmentForm(forms.ModelForm):
     class Meta:
-        model = Property
-        fields = ['name', 'property_type', 'status', 'notes', 'web_link', 'address', 'bedrooms', 'bathrooms', 'manager', 'owner']
+        model = Apartment
+        fields = ['name', 'apartment_type', 'status', 'notes', 'web_link', 'address', 'bedrooms', 'bathrooms', 'manager', 'owner']
         
 class PaymentForm(forms.ModelForm):
     class Meta:
@@ -58,4 +58,4 @@ class BankForm(forms.ModelForm):
 class BookingForm(forms.ModelForm):
     class Meta:
         model = Booking
-        fields = ['start_date', 'end_date', 'tenant', 'contract', 'property', 'notes', 'status', 'price']
+        fields = ['start_date', 'end_date', 'tenant', 'contract', 'apartment', 'notes', 'status', 'price']

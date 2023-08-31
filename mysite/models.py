@@ -130,7 +130,7 @@ class User(AbstractBaseUser, PermissionsMixin):
    
     
 # Properties Model
-class Property(models.Model):
+class Apartment(models.Model):
     def __str__(self):
         return self.name
     TYPES = [
@@ -146,7 +146,7 @@ class Property(models.Model):
     address = CharFieldEx(max_length=255, isColumn=False, isEdit=True, isCreate=True, ui_element="input")
     bedrooms = IntegerFieldEx(isColumn=False, isEdit=True, isCreate=True, ui_element="input")
     bathrooms = IntegerFieldEx(isColumn=False, isEdit=True, isCreate=True, ui_element="input")
-    property_type = CharFieldEx(max_length=15, db_index=True, choices=TYPES,  isColumn=True, isEdit=True, isCreate=True, ui_element="dropdown", dropdown_options=[{"value": x[0], "label": x[1]} for x in TYPES])
+    apartment_type = CharFieldEx(max_length=15, db_index=True, choices=TYPES,  isColumn=True, isEdit=True, isCreate=True, ui_element="dropdown", dropdown_options=[{"value": x[0], "label": x[1]} for x in TYPES])
     status = CharFieldEx(max_length=14, db_index=True, choices=STATUS, isColumn=True, isEdit=True, isCreate=True, ui_element="dropdown", dropdown_options=[{"value": x[0], "label": x[1]} for x in STATUS])
     notes = TextFieldEx(blank=True, null=True, isColumn=False, isEdit=True, isCreate=True, ui_element="textarea")
     created_at = models.DateTimeField(auto_now_add=True)
@@ -160,16 +160,16 @@ class Property(models.Model):
 
 
         # Link to payments associated with this booking
-        links_list.append({"name": "Payments", "link": f"/payments?q=booking.property.id={self.id}"})
-        links_list.append({"name": "Contracts", "link": f"/contracts?q=property.id={self.id}"})
-        links_list.append({"name": "Cleanings", "link": f"/cleanings?q=booking.property.id={self.id}"})
+        links_list.append({"name": "Payments", "link": f"/payments?q=booking.apartment.id={self.id}"})
+        links_list.append({"name": "Contracts", "link": f"/contracts?q=apartment.id={self.id}"})
+        links_list.append({"name": "Cleanings", "link": f"/cleanings?q=booking.apartment.id={self.id}"})
 
 
-        # Link to the manager of the associated property
+        # Link to the manager of the associated apartment
         if self.manager:
             links_list.append({"name": f"Manager: {self.manager.full_name}", "link": f"/users?q=id={self.manager.id}"})
 
-        # Link to the owner of the associated property
+        # Link to the owner of the associated apartment
         if self.owner:
             links_list.append({"name": f"Owner: {self.owner.full_name}", "link": f"/users?q=id={self.owner.id}"})
 
@@ -194,7 +194,7 @@ class Contract(models.Model):
 
     owner = ForeignKeyEx(User, on_delete=models.CASCADE, db_index=True, related_name='owner_contracts', limit_choices_to={'role': 'Owner'}, isColumn=True, isEdit=True, isCreate=True, ui_element="dropdown", dropdown_options=[{"value": owner.id, "label": owner.full_name} for owner in User.objects.filter(role='Owner')], display_field='owner.full_name')
     
-    appartment = ForeignKeyEx(Property, on_delete=models.CASCADE, db_column='property', db_index=True, related_name='property_contracts', isColumn=True, isEdit=True, isCreate=True, ui_element="dropdown", dropdown_options=[{"value": prop.id, "label": prop.name} for prop in Property.objects.all()], display_field='property.name')
+    appartment = ForeignKeyEx(Apartment, on_delete=models.CASCADE, db_column='apartment', db_index=True, related_name='apartment_contracts', isColumn=True, isEdit=True, isCreate=True, ui_element="dropdown", dropdown_options=[{"value": prop.id, "label": prop.name} for prop in Apartment.objects.all()], display_field='apartment.name')
     
     tenant = ForeignKeyEx(User, on_delete=models.CASCADE, db_index=True, related_name='tenant_contracts', limit_choices_to={'role': 'Tenant'}, isColumn=True, isEdit=True, isCreate=True, ui_element="dropdown", dropdown_options=[{"value": tenant.id, "label": tenant.full_name} for tenant in User.objects.filter(role='Tenant')], display_field='tenant.full_name')
 
@@ -205,9 +205,9 @@ class Contract(models.Model):
         if self.owner:
             links_list.append({"name": f"Owner: {self.owner.full_name}", "link": f"/users?q=id={self.owner.id}"})
 
-        # Link to the property associated with the contract
-        if self.property:
-            links_list.append({"name": f"Property: {self.appartment.name}", "link": f"/properties?q=id={self.appartment.id}"})
+        # Link to the apartment associated with the contract
+        if self.apartment:
+            links_list.append({"name": f"Apartment: {self.appartment.name}", "link": f"/properties?q=id={self.appartment.id}"})
 
         # Link to the tenant of the contract
         if self.tenant:
@@ -221,7 +221,7 @@ class Contract(models.Model):
 # Bookings Model
 class Booking(models.Model):
     def __str__(self):
-        return str(self.property)
+        return str(self.apartment)
 
     STATUS = [
         ('Confirmed', 'Confirmed'),
@@ -242,7 +242,7 @@ class Booking(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
     tenant = models.ForeignKey(User, on_delete=models.SET_NULL, db_index=True,related_name='bookings', null=True, limit_choices_to={'role': 'Tenant'})
     contract = models.ForeignKey(Contract, on_delete=models.SET_NULL, db_index=True, related_name='bookings', null=True)
-    property = models.ForeignKey(Property, on_delete=models.SET_NULL, db_index=True, related_name='booked_properties', null=True)
+    apartment = models.ForeignKey(Apartment, on_delete=models.SET_NULL, db_index=True, related_name='booked_properties', null=True)
 
 # PaymentMethods Model
 class PaymentMethod(models.Model):
@@ -289,7 +289,7 @@ class Payment(models.Model):
 # Cleanings Model
 class Cleaning(models.Model):
     def __str__(self):
-        return str(self.booking.property)
+        return str(self.booking.apartment)
     STATUS = [
         ('Scheduled', 'Scheduled'),
         ('Completed', 'Completed'),
