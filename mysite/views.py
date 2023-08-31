@@ -5,7 +5,7 @@ from django.shortcuts import render, redirect
 from .forms import CustomUserLoginForm
 from django.urls import reverse_lazy
 from django.contrib.auth.views import LogoutView
-from .models import User, Property, Booking, Contract, Cleaning, Notification, PaymentMethod, Payment, Bank
+from .models import User, Property, Booking, Contract, Cleaning, Notification, PaymentMethod, Payment, Bank, CustomFieldMixin
 import logging
 from mysite.forms import CustomUserForm, BookingForm, PropertyForm, ContractForm, CleaningForm, NotificationForm, PaymentMethodForm, PaymentForm, BankForm
 from django.contrib.auth.hashers import make_password
@@ -15,6 +15,8 @@ from django.contrib.contenttypes.models import ContentType
 import html
 from django.db import models
 from django.forms.models import model_to_dict
+import json
+from django.core import serializers
 
 logger = logging.getLogger(__name__)
 
@@ -34,111 +36,7 @@ MODEL_MAP = {
     'payment': Payment,
     'bank': Bank
 }
-def get_special_fields(model):
-    special_fields = {}
-    
-    for field in model._meta.fields:
-        # Handle fields with choices
-        if field.choices:
-            special_fields[field.name] = {
-                'type': 'dropdown',
-                'options': [{'value': choice[0], 'label': choice[1]} for choice in field.choices]
-            }
-        # Handle DateField
-        elif isinstance(field, models.DateField):
-            special_fields[field.name] = {
-                'type': 'datepicker'
-            }
-        # Check for BooleanField
-        elif isinstance(field, models.BooleanField):
-            special_fields[field.name] = {
-                'type': 'checkbox'
-            }
-        # Handle TextField as textarea
-        elif isinstance(field, models.TextField):
-            special_fields[field.name] = {
-                'type': 'textarea'
-            }
-        
-        elif field.name == 'manager':
-            special_fields[field.name] = {
-                'type': 'dropdown',
-                'options': [{'value': user.id, 'label': user.full_name} for user in User.objects.filter(role='Manager')]
-            }
-        elif field.name == 'owner':
-            special_fields[field.name] = {
-                'type': 'dropdown',
-                'options': [{'value': user.id, 'label': user.full_name} for user in User.objects.filter(role='Owner')]
-            }
-        elif field.name == 'bank':
-            special_fields[field.name] = {
-                'type': 'dropdown',
-                'options': [{'value': bank.id, 'label': bank.bank_name} for bank in Bank.objects.all()]
-            }
-        elif field.name == 'payment_method':
-            special_fields[field.name] = {
-                'type': 'dropdown',
-                'options': [{'value': payment_method.id, 'label': payment_method.method_name} for payment_method in PaymentMethod.objects.all()]
-            }
-        elif field.name == 'property':
-            special_fields[field.name] = {
-                'type': 'dropdown',
-                'options': [{'value': property.id, 'label': property.name} for property in Property.objects.all()]
-            }
-        if model.__name__ == 'Booking':
-            if field.name == 'tenant':
-                special_fields[field.name] = {
-                    'type': 'dropdown',
-                    'options': [{'value': user.id, 'label': user.full_name} for user in User.objects.filter(role='Tenant')]
-                }
-            elif field.name == 'contract':
-                special_fields[field.name] = {
-                    'type': 'dropdown',
-                    'options': [{'value': contract.id, 'label': contract.contract_id} for contract in Contract.objects.all()]
-                }
-            elif field.name == 'property':
-                special_fields[field.name] = {
-                    'type': 'dropdown',
-                    'options': [{'value': property.id, 'label': property.name} for property in Property.objects.all()]
-                }
-        # Handle ForeignKey and OneToOneField for related models
-        # elif isinstance(field, (models.ForeignKey, models.OneToOneField)):
-        #     related_model = field.related_model
-        #     if related_model:
-        #         # If the model is Cleaning and the field is booking, add property details
-        #         if model.__name__ == 'Cleaning' and field.name == 'booking':
-        #             booking = related_model.objects.first()  
-        #             if booking and booking.property:
-        #                 special_fields['property_name'] = {
-        #                     'type': 'input',
-        #                     'value': booking.property.name
-        #                 }
-        #                 special_fields['property_address'] = {
-        #                     'type': 'input',
-        #                     'value': booking.property.address  # Assuming the Property model has an address field
-        #                 }
-        #         else:
-        #             special_fields[field.name] = {
-        #                 'type': 'dropdown',
-        #                 'options': [{'value': obj.id, 'label': str(obj)} for obj in related_model.objects.all()],
-        #                 'details_button': True  
-        #             }
-    
-    return special_fields
-    
 
-
-
-
-# def get_related_fields(model):
-#     fk_or_o2o_fields = []
-#     m2m_fields = []
-#     for field in model._meta.get_fields():
-#         if isinstance(field, (models.ForeignKey, models.OneToOneField)) and field.related_model:
-#             fk_or_o2o_fields.append(field.name)
-#         elif isinstance(field, models.ManyToManyField) and field.related_model:
-#             m2m_fields.append(field.name)
-#     return fk_or_o2o_fields, m2m_fields
 
 def get_related_fields(model, prefix=''):
     fk_or_o2o_fields = []
@@ -186,8 +84,23 @@ def generic_view(request, model_name, form_class, template_name, pages=10):
 
     paginator = Paginator(items, pages)
     items_on_page = paginator.get_page(page)
+    items_json_data = serializers.serialize('json', items_on_page)
+
+    # Convert the serialized data to a Python list of dictionaries
+    data_list = json.loads(items_json_data)
+
+    # Extract the 'fields' from each item in the list
+    items_list = [{'id': item['pk'], **item['fields']} for item in data_list]
+
+    # Adding the links property
+    for item, original_obj in zip(items_list, items_on_page):
+        item['links'] = original_obj.links
+
+    # Convert the list back to a JSON string for passing to the template
+    items_json = json.dumps(items_list)
+
     
-    special_fields = get_special_fields(model)
+    model_fields = [field for field in model._meta.get_fields() if isinstance(field, CustomFieldMixin)]
    
 
     if request.method == 'POST':
@@ -210,18 +123,8 @@ def generic_view(request, model_name, form_class, template_name, pages=10):
     else:
         form = form_class()
     
-    field_data = []
 
-    for field in model._meta.get_fields():
-        if not (field.one_to_many or field.many_to_many):
-            field_info = {
-                "name": html.unescape(field.name),
-                "is_foreign_key": isinstance(field, (models.ForeignKey, models.OneToOneField)),
-                "related_model": field.related_model.__name__ if isinstance(field, (models.ForeignKey, models.OneToOneField)) else None
-            }
-            field_data.append(field_info)
-
-    return render(request, template_name, {'items': items_on_page, "special_fields": special_fields, 'search_query': search_query, "field_data":field_data})
+    return render(request, template_name, {'items': items_on_page, "items_json": items_json, 'search_query': search_query, 'model_fields': model_fields})
 
 def users(request):
     return generic_view(request, 'user', CustomUserForm, 'users.html')

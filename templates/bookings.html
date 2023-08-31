@@ -6,7 +6,7 @@
 </script>
 
 
-{% #table field_data=field_data special_fields=special_fields  model="bookings" search_query=request.GET.q items=items search_fields="property.name, tenant.full_name, property.manager.full_name owner.full_name" show="property.name, start_date, end_date, tenant.full_name, property.manager.full_name, property.owner.full_name, cleanings.cleaner.full_name, status" %}
+{% #table  model_fields=model_fields items_json=items_json  model="bookings" search_query=request.GET.q items=items %}
 {% /table %}
 
 {% endblock content %}

@@ -33,7 +33,7 @@ class PaymentForm(forms.ModelForm):
 class ContractForm(forms.ModelForm):
     class Meta:
         model = Contract
-        fields = ['sign_date', "contract_id","status", 'link', 'tenant', 'owner', 'property']
+        fields = ['sign_date', "contract_id","status", 'link', 'tenant', 'owner', 'appartment']
 
 class CleaningForm(forms.ModelForm):
     class Meta:
