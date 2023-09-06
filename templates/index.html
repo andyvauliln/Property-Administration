@@ -1,5 +1,6 @@
 {% extends "_base.html" %}
 {% load slippers %}
+{% load custom_filters %}
 
 
 {% block content %}
@@ -8,15 +9,21 @@
         const notifications = document.getElementById('notifications');
         const plusIcon = document.getElementById('plusIcon');
         const minusIcon = document.getElementById('minusIcon');
-
-        if (notifications.style.display === 'none' || !notifications.style.display) {
-            notifications.style.display = 'flex';
-            plusIcon.style.display = 'none';
-            minusIcon.style.display = 'inline-block';
+    
+        if (notifications.classList.contains('hidden')) {
+            notifications.classList.remove('hidden');
+            notifications.classList.add('block'); // or 'flex' if you want it to be a flex container
+            plusIcon.classList.toggle('hidden');
+            plusIcon.classList.toggle('block');
+            minusIcon.classList.toggle('hidden');
+            minusIcon.classList.toggle('block');
         } else {
-            notifications.style.display = 'none';
-            plusIcon.style.display = 'inline-block';
-            minusIcon.style.display = 'none';
+            notifications.classList.add('hidden');
+            notifications.classList.remove('block'); // or 'flex' if it was a flex container
+            plusIcon.classList.toggle('hidden');
+            plusIcon.classList.toggle('block');
+            minusIcon.classList.toggle('hidden');
+            minusIcon.classList.toggle('block');
         }
     }
 </script>
@@ -25,56 +32,91 @@
         <div class="mx-auto max-w-screen-md mb-8 lg:mb-12 flex justify-center items-center">
             <h2 class="text-4xl tracking-tight font-extrabold text-gray-900 dark:text-white mr-4">Notifications</h2>
             <button onclick="toggleNotifications()" class="focus:outline-none">
-                <svg id="minusIcon" class="w-[25px] h-[25px] text-gray-800 dark:text-white" style="display: none;" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 18 2">
+                <svg id="minusIcon" class="w-[25px] h-[25px] text-gray-800 dark:text-white hidden" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 18 2">
                     <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M1 1h16"/>
                 </svg>
-                <svg id="plusIcon"  class="w-[25px] h-[25px] text-gray-800 dark:text-white" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 18 18">
+                <svg id="plusIcon" class="w-[25px] h-[25px] text-gray-800 dark:text-white block" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 18 18">
                     <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 1v16M1 9h16"/>
                 </svg>
             </button>
         </div>
-        <div id="notifications" class="space-y-8 lg:grid lg:grid-cols-3 sm:gap-6 xl:gap-10 lg:space-y-0">
+        <div id="notifications" class="hidden space-y-8 lg:grid lg:grid-cols-3 sm:gap-6 xl:gap-10 lg:space-y-0">
           
             <!-- Pricing Card -->
             {% #card title="Today" %}
-            <li class="flex items-center space-x-3">
-                <!-- Icon -->
-                <svg class="flex-shrink-0 w-5 h-5 text-green-500 dark:text-green-400" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"></path></svg>
-                <span>Cleaning <span class="font-bold">12.03.2023</span><a href="/users/1" class="font-bold text-blue-400 pointer ml-2">Melisa Monova</a></span>
-            </li>
+
+                {% for notification in today_notifications %}
+                    <li class="flex items-center space-x-3">
+                        <svg class="flex-shrink-0 w-5 h-5 text-green-500 dark:text-green-400" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"></path></svg>
+                        <span>{{ notification.message }} </span>
+                    </li>
+                    {% empty %}
+                        <div class="text-center py-4">No Notifications Today</div>
+                {% endfor %}
           {% /card %}
           {% #card title="Next Week" %}
-          <li class="flex items-center space-x-3">
-            <li class="flex items-center space-x-3">
-                <!-- Icon -->
-                <svg class="flex-shrink-0 w-5 h-5 text-green-500 dark:text-green-400" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"></path></svg>
-                <span>Rent finishe at <span class="font-bold">12.03.2023</span><a href="/users/1" class="font-bold text-blue-400 pointer ml-2">Artem Mokarov</a></span>
-            </li>
-            <li class="flex items-center space-x-3">
-                <!-- Icon -->
-                <svg class="flex-shrink-0 w-5 h-5 text-green-500 dark:text-green-400" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"></path></svg>
-                <span>Cleaning <span class="font-bold">12.03.2023</span><a href="/users/1" class="font-bold text-blue-400 pointer ml-2">Melisa Monova</a></span>
-            </li>
-          </li>
+          {% for notification in next_week_notifications %}
+                <li class="flex items-center space-x-3">
+                    <svg class="flex-shrink-0 w-5 h-5 text-green-500 dark:text-green-400" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"></path></svg>
+                    <span>{{ notification.message }} </span>
+                </li>
+                {% empty %}
+                     <div class="text-center py-4">No Notifications This Week</div>
+            {% endfor %}
+
         {% /card %}
 
         {% #card title="Next Month" %}
-        <li class="flex items-center space-x-3">
-          <li class="flex items-center space-x-3">
-              <!-- Icon -->
-              <svg class="flex-shrink-0 w-5 h-5 text-green-500 dark:text-green-400" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"></path></svg>
-              <span>Rent finishe at <span class="font-bold">12.03.2023</span><a href="/users/1" class="font-bold text-blue-400 pointer ml-2">Artem Mokarov</a></span>
-          </li>
-          <li class="flex items-center space-x-3">
-              <!-- Icon -->
-              <svg class="flex-shrink-0 w-5 h-5 text-green-500 dark:text-green-400" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"></path></svg>
-              <span>Cleaning <span class="font-bold">12.03.2023</span><a href="/users/1" class="font-bold text-blue-400 pointer ml-2">Melisa Monova</a></span>
-          </li>
-        </li>
+        {% for notification in next_month_notifications %}
+                <li class="flex items-center space-x-3">
+                    <svg class="flex-shrink-0 w-5 h-5 text-green-500 dark:text-green-400" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"></path></svg>
+                    <span>{{ notification.message }} </span>
+                </li>
+                {% empty %}
+                     <div class="text-center py-4">No Notifications Today</div>
+            {% endfor %}
       {% /card %}
                    
          
     </div>
   </section>
+
+  <section class="bg-white dark:bg-gray-900"> 
+    <div class="py-8 px-4 mx-auto max-w-screen-xl lg:py-16 lg:px-6">
+        <div class="mx-auto max-w-screen-md mb-8 lg:mb-12 flex justify-center items-center">
+          <h2 class="text-4xl tracking-tight font-extrabold text-gray-900 dark:text-white mr-4">Calendars</h2>
+        </div>
+
+        {% for apartment in apartments %}
+        <h2 class="text-2xl mb-2 tracking-tight font-extrabold text-gray-900 dark:text-white mr-4">{{ apartment.name }}</h2>
+    
+        <div class="flex items-center mb-8">
+            <!-- Previous Button -->
+            <a href="?page={{ request.GET.page|default:"1"|add:"-1" }}" class=" text-white p-4 rounded-l" style="height: fit-content;">
+                <svg class="w-6 h-6 text-gray-800 dark:text-white" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 8 14">
+                    <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 1 1.3 6.326a.91.91 0 0 0 0 1.348L7 13"/>
+                  </svg>
+            </a>
+    
+            <!-- Calendars -->
+            <div class="flex-1 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {% for month_start in months %}
+                    {% include "calendar.html" %}
+                {% endfor %}
+            </div>
+    
+            <!-- Next Button -->
+            <a href="?page={{ request.GET.page|default:"1"|add:"1" }}" class=" text-white p-4 rounded-r" style="height: fit-content;">
+                <svg class="w-6 h-6 text-gray-800 dark:text-white" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 8 14">
+                    <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m1 13 5.7-5.326a.909.909 0 0 0 0-1.348L1 1"/>
+                  </svg>
+            </a>
+        </div>
+    {% endfor %}
+    
+</div>
+</section>
+
+  
 
 {% endblock content %}

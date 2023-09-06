@@ -10,21 +10,32 @@
     <div class="mx-auto max-w-screen-xl px-4 lg:px-12">
         <div class="bg-white dark:bg-gray-800 relative shadow-md sm:rounded-lg overflow-hidden">
             <div class="flex flex-col md:flex-row items-center justify-between space-y-3 md:space-y-0 md:space-x-4 p-4">
-                <div class="w-full md:w-1/2">
+                <div class="w-full">
                     {% include "components/table/table_search.html" %}
                 </div>
-                <button type="button" id="createNewItem" data-modal-target="createModal" data-modal-toggle="createModal" class="flex items-center justify-center text-white bg-primary-700 hover:bg-primary-800 focus:ring-4 focus:ring-primary-300 font-medium rounded-lg text-sm px-4 py-2 dark:bg-primary-600 dark:hover:bg-primary-700 focus:outline-none dark:focus:ring-primary-800">
-                    <svg class="h-3.5 w-3.5 mr-2" fill="currentColor" viewbox="0 0 20 20" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-                        <path clip-rule="evenodd" fill-rule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" />
-                    </svg>
-                    Add Item
-                </button>
+                
                 <div class="w-full md:w-auto flex flex-col md:flex-row space-y-2 md:space-y-0 items-stretch md:items-center justify-end md:space-x-3 flex-shrink-0">
-                    {% include "components/table/table_filter.html" %}
+                    <button type="button" id="createNewItem" data-modal-target="createModal" data-modal-toggle="createModal" class="flex items-center justify-center text-white bg-primary-700 hover:bg-primary-800 focus:ring-4 focus:ring-primary-300 font-medium rounded-lg text-sm px-4 py-2 dark:bg-primary-600 dark:hover:bg-primary-700 focus:outline-none dark:focus:ring-primary-800">
+                        <svg class="h-3.5 w-3.5 mr-2" fill="currentColor" viewbox="0 0 20 20" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+                            <path clip-rule="evenodd" fill-rule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" />
+                        </svg>
+                        Add Item
+                    </button>
+                    {% comment %} {% include "components/table/table_filter.html" %} {% endcomment %}
                 </div>
+                <button id="helpButton" class="font-medium text-sm px-4 py-2">
+                    <svg class="w-6 h-6 text-gray-800 dark:text-white" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 20 20">
+                    <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 9h2v5m-2 0h4M9.408 5.5h.01M19 10a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z"/>
+                  </svg>
+                </button>
+                <button onclick="refreshPage(event)" type="button" class="p-2">
+                    <svg class="w-6 h-6 text-gray-800 dark:text-white" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 18 20">
+                      <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 1v5h-5M2 19v-5h5m10-4a8 8 0 0 1-14.947 3.97M1 10a8 8 0 0 1 14.947-3.97"/>
+                    </svg>
+                  </button>
                 
             </div>
-            <div class="overflow-x-auto">
+            <div  class="overflow-x-auto">
                 {% with show_keys=show|split:", " %}
                 <table class="w-full text-sm text-left text-gray-500 dark:text-gray-400">
                     {% include "components/table/table_header.html" %}
@@ -36,6 +47,12 @@
         </div>
     </div>
 </section>
+
+<script>
+    function refreshPage(event) {
+        window.location.href = window.location.href;
+    }
+</script>
 
 {% include "components/table/table_edit.html" %}
 {% include "components/table/table_create.html" %}

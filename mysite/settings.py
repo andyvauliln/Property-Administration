@@ -27,6 +27,10 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # SECURITY WARNING: keep the secret key used in production secret!
 SECRET_KEY = os.environ["SECRET_KEY"],
 
+#docusing
+DOCUSIGN_ACCOUNT_ID = os.environ["DOCUSIGN_ACCOUNT_ID"],
+DOCUSIGN_ACCESS_TOKEN = os.environ["DOCUSIGN_ACCESS_TOKEN"],
+
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = os.environ["DEBUG"] or False
 
@@ -35,6 +39,8 @@ ALLOWED_HOSTS = ["*"]
 AUTH_USER_MODEL = 'mysite.User'
 LOGIN_URL = '/login'
 LOGIN_REDIRECT_URL = '/' 
+
+#ENABLE_DYNAMIC_MODEL_FIELDS = True
 
 # FORM SUBMISSION
 # Comment out the following line and place your railway URL, and your production URL in the array.

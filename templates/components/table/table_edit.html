@@ -15,6 +15,7 @@
             <!-- Modal body -->
             <form  method="POST" action="/{{ model }}/">
                 <input type="hidden" name="edit" value="true">
+                <input type="hidden" name="id" id="editId" value="">
                 <div class="grid gap-4 mb-4 sm:grid-cols-2">
                     {% for field in model_fields %}
                         {% if field.isEdit %}
@@ -46,7 +47,7 @@
                     {% endfor %}
                 </div>
                 <div class="mb-4">
-                    <h4 class="text-md font-semibold text-gray-900 dark:text-white mb-2">Related Objects:</h4>
+                    <h4 class="text-xl font-semibold text-gray-900 dark:text-white mb-2">Related Objects:</h4>
                     <div class="related-links flex flex-col">
                         <!-- Links will be populated here by JavaScript -->
                     </div>
@@ -90,6 +91,7 @@
             }
         });
         const deleteIdInput = document.getElementById('deleteId');
+        const editIdInput = document.getElementById('editId');
 
         window.addEventListener('keydown', function(event) {
             if (event.key === 'Escape' && updateModal.style.display === 'flex') {
@@ -101,6 +103,8 @@
             row.addEventListener('click', function() {
                 const itemId = parseInt(row.getAttribute('data-id'));
                 const item = items_json.find(i => i.id === itemId);
+                deleteIdInput.value = itemId;
+                editIdInput.value = itemId;
         
                 if (item) {
                     // Populate the modal fields based on the item data
@@ -124,6 +128,7 @@
                                 inputField.setAttribute('data-date', formatDate(fieldValue));
                                 inputField.value = formatDate(fieldValue);
                             } else if (inputField.tagName === 'TEXTAREA') {
+                                console.log(fieldValue, "notes")
                                 inputField.innerHTML = fieldValue;
                             } else if (inputField.tagName === 'INPUT' && inputField.type === 'checkbox') {
                                 inputField.checked = (fieldValue === true || fieldValue === '1');
@@ -133,18 +138,44 @@
                         }
                     }
         
-                    // Populate the related links
                     const linksContainer = document.querySelector('#updateModal .related-links');
                     linksContainer.innerHTML = ''; // Clear previous links
-        
+
                     item.links.forEach(link => {
+                        // Split the name by ':'
+                        const parts = link.name.split(':');
+                        if (parts.length !== 2) return;  // Ensure there are two parts
+
+                        // Create a container div for each link with flex display
+                        const linkContainer = document.createElement('div');
+                        linkContainer.classList.add('flex', 'items-center', 'mb-2');  // Flex container
+
+                        // Create a bold text element for the first part
+                        const boldText = document.createElement('span');
+                        boldText.textContent = parts[0].trim() + ': ';
+                        boldText.classList.add('font-bold', 'mr-1');  // Add some classes for styling
+
+                        // Create a link element for the second part
                         const linkElement = document.createElement('a');
-                        linkElement.href = link.link;  // Assuming each link object has 'link' and 'name' keys
-                        linkElement.textContent = link.name;
+                        linkElement.href = link.link;
+                        linkElement.textContent = parts[1].trim();
                         linkElement.setAttribute('target', '_blank');
-                        linkElement.classList.add('text-blue-500', 'hover:text-blue-700', 'mr-2'); // Add some classes for styling
-                        linksContainer.appendChild(linkElement);
+                        linkElement.classList.add('text-blue-500', 'hover:text-blue-700', 'mr-2');
+
+                        // Create an arrow symbol
+                        const arrowSymbol = document.createElement('span');
+                        arrowSymbol.innerHTML = '&rarr;';  // Rightwards Arrow
+                        arrowSymbol.classList.add('ml-2');  // Margin to separate it from the link
+
+                        // Append elements to the linkContainer
+                        linkContainer.appendChild(boldText);
+                        linkContainer.appendChild(linkElement);
+                        linkElement.appendChild(arrowSymbol);
+
+                        // Append linkContainer to the main linksContainer
+                        linksContainer.appendChild(linkContainer);
                     });
+
                 }
         
                 // Show the modal

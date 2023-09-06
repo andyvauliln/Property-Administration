@@ -2,7 +2,7 @@ from django.core.management.base import BaseCommand
 from django.utils import timezone
 from django.apps import apps
 from datetime import timedelta, date
-from mysite.models import User, Apartment, Booking, Payment, Cleaning, Contract, Notification, PaymentMethod, Bank
+from mysite.models import User, Apartment, Booking, Payment, Cleaning, Contract, Notification, PaymentMethod
 from django.core.management.color import no_style
 from django.db import connection
 
@@ -39,7 +39,7 @@ class Command(BaseCommand):
         self._create_users()
         self._create_payment_methods()
         self._create_banks()
-        self._create_properties()
+        self._create_apartments()
         self._create_bookings()
         self.stdout.write('Done.')
 
@@ -47,28 +47,28 @@ class Command(BaseCommand):
         admin_user = User.objects.create(email="admin@gmail.com", role="admin", full_name="Admin")
         admin_user.set_password("admin")
         admin_user.save()
-        User.objects.create(email="cleaner1@example.com", phone="+14345676", role="Cleaner", full_name="Cleaner One")
-        User.objects.create(email="cleaner2@example.com",  phone="+13345676", role="Cleaner", full_name="Cleaner Two")
-        User.objects.create(email="manager1@example.com",  phone="+15345676", role="Manager", full_name="Manager One")
-        User.objects.create(email="manager2@example.com",  phone="+12345676", role="Manager", full_name="Manager Two")
-        User.objects.create(email="tenant1@example.com", phone="+16345676", role="Tenant", full_name="Tenant One")
-        User.objects.create(email="tenant2@example.com", phone="+17345676", role="Tenant", full_name="Tenant Two")
-        User.objects.create(email="tenant3@example.com", phone="+18314676", role="Tenant", full_name="Tenant Three")
-        User.objects.create(email="owner1@example.com",  phone="+19314676", role="Owner", full_name="Owner One")
-        User.objects.create(email="owner2@example.com",  phone="+11445676", role="Owner", full_name="Owner Two")
-        User.objects.create(email="owner3@example.com",  phone="+155345676", role="Owner", full_name="Owner Three")
+        User.objects.create(email="cleaner1@example.com", phone="+14345676", role="Cleaner", password="test", full_name="Cleaner One")
+        User.objects.create(email="cleaner2@example.com", password="test", phone="+13345676", role="Cleaner", full_name="Cleaner Two")
+        User.objects.create(email="manager1@example.com", password="test", phone="+15345676", role="Manager", full_name="Manager One")
+        User.objects.create(email="manager2@example.com", password="test", phone="+12345676", role="Manager", full_name="Manager Two")
+        User.objects.create(email="tenant1@example.com", password="test",phone="+16345676", role="Tenant", full_name="Tenant One")
+        User.objects.create(email="tenant2@example.com", password="test",phone="+17345676", role="Tenant", full_name="Tenant Two")
+        User.objects.create(email="tenant3@example.com", password="test",phone="+18314676", role="Tenant", full_name="Tenant Three")
+        User.objects.create(email="owner1@example.com", password="test", phone="+19314676", role="Owner", full_name="Owner One")
+        User.objects.create(email="owner2@example.com", password="test", phone="+11445676", role="Owner", full_name="Owner Two")
+        User.objects.create(email="owner3@example.com", password="test", phone="+155345676", role="Owner", full_name="Owner Three")
 
     def _create_payment_methods(self):
         methods = ["Zelle", "CC", "Paypal", "Cash", "Venmo"]
         for method in methods:
-            PaymentMethod.objects.create(method_name=method)
+            PaymentMethod.objects.create(name=method, type="Payment Method")
 
     def _create_banks(self):
         banks = ["BA", "TD", "PNC"]
         for bank in banks:
-            Bank.objects.create(bank_name=bank)
+            PaymentMethod.objects.create(name=bank, type="Bank")
 
-    def _create_properties(self):
+    def _create_apartments(self):
         # Fetching managers and owners
         managers = list(User.objects.filter(role="Manager"))
         owners = list(User.objects.filter(role="Owner"))
@@ -120,9 +120,8 @@ class Command(BaseCommand):
         damage_deposit = 200
         tenants = list(User.objects.filter(role="Tenant"))
         cleaners = list(User.objects.filter(role="Cleaner"))
-        properties = list(Apartment.objects.all())
+        apartments = list(Apartment.objects.all())
         payment_methods = list(PaymentMethod.objects.all())  # Fetching multiple payment methods
-        banks = list(Bank.objects.all())  # Fetching multiple banks
         
 
         booking_details = [
@@ -139,11 +138,11 @@ class Command(BaseCommand):
              # prope3 feature 20d
             {"duration": 5, "booking_status": "Pending", "price": 1000, "offset": 55, "period": "Dayly"},
         ]
-        properties.append(properties[0])
-        properties.append(properties[1])
-        properties.append(properties[1])
-        # Create bookings for all properties
-        for idx, apartment in enumerate(properties):
+        apartments.append(apartments[0])
+        apartments.append(apartments[1])
+        apartments.append(apartments[1])
+        # Create bookings for all apartments
+        for idx, apartment in enumerate(apartments):
             details = booking_details[idx % len(booking_details)]
             tenant = tenants[idx % len(tenants)] 
             holding_deposit = 500 * (idx or 1)
@@ -151,6 +150,8 @@ class Command(BaseCommand):
 
             start_date = today + timedelta(days=details["offset"])
             end_date = start_date + timedelta(days=details["duration"])
+            
+           
             
             # *************** BOOKING ***************
 
@@ -161,11 +162,10 @@ class Command(BaseCommand):
                 period=details["period"],
                 apartment=apartment,
                 status=details["booking_status"],
-                price=details["price"]
+                price=details["price"],
             )
-          
-
-            # *************** CONTRACT ***************
+            
+             # *************** CONTRACT ***************
             
             if details["booking_status"] == "Confirmed":
                 contract_status = "Signed" if details["offset"] < 0 else "Signed"
@@ -179,13 +179,11 @@ class Command(BaseCommand):
             Contract.objects.create(
                 sign_date=start_date,
                 link="http://example.com/contract",
-                tenant=tenant,
                 status=contract_status,
-                contract_id="12sdf444154gws2414",
-                owner=apartment.owner,
-                apartment=apartment
+                contract_id="12sdf444154gws2414" + str(idx),
+                booking=booking,
             )
-            
+          
              # *************** CLEANINGS ***************
             if details["booking_status"] == "Completed":
                 cleaning_status = "Completed" if details["offset"] < 0 else "Scheduled"
@@ -223,8 +221,8 @@ class Command(BaseCommand):
                 payment_status=payment_status,
                 booking=booking,
                 payment_type="Holding Deposit",
-                payment_method=payment_methods[idx % len(payment_methods)],
-                bank=banks[idx % len(banks)],
+                payment_method=payment_methods[1],
+                bank=payment_methods[7],
                 notes="Holding Deposit"
             )
             Payment.objects.create(
@@ -233,8 +231,8 @@ class Command(BaseCommand):
                 payment_status=payment_status,
                 booking=booking,
                 payment_type="Damage Deposit",
-                payment_method=payment_methods[idx % len(payment_methods)],
-                bank=banks[idx % len(banks)],
+                payment_method=payment_methods[2],
+                bank=payment_methods[7],
                 notes="Damage Deposit"
             )
 
@@ -247,8 +245,8 @@ class Command(BaseCommand):
                     payment_status=payment_status,
                     booking=booking,
                     payment_type="Income",
-                    payment_method=payment_methods[idx % len(payment_methods)],
-                    bank=banks[idx % len(banks)],
+                    payment_method=payment_methods[3],
+                    bank=payment_methods[7],
                     notes="Daily rent payment"
                 )
 
@@ -266,8 +264,8 @@ class Command(BaseCommand):
                         payment_status=payment_status,
                         booking=booking,
                         payment_type="Income",
-                        payment_method=payment_methods[idx % len(payment_methods)],
-                        bank=banks[idx % len(banks)],
+                        payment_method=payment_methods[4],
+                        bank=payment_methods[7],
                         notes=f"Ask bank for confirmation"
                     )
 
@@ -275,8 +273,8 @@ class Command(BaseCommand):
                     Notification.objects.create(
                         date=start_date + timedelta(days=30 * (month + 1)),
                         status="Pending",
+                        booking=booking,
                         message=f"Payment of ${payment.amount} for {booking.apartment.name} at {payment.payment_date}",
-                        user=booking.tenant
                     )
 
             # *************** NOTIFICATIONS ***************
@@ -285,31 +283,31 @@ class Command(BaseCommand):
             Notification.objects.create(
                 date=end_date,
                 status="Pending",
+                booking=booking,
                 message=f"Rent for {apartment.name} is finishing at {end_date}.",
-                user=tenant
             )
             Notification.objects.create(
                 date=end_date + timedelta(days=1),
                 status="Pending",
+                booking=booking,
                 message=f"Cleaning for {apartment.name} is scheduled at {end_date + timedelta(days=1)}.",
-                user=tenant
             )
             Notification.objects.create(
                 date=end_date,
                 status="Pending",
+                booking=booking,
                 message=f"Contract for {apartment.name} has been send to tenant {tenant.full_name} at {start_date}",
-                user=tenant
             )
             if details["booking_status"] != "Canceled":
                 Notification.objects.create(
                     date=start_date,
                     status="Pending",
+                    booking=booking,
                     message=f"Contract for {apartment.name} has been signed at {start_date + timedelta(days=1)}",
-                    user=tenant
                 )
             Notification.objects.create(
                 date=start_date + timedelta(days=5),
                 status="Pending",
+                booking=booking,
                 message=f"Ask tenant if everything is okay and if they want additional cleaning at {start_date + timedelta(days=5)}",
-                user=booking.tenant
             )
