@@ -8,21 +8,6 @@ def split_underscore(value):
         return value.replace('_', ' ')
     return value
 
-@register.filter(name='get_field_name')
-def get_field_name(value):
-    if not value:
-        return ""
-    parts = value.split('.')
-    return parts[-2] if len(parts) > 1 else parts[0]
-
-@register.filter(name='get_type')
-def get_type(special_fields, field):
-    return special_fields.get(field, {}).get('type', '')
-
-@register.filter(name='get_options')
-def get_options(special_fields, field):
-    return special_fields.get(field, {}).get('options', [])
-
 @register.filter
 def get_item(obj, key):
     if isinstance(obj, dict):
@@ -51,24 +36,12 @@ def split(value, key):
         return value.split(key)
   return value
 
-@register.filter(name='get_attr')
-def get_attr(obj, attr_name):
-    return getattr(obj, attr_name, '')
+
+@register.filter(name='display_query')
+def display_query(value):
+    return value.replace('+', ' AND ').replace('|', ' OR ')
 
 
-EXCLUDED_FIELDS = ["is_active", "is_staff", "password", "updated_at", "created_at", "is_superuser", "last_login"]
-
-@register.filter(name='is_excluded')
-def is_excluded(value):
-    return value in EXCLUDED_FIELDS
-
-
-@register.simple_tag
-def render_field(item, field):
-    parts = field.split('.')
-    value = item
-    for part in parts:
-        value = getattr(value, part, None)
-        if value is None:
-            break
-    return value
+@register.filter
+def range_filter(value):
+    return range(value)

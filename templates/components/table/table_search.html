@@ -1,7 +1,7 @@
 {% load custom_filters %}
 
 <form method="GET" class="flex items-center">
-    <input type="hidden" name="search_fields" value="{{search_fields}}">
+    
     <label for="simple-search" class="sr-only">Search</label>
     <div class="relative w-full">
         <div class="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">
@@ -9,18 +9,50 @@
                 <path fill-rule="evenodd" d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z" clip-rule="evenodd" />
             </svg>
         </div>
-        <input type="text" name="q" value="{{ search_query }}" id="simple-search" class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-primary-500 focus:border-primary-500 block w-full pl-10 pr-10 p-2 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white dark:focus:ring-primary-500 dark:focus:border-primary-500" placeholder="Search by Name">
+        <input type="text" name="q" value="{{ search_query|display_query }}" id="simple-search" class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-primary-500 focus:border-primary-500 block w-full pl-10 pr-10 p-2 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white dark:focus:ring-primary-500 dark:focus:border-primary-500" placeholder="Search by fields">
         <div class="absolute inset-y-0 right-0 flex items-center pr-3 cursor-pointer" id="clearSearch">
             <svg aria-hidden="true" class="w-5 h-5 text-gray-500 dark:text-gray-400" fill="currentColor" viewbox="0 0 20 20" xmlns="http://www.w3.org/2000/svg">
                 <path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd" />
             </svg>
         </div>
     </div>
+   
     <button type="submit" class="ml-2 text-white bg-primary-700 hover:bg-primary-800 focus:ring-4 focus:outline-none focus:ring-primary-300 font-medium rounded-lg text-sm px-4 py-2 dark:bg-primary-600 dark:hover:bg-primary-700 dark:focus:ring-primary-800">Search</button>
 </form>
+<div id="helpModal" tabindex="-1" aria-hidden="true" class="hidden overflow-y-auto overflow-x-hidden fixed top-0 right-0 left-0 z-50 justify-center items-center w-full md:inset-0 h-[calc(100%-1rem)] max-h-full">
+    <div class="bg-white rounded-lg p-8 w-3/4">
+        <h2 class="text-2xl mb-4">Search Help</h2>
+        <p>Here are some examples of how to use the search for bookings:</p>
+        <ul class="list-disc pl-5">
+            <li><strong>start_date>=23.12.2022:</strong> Matches bookings with a start date after December 23, 2022.</li>
+            <li><strong>tenant=Dona:</strong> Matches bookings with a tenant name containing "Dona".</li>
+            <li><strong>status=Confirmed:</strong> Matches bookings with a status of "Confirmed".</li>
+            <li><strong>price>=100 AND price<=500:</strong> Matches bookings with a price between 100 and 500.</li>
+            <!-- Add more examples as needed -->
+        </ul>
+        <button id="closeHelpModal" class="mt-4 text-white bg-red-500 hover:bg-red-600 focus:ring-4 focus:outline-none focus:ring-red-300 font-medium rounded-lg text-sm px-4 py-2">Close</button>
+    </div>
+</div>
 
 <script>
     document.getElementById('clearSearch').addEventListener('click', function() {
         document.getElementById('simple-search').value = '';
+    });
+    document.querySelector('form').addEventListener('submit', function(event) {
+        const searchInput = document.getElementById('simple-search');
+        let searchValue = searchInput.value;
+    
+        // Replace AND and OR with + and | respectively
+        searchValue = searchValue.replace(/\bAND\b/g, '+').replace(/\bOR\b/g, '|');
+    
+        searchInput.value = searchValue;
+    });
+
+    document.getElementById('helpButton').addEventListener('click', function() {
+        document.getElementById('helpModal').style.display = 'flex';
+    });
+    
+    document.getElementById('closeHelpModal').addEventListener('click', function() {
+        document.getElementById('helpModal').style.display = 'none';
     });
 </script>

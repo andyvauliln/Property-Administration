@@ -6,7 +6,7 @@
     console.log("{{ search_query}}", "search queary")
     console.log(`{{request.GET.q}}`, "request") {% endcomment %}
 </script>
-{% #table model="users" model_fields=model_fields items_json=items_json search_query=request.GET.q items=items  search_fields="full_name, role"%}
+{% #table model="users" model_fields=model_fields items_json=items_json search_query=request.GET.q items=items%}
 {% /table %}
 
 {% endblock content %}
