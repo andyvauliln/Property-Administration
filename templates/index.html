@@ -1,30 +1,34 @@
 {% extends "_base.html" %}
 {% load slippers %}
 {% load custom_filters %}
-
-
 {% block content %}
+
 <script>
+    console.log({{ apartments_data_json|safe }});
+</script>
+<script>
+
     function toggleNotifications() {
         const notifications = document.getElementById('notifications');
         const plusIcon = document.getElementById('plusIcon');
         const minusIcon = document.getElementById('minusIcon');
-    
-        if (notifications.classList.contains('hidden')) {
-            notifications.classList.remove('hidden');
-            notifications.classList.add('block'); // or 'flex' if you want it to be a flex container
-            plusIcon.classList.toggle('hidden');
-            plusIcon.classList.toggle('block');
-            minusIcon.classList.toggle('hidden');
-            minusIcon.classList.toggle('block');
-        } else {
-            notifications.classList.add('hidden');
-            notifications.classList.remove('block'); // or 'flex' if it was a flex container
-            plusIcon.classList.toggle('hidden');
-            plusIcon.classList.toggle('block');
-            minusIcon.classList.toggle('hidden');
-            minusIcon.classList.toggle('block');
+        
+        // If the display property hasn't been set yet, initialize it
+        if (!notifications.style.display) {
+            const computedDisplay = window.getComputedStyle(notifications).display;
+            notifications.style.display = computedDisplay;
         }
+        
+        // Toggle visibility of notifications
+        if (notifications.style.display === 'none' || !notifications.style.display) {
+            notifications.style.display = 'grid'; // or whatever display value you want
+        } else {
+            notifications.style.display = 'none';
+        }
+        
+        // Toggle icons
+        plusIcon.classList.toggle('hidden');
+        minusIcon.classList.toggle('hidden');
     }
 </script>
 <section class="bg-white dark:bg-gray-900">
@@ -53,70 +57,163 @@
                     {% empty %}
                         <div class="text-center py-4">No Notifications Today</div>
                 {% endfor %}
-          {% /card %}
-          {% #card title="Next Week" %}
-          {% for notification in next_week_notifications %}
-                <li class="flex items-center space-x-3">
-                    <svg class="flex-shrink-0 w-5 h-5 text-green-500 dark:text-green-400" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"></path></svg>
-                    <span>{{ notification.message }} </span>
-                </li>
-                {% empty %}
-                     <div class="text-center py-4">No Notifications This Week</div>
-            {% endfor %}
+            {% /card %}
 
-        {% /card %}
+            {% #card title="Next Week" %}
+            {% for notification in next_week_notifications %}
+                    <li class="flex items-center space-x-3">
+                        <svg class="flex-shrink-0 w-5 h-5 text-green-500 dark:text-green-400" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"></path></svg>
+                        <span>{{ notification.message }} </span>
+                    </li>
+                    {% empty %}
+                        <div class="text-center py-4">No Notifications This Week</div>
+                {% endfor %}
+
+           {% /card %}
 
         {% #card title="Next Month" %}
-        {% for notification in next_month_notifications %}
-                <li class="flex items-center space-x-3">
-                    <svg class="flex-shrink-0 w-5 h-5 text-green-500 dark:text-green-400" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"></path></svg>
-                    <span>{{ notification.message }} </span>
-                </li>
-                {% empty %}
-                     <div class="text-center py-4">No Notifications Today</div>
-            {% endfor %}
-      {% /card %}
+                {% for notification in next_month_notifications %}
+                    <li class="flex items-center space-x-3">
+                        <svg class="flex-shrink-0 w-5 h-5 text-green-500 dark:text-green-400" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"></path></svg>
+                        <span>{{ notification.message }} </span>
+                    </li>
+                    {% empty %}
+                        <div class="text-center py-4">No Notifications Today</div>
+                {% endfor %}
+            {% /card %}
                    
          
+    </div>
     </div>
   </section>
 
   <section class="bg-white dark:bg-gray-900"> 
-    <div class="py-8 px-4 mx-auto max-w-screen-xl lg:py-16 lg:px-6">
+    <div class="pb-8 px-4 mx-auto max-w-screen-xl lg:pb-16 lg:px-6">
         <div class="mx-auto max-w-screen-md mb-8 lg:mb-12 flex justify-center items-center">
           <h2 class="text-4xl tracking-tight font-extrabold text-gray-900 dark:text-white mr-4">Calendars</h2>
         </div>
-
-        {% for apartment in apartments %}
-        <h2 class="text-2xl mb-2 tracking-tight font-extrabold text-gray-900 dark:text-white mr-4">{{ apartment.name }}</h2>
-    
-        <div class="flex items-center mb-8">
-            <!-- Previous Button -->
-            <a href="?page={{ request.GET.page|default:"1"|add:"-1" }}" class=" text-white p-4 rounded-l" style="height: fit-content;">
-                <svg class="w-6 h-6 text-gray-800 dark:text-white" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 8 14">
-                    <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 1 1.3 6.326a.91.91 0 0 0 0 1.348L7 13"/>
-                  </svg>
-            </a>
-    
-            <!-- Calendars -->
-            <div class="flex-1 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {% for month_start in months %}
-                    {% include "calendar.html" %}
-                {% endfor %}
+        <div class="flex justify-center items-center mb-6">
+            <div class="flex items-center mr-2">
+                <span class="  w-10 flex justify-center items-center  text-blue-500 rounded-sm mr-2">01</span>
+                <span>- Booking</span>
             </div>
-    
-            <!-- Next Button -->
-            <a href="?page={{ request.GET.page|default:"1"|add:"1" }}" class=" text-white p-4 rounded-r" style="height: fit-content;">
-                <svg class="w-6 h-6 text-gray-800 dark:text-white" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 8 14">
-                    <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m1 13 5.7-5.326a.909.909 0 0 0 0-1.348L1 1"/>
-                  </svg>
-            </a>
+            <div class="flex items-center mr-2">
+                <span class="  w-10 flex justify-center items-center  bg-green-100  rounded-sm mr-2">01</span>
+                <span>- Cleaning</span>
+            </div>
+            <div class="flex items-center">
+                <span class="  w-10 flex justify-center items-center  border border-red-600 rounded-sm mr-2">01</span>
+                <span>- Payment</span>
+            </div>
         </div>
-    {% endfor %}
+        
+        {% for apartment_id, apartment_data in apartments_data.items %}
+            <h2 class="text-2xl text-center mb-2 tracking-tight font-extrabold text-gray-900 dark:text-white mr-4">{{  apartment_data.apartment.name }}</h2>
+            
+            <div class="flex items-center mb-8">
+                <!-- Previous Button -->
+                <a href="?page={{ request.GET.page|default:"1"|add:"-1" }}" class=" text-white p-4 rounded-l" style="height: fit-content;">
+                    <svg class="w-6 h-6 text-gray-800 dark:text-white" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 8 14">
+                        <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 1 1.3 6.326a.91.91 0 0 0 0 1.348L7 13"/>
+                    </svg>
+                </a>
+
+                <!-- Calendars -->
+                <div class="flex-1 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    {% for month, weeks in apartment_data.months.items %}
+                    {% include "calendar.html" %}
+                    {% endfor %}
+                </div>
+        
+                <!-- Next Button -->
+                <a href="?page={{ request.GET.page|default:"1"|add:"1" }}" class=" text-white p-4 rounded-r" style="height: fit-content;">
+                    <svg class="w-6 h-6 text-gray-800 dark:text-white" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 8 14">
+                        <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m1 13 5.7-5.326a.909.909 0 0 0 0-1.348L1 1"/>
+                    </svg>
+                </a>
+            </div>
+       {% endfor %}
     
-</div>
+  </div>
 </section>
 
+
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const days = document.querySelectorAll('.day');
+        const popover = document.getElementById('dynamic-popover');
+        const popoverTitle = document.getElementById('popover-title');
+        const popoverContent = document.getElementById('popover-content');
+        const closeButton = document.getElementById('close-popover');
+        closeButton.addEventListener('click', function() {
+            document.getElementById('dynamic-popover').classList.add('hidden');
+        });
+    
+        days.forEach(day => {
+            day.addEventListener('click', function(event) {
+                const date = day.dataset.date;
+                const bookingId = day.dataset.bookingId;
+                const bookingStart = day.dataset.bookingStart;
+                const bookingEnd = day.dataset.bookingEnd;
+                const cleaningId = day.dataset.cleaningId;
+                const paymentId = day.dataset.paymentId;
+                const paymentType = day.dataset.paymentType;
+                const paymentAmount = day.dataset.paymentAmount;
+                const paymentStatus = day.dataset.paymentStatus;
+
+             
+ 
+    
+                // Set the title of the popover with the date
+                popoverTitle.textContent = date;
+    
+                // Prepare the content for the popover
+                let content = '';
+    
+                if (bookingId && bookingStart && bookingEnd) {
+                    content += `<strong>Booking:</strong> <a class='text-blue-500 underline' href="/bookings?q=id=${bookingId}">${bookingStart} - ${bookingEnd} </a><br>`;
+                }
+    
+                if (cleaningId) {
+                    content += `<strong>Cleaning:</strong> <a class='text-blue-500 underline' href="/cleanings?q=id=${cleaningId}">Go to cleaning</a><br>`;
+                }
+    
+                if (paymentId && paymentType && paymentAmount && paymentStatus) {
+                    content += `<strong>Payment:</strong>  <a class='text-blue-500 underline' href="/payments?q=id=${paymentId}">${paymentType} ${paymentAmount} [${paymentStatus}]</a>`;
+                }
+    
+                // Update the popover content
+                popoverContent.innerHTML = content || 'No events for this day';
+
+                // Position the popover above the clicked day
+                popover.style.left = `${event.clientX - popover.offsetWidth / 2}px`;
+                popover.style.top = `${event.clientY - popover.offsetHeight - 10}px`;
+
+                // Show the popover
+                popover.classList.remove('hidden');
+            });
+        });
+        // Hide the popover when clicking outside
+        document.addEventListener('click', function(event) {
+            if (!event.target.closest('.day') && !event.target.closest('#dynamic-popover')) {
+                popover.classList.add('hidden');
+            }
+        });
+    });
+    
+</script>
+
+<div id="dynamic-popover" class="hidden fixed z-10 w-[300px] text-sm text-gray-500  bg-white border border-gray-200 rounded-lg shadow-sm  dark:text-gray-400 dark:border-gray-600 dark:bg-gray-800">
+    <div class="px-3 py-2 bg-gray-100 border-b border-gray-200 rounded-t-lg dark:border-gray-600 dark:bg-gray-700 flex justify-between items-center">
+        <h3 class="font-semibold text-gray-900 dark:text-white" id="popover-title"></h3>
+        <button id="close-popover" class="text-gray-600 hover:text-gray-800 dark:text-gray-300 dark:hover:text-white">
+            &times;
+        </button>
+    </div>
+    <div class="px-3 py-2" id="popover-content">
+        <!-- Content will be dynamically added here -->
+    </div>
+</div>
   
 
 {% endblock content %}

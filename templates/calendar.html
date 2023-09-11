@@ -1,61 +1,45 @@
+{% load custom_filters %}
 <div
     class="w-full max-w-lg p-6 mx-auto bg-white rounded-2xl shadow-xl flex flex-col">
     <div class="flex justify-between pb-4">
-        <span class="uppercase text-sm font-semibold text-gray-600">{{ month_start|date:"F - Y" }}</span>
+        <span class="uppercase text-sm font-semibold text-gray-600">{{ month|date:"F Y" }}</span>
     </div>
+    {% with days_of_week="sun mon tue wed thu fri sat" %}
     <div class="flex justify-between font-medium uppercase text-xs pt-4 pb-2 border-t">
-        <div class="px-3 border rounded-sm w-12 h-5 flex items-center justify-center border-red-500 text-red-500 shadow-md">sun</div>
-        <div class="px-3 border rounded-sm w-12 h-5 flex items-center justify-center border-green-500 text-green-500 shadow-md">mon</div>
-        <div class="px-3 border rounded-sm w-12 h-5 flex items-center justify-center border-green-500 text-green-500 shadow-md"> tue</div>
-        <div class="px-3 border rounded-sm w-12 h-5 flex items-center justify-center border-green-500 text-green-500 shadow-md">wed</div>
-        <div class="px-3 border rounded-sm w-12 h-5 flex items-center justify-center border-green-500 text-green-500 shadow-md">thu</div>
-        <div class="px-3 border rounded-sm w-12 h-5 flex items-center justify-center border-green-500 text-green-500 shadow-md">fri</div>
-        <div class="px-3 border rounded-sm w-12 h-5 flex items-center justify-center border-green-500 text-green-500 shadow-md">sat</div>
+        {% for day in days_of_week.split %}
+            <div class="px-3 border rounded-sm w-10 h-5 flex items-center justify-center border-green-500 text-green-500 shadow-md">{{ day }}</div>
+        {% endfor %}
     </div>
-    <div class="flex justify-between font-medium text-sm pb-2">
-        <span class="px-1 text-gray-400 w-12 flex justify-center items-center"></span>
-        <span class="px-1 text-gray-400 w-12 flex justify-center items-center"></span>
-        <span class="px-1 w-12 flex justify-center items-center border hover:border-green-500 hover:text-green-500 cursor-pointer">01</span>
-        <span class="px-1 w-12 flex justify-center items-center border hover:border-green-500 hover:text-green-500 cursor-pointer">02</span>
-        <span class="px-1 w-12 flex justify-center items-center border hover:border-green-500 hover:text-green-500 cursor-pointer">03</span>
-        <span class="px-1 w-12 flex justify-center items-center border hover:border-green-500 hover:text-green-500 cursor-pointer">04</span>
-        <span class="px-1 w-12 flex justify-center items-center border hover:border-green-500 hover:text-green-500 cursor-pointer">05</span>
-    </div>
-    <div class="flex justify-between font-medium text-sm pb-2">
-        <span class="px-1 w-12 flex justify-center items-center border hover:border-green-500 hover:text-green-500 cursor-pointer">06</span>
-        <span class="px-1 w-12 flex justify-center items-center border hover:border-green-500 hover:text-green-500 cursor-pointer">07</span>
-        <span class="px-1 w-12 flex justify-center items-center border hover:border-green-500 hover:text-green-500 cursor-pointer">08</span>
-        <span class="px-1 w-12 flex justify-center items-center border hover:border-green-500 hover:text-green-500 cursor-pointer">09</span>
-        <span class="px-1 w-12 flex justify-center items-center border hover:border-green-500 hover:text-green-500 cursor-pointer">10</span>
-        <span class="px-1 w-12 flex justify-center items-center border hover:border-green-500 hover:text-green-500 cursor-pointer">11</span>
-        <span class="px-1 w-12 flex justify-center items-center border hover:border-green-500 hover:text-green-500 cursor-pointer">12</span>
-    </div>
-    <div class="flex justify-between font-medium text-sm pb-2">
-        <span class="px-1 w-12 flex justify-center items-center border hover:border-green-500 hover:text-green-500 cursor-pointer">13</span>
-        <span class="px-1 w-12 flex justify-center items-center border hover:border-green-500 hover:text-green-500 cursor-pointer">14</span>
-        <span class="px-1 w-12 flex justify-center items-center border hover:border-green-500 hover:text-green-500 cursor-pointer">15</span>
-        <span class="px-1 w-12 flex justify-center items-center border hover:border-green-500 hover:text-green-500 cursor-pointer">16</span>
-        <span class="px-1 w-12 flex justify-center items-center border hover:border-green-500 hover:text-green-500 cursor-pointer">17</span>
-        <span class="px-1 w-12 flex justify-center items-center border hover:border-green-500 hover:text-green-500 cursor-pointer">18</span>
-        <span class="px-1 w-12 flex justify-center items-center border hover:border-green-500 hover:text-green-500 cursor-pointer">19</span>
-    </div>
+    {% endwith %}
+    {% for week in weeks %}
+        <div class="flex justify-between">
+            {% for day_data in week %}
+                {% if day_data.day.month == month.month %}
+                    
+                        <span class="day px-1 mb-1 w-10 flex justify-center items-center 
+                            {% if day_data.booking %}  text-blue-500{% endif %}
+                            {% if day_data.cleaning %}bg-green-100{% endif %}
+                            {% if day_data.payment %}border border-red-600{% endif %}
+                              cursor-pointer rounded-sm"
+                            data-booking-id="{% if day_data.booking %}{{ day_data.booking.id }}{% endif %}"
+                            data-booking-start="{% if day_data.booking %}{{ day_data.booking.start_date|date:'Y-m-d' }}{% endif %}"
+                            data-booking-end="{% if day_data.booking %}{{ day_data.booking.end_date|date:'Y-m-d' }}{% endif %}"
+                          
+                            data-cleaning-id="{% if day_data.cleaning %}{{ day_data.cleaning.id }}{% endif %}"
+                            data-date="{{ day_data.day }}"
+                            data-payment-id="{% if day_data.payment %}{{ day_data.payment.id }}{% endif %}"
+                            data-payment-type="{% if day_data.payment %}{{ day_data.payment.payment_type }}{% endif %}"
+                            data-payment-amount="{% if day_data.payment %}{{ day_data.payment.amount }}{% endif %}"
+                            data-payment-status="{% if day_data.payment %}{{ day_data.payment.payment_status }}{% endif %}"
 
-    <div class="flex justify-between font-medium text-sm pb-2">
-        <span class="px-1 w-12 flex justify-center items-center border hover:border-green-500 hover:text-green-500 cursor-pointer">20</span>
-        <span class="px-1 w-12 flex justify-center items-center border hover:border-green-500 hover:text-green-500 cursor-pointer">21</span>
-        <span class="px-1 w-12 flex justify-center items-center border hover:border-green-500 hover:text-green-500 cursor-pointer">22</span>
-        <span class="px-1 w-12 flex justify-center items-center border hover:border-green-500 hover:text-green-500 cursor-pointer">23</span>
-        <span class="px-1 w-12 flex justify-center items-center border hover:border-green-500 hover:text-green-500 cursor-pointer">24</span>
-        <span class="px-1 w-12 flex justify-center items-center border border-green-500 text-white bg-green-500 rounded-2xl cursor-pointer shadow-md">25</span>
-        <span class="px-1 w-12 flex justify-center items-center border hover:border-green-500 hover:text-green-500 cursor-pointer">26</span>
-    </div>
-    <div class="flex justify-between font-medium text-sm pb-2">
-        <span class="px-1 w-12 flex justify-center items-center border hover:border-green-500 hover:text-green-500 cursor-pointer">27</span>
-        <span class="px-1 w-12 flex justify-center items-center border hover:border-green-500 hover:text-green-500 cursor-pointer">28</span>
-        <span class="px-1 w-12 flex justify-center items-center border hover:border-green-500 hover:text-green-500 cursor-pointer">29</span>
-        <span class="px-1 w-12 flex justify-center items-center border hover:border-green-500 hover:text-green-500 cursor-pointer">30</span>
-        <span class="px-1 text-gray-400 w-12 flex justify-center items-center"></span>
-        <span class="px-1 text-gray-400 w-12 flex justify-center items-center"></span>
-        <span class="px-1 text-gray-400 w-12 flex justify-center items-center"></span>
-    </div>
+                             >
+                            {{ day_data.day|date:"d" }}
+                        </span>
+                  
+                {% else %}
+                    <span class="day-empty px-1 text-gray-400 w-10 flex justify-center items-center"></span>
+                {% endif %}
+            {% endfor %}
+        </div>
+    {% endfor %}
 </div>
