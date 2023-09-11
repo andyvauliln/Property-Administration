@@ -235,7 +235,7 @@ class Apartment(models.Model):
     manager = ForeignKeyEx(User, on_delete=models.SET_NULL,  blank=True,  db_index=True, related_name='managed_apartments', null=True, limit_choices_to={'role': 'Manager'}, isColumn=True, isEdit=True, isCreate=True, ui_element="dropdown", _dropdown_options=lambda: get_dropdown_options("managers"), display_field='manager.full_name')
     owner = ForeignKeyEx(User, on_delete=models.SET_NULL,  blank=True, db_index=True, related_name='owned_apartments', null=True, limit_choices_to={'role': 'Owner'}, isColumn=True, isEdit=True, isCreate=True, ui_element="dropdown", _dropdown_options=lambda: get_dropdown_options("owners"), display_field='owner.full_name')
 
-    
+   
     @property 
     def links(self):
         links_list = []
@@ -272,12 +272,11 @@ class Booking(models.Model):
         ('Dayly', 'Dayly'),
         ('Monthly', 'Monthly'),
     ]
-    
-    
-    tenant_email = EmailFieldEx(blank=True, null=True, editable=False, isEdit=False, isCreate=True, isColumn=False, ui_element="input")
-    tenant_full_name = CharFieldEx(max_length=255, blank=True, null=True, editable=False, isEdit=False, isCreate=True, isColumn=False, ui_element="input")
-    tenant_phone = CharFieldEx(max_length=20, blank=True, null=True, editable=False, isEdit=False, isCreate=True, isColumn=False, ui_element="input")
-    assigned_cleaner = IntegerFieldEx(editable=False, null=True, blank=True, isColumn=False, isEdit=True, isCreate=True, ui_element="dropdown", _dropdown_options=lambda: get_dropdown_options("cleaners"))
+     
+    tenant_email = EmailFieldEx(blank=True, null=True, auto_created=True, isEdit=False, isCreate=True, isColumn=False, ui_element="input")
+    tenant_full_name = CharFieldEx(max_length=255, blank=True, null=True, auto_created=True, isEdit=False, isCreate=True, isColumn=False, ui_element="input")
+    tenant_phone = CharFieldEx(max_length=20, blank=True, null=True, auto_created=True, isEdit=False, isCreate=True, isColumn=False, ui_element="input")
+    assigned_cleaner = IntegerFieldEx(auto_created=True, null=True, blank=True, isColumn=False, isEdit=True, isCreate=True, ui_element="dropdown", _dropdown_options=lambda: get_dropdown_options("cleaners"))
    
     price = DecimalFieldEx(max_digits=32, decimal_places=2, isColumn=False, isEdit=True, isCreate=True, ui_element="input")
     period = CharFieldEx(max_length=32, db_index=True, choices=PERIOD, isColumn=True, isEdit=True, isCreate=True, ui_element="dropdown", _dropdown_options=lambda: get_dropdown_options("booking_period"))
@@ -290,57 +289,12 @@ class Booking(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     
-    holding_deposit = DecimalFieldEx(editable=False, max_digits=32, decimal_places=2, null=True, blank=True, isEdit=False, isCreate=True, isColumn=False, ui_element="input")
-    damage_deposit = DecimalFieldEx(editable=False, max_digits=32, decimal_places=2, null=True, blank=True, isEdit=False, isCreate=True, isColumn=False, ui_element="input")
+    holding_deposit = DecimalFieldEx(auto_created=True, max_digits=32, decimal_places=2, null=True, blank=True, isEdit=False, isCreate=True, isColumn=False, ui_element="input")
+    damage_deposit = DecimalFieldEx(auto_created=True, max_digits=32, decimal_places=2, null=True, blank=True, isEdit=False, isCreate=True, isColumn=False, ui_element="input")
     
     tenant = ForeignKeyEx(User, on_delete=models.SET_NULL, db_index=True, related_name='bookings', null=True, limit_choices_to={'role': 'Tenant'}, blank=True, isColumn=True, isEdit=False, isCreate=False, ui_element="input", display_field='tenant.full_name')
     
     apartment = ForeignKeyEx(Apartment, on_delete=models.SET_NULL, db_index=True, related_name='booked_apartments', null=True, isColumn=True, isEdit=False, isCreate=True, ui_element="dropdown", _dropdown_options=lambda: get_dropdown_options("apartments"), display_field='apartment.name')
-
-    @property
-    def links(self):
-        links_list = []
-        
-        # Link to the contract associated with this booking
-
-        contract = self.contract.first()  # Fetch the associated contract using the reverse relationship
-        if contract:
-            links_list.append({"name": f"Contract: {contract.contract_id or contract.id}", "link": f"/contracts?q=id={contract.id}"})
-
-
-        # Link to the tenant associated with this booking
-        if self.tenant:
-            links_list.append({"name": f"Tenant: {self.tenant.full_name}", "link": f"/users?q=id={self.tenant.id}"})
-
-        
-
-        if self.apartment:
-            # Assuming the manager and owner are associated with the apartment
-            manager = self.apartment.manager
-            owner = self.apartment.owner
-
-            links_list.append({"name": f"Apartment: {self.apartment.name}", "link": f"/apartments?q=id={self.apartment.id}"})
-
-            if manager:
-                links_list.append({"name": f"Manager: {manager.full_name}", "link": f"/users?q=id={manager.id}"})
-
-            if owner:
-                links_list.append({"name": f"Owner: {owner.full_name}", "link": f"/users?q=id={owner.id}"})
-                
-        payments = self.payments.all()
-        for payment in payments:
-            links_list.append({"name": f"Payment: {payment.payment_type} - {payment.amount}$ on {payment.payment_date} [{payment.payment_status}]", "link": f"/payments?q=id={payment.id}"})
-
-
-        cleanings = self.cleanings.all()
-        for cleaning in cleanings:
-            cleaner = cleaning.cleaner
-            if cleaner:
-                links_list.append({"name": f"Cleaning: {cleaning.date} [{cleaning.status}]", "link": f"/cleanings?q=id={cleaning.id}"})
-                links_list.append({"name": f"Cleaner: {cleaner.full_name}", "link": f"/users?q=id={cleaner.id}"})
-
-        return links_list
-    
 
     def handle_update(self):
         # Logic for updates, if any specific actions are required when a booking is updated
@@ -431,38 +385,7 @@ class Booking(models.Model):
         # Set other necessary fields for the contract if needed
         # ...
         contract.save()
-        
-        if False:
-            # Integrate with DocuSign
-            api_client = ApiClient()
-            api_client.host = 'https://demo.docusign.net/restapi'  # Use the appropriate URL for your environment
-            api_client.set_default_header("Authorization", "Bearer " + settings.DOCUSIGN_ACCESS_TOKEN)
-
-            envelope_definition = EnvelopeDefinition(
-                email_subject="Please sign this document",
-                # Add more fields as required for your envelope definition
-                # ...
-            )
-
-            # Add recipients, documents, and other necessary details to the envelope_definition
-            # ...
-
-            envelopes_api = EnvelopesApi(api_client)
-            envelope_summary = envelopes_api.create_envelope(settings.DOCUSIGN_ACCOUNT_ID, envelope_definition=envelope_definition)
-
-            # Update the contract with the DocuSign contract_id and web_link
-            contract.contract_id = envelope_summary.envelope_id
-            # Assuming you want to provide a signing link, you can create a RecipientViewRequest and get the URL
-            view_request = RecipientViewRequest(
-                return_url="YOUR_RETURN_URL_AFTER_SIGNING",
-                client_user_id="UNIQUE_IDENTIFIER_FOR_THE_RECIPIENT",  # This should be unique for the signer
-                authentication_method="None",  # Adjust as needed
-                user_name="RECIPIENT_NAME",
-                email="RECIPIENT_EMAIL"
-            )
-            view_response = envelopes_api.create_recipient_view(settings.DOCUSIGN_ACCOUNT_ID, envelope_summary.envelope_id, recipient_view_request=view_request)
-            contract.link = view_response.url
-            contract.save()
+    
     def schedule_cleaning(self):
         # Schedule a cleaning for the day after the booking ends
         cleaning_date = self.end_date + timedelta(days=1)
@@ -483,7 +406,44 @@ class Booking(models.Model):
             booking=self,
             payment_date=payment_date
         )
-    # Contract Model
+   
+    @property
+    def links(self):
+        links_list = []
+        
+        # Link to the contract associated with this booking
+        contract = self.contract.first()  # Fetch the associated contract using the reverse relationship
+        if contract:
+            links_list.append({"name": f"Contract: {contract.contract_id or contract.id}", "link": f"/contracts?q=id={contract.id}"})
+        # Link to the tenant associated with this booking
+        if self.tenant:
+            links_list.append({"name": f"Tenant: {self.tenant.full_name}", "link": f"/users?q=id={self.tenant.id}"})
+
+        if self.apartment:
+            # Assuming the manager and owner are associated with the apartment
+            manager = self.apartment.manager
+            owner = self.apartment.owner
+
+            links_list.append({"name": f"Apartment: {self.apartment.name}", "link": f"/apartments?q=id={self.apartment.id}"})
+
+            if manager:
+                links_list.append({"name": f"Manager: {manager.full_name}", "link": f"/users?q=id={manager.id}"})
+
+            if owner:
+                links_list.append({"name": f"Owner: {owner.full_name}", "link": f"/users?q=id={owner.id}"})
+        payments = self.payments.all()
+        for payment in payments:
+            links_list.append({"name": f"Payment: {payment.payment_type} - {payment.amount}$ on {payment.payment_date} [{payment.payment_status}]", "link": f"/payments?q=id={payment.id}"})
+
+        cleanings = self.cleanings.all()
+        for cleaning in cleanings:
+            cleaner = cleaning.cleaner
+            if cleaner:
+                links_list.append({"name": f"Cleaning: {cleaning.date} [{cleaning.status}]", "link": f"/cleanings?q=id={cleaning.id}"})
+                links_list.append({"name": f"Cleaner: {cleaner.full_name}", "link": f"/users?q=id={cleaner.id}"})
+
+        return links_list
+# Contract Model
 class Contract(models.Model):
     def __str__(self):
         return str(self.contract_id)
@@ -592,7 +552,7 @@ class Payment(models.Model):
 # Cleanings Model
 class Cleaning(models.Model):
     def __str__(self):
-        return str(self.booking.date)
+        return str(self.date)
 
     STATUS = [
         ('Scheduled', 'Scheduled'),

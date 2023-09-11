@@ -15,22 +15,36 @@ import json
 from django.core import serializers
 from datetime import datetime, date, timedelta
 import inspect
+from collections import defaultdict
+from django.utils import timezone
+import calendar
+from django.core.serializers import serialize
+from dateutil.relativedelta import relativedelta
 
 logger = logging.getLogger(__name__)
+
+def stringify_keys(d):
+    """Recursively convert a dictionary's keys to strings."""
+    if not isinstance(d, dict):
+        return d
+    return {str(k): stringify_keys(v) for k, v in d.items()}
+
+
 def add_one_month(orig_date):
     # Calculate the next month and year
     new_month = orig_date.month % 12 + 1
     new_year = orig_date.year + (orig_date.month // 12)
     return date(new_year, new_month, 1)
 
+def generate_weeks(month_start):
+    """Generate weeks for a given month."""
+    cal = calendar.Calendar(firstweekday=calendar.SUNDAY)
+    return cal.monthdatescalendar(month_start.year, month_start.month)
+
 @login_required
 def index(request):
-   # Fetch all properties
-    apartments = Apartment.objects.all().prefetch_related('booked_apartments')
-
-
-    # Fetch bookings for each property
-    bookings = {apartment.id: Booking.objects.filter(apartment=apartment) for apartment in apartments}
+    # Fetch all properties
+    apartments = Apartment.objects.all()
 
     # Fetch today's notifications
     today = date.today()
@@ -45,20 +59,78 @@ def index(request):
     next_month_notifications = Notification.objects.filter(date__range=(today, next_month))
     
     page = int(request.GET.get('page', 1))
-    start_month = date.today().replace(day=1) + timedelta(days=30 * (page - 1) * 3)
+    start_month = (date.today() + relativedelta(months=3 * (page - 1))).replace(day=1)
+    months = [start_month + relativedelta(months=i) for i in range(3)]
+    end_date = months[-1] + relativedelta(months=1) - timedelta(days=1)  
     
-    months = [start_month]
-    for _ in range(2):
-        start_month = add_one_month(start_month)
-        months.append(start_month)
+
+    
+
+    bookings = Booking.objects.filter(start_date__range=(start_month, end_date)).select_related('apartment')
+    cleanings = Cleaning.objects.filter(date__range=(start_month, end_date)).select_related('booking__apartment')
+    payments = Payment.objects.filter(payment_date__range=(start_month, end_date)).select_related('booking__apartment')
+
+    
+    event_data = defaultdict(dict)
+    
+
+    for booking in bookings:
+        current_date = booking.start_date
+        while current_date <= booking.end_date:
+            key = (booking.apartment.id, current_date)
+            event_data[key]['booking'] = booking
+            current_date += timedelta(days=1)
+
+    for cleaning in cleanings:
+        key = (cleaning.booking.apartment.id, cleaning.date)
+        event_data[key]['cleaning'] = cleaning
+
+    for payment in payments:
+        if payment.booking and payment.booking.apartment:
+            key = (payment.booking.apartment.id, payment.payment_date)
+            event_data[key]['payment'] = payment
+        
+    
+    apartments_data = {}
+
+    for apartment in apartments:
+        apartment_data = {
+            'apartment': apartment,
+            'months': defaultdict(list)
+        }
+
+        for month in months:
+            weeks = generate_weeks(month)
+            for week in weeks:
+                week_data = []
+                for day in week:
+                    day_data = {
+                        'day': day,
+                        'booking': event_data.get((apartment.id, day), {}).get('booking'),
+                        'cleaning': event_data.get((apartment.id, day), {}).get('cleaning'),
+                        'payment': event_data.get((apartment.id, day), {}).get('payment')
+                    }
+                    week_data.append(day_data)
+                apartment_data['months'][month].append(week_data)
+
+        apartments_data[apartment.id] = apartment_data
+    
+    apartments_data_str_keys = stringify_keys(apartments_data)    
+    apartments_data_json = json.dumps(apartments_data_str_keys, default=str)
+    
+    apartments_data = dict(apartments_data)
+    for apartment_id, apartment_data in apartments_data.items():
+        apartment_data['months'] = dict(apartment_data['months'])
 
     context = {
-        'apartments': apartments,
+        'apartments_data': apartments_data,
+        'current_date': timezone.now(),
+        'apartments_data_json': apartments_data_json,
         'months': months,
         'bookings': bookings,
         'today_notifications': today_notifications,
         'next_week_notifications': next_week_notifications,
-        'next_month_notifications': next_month_notifications
+        'next_month_notifications': next_month_notifications,
     }
 
     return render(request, 'index.html', context)
@@ -104,7 +176,10 @@ def parse_query(model, query):
             operator = None
             if '=' in sub_condition:
                 field, value = sub_condition.split('=')
-                operator = '__icontains'
+                if field == "id":
+                    operator = ''  # Exact match for id
+                else:
+                    operator = '__icontains'
             elif '>' in sub_condition:
                 field, value = sub_condition.split('>')
                 operator = '__gt'
@@ -199,7 +274,9 @@ def generic_view(request, model_name, form_class, template_name, pages=10):
     items_json = json.dumps(items_list)
 
     
+    # Get fields from the model's metadata
     model_fields = [field for field in model._meta.get_fields() if isinstance(field, CustomFieldMixin)]
+
    
     return render(request, template_name, {'items': items_on_page, "items_json": items_json, 'search_query': search_query, 'model_fields': model_fields})
 
