@@ -1,4 +1,7 @@
 from django import template
+import calendar
+import json
+
 
 register = template.Library()
 
@@ -42,6 +45,3 @@ def display_query(value):
     return value.replace('+', ' AND ').replace('|', ' OR ')
 
 
-@register.filter
-def range_filter(value):
-    return range(value)
