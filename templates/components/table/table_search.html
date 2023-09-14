@@ -10,6 +10,9 @@
             </svg>
         </div>
         <input type="text" name="q" value="{{ search_query|display_query }}" id="simple-search" class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-primary-500 focus:border-primary-500 block w-full pl-10 pr-10 p-2 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white dark:focus:ring-primary-500 dark:focus:border-primary-500" placeholder="Search by fields">
+        <div id="autocomplete-dropdown" class="absolute mt-1 w-1/2 bg-white border border-gray-300 rounded-md shadow-lg hidden">
+            <!-- Autocomplete suggestions will be populated here -->
+        </div>
         <div class="absolute inset-y-0 right-0 flex items-center pr-3 cursor-pointer" id="clearSearch">
             <svg aria-hidden="true" class="w-5 h-5 text-gray-500 dark:text-gray-400" fill="currentColor" viewbox="0 0 20 20" xmlns="http://www.w3.org/2000/svg">
                 <path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd" />
@@ -19,40 +22,152 @@
    
     <button type="submit" class="ml-2 text-white bg-primary-700 hover:bg-primary-800 focus:ring-4 focus:outline-none focus:ring-primary-300 font-medium rounded-lg text-sm px-4 py-2 dark:bg-primary-600 dark:hover:bg-primary-700 dark:focus:ring-primary-800">Search</button>
 </form>
-<div id="helpModal" tabindex="-1" aria-hidden="true" class="hidden overflow-y-auto overflow-x-hidden fixed top-0 right-0 left-0 z-50 justify-center items-center w-full md:inset-0 h-[calc(100%-1rem)] max-h-full">
+<div id="helpModal" tabindex="-1" aria-hidden="true" class="hidden fixed inset-0 z-50 flex justify-center items-center bg-black bg-opacity-50 backdrop-blur-md">
     <div class="bg-white rounded-lg p-8 w-3/4">
         <h2 class="text-2xl mb-4">Search Help</h2>
-        <p>Here are some examples of how to use the search for bookings:</p>
+        <p>Here's how to use the advanced search:</p>
+        
+        <h3 class="text-xl mt-4 mb-2">Operators:</h3>
         <ul class="list-disc pl-5">
-            <li><strong>start_date>=23.12.2022:</strong> Matches bookings with a start date after December 23, 2022.</li>
-            <li><strong>tenant=Dona:</strong> Matches bookings with a tenant name containing "Dona".</li>
-            <li><strong>status=Confirmed:</strong> Matches bookings with a status of "Confirmed".</li>
-            <li><strong>price>=100 AND price<=500:</strong> Matches bookings with a price between 100 and 500.</li>
+            <li><strong>=</strong>: Matches exact values. E.g., <code>status=Confirmed</code></li>
+            <li><strong>></strong>: Matches values greater than the specified value. E.g., <code>price>100</code></li>
+            <li><strong><</strong>: Matches values less than the specified value.</li>
+            <li><strong>>=</strong>: Matches values greater than or equal to the specified value.</li>
+            <li><strong><=</strong>: Matches values less than or equal to the specified value.</li>
+        </ul>
+
+        <h3 class="text-xl mt-4 mb-2">Combining Conditions:</h3>
+        <ul class="list-disc pl-5">
+            <li><strong>AND</strong>: Both conditions must be true. E.g., <code>price>=100 AND price<=500</code></li>
+            <li><strong>OR</strong>: At least one of the conditions must be true. E.g., <code>status=Confirmed OR status=Pending</code></li>
+        </ul>
+
+        <h3 class="text-xl mt-4 mb-2">Brackets:</h3>
+        <p>Use brackets to group conditions and control the order of evaluation. E.g., <code>(status=Confirmed OR status=Pending) AND price>100</code></p>
+
+        <h3 class="text-xl mt-4 mb-2">Matching Behavior:</h3>
+        <ul class="list-disc pl-5">
+            <li><strong>If id fields</strong>: Matches exact values. E.g., <code>booking.id=123</code></li>
+            <li><strong>If other fields</strong>: Matches values that contain the specified text. E.g., <code>tenant.full_name=Dona</code> will match any tenant name containing "Dona".</li>
+        </ul>
+        <h3 class="text-xl mt-4 mb-2">Examples:</h3>
+        <ul class="list-disc pl-5">
+            <li><code>start_date>=23.12.2022</code>: Matches bookings with a start date after December 23, 2022.</li>
+            <li><code>tenant.full_name=Dona</code>: Matches bookings with a tenant name containing "Dona".</li>
+            <li><code>status=Confirmed</code>: Matches bookings with a status of "Confirmed".</li>
+            <li><code>price>=100 AND price<=500</code>: Matches bookings with a price between 100 and 500.</li>
             <!-- Add more examples as needed -->
         </ul>
+
         <button id="closeHelpModal" class="mt-4 text-white bg-red-500 hover:bg-red-600 focus:ring-4 focus:outline-none focus:ring-red-300 font-medium rounded-lg text-sm px-4 py-2">Close</button>
     </div>
 </div>
-
+ 
 <script>
-    document.getElementById('clearSearch').addEventListener('click', function() {
-        document.getElementById('simple-search').value = '';
-    });
-    document.querySelector('form').addEventListener('submit', function(event) {
+    document.addEventListener('DOMContentLoaded', function() {
+        const modelsData = window.modelsData; // Assuming modelsData is a global variable
+    
         const searchInput = document.getElementById('simple-search');
-        let searchValue = searchInput.value;
-    
-        // Replace AND and OR with + and | respectively
-        searchValue = searchValue.replace(/\bAND\b/g, '+').replace(/\bOR\b/g, '|');
-    
-        searchInput.value = searchValue;
-    });
+        const dropdown = document.getElementById('autocomplete-dropdown');
+        const currentModel = window.location.pathname.split('/')[1]; // Assuming URL structure is /model-name/...
+        //console.log(currentModel, "currentModel")
+        //console.log(modelsData, "modelsData")
 
-    document.getElementById('helpButton').addEventListener('click', function() {
-        document.getElementById('helpModal').style.display = 'flex';
-    });
+        function generateFieldList(modelName) {
+            let fields = [];
+            const modelData = modelsData[modelName];
+        
+            for (let field of modelData.fields) {
+                // If the field has options, add each option as a suggestion
+                if (modelData.options && modelData.options[field]) {
+                    for (let option of modelData.options[field]) {
+                        fields.push(`${field}=${option}`);
+                    }
+                } else {
+                    // If no specific options, add the generic field
+                    fields.push(field + "=");
+                }
+            }
+        
+            // If the model has related models, recursively get their fields
+            if (modelData.relatedModels) {
+                for (let relatedField in modelData.relatedModels) {
+                    const relatedModelName = modelData.relatedModels[relatedField];
+                    const relatedFields = generateFieldList(relatedModelName);
+                    fields = fields.concat(relatedFields.map(f => `${relatedField}.${f}`));
+                }
+            }
+        
+            return fields;
+        }
+        
+        const allFields = generateFieldList(currentModel);
+        console.log(allFields, "allFields")
+
+        searchInput.addEventListener('input', function() {
+            const value = searchInput.value.trim();
+            //console.log(value, "value")
+            const lastWord = value.split(/[\s\+\|]/).pop();
+            //console.log(lastWord, "lastWord")
+            let suggestions = allFields.filter(field => field.startsWith(lastWord));
+            //console.log(suggestions, "suggestions")
+        
+            // Populate the dropdown with suggestions
+            dropdown.innerHTML = suggestions.map(s => `<div class="p-2 hover:bg-gray-200 cursor-pointer">${s}</div>`).join('');
+            if (suggestions.length) {
+                dropdown.style.display = 'block';
+            } else {
+                dropdown.style.display = 'none';
+            }
+        });
+        
+        // Hide dropdown when clicking outside
+        document.addEventListener('click', function(event) {
+            if (!dropdown.contains(event.target) && event.target !== searchInput) {
+                dropdown.style.display = 'none';
+            }
+        });
+        
+        // On selecting a suggestion
+        dropdown.addEventListener('click', function(event) {
+            if (event.target.matches('div')) {
+                const lastWord = searchInput.value.split(/[\s\+\|]/).pop();
+                searchInput.value = searchInput.value.substring(0, searchInput.value.lastIndexOf(lastWord)) + event.target.textContent.trim();
+                dropdown.style.display = 'none';
+            }
+        });
+        document.querySelector('form').addEventListener('submit', function(event) {
+            let searchValue = searchInput.value;
+
+            console.log(searchValue, "searchValue1")
     
-    document.getElementById('closeHelpModal').addEventListener('click', function() {
-        document.getElementById('helpModal').style.display = 'none';
-    });
+            // Replace AND and OR with + and | respectively, case-insensitively
+            searchValue = searchValue.replace(/\band\b/gi, '+').replace(/\bor\b/gi, '|');
+            console.log(searchValue, "searchValue2")
+    
+            // Here, you can add validation logic to ensure the search query is valid.
+            // If it's not valid, you can prevent the form submission and show an error message.
+    
+            searchInput.value = searchValue;
+        });
+
+        document.getElementById('clearSearch').addEventListener('click', function() {
+            document.getElementById('simple-search').value = '';
+        }); 
+    
+        const helpbutton = document.getElementById('helpButton')
+        if (helpbutton) {
+            helpbutton.addEventListener('click', function() {
+                document.getElementById('helpModal').style.display = 'flex';
+            });
+        }
+        
+        document.getElementById('closeHelpModal').addEventListener('click', function() {
+            document.getElementById('helpModal').style.display = 'none';
+        });
+    })
+   
 </script>
+
+
+

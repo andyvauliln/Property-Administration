@@ -10,78 +10,15 @@ from datetime import timedelta
 from dateutil.relativedelta import relativedelta
 from datetime import date
 from decimal import Decimal
-from datetime import date
-from django.db.models import Q
+from datetime import datetime
+import os
 
-
-
-def get_dropdown_options(identifier):
-    """
-    Returns a list of dictionaries suitable for dropdown options based on the provided identifier.
-
-    :param identifier: A string identifier for the dropdown options (e.g., 'managers', 'cleaners').
-    :return: A list of dictionaries with "value" and "label" keys.
-    """
-    if identifier == 'managers':
-        items = User.objects.filter(role='Manager')
-        return [{"value": item.id, "label": item.full_name} for item in items]
-
-    elif identifier == 'cleaners':
-        items = User.objects.filter(role='Cleaner')
-        return [{"value": item.id, "label": item.full_name} for item in items]
+def convert_date_format(date_str):
+    # Parse the date from MM/DD/YYYY format
+    date_obj = datetime.strptime(date_str, '%m/%d/%Y')
     
-    elif identifier == 'roles':
-        return [{"value": x[0], "label": x[1]} for x in User.ROLES]
-
-    elif identifier == 'owners':
-        items = User.objects.filter(role='Owner')
-        return [{"value": item.id, "label": item.full_name} for item in items]
-
-    elif identifier == 'tenants':
-        items = User.objects.filter(role='Tenant')
-        return [{"value": item.id, "label": item.full_name} for item in items]
-
-    elif identifier == 'payment_methods':
-        items = PaymentMethod.objects.filter(type='Payment Method')
-        return [{"value": item.id, "label": item.name} for item in items]
-
-    elif identifier == 'banks':
-        items = PaymentMethod.objects.filter(type='Bank')
-        return [{"value": item.id, "label": item.name} for item in items]
-
-    elif identifier == 'apartments':
-        items = Apartment.objects.all()
-        return [{"value": item.id, "label": item.name} for item in items]
-
-    elif identifier == 'bookings':
-        today = date.today()
-        items = Booking.objects.filter(Q(start_date__gte=today) | Q(status='Active'))
-        return [{"value": item.id, "label": f'{item.apartment.name}:[{item.start_date} - {item.end_date}]'} for item in items]
-    
-    elif identifier == 'apart_types':
-        return [{"value": x[0], "label": x[1]} for x in Apartment.TYPES]
-    elif identifier == 'apart_status':
-        return [{"value": x[0], "label": x[1]} for x in Apartment.STATUS]
-    elif identifier == 'contract_status':
-        return [{"value": x[0], "label": x[1]} for x in Contract.STATUS]
-    elif identifier == 'booking_status':
-        return [{"value": x[0], "label": x[1]} for x in Booking.STATUS]
-    elif identifier == 'booking_period':
-        return [{"value": x[0], "label": x[1]} for x in Booking.PERIOD]
-    elif identifier == 'payment_method_type':
-        return [{"value": x[0], "label": x[1]} for x in PaymentMethod.TYPE]
-    elif identifier == 'payment_type':
-        return [{"value": x[0], "label": x[1]} for x in Payment.PAYMENT_TYPE]
-    elif identifier == 'payment_status':
-        return [{"value": x[0], "label": x[1]} for x in Payment.PAYMENT_STATUS]
-    elif identifier == 'cleaning_status':
-        return [{"value": x[0], "label": x[1]} for x in Cleaning.STATUS]
-    elif identifier == 'notification_status':
-        return [{"value": x[0], "label": x[1]} for x in Notification.STATUS]
-
-    else:
-        raise ValueError(f"Unsupported identifier: {identifier}")
-
+    # Convert the date object to YYYY-MM-DD format
+    return date_obj.strftime('%Y-%m-%d')
 
 class CustomUserManager(BaseUserManager):
     def create_user(self, email, password=None, **extra_fields):
@@ -98,65 +35,7 @@ class CustomUserManager(BaseUserManager):
         extra_fields.setdefault('is_superuser', True)
         return self.create_user(email, password, **extra_fields)
 
-class CustomFieldMixin:
-    def __init__(self, *args, **kwargs):
-        self._dropdown_options = kwargs.pop('_dropdown_options', None)
-        self.isColumn = kwargs.pop('isColumn', False)
-        self.isEdit = kwargs.pop('isEdit', False)
-        self.isCreate = kwargs.pop('isCreate', False)
-        self.ui_element = kwargs.pop('ui_element', None)
-        super().__init__(*args, **kwargs)
-         
-    @property
-    def dropdown_options(self):
-        if callable(self._dropdown_options):
-            return self._dropdown_options()
-        return self._dropdown_options
-   
-class CharFieldEx(CustomFieldMixin, models.CharField):
-    pass
-
-class IntegerFieldEx(CustomFieldMixin, models.IntegerField):
-    pass
-
-class DecimalFieldEx(CustomFieldMixin, models.DecimalField):
-    pass
-
-class DateFieldEx(CustomFieldMixin, models.DateField):
-    pass
-
-class DateTimeFieldEx(CustomFieldMixin, models.DateTimeField):
-    pass
-
-class EmailFieldEx(CustomFieldMixin, models.EmailField):
-    pass
-
-class BooleanFieldEx(CustomFieldMixin, models.BooleanField):
-    pass
-
-class URLFieldEx(CustomFieldMixin, models.URLField):
-    pass
-
-class ForeignKeyEx(CustomFieldMixin, models.ForeignKey):
-    def __init__(self, *args, **kwargs):
-        self.display_field = kwargs.pop('display_field', None)
-        super().__init__(*args, **kwargs)
-
-class ManyToManyFieldEx(CustomFieldMixin, models.ManyToManyField):
-    pass
-
-class OneToOneFieldEx(CustomFieldMixin, models.OneToOneField):
-    pass
-
-class TextFieldEx(CustomFieldMixin, models.TextField):
-    pass
-      
-
-# User Model            
 class User(AbstractBaseUser, PermissionsMixin):
-    def __str__(self):
-        return self.full_name
-
     ROLES = [
         ('Admin', 'Admin'),
         ('Cleaner', 'Cleaner'),
@@ -164,28 +43,32 @@ class User(AbstractBaseUser, PermissionsMixin):
         ('Tenant', 'Tenant'),
         ('Owner', 'Owner'),
     ]
+
+    email = models.EmailField(unique=True)
+    password = models.CharField(max_length=128, null=True, blank=True)
+    full_name = models.CharField(max_length=255, db_index=True)
+    phone = models.CharField(max_length=15, blank=True, null=True)
+    role = models.CharField(max_length=14, choices=ROLES)
+    notes = models.TextField(blank=True, null=True)
+   
+    is_active = models.BooleanField(default=True)
+    is_staff = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
     USERNAME_FIELD = 'email'
     REQUIRED_FIELDS = ['full_name']
-    
+
+    objects = CustomUserManager()
+
+    def __str__(self):
+        return self.full_name
+
     def save(self, *args, **kwargs):
         # Check if the password is not hashed
         if self.password and not self.password.startswith(('pbkdf2_sha256$', 'bcrypt')):
             self.password = make_password(self.password)
         super(User, self).save(*args, **kwargs)
-
-    email = EmailFieldEx(unique=True, isColumn=True, isEdit=True, isCreate=True, ui_element="input")
-    password = CharFieldEx(max_length=128, null=True, blank=True, isColumn=False, isEdit=True, isCreate=True, ui_element="input")
-    full_name = CharFieldEx(max_length=255, db_index=True, isColumn=True, isEdit=True, isCreate=True, ui_element="input")
-    phone = CharFieldEx(max_length=15, blank=True, null=True, isColumn=True, isEdit=True, isCreate=True, ui_element="input")
-
-    role = CharFieldEx(max_length=14, choices=ROLES, isColumn=True, isEdit=True, isCreate=True, ui_element="dropdown", _dropdown_options=lambda: get_dropdown_options("roles"))
-    notes = TextFieldEx(blank=True, null=True, isColumn=False, isEdit=True, isCreate=True, ui_element="textarea")
-    created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
-    is_active = models.BooleanField(default=True)
-    is_staff = models.BooleanField(default=False)
-    objects = CustomUserManager()
-
 
     @property
     def links(self):
@@ -209,10 +92,10 @@ class User(AbstractBaseUser, PermissionsMixin):
 
         return links_list
      
-# Apartment Model
 class Apartment(models.Model):
     def __str__(self):
         return self.name
+
     TYPES = [
         ('In Management', 'In Management'),
         ('In Ownership', 'In Ownership'),
@@ -221,19 +104,26 @@ class Apartment(models.Model):
         ('Available', 'Available'),
         ('Unavailable', 'Unavailable'),
     ]
-    name = CharFieldEx(max_length=255,  db_index=True, isColumn=True, isEdit=True, isCreate=True, ui_element="input")
-    web_link = URLFieldEx(blank=True, null=True, isColumn=False, isEdit=True, isCreate=True, ui_element="input")
-    address = CharFieldEx(max_length=255, isColumn=False, isEdit=True, isCreate=True, ui_element="input")
-    bedrooms = IntegerFieldEx(isColumn=False, isEdit=True, isCreate=True, ui_element="input")
-    bathrooms = IntegerFieldEx(isColumn=False, isEdit=True, isCreate=True, ui_element="input")
-    apartment_type = CharFieldEx(max_length=15, db_index=True, choices=TYPES,  isColumn=True, isEdit=True, isCreate=True, ui_element="dropdown", _dropdown_options=lambda: get_dropdown_options("apart_types"))
-    status = CharFieldEx(max_length=14, db_index=True, choices=STATUS, isColumn=True, isEdit=True, isCreate=True, ui_element="dropdown", _dropdown_options=lambda: get_dropdown_options("apart_status"))
-    notes = TextFieldEx(blank=True, null=True, isColumn=False, isEdit=True, isCreate=True, ui_element="textarea")
+
+    name = models.CharField(max_length=255, db_index=True)
+    web_link = models.URLField(blank=True, null=True)
+    house_number = models.CharField(max_length=10)
+    street = models.CharField(max_length=255)
+    room = models.CharField(max_length=10, blank=True, null=True)  # optional
+    state = models.CharField(max_length=100)
+    city = models.CharField(max_length=100)
+    zip_index = models.CharField(max_length=10)
+    bedrooms = models.IntegerField()
+    bathrooms = models.IntegerField()
+    apartment_type = models.CharField(max_length=15, db_index=True, choices=TYPES)
+    status = models.CharField(max_length=14, db_index=True, choices=STATUS)
+    notes = models.TextField(blank=True, null=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
-    manager = ForeignKeyEx(User, on_delete=models.SET_NULL,  blank=True,  db_index=True, related_name='managed_apartments', null=True, limit_choices_to={'role': 'Manager'}, isColumn=True, isEdit=True, isCreate=True, ui_element="dropdown", _dropdown_options=lambda: get_dropdown_options("managers"), display_field='manager.full_name')
-    owner = ForeignKeyEx(User, on_delete=models.SET_NULL,  blank=True, db_index=True, related_name='owned_apartments', null=True, limit_choices_to={'role': 'Owner'}, isColumn=True, isEdit=True, isCreate=True, ui_element="dropdown", _dropdown_options=lambda: get_dropdown_options("owners"), display_field='owner.full_name')
+    manager = models.ForeignKey(User, on_delete=models.SET_NULL, blank=True, db_index=True, related_name='managed_apartments', null=True, limit_choices_to={'role': 'Manager'})
+    owner = models.ForeignKey(User, on_delete=models.SET_NULL, blank=True, db_index=True, related_name='owned_apartments', null=True, limit_choices_to={'role': 'Owner'})
+
 
    
     @property 
@@ -243,7 +133,7 @@ class Apartment(models.Model):
 
         # Link to payments associated with this booking
         links_list.append({"name": "Payments: Apartment Payments", "link": f"/payments?q=booking.apartment.id={self.id}"})
-        links_list.append({"name": "Contracts Apartment Contracts:", "link": f"/contracts?q=apartment.id={self.id}"})
+        links_list.append({"name": "Contracts: Apartment Contracts:", "link": f"/contracts?q=apartment.id={self.id}"})
         links_list.append({"name": "Cleanings: Apartment Cleanings", "link": f"/cleanings?q=booking.apartment.id={self.id}"})
         links_list.append({"name": "Bookings: Apartment Bookings", "link": f"/bookings?q=apartment.id={self.id}"})
 
@@ -268,71 +158,42 @@ class Booking(models.Model):
         ('Canceled', 'Canceled'),
         ('Pending', 'Pending'),
     ]
-    PERIOD = [
-        ('Dayly', 'Dayly'),
-        ('Monthly', 'Monthly'),
-    ]
-     
-    tenant_email = EmailFieldEx(blank=True, null=True, auto_created=True, isEdit=False, isCreate=True, isColumn=False, ui_element="input")
-    tenant_full_name = CharFieldEx(max_length=255, blank=True, null=True, auto_created=True, isEdit=False, isCreate=True, isColumn=False, ui_element="input")
-    tenant_phone = CharFieldEx(max_length=20, blank=True, null=True, auto_created=True, isEdit=False, isCreate=True, isColumn=False, ui_element="input")
-    assigned_cleaner = IntegerFieldEx(auto_created=True, null=True, blank=True, isColumn=False, isEdit=True, isCreate=True, ui_element="dropdown", _dropdown_options=lambda: get_dropdown_options("cleaners"))
-   
-    price = DecimalFieldEx(max_digits=32, decimal_places=2, isColumn=False, isEdit=True, isCreate=True, ui_element="input")
-    period = CharFieldEx(max_length=32, db_index=True, choices=PERIOD, isColumn=True, isEdit=True, isCreate=True, ui_element="dropdown", _dropdown_options=lambda: get_dropdown_options("booking_period"))
-    status = CharFieldEx(max_length=32, db_index=True, blank=True, choices=STATUS, default='Pending', isColumn=True, isEdit=True, isCreate=False, ui_element="dropdown", _dropdown_options=lambda: get_dropdown_options("booking_status"))
-    start_date = DateFieldEx(db_index=True, isColumn=True, isEdit=True, isCreate=True, ui_element="datepicker")
-    end_date = DateFieldEx(db_index=True, isColumn=True, isEdit=True, isCreate=True, ui_element="datepicker")
     
-    notes = TextFieldEx(blank=True, null=True, isColumn=False, isEdit=True, isCreate=True, ui_element="textarea")
+    start_date = models.DateField(db_index=True)
+    end_date = models.DateField(db_index=True)
+    status = models.CharField(max_length=32, db_index=True, blank=True, choices=STATUS, default='Pending')
+    apartment = models.ForeignKey(Apartment, on_delete=models.SET_NULL, db_index=True, related_name='booked_apartments', null=True)
+    notes = models.TextField(blank=True, null=True)
+    tenant = models.ForeignKey(User, on_delete=models.SET_NULL, db_index=True, related_name='bookings', null=True, limit_choices_to={'role': 'Tenant'}, blank=True)
+   
     
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
-    
-    holding_deposit = DecimalFieldEx(auto_created=True, max_digits=32, decimal_places=2, null=True, blank=True, isEdit=False, isCreate=True, isColumn=False, ui_element="input")
-    damage_deposit = DecimalFieldEx(auto_created=True, max_digits=32, decimal_places=2, null=True, blank=True, isEdit=False, isCreate=True, isColumn=False, ui_element="input")
-    
-    tenant = ForeignKeyEx(User, on_delete=models.SET_NULL, db_index=True, related_name='bookings', null=True, limit_choices_to={'role': 'Tenant'}, blank=True, isColumn=True, isEdit=False, isCreate=False, ui_element="input", display_field='tenant.full_name')
-    
-    apartment = ForeignKeyEx(Apartment, on_delete=models.SET_NULL, db_index=True, related_name='booked_apartments', null=True, isColumn=True, isEdit=False, isCreate=True, ui_element="dropdown", _dropdown_options=lambda: get_dropdown_options("apartments"), display_field='apartment.name')
-
-    def handle_update(self):
-        # Logic for updates, if any specific actions are required when a booking is updated
-        pass
+       
     
     def save(self, *args, **kwargs):
-               
         if self.pk:  # If primary key exists, it's an update
-            self.handle_update()
+            form_data = kwargs.pop('form_data', None)
+            payments_data = kwargs.pop('payments_data', None)
+            self.create_payments(payments_data)
+            super().save(*args, **kwargs)
         else: 
             form_data = kwargs.pop('form_data', None)
-            self.extract_and_set_temp_fields(form_data=form_data)
-            self.get_or_create_tenant()
-            super().save(*args, **kwargs)
-            self.create_contract()
-            self.schedule_cleaning()
-            self.create_payments()
-        super().save(*args, **kwargs)
-    
-    def extract_and_set_temp_fields(self, form_data):
-        if form_data:
-            # Extract necessary information from form_data
-            holding_deposit_str = form_data.get('holding_deposit')
-            damage_deposit_str = form_data.get('damage_deposit')
-            
-            # Convert to Decimal if the string is not empty or None
-            self.holding_deposit = Decimal(holding_deposit_str) if holding_deposit_str else None
-            self.damage_deposit = Decimal(damage_deposit_str) if damage_deposit_str else None
-            
-            self.assigned_cleaner = form_data.get('assigned_cleaner')
-            self.tenant_email = form_data.get('tenant_email')
-            self.tenant_full_name = form_data.get('tenant_full_name')
-            self.tenant_phone = form_data.get('tenant_phone')
+            payments_data = kwargs.pop('payments_data', None)
+            if form_data:
+                self.get_or_create_tenant(form_data)
+                super().save(*args, **kwargs)  # Save the booking instance first to get an ID
+                self.create_contract()
+                self.schedule_cleaning(form_data)
+                self.create_payments(payments_data)
+            else:
+                super().save(*args, **kwargs)
+
         
-    def get_or_create_tenant(self):
-        tenant_email = getattr(self, 'tenant_email', None)
-        tenant_full_name = getattr(self, 'tenant_full_name', None)
-        tenant_phone = getattr(self, 'tenant_phone', None)
+    def get_or_create_tenant(self, form_data):
+        tenant_email = form_data.get('tenant_email')
+        tenant_full_name = form_data.get('tenant_full_name')
+        tenant_phone = form_data.get('tenant_phone')
 
         if tenant_email:
             # Check if a user with this email already exists
@@ -346,37 +207,20 @@ class Booking(models.Model):
             # Assign the user to the booking's tenant field
             self.tenant = user           
                 
-    def create_payments(self):
-        total_amount = self.calculate_total_amount()
+    def create_payments(self, payments_data):
+        payment_dates = payments_data.get('payment_dates', [])
+        amounts = payments_data.get('amounts', [])
+        payment_types = payments_data.get('payment_types', [])
 
-        holding_deposit = getattr(self, 'holding_deposit', None)
-        if holding_deposit:
-            self.create_payment("Holding Deposit", holding_deposit, date.today())
+        # Convert the dates to the expected format
+        payment_dates = [convert_date_format(date) for date in payment_dates]
 
-        damage_deposit = getattr(self, 'damage_deposit', None)
-        if damage_deposit:
-            self.create_payment("Damage Deposit", damage_deposit, date.today())
-
-        if self.period == 'Dayly':
-            if holding_deposit:
-                total_amount -= holding_deposit
-            self.create_payment("Booking", total_amount, self.start_date)
-        elif self.period == 'Monthly':
-            months_of_booking = (self.end_date.year - self.start_date.year) * 12 + self.end_date.month - self.start_date.month
-            for month in range(months_of_booking):
-                payment_date = self.start_date + relativedelta(months=+month)
-                if month == 0 and holding_deposit:  # If it's the first month and there's a holding deposit
-                    self.create_payment("Booking", total_amount - holding_deposit, payment_date)
-                else:
-                    self.create_payment("Booking", total_amount, payment_date)               
-    def calculate_total_amount(self):
-        if self.period == 'Dayly':
-            days_of_booking = (self.end_date - self.start_date).days
-            return days_of_booking * self.price
-        elif self.period == 'Monthly':
-            # Assuming price is per month
-            return self.price
-        return 0        
+        # Now, you can iterate over these lists and process the payments
+        for date, amount, p_type in zip(payment_dates, amounts, payment_types):
+            # Your logic to create a payment instance or whatever you need to do
+            self.create_payment(p_type, amount, date)              
+    
+    
     def create_contract(self):
         # Create a new contract instance and associate it with the booking
         contract = Contract(booking=self)
@@ -386,18 +230,73 @@ class Booking(models.Model):
         # ...
         contract.save()
     
-    def schedule_cleaning(self):
+    def send_to_docusign(self):
+        DOCUSIGN_ACCOUNT_ID = os.environ("DOCUSIGN_ACCOUNT_ID")
+        DOCUSIGN_ACCOUNT_ID = os.environ("DOCUSIGN_ACCESS_TOKEN")
+        
+        # Initialize the DocuSign client
+        api_client = ApiClient()
+        api_client.host = 'https://demo.docusign.net/restapi'
+        api_client.set_default_header("Authorization", "Bearer YOUR_ACCESS_TOKEN")
+
+        # Create an envelope
+        envelope_definition = EnvelopeDefinition(
+            email_subject="Please sign this contract",
+            status="sent"  # Automatically sends the envelope
+        )
+
+        # Add the document to the envelope
+        # ... (You'll need to define the document content and add it to the envelope)
+
+        # Add recipients (for example, the tenant)
+        signer = Signer(
+            email=self.tenant.email,
+            name=self.tenant.full_name,
+            recipient_id="1",
+            routing_order="1"
+        )
+
+        # Specify where the recipient needs to sign
+        sign_here = SignHere(document_id="1", page_number="1", x_position="100", y_position="100")
+        signer.tabs = Tabs(sign_here_tabs=[sign_here])
+        envelope_definition.recipients = Recipients(signers=[signer])
+
+        # Send the envelope
+        envelopes_api = EnvelopesApi(api_client)
+        envelope_summary = envelopes_api.create_envelope("YOUR_ACCOUNT_ID", envelope_definition=envelope_definition)
+
+        # Store the contract details
+        contract = Contract(booking=self)
+        contract.link = f"https://demo.docusign.net/Signing/startinsession.aspx?t={envelope_summary.envelope_id}"
+        contract.contract_id = envelope_summary.envelope_id
+        contract.save()
+        
+    
+    def schedule_cleaning(self, form_data):
         # Schedule a cleaning for the day after the booking ends
         cleaning_date = self.end_date + timedelta(days=1)
+        assigned_cleaner = form_data.get('assigned_cleaner')
+        cleaning = Cleaning(date=cleaning_date, booking=self, cleaner=assigned_cleaner)
+        cleaning.save()
         
-        assigned_cleaner = getattr(self, 'assigned_cleaner', None)
-        # Fetch the cleaner using the provided cleaner_id
-        cleaner = User.objects.get(id=assigned_cleaner)
+        # Create a notification for the scheduled cleaning
+        notification_message = f"A cleaning at {cleaning_date} by {assigned_cleaner}. in apartment {self.apartment.name}."
+        notification = Notification(
+            date=cleaning_date,
+            send_in_telegram=True,
+            message=notification_message,
+            booking=self
+        )
+        notification.save()       
+        notification_message = f"End of booking {self.end_date} for apartment {self.apartment.name}.  Tenant: {self.tenant.full_name}."
+        notification = Notification(
+            date=cleaning_date,
+            send_in_telegram=True,
+            message=notification_message,
+            booking=self
+        )
+        notification.save()       
         
-        cleaning = Cleaning(date=cleaning_date, booking=self, cleaner=cleaner)
-        # Set other necessary fields for the cleaning if needed
-        # ...
-        cleaning.save()       
     def create_payment(self, payment_type, amount, payment_date):
     # Assuming you have a Payment model with fields 'type', 'amount', and 'booking'
         Payment.objects.create(
@@ -406,7 +305,19 @@ class Booking(models.Model):
             booking=self,
             payment_date=payment_date
         )
-   
+        notification_message = f"A payment of {amount} at {payment_date} [{payment_type}]. for apartment {self.apartment.name}."
+        notification = Notification(
+            date=payment_date,
+            send_in_telegram=True,
+            message=notification_message,
+            booking=self
+        )
+        notification.save()
+    
+    @property
+    def assigned_cleaner(self):
+        cleaning = self.cleanings.first()  # Assuming one cleaning per booking
+        return cleaning.cleaner if cleaning else None
     @property
     def links(self):
         links_list = []
@@ -454,15 +365,13 @@ class Contract(models.Model):
         ('Canceled', 'Canceled'),
     ]
 
-    contract_id = CharFieldEx(max_length=64, default='', isColumn=True, isEdit=True, isCreate=True, ui_element="input")
-    sign_date = DateFieldEx(db_index=True, blank=True, null=True, isColumn=True, isEdit=True, isCreate=True, ui_element="datepicker")
-    link = URLFieldEx(isColumn=True, isEdit=True, isCreate=True, ui_element="input")
-    status = CharFieldEx(max_length=32, db_index=True, choices=STATUS, default='Pending', isColumn=True, isEdit=True, isCreate=True, ui_element="dropdown", _dropdown_options=lambda: get_dropdown_options("contract_status"))
+    contract_id = models.CharField(max_length=64, default='', db_index=True)
+    sign_date = models.DateField(db_index=True, blank=True, null=True)
+    link = models.URLField()
+    status = models.CharField(max_length=32, db_index=True, choices=STATUS, default='Pending')
+    booking = models.ForeignKey(Booking, on_delete=models.CASCADE, db_index=True, related_name='contract', null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
-    
-    booking = ForeignKeyEx(Booking, on_delete=models.SET_NULL,  db_index=True, related_name='contract', null=True, isColumn=True, isEdit=True, isCreate=True,   blank=True, ui_element="dropdown", _dropdown_options=lambda: get_dropdown_options("bookings"), display_field='booking.apartment.name') 
-
 
     @property
     def links(self):
@@ -495,9 +404,10 @@ class PaymentMethod(models.Model):
         ('Payment Method', 'Payment Method'),
         ('Bank', 'Bank'),
     ]
-    name = CharFieldEx(max_length=50, unique=True, isColumn=True, isEdit=True, isCreate=True, ui_element="input")
-    type = CharFieldEx(max_length=32, db_index=True, choices=TYPE, isColumn=True, isEdit=True, isCreate=True, ui_element="dropdown", _dropdown_options=lambda: get_dropdown_options("payment_method_type"))
-    notes = TextFieldEx(blank=True, null=True, isColumn=False, isEdit=True, isCreate=True, ui_element="textarea")
+    name = models.CharField(max_length=50, unique=True)
+    type = models.CharField(max_length=32, db_index=True, choices=TYPE)
+    notes = models.TextField(blank=True, null=True)
+
 
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -506,7 +416,6 @@ class PaymentMethod(models.Model):
     def links(self):
         return []
 
-# Payments Model
 class Payment(models.Model):
     PAYMENT_STATUS = [
         ('Pending', 'Pending'),
@@ -521,21 +430,14 @@ class Payment(models.Model):
         ('Booking', 'Booking'),
     ]
 
-    payment_date = DateFieldEx(db_index=True, isColumn=True, isEdit=True, isCreate=True, ui_element="datepicker")
-    amount = DecimalFieldEx(max_digits=14, decimal_places=2, isColumn=True, isEdit=True, isCreate=True, ui_element="input")
-    
-    payment_type = CharFieldEx(max_length=32, db_index=True, choices=PAYMENT_TYPE, isColumn=True, isEdit=True, isCreate=True, ui_element="dropdown", _dropdown_options=lambda: get_dropdown_options("payment_type"))
-    
-    payment_status = CharFieldEx(max_length=32, db_index=True, choices=PAYMENT_STATUS, default='Pending', isColumn=True, isEdit=True, isCreate=True, ui_element="dropdown", _dropdown_options=lambda: get_dropdown_options("payment_status"))
-   
-    payment_method = ForeignKeyEx(PaymentMethod,  blank=True, on_delete=models.SET_NULL, db_index=True, related_name='payment_methods_payments', limit_choices_to={'type': 'Payment Method'}, null=True, isColumn=True, isEdit=True, isCreate=True, ui_element="dropdown", _dropdown_options=lambda: get_dropdown_options("payment_methods"), display_field='payment_method.name')
-    
-    bank = ForeignKeyEx(PaymentMethod,  blank=True, on_delete=models.SET_NULL, db_index=True, related_name='bank_payments', limit_choices_to={'type': 'Bank'}, null=True, isColumn=True, isEdit=True, isCreate=True, ui_element="dropdown", _dropdown_options=lambda: get_dropdown_options("banks"), display_field='bank.name')
-    
-    notes = TextFieldEx(blank=True, null=True, isColumn=False, isEdit=True, isCreate=True, ui_element="textarea")
-    
-    booking = ForeignKeyEx(Booking, on_delete=models.SET_NULL,  db_index=True, related_name='payments', null=True, isColumn=True, isEdit=True, isCreate=True,   blank=True, ui_element="dropdown", _dropdown_options=lambda: get_dropdown_options("bookings"), display_field='booking.apartment.name') 
-    
+    payment_date = models.DateField(db_index=True)
+    amount = models.DecimalField(max_digits=14, decimal_places=2)
+    payment_type = models.CharField(max_length=32, db_index=True, choices=PAYMENT_TYPE)
+    payment_status = models.CharField(max_length=32, db_index=True, choices=PAYMENT_STATUS, default='Pending')
+    payment_method = models.ForeignKey(PaymentMethod, blank=True, on_delete=models.SET_NULL, db_index=True, related_name='payment_methods_payments', limit_choices_to={'type': 'Payment Method'}, null=True)
+    bank = models.ForeignKey(PaymentMethod, blank=True, on_delete=models.SET_NULL, db_index=True, related_name='bank_payments', limit_choices_to={'type': 'Bank'}, null=True)
+    notes = models.TextField(blank=True, null=True)
+    booking = models.ForeignKey(Booking, on_delete=models.CASCADE, db_index=True, related_name='payments', null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     
@@ -560,14 +462,13 @@ class Cleaning(models.Model):
         ('Canceled', 'Canceled'),
     ]
 
-    date = DateFieldEx(db_index=True, isColumn=True, isEdit=True, isCreate=True, ui_element="datepicker")
-    status = CharFieldEx(max_length=32, db_index=True, choices=STATUS, default='Scheduled', isColumn=True, isEdit=True, isCreate=False, ui_element="dropdown", _dropdown_options=lambda: get_dropdown_options("cleaning_status"))
-    tasks = TextFieldEx(blank=True, null=True, isColumn=False, isEdit=True, isCreate=True, ui_element="textarea")
-    notes = TextFieldEx(blank=True, null=True, isColumn=False, isEdit=True, isCreate=True, ui_element="textarea")
+    date = models.DateField(db_index=True)
+    status = models.CharField(max_length=32, db_index=True, choices=STATUS, default='Scheduled')
+    tasks = models.TextField(blank=True, null=True)
+    notes = models.TextField(blank=True, null=True)
     
-    cleaner = ForeignKeyEx(User, on_delete=models.SET_NULL, db_index=True, related_name='cleanings', null=True, limit_choices_to={'role': 'Cleaner'}, isColumn=True, isEdit=True, isCreate=True, ui_element="dropdown", _dropdown_options=lambda: get_dropdown_options("cleaners"), display_field='cleaner.full_name')
-    
-    booking = ForeignKeyEx(Booking, db_index=True, on_delete=models.SET_NULL,  blank=True, null=True, related_name='cleanings', isColumn=True, isEdit=True, isCreate=True, ui_element="dropdown", _dropdown_options=lambda: get_dropdown_options('bookings'), display_field='booking.apartment')
+    cleaner = models.ForeignKey(User, on_delete=models.SET_NULL, db_index=True, related_name='cleanings', null=True, limit_choices_to={'role': 'Cleaner'})
+    booking = models.ForeignKey(Booking, db_index=True, on_delete=models.CASCADE,  blank=True, null=True, related_name='cleanings')
     
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -594,11 +495,11 @@ class Notification(models.Model):
     ]
     
 
-    date = DateFieldEx(db_index=True, isColumn=True, isEdit=True, isCreate=True, ui_element="datepicker")
-    status = CharFieldEx(max_length=32, db_index=True, choices=STATUS, default='Pending', isColumn=True, isEdit=True, isCreate=False, ui_element="dropdown", _dropdown_options=lambda: get_dropdown_options("notification_status"))
-    send_in_telegram = BooleanFieldEx(db_index=True, default=True, isColumn=True, isEdit=True, isCreate=True, ui_element="checkbox")
-    message = TextFieldEx(isColumn=True, isEdit=True, isCreate=True, ui_element="textarea")
-    booking = ForeignKeyEx(Booking, db_index=True,  blank=True, on_delete=models.SET_NULL, null=True, related_name='booking', isColumn=True, isEdit=True, isCreate=True, ui_element="dropdown", _dropdown_options=lambda: get_dropdown_options('bookings'), display_field='booking.apartment')
+    date = models.DateField(db_index=True)
+    status = models.CharField(max_length=32, db_index=True, choices=STATUS, default='Pending')
+    send_in_telegram = models.BooleanField(db_index=True, default=True)
+    message = models.TextField()
+    booking = models.ForeignKey(Booking, db_index=True, blank=True, on_delete=models.CASCADE, null=True, related_name='booking_notifications')
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 

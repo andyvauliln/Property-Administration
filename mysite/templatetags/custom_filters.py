@@ -44,4 +44,3 @@ def split(value, key):
 def display_query(value):
     return value.replace('+', ' AND ').replace('|', ' OR ')
 
-
