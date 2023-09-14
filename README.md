@@ -61,3 +61,10 @@ https://www.npmjs.com/package/@railway/cli to install raillway locally
 
 ## Dumb 
 ```python manage.py dumpdata --output=data.json```
+
+## Update Cron job
+```python manage.py crontab add```
+## Show Cron jobs
+```python manage.py crontab show```
+## Remove Cron jobs
+```python manage.py crontab remove```

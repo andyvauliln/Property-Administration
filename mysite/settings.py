@@ -64,9 +64,14 @@ LOGIN_REDIRECT_URL = '/'
 
 # Application definition
 #CSRF_COOKIE_DOMAIN = '127.0.0.1'
+
+CRONJOBS = [
+("0 8 * * *", "mysite.cron.my_cron_job")
+]
 INSTALLED_APPS = [
     'django.contrib.admin',
     'django.contrib.auth',
+    "django_crontab",
     'django.contrib.contenttypes',
     'django.contrib.sessions',
     'django.contrib.messages',
@@ -86,6 +91,7 @@ MIDDLEWARE = [
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
     'whitenoise.middleware.WhiteNoiseMiddleware',
+    'mysite.error_handling_middleware.GlobalErrorHandlingMiddleware',
 ]
 
 ROOT_URLCONF = 'mysite.urls'

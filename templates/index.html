@@ -4,7 +4,7 @@
 {% block content %}
 
 <script>
-    console.log({{ apartments_data_json|safe }});
+    console.log({{ apartments_data_json|safe }}, "apartments_data_json");
 </script>
 <script>
 
@@ -52,33 +52,46 @@
                 {% for notification in today_notifications %}
                     <li class="flex items-center space-x-3">
                         <svg class="flex-shrink-0 w-5 h-5 text-green-500 dark:text-green-400" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"></path></svg>
-                        <span>{{ notification.message }} </span>
+                        <span>{{ notification.message }} 
+                            {% if notification.booking %}
+                            <a href="/bookings?q=id={{ notification.booking.id }}" target="_blank" class="text-blue-500 underline">View Booking</a>
+                        {% endif %} 
+                        </span>
                     </li>
                     {% empty %}
                         <div class="text-center py-4">No Notifications Today</div>
                 {% endfor %}
             {% /card %}
 
-            {% #card title="Next Week" %}
+            {% #card title="Current Week" %}
             {% for notification in next_week_notifications %}
                     <li class="flex items-center space-x-3">
                         <svg class="flex-shrink-0 w-5 h-5 text-green-500 dark:text-green-400" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"></path></svg>
-                        <span>{{ notification.message }} </span>
+                        <span>
+                            {{ notification.message }} 
+                            {% if notification.booking %}
+                            <a href="/bookings?q=id={{ notification.booking.id }}" target="_blank" class="text-blue-500 underline">View Booking</a>
+                        {% endif %} 
+                        </span>
                     </li>
                     {% empty %}
-                        <div class="text-center py-4">No Notifications This Week</div>
+                        <div class="text-center py-4">No Notifications Current Week</div>
                 {% endfor %}
 
            {% /card %}
 
-        {% #card title="Next Month" %}
+        {% #card title="Current Month" %}
                 {% for notification in next_month_notifications %}
                     <li class="flex items-center space-x-3">
                         <svg class="flex-shrink-0 w-5 h-5 text-green-500 dark:text-green-400" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"></path></svg>
-                        <span>{{ notification.message }} </span>
+                        <span>{{ notification.message }}
+                            {% if notification.booking %}
+                            <a href="/bookings?q=id={{ notification.booking.id }}" target="_blank" class="text-blue-500 underline">View Booking</a>
+                        {% endif %} 
+                        </span>
                     </li>
                     {% empty %}
-                        <div class="text-center py-4">No Notifications Today</div>
+                        <div class="text-center py-4">No Notifications Current Month</div>
                 {% endfor %}
             {% /card %}
                    
@@ -146,23 +159,25 @@
         const popoverContent = document.getElementById('popover-content');
         const closeButton = document.getElementById('close-popover');
         closeButton.addEventListener('click', function() {
-            document.getElementById('dynamic-popover').classList.add('hidden');
+            popover.classList.add('hidden');
         });
     
         days.forEach(day => {
             day.addEventListener('click', function(event) {
                 const date = day.dataset.date;
-                const bookingId = day.dataset.bookingId;
-                const bookingStart = day.dataset.bookingStart;
-                const bookingEnd = day.dataset.bookingEnd;
-                const cleaningId = day.dataset.cleaningId;
-                const paymentId = day.dataset.paymentId;
-                const paymentType = day.dataset.paymentType;
-                const paymentAmount = day.dataset.paymentAmount;
-                const paymentStatus = day.dataset.paymentStatus;
-
-             
- 
+    
+                const bookingIds = day.dataset.bookingIds.split(',');
+                const bookingStarts = day.dataset.bookingStarts.split(',');
+                const bookingEnds = day.dataset.bookingEnds.split(',');
+                const bookingStatuses = day.dataset.bookingStatuses.split(',');
+    
+                const cleaningIds = day.dataset.cleaningIds.split(',');
+                const cleaningStatuses = day.dataset.cleaningStatuses.split(',');
+    
+                const paymentIds = day.dataset.paymentIds.split(',');
+                const paymentTypes = day.dataset.paymentTypes.split(',');
+                const paymentAmounts = day.dataset.paymentAmounts.split(',');
+                const paymentStatuses = day.dataset.paymentStatuses.split(',');
     
                 // Set the title of the popover with the date
                 popoverTitle.textContent = date;
@@ -170,29 +185,36 @@
                 // Prepare the content for the popover
                 let content = '';
     
-                if (bookingId && bookingStart && bookingEnd) {
-                    content += `<strong>Booking:</strong> <a class='text-blue-500 underline' href="/bookings?q=id=${bookingId}">${bookingStart} - ${bookingEnd} </a><br>`;
-                }
+                bookingIds.forEach((bookingId, index) => {
+                    if (bookingId) {
+                        content += `<strong>Booking:</strong> <a class='text-blue-500 underline' href="/bookings?q=id=${bookingId}">${bookingStarts[index]} - ${bookingEnds[index]} [${bookingStatuses[index]}] </a><br>`;
+                    }
+                });
     
-                if (cleaningId) {
-                    content += `<strong>Cleaning:</strong> <a class='text-blue-500 underline' href="/cleanings?q=id=${cleaningId}">Go to cleaning</a><br>`;
-                }
+                cleaningIds.forEach((cleaningId, index) => {
+                    if (cleaningId) {
+                        content += `<strong>Cleaning:</strong> <a class='text-blue-500 underline' href="/cleanings?q=id=${cleaningId}">Cleaning: [${cleaningStatuses[index]}]</a><br>`;
+                    }
+                });
     
-                if (paymentId && paymentType && paymentAmount && paymentStatus) {
-                    content += `<strong>Payment:</strong>  <a class='text-blue-500 underline' href="/payments?q=id=${paymentId}">${paymentType} ${paymentAmount} [${paymentStatus}]</a>`;
-                }
+                paymentIds.forEach((paymentId, index) => {
+                    if (paymentId) {
+                        content += `<strong>Payment:</strong>  <a class='text-blue-500 underline' href="/payments?q=id=${paymentId}">${paymentTypes[index]} ${paymentAmounts[index]} [${paymentStatuses[index]}]</a><br>`;
+                    }
+                });
     
                 // Update the popover content
                 popoverContent.innerHTML = content || 'No events for this day';
-
+    
                 // Position the popover above the clicked day
                 popover.style.left = `${event.clientX - popover.offsetWidth / 2}px`;
                 popover.style.top = `${event.clientY - popover.offsetHeight - 10}px`;
-
+    
                 // Show the popover
                 popover.classList.remove('hidden');
             });
         });
+    
         // Hide the popover when clicking outside
         document.addEventListener('click', function(event) {
             if (!event.target.closest('.day') && !event.target.closest('#dynamic-popover')) {
@@ -201,9 +223,10 @@
         });
     });
     
+    
 </script>
 
-<div id="dynamic-popover" class="hidden fixed z-10 w-[300px] text-sm text-gray-500  bg-white border border-gray-200 rounded-lg shadow-sm  dark:text-gray-400 dark:border-gray-600 dark:bg-gray-800">
+<div id="dynamic-popover" class="hidden fixed z-10 w-[350px] text-sm text-gray-500  bg-white border border-gray-200 rounded-lg shadow-sm  dark:text-gray-400 dark:border-gray-600 dark:bg-gray-800">
     <div class="px-3 py-2 bg-gray-100 border-b border-gray-200 rounded-t-lg dark:border-gray-600 dark:bg-gray-700 flex justify-between items-center">
         <h3 class="font-semibold text-gray-900 dark:text-white" id="popover-title"></h3>
         <button id="close-popover" class="text-gray-600 hover:text-gray-800 dark:text-gray-300 dark:hover:text-white">

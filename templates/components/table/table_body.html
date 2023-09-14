@@ -2,24 +2,35 @@
 
 <tbody>
     {% for item in items %}
-    <tr class="border-b cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-800 dark:border-gray-700 {{model}}-row" 
-        data-id="{{ item|get_item:"id" }}">
-        {% for field in model_fields %} 
-            {% if field.isColumn %}
-                <td class="px-4 py-4">
-                    {% if field.display_field %}
-                         {{ item|get_custom_item:field.display_field }}
-                    {% else %}
-                        {{ item|get_item:field.name }}
-                    {% endif %}
-                </td>
-            {% endif %}
-        {% endfor %}
-    </tr>
-        {% empty %}
-        
+        <tr class="border-b cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-800 dark:border-gray-700 {{model}}-row" data-id="{{ item|get_item:"id" }}">
+            {% for field_name, field_instance in model_fields %}
+                {% if field_instance.isColumn %}
+                    <td class="px-4 py-4">
+                        {% if "status" in field_name %}
+                            {% if item|get_item:field_name in "Pending,Scheduled" %}
+                                <span class="bg-yellow-200 text-yellow-500 px-2 py-1 rounded-full">{{ item|get_item:field_name }}</span>
+                            {% elif item|get_item:field_name in "Confirmed,Signed,Received,Completed,Done" %}
+                                <span class="bg-green-200 text-green-700 px-2 py-1 rounded-full">{{ item|get_item:field_name }}</span>
+                            {% elif item|get_item:field_name == "Canceled" %}
+                                <span class="bg-red-200 text-red-700 px-2 py-1 rounded-full">{{ item|get_item:field_name }}</span>
+                            {% else %}
+                                {{ item|get_item:field_name }}
+                            {% endif %}
+                        {% elif field_instance.display_field %}
+                            {{ item|get_custom_item:field_instance.display_field }}
+                        {% else %}
+                            {{ item|get_item:field_name }}
+                        {% endif %}
+                    </td>
+                {% endif %}
+            {% endfor %}
+        </tr>
+    {% empty %}
         <tr>
-            <td colspan="{{ show_keys|length }}" class="text-center py-4">No data found</td>
+            <td colspan="{{ model_fields|length }}" class="text-center py-4">No data found</td>
         </tr>
     {% endfor %}
 </tbody>
+
+
+

@@ -5,21 +5,20 @@ from django.shortcuts import render, redirect
 from .forms import CustomUserLoginForm
 from django.urls import reverse_lazy
 from django.contrib.auth.views import LogoutView
-from .models import User, Apartment, Booking, Contract, Cleaning, Notification, PaymentMethod, Payment, CustomFieldMixin
+from .models import User, Apartment, Booking, Contract, Cleaning, Notification, PaymentMethod, Payment
 import logging
-from mysite.forms import CustomUserForm, BookingForm, ApartmentForm, ContractForm, CleaningForm, NotificationForm, PaymentMethodForm, PaymentForm
+from mysite.forms import CustomUserForm, BookingForm, ApartmentForm, ContractForm, CleaningForm, NotificationForm, PaymentMethodForm, PaymentForm, CustomFieldMixin
 from django.core.paginator import Paginator
 from django.db.models import Q
 from django.db import models
 import json
 from django.core import serializers
 from datetime import datetime, date, timedelta
-import inspect
 from collections import defaultdict
 from django.utils import timezone
 import calendar
-from django.core.serializers import serialize
 from dateutil.relativedelta import relativedelta
+from django.contrib import messages
 
 logger = logging.getLogger(__name__)
 
@@ -29,12 +28,6 @@ def stringify_keys(d):
         return d
     return {str(k): stringify_keys(v) for k, v in d.items()}
 
-
-def add_one_month(orig_date):
-    # Calculate the next month and year
-    new_month = orig_date.month % 12 + 1
-    new_year = orig_date.year + (orig_date.month // 12)
-    return date(new_year, new_month, 1)
 
 def generate_weeks(month_start):
     """Generate weeks for a given month."""
@@ -48,15 +41,14 @@ def index(request):
 
     # Fetch today's notifications
     today = date.today()
-    today_notifications = Notification.objects.filter(date=today)
-
-    # Fetch next week's notifications
     next_week = today + timedelta(days=7)
-    next_week_notifications = Notification.objects.filter(date__range=(today, next_week))
-
-    # Fetch next month's notifications
     next_month = today + timedelta(days=30)
-    next_month_notifications = Notification.objects.filter(date__range=(today, next_month))
+    all_notifications = Notification.objects.filter(date__range=(today, next_month))
+
+    # Group notifications by period
+    today_notifications = [n for n in all_notifications if n.date == today]
+    next_week_notifications = [n for n in all_notifications if today < n.date <= next_week]
+    next_month_notifications = [n for n in all_notifications if next_week < n.date <= next_month]
     
     page = int(request.GET.get('page', 1))
     start_month = (date.today() + relativedelta(months=3 * (page - 1))).replace(day=1)
@@ -70,25 +62,24 @@ def index(request):
     cleanings = Cleaning.objects.filter(date__range=(start_month, end_date)).select_related('booking__apartment')
     payments = Payment.objects.filter(payment_date__range=(start_month, end_date)).select_related('booking__apartment')
 
-    
-    event_data = defaultdict(dict)
-    
+    event_data = defaultdict(lambda: defaultdict(list))  # Use a lambda to initialize nested defaultdicts
 
     for booking in bookings:
         current_date = booking.start_date
         while current_date <= booking.end_date:
             key = (booking.apartment.id, current_date)
-            event_data[key]['booking'] = booking
+            event_data[key]['booking'].append(booking)
             current_date += timedelta(days=1)
 
     for cleaning in cleanings:
-        key = (cleaning.booking.apartment.id, cleaning.date)
-        event_data[key]['cleaning'] = cleaning
+        if cleaning.booking:
+            key = (cleaning.booking.apartment.id, cleaning.date)
+            event_data[key]['cleaning'].append(cleaning)
 
     for payment in payments:
         if payment.booking and payment.booking.apartment:
             key = (payment.booking.apartment.id, payment.payment_date)
-            event_data[key]['payment'] = payment
+            event_data[key]['payment'].append(payment)
         
     
     apartments_data = {}
@@ -104,23 +95,35 @@ def index(request):
             for week in weeks:
                 week_data = []
                 for day in week:
+                    bookings_for_day = event_data.get((apartment.id, day), {}).get('booking', [])
+                    cleanings_for_day = event_data.get((apartment.id, day), {}).get('cleaning', [])
+                    payments_for_day = event_data.get((apartment.id, day), {}).get('payment', [])
+
                     day_data = {
                         'day': day,
-                        'booking': event_data.get((apartment.id, day), {}).get('booking'),
-                        'cleaning': event_data.get((apartment.id, day), {}).get('cleaning'),
-                        'payment': event_data.get((apartment.id, day), {}).get('payment')
+                        'booking_ids': [booking.id for booking in bookings_for_day],
+                        'booking_statuses': [booking.status for booking in bookings_for_day],
+                        'booking_starts': [booking.start_date for booking in bookings_for_day],
+                        'booking_ends': [booking.end_date for booking in bookings_for_day],
+                        'cleaning_ids': [cleaning.id for cleaning in cleanings_for_day],
+                        'cleaning_statuses': [cleaning.status for cleaning in cleanings_for_day],
+                        'payment_ids': [payment.id for payment in payments_for_day],
+                        'payment_types': [payment.payment_type for payment in payments_for_day],
+                        'payment_amounts': [payment.amount for payment in payments_for_day],
+                        'payment_statuses': [payment.payment_status for payment in payments_for_day],
                     }
                     week_data.append(day_data)
                 apartment_data['months'][month].append(week_data)
 
         apartments_data[apartment.id] = apartment_data
-    
+
     apartments_data_str_keys = stringify_keys(apartments_data)    
     apartments_data_json = json.dumps(apartments_data_str_keys, default=str)
-    
+
     apartments_data = dict(apartments_data)
     for apartment_id, apartment_data in apartments_data.items():
         apartment_data['months'] = dict(apartment_data['months'])
+
 
     context = {
         'apartments_data': apartments_data,
@@ -163,54 +166,79 @@ def get_related_fields(model, prefix=''):
     return fk_or_o2o_fields, m2m_fields
 
 def parse_query(model, query):
-    # Replace + with AND for proper splitting
-    query = query.replace('+', ' AND ')
-    
-    or_conditions = query.split(' OR ')
-    q_objects = Q()
+    tokens = tokenize_query(query)
+    return parse_tokens(model, tokens)
 
-    for condition in or_conditions:
-        and_conditions = condition.strip().split(' AND ')
-        and_q = Q()
-        for sub_condition in and_conditions:
+def tokenize_query(query):
+    # Add spaces around parentheses for proper splitting
+    query = query.replace('(', ' ( ').replace(')', ' ) ')
+    tokens = query.split()
+    return tokens
+
+def parse_tokens(model, tokens):
+    stack = []
+    while tokens:
+        token = tokens.pop(0)
+        if token == '(':
+            # Recursively parse the content inside the parentheses
+            sub_q = parse_tokens(model, tokens)
+            stack.append(sub_q)
+        elif token == ')':
+            break
+        elif token in ['+', '|']:
+            stack.append(token)
+        else:
+            # Handle conditions like field=value, field>value, etc.
             operator = None
-            if '=' in sub_condition:
-                field, value = sub_condition.split('=')
-                if field == "id":
-                    operator = ''  # Exact match for id
-                else:
-                    operator = '__icontains'
-            elif '>' in sub_condition:
-                field, value = sub_condition.split('>')
-                operator = '__gt'
-            elif '<' in sub_condition:
-                field, value = sub_condition.split('<')
-                operator = '__lt'
-            elif '>=' in sub_condition:
-                field, value = sub_condition.split('>=')
-                operator = '__gte'
-            elif '<=' in sub_condition:
-                field, value = sub_condition.split('<=')
-                operator = '__lte'
+            for op in ['>=', '<=', '>', '<', '=']:
+                if op in token:
+                    field, value = token.split(op)
+                    if op == '=':
+                        operator = '' if field == "id" or 'date' in field else '__icontains'
+                    else:
+                        operator = {
+                            '>': '__gt',
+                            '<': '__lt',
+                            '>=': '__gte',
+                            '<=': '__lte'
+                        }[op]
+                    break
 
-            # Replace dot with double underscore for related fields
             field = field.replace('.', '__').strip()
-
-            if 'date' in field and operator in ['__gt', '__lt', '__gte', '__lte']:
+            if isinstance(value, str):
+                value = value.strip()
+            if 'date' in field and operator in ['', '__gt', '__lt', '__gte', '__lte']:
                 try:
-                    value = datetime.strptime(value.strip(), '%d.%m.%Y').date()
+                    value = datetime.strptime(value, '%d.%m.%Y').date()
                 except ValueError:
                     raise ValueError(f"Invalid date format for {field}: {value}")
 
-            and_q &= Q(**{f"{field}{operator}": value})
+            stack.append(Q(**{f"{field}{operator}": value}))
 
-        q_objects |= and_q
+    return combine_stack(stack)
 
-    return q_objects
+def combine_stack(stack):
+    while '+' in stack or '|' in stack:
+        if '+' in stack:
+            idx = stack.index('+')
+            q1 = stack.pop(idx - 1)
+            stack.pop(idx - 1)  # Remove the '+'
+            q2 = stack.pop(idx - 1)
+            stack.insert(idx - 1, q1 & q2)
+        elif '|' in stack:
+            idx = stack.index('|')
+            q1 = stack.pop(idx - 1)
+            stack.pop(idx - 1)  # Remove the '|'
+            q2 = stack.pop(idx - 1)
+            stack.insert(idx - 1, q1 | q2)
+
+    return stack[0]
+
+
 
 
 @login_required
-def generic_view(request, model_name, form_class, template_name, pages=10):
+def generic_view(request, model_name, form_class, template_name, pages=30):
     search_query = request.GET.get('q', '')
     page = request.GET.get('page', 1)
 
@@ -223,20 +251,20 @@ def generic_view(request, model_name, form_class, template_name, pages=10):
             item_id =request.POST['id']
             if item_id:
                 instance = model.objects.get(id=item_id)
-                form = form_class(request.POST, instance=instance)
+                form = form_class(request.POST, instance=instance, request=request, action='edit')
                 if form.is_valid():
-                    if hasattr(form.instance, 'save') and 'form_data' in inspect.signature(form.instance.save).parameters:
-                        form.save(form_data=request.POST)
-                    else:
-                        form.save()
+                    form.save()
+                else:
+                    for error in form.errors.values():
+                        messages.error(request, error)
             return redirect(request.path)
         elif 'add' in request.POST:
-            form = form_class(request.POST)
+            form = form_class(request.POST, request=request)
             if form.is_valid():
-                if model_name == "booking":
-                    form.save(form_data=request.POST)
-                else:
-                    form.save()
+                form.save()
+            else:
+                for error in form.errors.values():
+                    messages.error(request, error)
             return redirect(request.path)
         elif 'delete' in request.POST:
             instance = model.objects.get(id=request.POST['id'])
@@ -266,8 +294,10 @@ def generic_view(request, model_name, form_class, template_name, pages=10):
     # Extract the 'fields' from each item in the list
     items_list = [{'id': item['pk'], **item['fields']} for item in data_list]
 
-    # Adding the links apartment
+    
     for item, original_obj in zip(items_list, items_on_page):
+        if hasattr(original_obj, 'assigned_cleaner'):
+            item['assigned_cleaner'] = original_obj.assigned_cleaner.id if original_obj.assigned_cleaner else None
         item['links'] = original_obj.links
 
     # Convert the list back to a JSON string for passing to the template
@@ -275,7 +305,7 @@ def generic_view(request, model_name, form_class, template_name, pages=10):
 
     
     # Get fields from the model's metadata
-    model_fields = [field for field in model._meta.get_fields() if isinstance(field, CustomFieldMixin)]
+    model_fields = [(field_name, field_instance) for field_name, field_instance in form_class.base_fields.items() if isinstance(field_instance, CustomFieldMixin)]
 
    
     return render(request, template_name, {'items': items_on_page, "items_json": items_json, 'search_query': search_query, 'model_fields': model_fields})

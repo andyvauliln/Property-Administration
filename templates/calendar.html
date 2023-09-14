@@ -12,34 +12,34 @@
     </div>
     {% endwith %}
     {% for week in weeks %}
-        <div class="flex justify-between">
-            {% for day_data in week %}
-                {% if day_data.day.month == month.month %}
-                    
-                        <span class="day px-1 mb-1 w-10 flex justify-center items-center 
-                            {% if day_data.booking %}  text-blue-500{% endif %}
-                            {% if day_data.cleaning %}bg-green-100{% endif %}
-                            {% if day_data.payment %}border border-red-600{% endif %}
-                              cursor-pointer rounded-sm"
-                            data-booking-id="{% if day_data.booking %}{{ day_data.booking.id }}{% endif %}"
-                            data-booking-start="{% if day_data.booking %}{{ day_data.booking.start_date|date:'Y-m-d' }}{% endif %}"
-                            data-booking-end="{% if day_data.booking %}{{ day_data.booking.end_date|date:'Y-m-d' }}{% endif %}"
-                          
-                            data-cleaning-id="{% if day_data.cleaning %}{{ day_data.cleaning.id }}{% endif %}"
-                            data-date="{{ day_data.day }}"
-                            data-payment-id="{% if day_data.payment %}{{ day_data.payment.id }}{% endif %}"
-                            data-payment-type="{% if day_data.payment %}{{ day_data.payment.payment_type }}{% endif %}"
-                            data-payment-amount="{% if day_data.payment %}{{ day_data.payment.amount }}{% endif %}"
-                            data-payment-status="{% if day_data.payment %}{{ day_data.payment.payment_status }}{% endif %}"
-
-                             >
-                            {{ day_data.day|date:"d" }}
-                        </span>
-                  
-                {% else %}
-                    <span class="day-empty px-1 text-gray-400 w-10 flex justify-center items-center"></span>
-                {% endif %}
-            {% endfor %}
-        </div>
+    <div class="flex justify-between">
+        {% for day_data in week %}
+            {% if day_data.day.month == month.month %}
+                <span class="day px-1 mb-1 w-10 flex justify-center items-center 
+                    {% if day_data.booking_ids %}  text-blue-500{% endif %}
+                    {% if day_data.cleaning_ids %}bg-green-100{% endif %}
+                    {% if day_data.payment_ids %}border border-red-600{% endif %}
+                    {% if day_data.day in day_data.booking_starts %}font-extrabold{% endif %}
+                    {% if day_data.day in day_data.booking_ends %}font-extrabold{% endif %}
+                      cursor-pointer rounded-sm"
+                      data-booking-ids="{{ day_data.booking_ids|join:',' }}"
+                      data-booking-statuses="{{ day_data.booking_statuses|join:',' }}"
+                      data-booking-starts="{{ day_data.booking_starts|join:',' }}"
+                      data-booking-ends="{{ day_data.booking_ends|join:',' }}"
+                      data-cleaning-ids="{{ day_data.cleaning_ids|join:',' }}"
+                      data-cleaning-statuses="{{ day_data.cleaning_statuses|join:',' }}"
+                      data-date="{{ day_data.day }}"
+                      data-payment-ids="{{ day_data.payment_ids|join:',' }}"
+                      data-payment-types="{{ day_data.payment_types|join:',' }}"
+                      data-payment-amounts="{{ day_data.payment_amounts|join:',' }}"
+                      data-payment-statuses="{{ day_data.payment_statuses|join:',' }}"
+                     >
+                    {{ day_data.day|date:"d" }}
+                </span>
+            {% else %}
+                <span class="day-empty px-1 text-gray-400 w-10 flex justify-center items-center"></span>
+            {% endif %}
+        {% endfor %}
+    </div>
     {% endfor %}
 </div>

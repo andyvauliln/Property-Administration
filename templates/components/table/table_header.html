@@ -3,9 +3,9 @@
 <thead class="text-xs text-gray-700 uppercase bg-gray-50 dark:bg-gray-700 dark:text-gray-400">
     <tr>
         {% if items %}
-            {% for field in model_fields %}
-                {% if field.isColumn %}
-                    <th scope="col" class="px-4 py-4">{{ field.name|split_underscore }}</th>
+        {% for field_name, field_instance in model_fields %}
+                {% if field_instance.isColumn %}
+                    <th scope="col" class="px-4 py-4">{{ field_name|split_underscore }}</th>
                 {% endif %}
             {% endfor %}
         {% endif %}

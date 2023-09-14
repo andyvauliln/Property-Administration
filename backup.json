@@ -1,0 +1,3010 @@
+[
+    {
+        "model": "auth.permission",
+        "pk": 209,
+        "fields": {
+            "name": "Can add log entry",
+            "content_type": 53,
+            "codename": "add_logentry"
+        }
+    },
+    {
+        "model": "auth.permission",
+        "pk": 210,
+        "fields": {
+            "name": "Can change log entry",
+            "content_type": 53,
+            "codename": "change_logentry"
+        }
+    },
+    {
+        "model": "auth.permission",
+        "pk": 211,
+        "fields": {
+            "name": "Can delete log entry",
+            "content_type": 53,
+            "codename": "delete_logentry"
+        }
+    },
+    {
+        "model": "auth.permission",
+        "pk": 212,
+        "fields": {
+            "name": "Can view log entry",
+            "content_type": 53,
+            "codename": "view_logentry"
+        }
+    },
+    {
+        "model": "auth.permission",
+        "pk": 213,
+        "fields": {
+            "name": "Can add permission",
+            "content_type": 54,
+            "codename": "add_permission"
+        }
+    },
+    {
+        "model": "auth.permission",
+        "pk": 214,
+        "fields": {
+            "name": "Can change permission",
+            "content_type": 54,
+            "codename": "change_permission"
+        }
+    },
+    {
+        "model": "auth.permission",
+        "pk": 215,
+        "fields": {
+            "name": "Can delete permission",
+            "content_type": 54,
+            "codename": "delete_permission"
+        }
+    },
+    {
+        "model": "auth.permission",
+        "pk": 216,
+        "fields": {
+            "name": "Can view permission",
+            "content_type": 54,
+            "codename": "view_permission"
+        }
+    },
+    {
+        "model": "auth.permission",
+        "pk": 217,
+        "fields": {
+            "name": "Can add group",
+            "content_type": 55,
+            "codename": "add_group"
+        }
+    },
+    {
+        "model": "auth.permission",
+        "pk": 218,
+        "fields": {
+            "name": "Can change group",
+            "content_type": 55,
+            "codename": "change_group"
+        }
+    },
+    {
+        "model": "auth.permission",
+        "pk": 219,
+        "fields": {
+            "name": "Can delete group",
+            "content_type": 55,
+            "codename": "delete_group"
+        }
+    },
+    {
+        "model": "auth.permission",
+        "pk": 220,
+        "fields": {
+            "name": "Can view group",
+            "content_type": 55,
+            "codename": "view_group"
+        }
+    },
+    {
+        "model": "auth.permission",
+        "pk": 221,
+        "fields": {
+            "name": "Can add content type",
+            "content_type": 56,
+            "codename": "add_contenttype"
+        }
+    },
+    {
+        "model": "auth.permission",
+        "pk": 222,
+        "fields": {
+            "name": "Can change content type",
+            "content_type": 56,
+            "codename": "change_contenttype"
+        }
+    },
+    {
+        "model": "auth.permission",
+        "pk": 223,
+        "fields": {
+            "name": "Can delete content type",
+            "content_type": 56,
+            "codename": "delete_contenttype"
+        }
+    },
+    {
+        "model": "auth.permission",
+        "pk": 224,
+        "fields": {
+            "name": "Can view content type",
+            "content_type": 56,
+            "codename": "view_contenttype"
+        }
+    },
+    {
+        "model": "auth.permission",
+        "pk": 225,
+        "fields": {
+            "name": "Can add session",
+            "content_type": 57,
+            "codename": "add_session"
+        }
+    },
+    {
+        "model": "auth.permission",
+        "pk": 226,
+        "fields": {
+            "name": "Can change session",
+            "content_type": 57,
+            "codename": "change_session"
+        }
+    },
+    {
+        "model": "auth.permission",
+        "pk": 227,
+        "fields": {
+            "name": "Can delete session",
+            "content_type": 57,
+            "codename": "delete_session"
+        }
+    },
+    {
+        "model": "auth.permission",
+        "pk": 228,
+        "fields": {
+            "name": "Can view session",
+            "content_type": 57,
+            "codename": "view_session"
+        }
+    },
+    {
+        "model": "auth.permission",
+        "pk": 229,
+        "fields": {
+            "name": "Can add user",
+            "content_type": 58,
+            "codename": "add_user"
+        }
+    },
+    {
+        "model": "auth.permission",
+        "pk": 230,
+        "fields": {
+            "name": "Can change user",
+            "content_type": 58,
+            "codename": "change_user"
+        }
+    },
+    {
+        "model": "auth.permission",
+        "pk": 231,
+        "fields": {
+            "name": "Can delete user",
+            "content_type": 58,
+            "codename": "delete_user"
+        }
+    },
+    {
+        "model": "auth.permission",
+        "pk": 232,
+        "fields": {
+            "name": "Can view user",
+            "content_type": 58,
+            "codename": "view_user"
+        }
+    },
+    {
+        "model": "auth.permission",
+        "pk": 233,
+        "fields": {
+            "name": "Can add apartment",
+            "content_type": 59,
+            "codename": "add_apartment"
+        }
+    },
+    {
+        "model": "auth.permission",
+        "pk": 234,
+        "fields": {
+            "name": "Can change apartment",
+            "content_type": 59,
+            "codename": "change_apartment"
+        }
+    },
+    {
+        "model": "auth.permission",
+        "pk": 235,
+        "fields": {
+            "name": "Can delete apartment",
+            "content_type": 59,
+            "codename": "delete_apartment"
+        }
+    },
+    {
+        "model": "auth.permission",
+        "pk": 236,
+        "fields": {
+            "name": "Can view apartment",
+            "content_type": 59,
+            "codename": "view_apartment"
+        }
+    },
+    {
+        "model": "auth.permission",
+        "pk": 237,
+        "fields": {
+            "name": "Can add booking",
+            "content_type": 60,
+            "codename": "add_booking"
+        }
+    },
+    {
+        "model": "auth.permission",
+        "pk": 238,
+        "fields": {
+            "name": "Can change booking",
+            "content_type": 60,
+            "codename": "change_booking"
+        }
+    },
+    {
+        "model": "auth.permission",
+        "pk": 239,
+        "fields": {
+            "name": "Can delete booking",
+            "content_type": 60,
+            "codename": "delete_booking"
+        }
+    },
+    {
+        "model": "auth.permission",
+        "pk": 240,
+        "fields": {
+            "name": "Can view booking",
+            "content_type": 60,
+            "codename": "view_booking"
+        }
+    },
+    {
+        "model": "auth.permission",
+        "pk": 241,
+        "fields": {
+            "name": "Can add notification",
+            "content_type": 61,
+            "codename": "add_notification"
+        }
+    },
+    {
+        "model": "auth.permission",
+        "pk": 242,
+        "fields": {
+            "name": "Can change notification",
+            "content_type": 61,
+            "codename": "change_notification"
+        }
+    },
+    {
+        "model": "auth.permission",
+        "pk": 243,
+        "fields": {
+            "name": "Can delete notification",
+            "content_type": 61,
+            "codename": "delete_notification"
+        }
+    },
+    {
+        "model": "auth.permission",
+        "pk": 244,
+        "fields": {
+            "name": "Can view notification",
+            "content_type": 61,
+            "codename": "view_notification"
+        }
+    },
+    {
+        "model": "auth.permission",
+        "pk": 245,
+        "fields": {
+            "name": "Can add payment method",
+            "content_type": 62,
+            "codename": "add_paymentmethod"
+        }
+    },
+    {
+        "model": "auth.permission",
+        "pk": 246,
+        "fields": {
+            "name": "Can change payment method",
+            "content_type": 62,
+            "codename": "change_paymentmethod"
+        }
+    },
+    {
+        "model": "auth.permission",
+        "pk": 247,
+        "fields": {
+            "name": "Can delete payment method",
+            "content_type": 62,
+            "codename": "delete_paymentmethod"
+        }
+    },
+    {
+        "model": "auth.permission",
+        "pk": 248,
+        "fields": {
+            "name": "Can view payment method",
+            "content_type": 62,
+            "codename": "view_paymentmethod"
+        }
+    },
+    {
+        "model": "auth.permission",
+        "pk": 249,
+        "fields": {
+            "name": "Can add payment",
+            "content_type": 63,
+            "codename": "add_payment"
+        }
+    },
+    {
+        "model": "auth.permission",
+        "pk": 250,
+        "fields": {
+            "name": "Can change payment",
+            "content_type": 63,
+            "codename": "change_payment"
+        }
+    },
+    {
+        "model": "auth.permission",
+        "pk": 251,
+        "fields": {
+            "name": "Can delete payment",
+            "content_type": 63,
+            "codename": "delete_payment"
+        }
+    },
+    {
+        "model": "auth.permission",
+        "pk": 252,
+        "fields": {
+            "name": "Can view payment",
+            "content_type": 63,
+            "codename": "view_payment"
+        }
+    },
+    {
+        "model": "auth.permission",
+        "pk": 253,
+        "fields": {
+            "name": "Can add contract",
+            "content_type": 64,
+            "codename": "add_contract"
+        }
+    },
+    {
+        "model": "auth.permission",
+        "pk": 254,
+        "fields": {
+            "name": "Can change contract",
+            "content_type": 64,
+            "codename": "change_contract"
+        }
+    },
+    {
+        "model": "auth.permission",
+        "pk": 255,
+        "fields": {
+            "name": "Can delete contract",
+            "content_type": 64,
+            "codename": "delete_contract"
+        }
+    },
+    {
+        "model": "auth.permission",
+        "pk": 256,
+        "fields": {
+            "name": "Can view contract",
+            "content_type": 64,
+            "codename": "view_contract"
+        }
+    },
+    {
+        "model": "auth.permission",
+        "pk": 257,
+        "fields": {
+            "name": "Can add cleaning",
+            "content_type": 65,
+            "codename": "add_cleaning"
+        }
+    },
+    {
+        "model": "auth.permission",
+        "pk": 258,
+        "fields": {
+            "name": "Can change cleaning",
+            "content_type": 65,
+            "codename": "change_cleaning"
+        }
+    },
+    {
+        "model": "auth.permission",
+        "pk": 259,
+        "fields": {
+            "name": "Can delete cleaning",
+            "content_type": 65,
+            "codename": "delete_cleaning"
+        }
+    },
+    {
+        "model": "auth.permission",
+        "pk": 260,
+        "fields": {
+            "name": "Can view cleaning",
+            "content_type": 65,
+            "codename": "view_cleaning"
+        }
+    },
+    {
+        "model": "contenttypes.contenttype",
+        "pk": 53,
+        "fields": {
+            "app_label": "admin",
+            "model": "logentry"
+        }
+    },
+    {
+        "model": "contenttypes.contenttype",
+        "pk": 54,
+        "fields": {
+            "app_label": "auth",
+            "model": "permission"
+        }
+    },
+    {
+        "model": "contenttypes.contenttype",
+        "pk": 55,
+        "fields": {
+            "app_label": "auth",
+            "model": "group"
+        }
+    },
+    {
+        "model": "contenttypes.contenttype",
+        "pk": 56,
+        "fields": {
+            "app_label": "contenttypes",
+            "model": "contenttype"
+        }
+    },
+    {
+        "model": "contenttypes.contenttype",
+        "pk": 57,
+        "fields": {
+            "app_label": "sessions",
+            "model": "session"
+        }
+    },
+    {
+        "model": "contenttypes.contenttype",
+        "pk": 58,
+        "fields": {
+            "app_label": "mysite",
+            "model": "user"
+        }
+    },
+    {
+        "model": "contenttypes.contenttype",
+        "pk": 59,
+        "fields": {
+            "app_label": "mysite",
+            "model": "apartment"
+        }
+    },
+    {
+        "model": "contenttypes.contenttype",
+        "pk": 60,
+        "fields": {
+            "app_label": "mysite",
+            "model": "booking"
+        }
+    },
+    {
+        "model": "contenttypes.contenttype",
+        "pk": 61,
+        "fields": {
+            "app_label": "mysite",
+            "model": "notification"
+        }
+    },
+    {
+        "model": "contenttypes.contenttype",
+        "pk": 62,
+        "fields": {
+            "app_label": "mysite",
+            "model": "paymentmethod"
+        }
+    },
+    {
+        "model": "contenttypes.contenttype",
+        "pk": 63,
+        "fields": {
+            "app_label": "mysite",
+            "model": "payment"
+        }
+    },
+    {
+        "model": "contenttypes.contenttype",
+        "pk": 64,
+        "fields": {
+            "app_label": "mysite",
+            "model": "contract"
+        }
+    },
+    {
+        "model": "contenttypes.contenttype",
+        "pk": 65,
+        "fields": {
+            "app_label": "mysite",
+            "model": "cleaning"
+        }
+    },
+    {
+        "model": "sessions.session",
+        "pk": "ciymdw77nm7i2jfhv2um6lui8iknwxmb",
+        "fields": {
+            "session_data": ".eJxVjMsOwiAUBf-FtSFgbwt16d5vINwHUjWQlHZl_HfbpAvdzsw5bxXiuuSwNpnDxOqirDr9Moz0lLILfsRyr5pqWeYJ9Z7owzZ9qyyv69H-HeTY8rbuEZwYL2YAb5MxgBZFHCYeHYAMPXgSivbcJWuYPFOHicaNGXQ-ifp8AezQOPE:1qc8cz:MWuhw5jNlZ2u3VKI4me_HPihupgIK5fT4H2NJRoPxug",
+            "expire_date": "2023-09-15T18:12:17.552Z"
+        }
+    },
+    {
+        "model": "sessions.session",
+        "pk": "i5yq4x8m14a8xc4tlrdoygcisyegh8s0",
+        "fields": {
+            "session_data": ".eJxVjMsOwiAUBf-FtSFgbwt16d5vINwHUjWQlHZl_HfbpAvdzsw5bxXiuuSwNpnDxOqirDr9Moz0lLILfsRyr5pqWeYJ9Z7owzZ9qyyv69H-HeTY8rbuEZwYL2YAb5MxgBZFHCYeHYAMPXgSivbcJWuYPFOHicaNGXQ-ifp8AezQOPE:1qfdtz:JwAyJTqRBZHVxmMD9GsQtSjyi5sQMAv8GXJ6e7o2TWI",
+            "expire_date": "2023-09-25T10:12:19.594Z"
+        }
+    },
+    {
+        "model": "sessions.session",
+        "pk": "jy00krpiuifapnci2kg8h6r6llhag34m",
+        "fields": {
+            "session_data": ".eJxVjMsOwiAUBf-FtSFgbwt16d5vINwHUjWQlHZl_HfbpAvdzsw5bxXiuuSwNpnDxOqirDr9Moz0lLILfsRyr5pqWeYJ9Z7owzZ9qyyv69H-HeTY8rbuEZwYL2YAb5MxgBZFHCYeHYAMPXgSivbcJWuYPFOHicaNGXQ-ifp8AezQOPE:1qc7fX:7SoojyfKDZuCu3Vzp4rzikBev9Tl2eZQy7Bu4IB3uNQ",
+            "expire_date": "2023-09-15T17:10:51.903Z"
+        }
+    },
+    {
+        "model": "sessions.session",
+        "pk": "v6l3djgs6p5uscgsn8n2str19tush4c8",
+        "fields": {
+            "session_data": ".eJxVjMsOwiAUBf-FtSFgbwt16d5vINwHUjWQlHZl_HfbpAvdzsw5bxXiuuSwNpnDxOqirDr9Moz0lLILfsRyr5pqWeYJ9Z7owzZ9qyyv69H-HeTY8rbuEZwYL2YAb5MxgBZFHCYeHYAMPXgSivbcJWuYPFOHicaNGXQ-ifp8AezQOPE:1qc8k2:2SNvQ8j8DHikbaNX6sV5C88GI3GCPrTE9uAwmHp4aVI",
+            "expire_date": "2023-09-15T18:19:34.768Z"
+        }
+    },
+    {
+        "model": "sessions.session",
+        "pk": "z3oser0qtqds9as9p23tk40npw1tf53q",
+        "fields": {
+            "session_data": ".eJxVjMsOwiAUBf-FtSFgbwt16d5vINwHUjWQlHZl_HfbpAvdzsw5bxXiuuSwNpnDxOqirDr9Moz0lLILfsRyr5pqWeYJ9Z7owzZ9qyyv69H-HeTY8rbuEZwYL2YAb5MxgBZFHCYeHYAMPXgSivbcJWuYPFOHicaNGXQ-ifp8AezQOPE:1qc9Yg:iR3cHSSqgtX0fUaFr4s68wfQiwppqycP4M2ao3LwojI",
+            "expire_date": "2023-09-15T19:11:54.607Z"
+        }
+    },
+    {
+        "model": "mysite.user",
+        "pk": 1,
+        "fields": {
+            "last_login": "2023-09-11T10:12:19.591Z",
+            "is_superuser": false,
+            "email": "admin@gmail.com",
+            "password": "pbkdf2_sha256$600000$232WPFunNZnyDxkOzIr4XL$mAk0qDRziguwbKp6Zw+8Zce12GgXYf8MqDZoPX6Nmx4=",
+            "full_name": "Admin",
+            "phone": null,
+            "role": "admin",
+            "notes": null,
+            "is_active": true,
+            "is_staff": false,
+            "created_at": "2023-09-01T17:07:27.043Z",
+            "updated_at": "2023-09-01T17:07:27.664Z",
+            "groups": [],
+            "user_permissions": []
+        }
+    },
+    {
+        "model": "mysite.user",
+        "pk": 2,
+        "fields": {
+            "last_login": null,
+            "is_superuser": false,
+            "email": "cleaner1@example.com",
+            "password": "pbkdf2_sha256$600000$rCzCtw8EVE7kCijt0hM2nu$vbZCc78u32bovZ5Eh0XWff3NxOmGT6iUGNt930p+gvY=",
+            "full_name": "Cleaner One",
+            "phone": "+14345676",
+            "role": "Cleaner",
+            "notes": null,
+            "is_active": true,
+            "is_staff": false,
+            "created_at": "2023-09-01T17:07:28.404Z",
+            "updated_at": "2023-09-01T17:07:28.404Z",
+            "groups": [],
+            "user_permissions": []
+        }
+    },
+    {
+        "model": "mysite.user",
+        "pk": 3,
+        "fields": {
+            "last_login": null,
+            "is_superuser": false,
+            "email": "cleaner2@example.com",
+            "password": "pbkdf2_sha256$600000$HrbliHRQzcGm11p92kFVnS$NVtxCLwE9RngmDYx614bnvrj5uajC9Bh3or5/v8pBNo=",
+            "full_name": "Cleaner Two",
+            "phone": "+13345676",
+            "role": "Cleaner",
+            "notes": null,
+            "is_active": true,
+            "is_staff": false,
+            "created_at": "2023-09-01T17:07:29.035Z",
+            "updated_at": "2023-09-01T17:07:29.035Z",
+            "groups": [],
+            "user_permissions": []
+        }
+    },
+    {
+        "model": "mysite.user",
+        "pk": 4,
+        "fields": {
+            "last_login": null,
+            "is_superuser": false,
+            "email": "manager1@example.com",
+            "password": "pbkdf2_sha256$600000$ezcuX2EwKXm3mJwfh4vJGQ$pIfck4amCGfD09uecVynaFKDuFRa1q5cNGriryVIN38=",
+            "full_name": "Manager One",
+            "phone": "+15345676",
+            "role": "Manager",
+            "notes": null,
+            "is_active": true,
+            "is_staff": false,
+            "created_at": "2023-09-01T17:07:29.660Z",
+            "updated_at": "2023-09-01T17:07:29.660Z",
+            "groups": [],
+            "user_permissions": []
+        }
+    },
+    {
+        "model": "mysite.user",
+        "pk": 5,
+        "fields": {
+            "last_login": null,
+            "is_superuser": false,
+            "email": "manager2@example.com",
+            "password": "pbkdf2_sha256$600000$WJ5yTkkNZAiP50qwa62lft$R/yQ2Fk3h2psXgWhJP94lfZImya9AHJKYWmP8LJR1fs=",
+            "full_name": "Farid A Gazizov",
+            "phone": "+12345676",
+            "role": "Manager",
+            "notes": "",
+            "is_active": true,
+            "is_staff": false,
+            "created_at": "2023-09-01T17:07:30.283Z",
+            "updated_at": "2023-09-01T18:25:37.423Z",
+            "groups": [],
+            "user_permissions": []
+        }
+    },
+    {
+        "model": "mysite.user",
+        "pk": 6,
+        "fields": {
+            "last_login": null,
+            "is_superuser": false,
+            "email": "tenant1@example.com",
+            "password": "pbkdf2_sha256$600000$nQyFlpsb0N17aLxXdGS8Ml$korC1GXFphDxInprnZnRrC3F+R85vb9DsMNMXElGYxk=",
+            "full_name": "Tenant One",
+            "phone": "+16345676",
+            "role": "Tenant",
+            "notes": null,
+            "is_active": true,
+            "is_staff": false,
+            "created_at": "2023-09-01T17:07:30.935Z",
+            "updated_at": "2023-09-01T17:07:30.935Z",
+            "groups": [],
+            "user_permissions": []
+        }
+    },
+    {
+        "model": "mysite.user",
+        "pk": 7,
+        "fields": {
+            "last_login": null,
+            "is_superuser": false,
+            "email": "tenant2@example.com",
+            "password": "pbkdf2_sha256$600000$478zGnfcJUZNVCDZ7NSVfw$aBWMeHY2lnjyt33V/hMaAtX5HRPSuHsILRnNvZgvvJg=",
+            "full_name": "Tenant Two",
+            "phone": "+17345676",
+            "role": "Tenant",
+            "notes": null,
+            "is_active": true,
+            "is_staff": false,
+            "created_at": "2023-09-01T17:07:31.558Z",
+            "updated_at": "2023-09-01T17:07:31.558Z",
+            "groups": [],
+            "user_permissions": []
+        }
+    },
+    {
+        "model": "mysite.user",
+        "pk": 8,
+        "fields": {
+            "last_login": null,
+            "is_superuser": false,
+            "email": "tenant3@example.com",
+            "password": "pbkdf2_sha256$600000$ASKIgTp0WTPepVdMkVhXyx$6GyPfzLu3i4m+u01VkzxZdPTbYyECjyWAH8VXdRcHFY=",
+            "full_name": "Tenant Three",
+            "phone": "+18314676",
+            "role": "Tenant",
+            "notes": null,
+            "is_active": true,
+            "is_staff": false,
+            "created_at": "2023-09-01T17:07:32.287Z",
+            "updated_at": "2023-09-01T17:07:32.287Z",
+            "groups": [],
+            "user_permissions": []
+        }
+    },
+    {
+        "model": "mysite.user",
+        "pk": 9,
+        "fields": {
+            "last_login": null,
+            "is_superuser": false,
+            "email": "owner1@example.com",
+            "password": "pbkdf2_sha256$600000$JGUALEOALU0wUOCWOP8jk4$GPbW4JrXa+qaUZWnH2+QYxwtVKzKhQi0sqecPrUdWQs=",
+            "full_name": "Carol Stuart",
+            "phone": "+19314676",
+            "role": "Owner",
+            "notes": "",
+            "is_active": true,
+            "is_staff": false,
+            "created_at": "2023-09-01T17:07:32.915Z",
+            "updated_at": "2023-09-01T18:27:04.917Z",
+            "groups": [],
+            "user_permissions": []
+        }
+    },
+    {
+        "model": "mysite.user",
+        "pk": 10,
+        "fields": {
+            "last_login": null,
+            "is_superuser": false,
+            "email": "owner2@example.com",
+            "password": "pbkdf2_sha256$600000$XTHPi55F4YcQrwPmDIaIOT$5qVcEG9v3WL6JDUd2e8FmVllT1LgEXreKKrCd3Ro3oo=",
+            "full_name": "Elizabeth Burch",
+            "phone": "+11445676",
+            "role": "Owner",
+            "notes": "",
+            "is_active": true,
+            "is_staff": false,
+            "created_at": "2023-09-01T17:07:33.540Z",
+            "updated_at": "2023-09-01T18:23:49.841Z",
+            "groups": [],
+            "user_permissions": []
+        }
+    },
+    {
+        "model": "mysite.user",
+        "pk": 11,
+        "fields": {
+            "last_login": null,
+            "is_superuser": false,
+            "email": "gfa779@hotmail.com",
+            "password": "pbkdf2_sha256$600000$DQiBAXDN9KeNEyzbxyOY1m$zxxKQVtg6H09lo9A5ioicKMKc2Bnwm8WIn3kSyxJEjI=",
+            "full_name": "Farid Gazizov",
+            "phone": "15614603904",
+            "role": "Owner",
+            "notes": "",
+            "is_active": true,
+            "is_staff": false,
+            "created_at": "2023-09-01T17:07:34.233Z",
+            "updated_at": "2023-09-01T18:21:53.444Z",
+            "groups": [],
+            "user_permissions": []
+        }
+    },
+    {
+        "model": "mysite.user",
+        "pk": 12,
+        "fields": {
+            "last_login": null,
+            "is_superuser": false,
+            "email": "promtwizard@gmail.com",
+            "password": "pbkdf2_sha256$600000$oDXrQJt8kmBLcTJUwXbvUp$4/+0B73c3IOYc1yYzxDlTXH4gUExxilFi2jsO1Xl2UM=",
+            "full_name": "Andrei Vaulin",
+            "phone": "+6281338571519",
+            "role": "Tenant",
+            "notes": null,
+            "is_active": true,
+            "is_staff": false,
+            "created_at": "2023-09-01T17:32:44.232Z",
+            "updated_at": "2023-09-01T17:32:44.232Z",
+            "groups": [],
+            "user_permissions": []
+        }
+    },
+    {
+        "model": "mysite.user",
+        "pk": 13,
+        "fields": {
+            "last_login": null,
+            "is_superuser": false,
+            "email": "farid@gmail.com",
+            "password": "pbkdf2_sha256$600000$imNKjxfHAtSXF2I4CAShIy$ShORbToUs7J030+bZg1hjPOumBlzsZ+elunVGTmCIQc=",
+            "full_name": "Farid L K",
+            "phone": "+14345676",
+            "role": "Tenant",
+            "notes": null,
+            "is_active": true,
+            "is_staff": false,
+            "created_at": "2023-09-01T19:10:35.835Z",
+            "updated_at": "2023-09-01T19:10:35.835Z",
+            "groups": [],
+            "user_permissions": []
+        }
+    },
+    {
+        "model": "mysite.user",
+        "pk": 14,
+        "fields": {
+            "last_login": null,
+            "is_superuser": false,
+            "email": "johnnypitt.ind@gmail.com",
+            "password": "pbkdf2_sha256$600000$qpbyj6jYgAgJJIm50EyhAu$rWuj1lWYwU9WBFJZxJehWeyQ3RPdl+3ZR+pGT0BfCWY=",
+            "full_name": "Johnny Pitt2",
+            "phone": "+6291338571519",
+            "role": "Manager",
+            "notes": "bobo",
+            "is_active": true,
+            "is_staff": false,
+            "created_at": "2023-09-01T19:12:33.691Z",
+            "updated_at": "2023-09-11T13:02:59.495Z",
+            "groups": [],
+            "user_permissions": []
+        }
+    },
+    {
+        "model": "mysite.user",
+        "pk": 15,
+        "fields": {
+            "last_login": null,
+            "is_superuser": false,
+            "email": "max.wenders@gmail.com",
+            "password": "pbkdf2_sha256$600000$eitTJBnvEkkZMBlSpvOKGI$9cFwDmArbuUIJuG0cOhPuHgbEw++u+MXp956CAetFAY=",
+            "full_name": "max wenders",
+            "phone": "5618753882",
+            "role": "Tenant",
+            "notes": null,
+            "is_active": true,
+            "is_staff": false,
+            "created_at": "2023-09-09T03:47:59.760Z",
+            "updated_at": "2023-09-09T03:47:59.760Z",
+            "groups": [],
+            "user_permissions": []
+        }
+    },
+    {
+        "model": "mysite.user",
+        "pk": 16,
+        "fields": {
+            "last_login": null,
+            "is_superuser": false,
+            "email": "test@gmail.com",
+            "password": "pbkdf2_sha256$600000$fM0TZjcqMw44DlGeEiAlDI$KuA/1ZeK5Ey7pLBwyvu1Ntk2PUUBf74BAuQ7mAATGBY=",
+            "full_name": "Andrei Vaulin",
+            "phone": "+6281338571519",
+            "role": "Tenant",
+            "notes": null,
+            "is_active": true,
+            "is_staff": false,
+            "created_at": "2023-09-09T08:54:08.206Z",
+            "updated_at": "2023-09-09T08:54:08.206Z",
+            "groups": [],
+            "user_permissions": []
+        }
+    },
+    {
+        "model": "mysite.user",
+        "pk": 17,
+        "fields": {
+            "last_login": null,
+            "is_superuser": false,
+            "email": "Jeidy@hotmail.com",
+            "password": "pbkdf2_sha256$600000$Lfjom5JOJT19dAaITcya9h$/5NnlF3jl/VLnNStooqYxUjtbTDfnENp3DI1C/vXsso=",
+            "full_name": "Jeidy",
+            "phone": "15614603904",
+            "role": "Cleaner",
+            "notes": "",
+            "is_active": true,
+            "is_staff": false,
+            "created_at": "2023-09-11T11:55:34.703Z",
+            "updated_at": "2023-09-11T11:55:34.703Z",
+            "groups": [],
+            "user_permissions": []
+        }
+    },
+    {
+        "model": "mysite.apartment",
+        "pk": 1,
+        "fields": {
+            "name": "630-521",
+            "web_link": "http://example.com/apartment1",
+            "house_number": "630",
+            "street": "S. Sapodilla ave",
+            "room": "apt 521",
+            "state": "FL",
+            "city": "west palm beach",
+            "zip_index": "33401",
+            "bedrooms": 2,
+            "bathrooms": 2,
+            "apartment_type": "In Management",
+            "status": "Available",
+            "notes": "This is a note for Apartmentt 1",
+            "created_at": "2023-09-01T17:07:36.441Z",
+            "updated_at": "2023-09-01T18:26:03.667Z",
+            "manager": 5,
+            "owner": 10
+        }
+    },
+    {
+        "model": "mysite.apartment",
+        "pk": 2,
+        "fields": {
+            "name": "780-402",
+            "web_link": "http://example.com/apartment2",
+            "house_number": "780",
+            "street": "S SAPODILLA AVE",
+            "room": "apt 402",
+            "state": "FL",
+            "city": "west palm beach",
+            "zip_index": "33401",
+            "bedrooms": 2,
+            "bathrooms": 2,
+            "apartment_type": "In Ownership",
+            "status": "Available",
+            "notes": "",
+            "created_at": "2023-09-01T17:07:36.641Z",
+            "updated_at": "2023-09-01T18:23:12.782Z",
+            "manager": 5,
+            "owner": 11
+        }
+    },
+    {
+        "model": "mysite.apartment",
+        "pk": 3,
+        "fields": {
+            "name": "780-502",
+            "web_link": "http://example.com/apartment3",
+            "house_number": "780",
+            "street": "S SAPODILLA AVE",
+            "room": "",
+            "state": "FL",
+            "city": "west palm beach",
+            "zip_index": "33401",
+            "bedrooms": 2,
+            "bathrooms": 2,
+            "apartment_type": "In Ownership",
+            "status": "Available",
+            "notes": "",
+            "created_at": "2023-09-01T17:07:36.841Z",
+            "updated_at": "2023-09-01T18:25:51.298Z",
+            "manager": 5,
+            "owner": 11
+        }
+    },
+    {
+        "model": "mysite.apartment",
+        "pk": 4,
+        "fields": {
+            "name": "630-113",
+            "web_link": null,
+            "house_number": "630",
+            "street": "S. Sapodilla ave",
+            "room": "apt 113",
+            "state": "FL",
+            "city": "west palm beach",
+            "zip_index": "33401",
+            "bedrooms": 1,
+            "bathrooms": 1,
+            "apartment_type": "In Management",
+            "status": "Available",
+            "notes": "",
+            "created_at": "2023-09-01T18:27:42.793Z",
+            "updated_at": "2023-09-01T18:27:42.793Z",
+            "manager": 5,
+            "owner": 9
+        }
+    },
+    {
+        "model": "mysite.apartment",
+        "pk": 5,
+        "fields": {
+            "name": "630-507",
+            "web_link": "https://courtyardsincityplace.com/apt57-0",
+            "house_number": "630",
+            "street": "S. Sapodilla ave",
+            "room": "apt 507",
+            "state": "FL",
+            "city": "west palm beach",
+            "zip_index": "33401",
+            "bedrooms": 1,
+            "bathrooms": 1,
+            "apartment_type": "In Management",
+            "status": "Available",
+            "notes": "",
+            "created_at": "2023-09-09T03:45:01.869Z",
+            "updated_at": "2023-09-09T03:45:01.869Z",
+            "manager": 5,
+            "owner": 9
+        }
+    },
+    {
+        "model": "mysite.booking",
+        "pk": 1,
+        "fields": {
+            "price": "100.00",
+            "period": "Dayly",
+            "status": "Confirmed",
+            "start_date": "2023-07-21",
+            "end_date": "2023-08-10",
+            "notes": null,
+            "tenant": 6,
+            "apartment": 1,
+            "created_at": "2023-09-01T17:07:37.841Z",
+            "updated_at": "2023-09-01T17:07:37.841Z"
+        }
+    },
+    {
+        "model": "mysite.booking",
+        "pk": 2,
+        "fields": {
+            "price": "3000.00",
+            "period": "Monthly",
+            "status": "Confirmed",
+            "start_date": "2023-05-22",
+            "end_date": "2023-08-20",
+            "notes": null,
+            "tenant": 7,
+            "apartment": 2,
+            "created_at": "2023-09-01T17:07:40.262Z",
+            "updated_at": "2023-09-01T17:07:40.262Z"
+        }
+    },
+    {
+        "model": "mysite.booking",
+        "pk": 3,
+        "fields": {
+            "price": "3000.00",
+            "period": "Monthly",
+            "status": "Pending",
+            "start_date": "2023-08-20",
+            "end_date": "2023-11-18",
+            "notes": null,
+            "tenant": 8,
+            "apartment": 3,
+            "created_at": "2023-09-01T17:07:43.479Z",
+            "updated_at": "2023-09-01T17:07:43.479Z"
+        }
+    },
+    {
+        "model": "mysite.booking",
+        "pk": 4,
+        "fields": {
+            "price": "3000.00",
+            "period": "Monthly",
+            "status": "Canceled",
+            "start_date": "2023-09-19",
+            "end_date": "2023-12-18",
+            "notes": null,
+            "tenant": 6,
+            "apartment": 1,
+            "created_at": "2023-09-01T17:07:46.677Z",
+            "updated_at": "2023-09-01T17:07:46.677Z"
+        }
+    },
+    {
+        "model": "mysite.booking",
+        "pk": 5,
+        "fields": {
+            "price": "2000.00",
+            "period": "Monthly",
+            "status": "Pending",
+            "start_date": "2023-09-09",
+            "end_date": "2023-10-09",
+            "notes": null,
+            "tenant": 7,
+            "apartment": 2,
+            "created_at": "2023-09-01T17:07:50.113Z",
+            "updated_at": "2023-09-01T17:07:50.113Z"
+        }
+    },
+    {
+        "model": "mysite.booking",
+        "pk": 6,
+        "fields": {
+            "price": "1000.00",
+            "period": "Dayly",
+            "status": "Pending",
+            "start_date": "2023-10-14",
+            "end_date": "2023-10-19",
+            "notes": null,
+            "tenant": 8,
+            "apartment": 2,
+            "created_at": "2023-09-01T17:07:52.836Z",
+            "updated_at": "2023-09-01T17:07:52.836Z"
+        }
+    },
+    {
+        "model": "mysite.booking",
+        "pk": 14,
+        "fields": {
+            "price": "5000.00",
+            "period": "Dayly",
+            "status": "Pending",
+            "start_date": "2023-09-27",
+            "end_date": "2023-12-19",
+            "notes": "sdfsdf",
+            "tenant": 12,
+            "apartment": 2,
+            "created_at": "2023-09-01T19:08:50.342Z",
+            "updated_at": "2023-09-01T19:08:52.201Z"
+        }
+    },
+    {
+        "model": "mysite.booking",
+        "pk": 15,
+        "fields": {
+            "price": "5000.00",
+            "period": "Dayly",
+            "status": "Pending",
+            "start_date": "2023-08-28",
+            "end_date": "2023-12-20",
+            "notes": "testte",
+            "tenant": 13,
+            "apartment": 3,
+            "created_at": "2023-09-01T19:10:36.613Z",
+            "updated_at": "2023-09-01T19:10:38.485Z"
+        }
+    },
+    {
+        "model": "mysite.booking",
+        "pk": 16,
+        "fields": {
+            "price": "444.00",
+            "period": "Dayly",
+            "status": "Pending",
+            "start_date": "2023-09-20",
+            "end_date": "2023-09-21",
+            "notes": "testt",
+            "tenant": 14,
+            "apartment": 2,
+            "created_at": "2023-09-01T19:12:33.696Z",
+            "updated_at": "2023-09-01T19:12:33.720Z"
+        }
+    },
+    {
+        "model": "mysite.booking",
+        "pk": 17,
+        "fields": {
+            "price": "5000.00",
+            "period": "Dayly",
+            "status": "Pending",
+            "start_date": "2023-09-09",
+            "end_date": "2023-09-10",
+            "notes": "",
+            "tenant": 16,
+            "apartment": 2,
+            "created_at": "2023-09-09T08:55:01.243Z",
+            "updated_at": "2023-09-09T08:55:04.061Z"
+        }
+    },
+    {
+        "model": "mysite.booking",
+        "pk": 18,
+        "fields": {
+            "price": "5000.00",
+            "period": "Dayly",
+            "status": "Pending",
+            "start_date": "2023-09-27",
+            "end_date": "2023-10-18",
+            "notes": "",
+            "tenant": 16,
+            "apartment": 2,
+            "created_at": "2023-09-09T09:03:29.469Z",
+            "updated_at": "2023-09-09T09:03:35.327Z"
+        }
+    },
+    {
+        "model": "mysite.booking",
+        "pk": 19,
+        "fields": {
+            "price": "2600.00",
+            "period": "Monthly",
+            "status": "Pending",
+            "start_date": "2023-09-09",
+            "end_date": "2023-11-19",
+            "notes": "text",
+            "tenant": 15,
+            "apartment": 5,
+            "created_at": "2023-09-11T15:25:44.316Z",
+            "updated_at": "2023-09-11T15:25:44.342Z"
+        }
+    },
+    {
+        "model": "mysite.contract",
+        "pk": 1,
+        "fields": {
+            "contract_id": "12sdf444154gws24140",
+            "sign_date": "2023-07-21",
+            "link": "http://example.com/contract",
+            "status": "Signed",
+            "created_at": "2023-09-01T17:07:38.040Z",
+            "updated_at": "2023-09-01T17:07:38.040Z",
+            "booking": 1
+        }
+    },
+    {
+        "model": "mysite.contract",
+        "pk": 2,
+        "fields": {
+            "contract_id": "12sdf444154gws24141",
+            "sign_date": "2023-05-22",
+            "link": "http://example.com/contract",
+            "status": "Signed",
+            "created_at": "2023-09-01T17:07:40.469Z",
+            "updated_at": "2023-09-01T17:07:40.469Z",
+            "booking": 2
+        }
+    },
+    {
+        "model": "mysite.contract",
+        "pk": 3,
+        "fields": {
+            "contract_id": "12sdf444154gws24142",
+            "sign_date": "2023-08-20",
+            "link": "http://example.com/contract",
+            "status": "Pending",
+            "created_at": "2023-09-01T17:07:43.678Z",
+            "updated_at": "2023-09-01T17:07:43.678Z",
+            "booking": 3
+        }
+    },
+    {
+        "model": "mysite.contract",
+        "pk": 4,
+        "fields": {
+            "contract_id": "12sdf444154gws24143",
+            "sign_date": "2023-09-19",
+            "link": "http://example.com/contract",
+            "status": "Canceled",
+            "created_at": "2023-09-01T17:07:46.877Z",
+            "updated_at": "2023-09-01T17:07:46.877Z",
+            "booking": 4
+        }
+    },
+    {
+        "model": "mysite.contract",
+        "pk": 5,
+        "fields": {
+            "contract_id": "12sdf444154gws24144",
+            "sign_date": "2023-09-09",
+            "link": "http://example.com/contract",
+            "status": "Pending",
+            "created_at": "2023-09-01T17:07:50.407Z",
+            "updated_at": "2023-09-01T17:07:50.407Z",
+            "booking": 5
+        }
+    },
+    {
+        "model": "mysite.contract",
+        "pk": 6,
+        "fields": {
+            "contract_id": "12sdf444154gws24145",
+            "sign_date": "2023-10-14",
+            "link": "http://example.com/contract",
+            "status": "Pending",
+            "created_at": "2023-09-01T17:07:53.036Z",
+            "updated_at": "2023-09-01T17:07:53.036Z",
+            "booking": 6
+        }
+    },
+    {
+        "model": "mysite.contract",
+        "pk": 7,
+        "fields": {
+            "contract_id": "1244-14d451-145d54",
+            "sign_date": null,
+            "link": "https://demo.docusign.net/restapi",
+            "status": "Pending",
+            "created_at": "2023-09-01T17:22:29.564Z",
+            "updated_at": "2023-09-01T17:22:29.564Z",
+            "booking": null
+        }
+    },
+    {
+        "model": "mysite.contract",
+        "pk": 8,
+        "fields": {
+            "contract_id": "1244-14d451-145d54",
+            "sign_date": null,
+            "link": "https://demo.docusign.net/restapi",
+            "status": "Pending",
+            "created_at": "2023-09-01T17:25:36.418Z",
+            "updated_at": "2023-09-01T17:25:36.418Z",
+            "booking": null
+        }
+    },
+    {
+        "model": "mysite.contract",
+        "pk": 9,
+        "fields": {
+            "contract_id": "1244-14d451-145d54",
+            "sign_date": null,
+            "link": "https://demo.docusign.net/restapi",
+            "status": "Pending",
+            "created_at": "2023-09-01T17:27:37.658Z",
+            "updated_at": "2023-09-01T17:27:37.658Z",
+            "booking": null
+        }
+    },
+    {
+        "model": "mysite.contract",
+        "pk": 10,
+        "fields": {
+            "contract_id": "1244-14d451-145d54",
+            "sign_date": null,
+            "link": "https://demo.docusign.net/restapi",
+            "status": "Pending",
+            "created_at": "2023-09-01T17:30:20.643Z",
+            "updated_at": "2023-09-01T17:30:20.643Z",
+            "booking": null
+        }
+    },
+    {
+        "model": "mysite.contract",
+        "pk": 11,
+        "fields": {
+            "contract_id": "1244-14d451-145d54",
+            "sign_date": null,
+            "link": "https://demo.docusign.net/restapi",
+            "status": "Pending",
+            "created_at": "2023-09-01T17:30:50.063Z",
+            "updated_at": "2023-09-01T17:30:50.063Z",
+            "booking": null
+        }
+    },
+    {
+        "model": "mysite.contract",
+        "pk": 12,
+        "fields": {
+            "contract_id": "1244-14d451-145d54",
+            "sign_date": null,
+            "link": "https://demo.docusign.net/restapi",
+            "status": "Pending",
+            "created_at": "2023-09-01T17:31:59.596Z",
+            "updated_at": "2023-09-01T17:31:59.596Z",
+            "booking": null
+        }
+    },
+    {
+        "model": "mysite.contract",
+        "pk": 13,
+        "fields": {
+            "contract_id": "1244-14d451-145d54",
+            "sign_date": null,
+            "link": "https://demo.docusign.net/restapi",
+            "status": "Pending",
+            "created_at": "2023-09-01T17:32:45.266Z",
+            "updated_at": "2023-09-01T17:32:45.266Z",
+            "booking": null
+        }
+    },
+    {
+        "model": "mysite.contract",
+        "pk": 14,
+        "fields": {
+            "contract_id": "1244-14d451-145d54",
+            "sign_date": null,
+            "link": "https://demo.docusign.net/restapi",
+            "status": "Pending",
+            "created_at": "2023-09-01T19:08:50.592Z",
+            "updated_at": "2023-09-01T19:08:50.592Z",
+            "booking": 14
+        }
+    },
+    {
+        "model": "mysite.contract",
+        "pk": 15,
+        "fields": {
+            "contract_id": "1244-14d451-145d54",
+            "sign_date": null,
+            "link": "https://demo.docusign.net/restapi",
+            "status": "Pending",
+            "created_at": "2023-09-01T19:10:36.920Z",
+            "updated_at": "2023-09-01T19:10:36.920Z",
+            "booking": 15
+        }
+    },
+    {
+        "model": "mysite.contract",
+        "pk": 16,
+        "fields": {
+            "contract_id": "1244-14d451-145d54",
+            "sign_date": null,
+            "link": "https://demo.docusign.net/restapi",
+            "status": "Pending",
+            "created_at": "2023-09-01T19:12:33.701Z",
+            "updated_at": "2023-09-01T19:12:33.701Z",
+            "booking": 16
+        }
+    },
+    {
+        "model": "mysite.contract",
+        "pk": 17,
+        "fields": {
+            "contract_id": "1244-14d451-145d54",
+            "sign_date": null,
+            "link": "https://demo.docusign.net/restapi",
+            "status": "Pending",
+            "created_at": "2023-09-09T08:55:01.473Z",
+            "updated_at": "2023-09-09T08:55:01.473Z",
+            "booking": 17
+        }
+    },
+    {
+        "model": "mysite.contract",
+        "pk": 18,
+        "fields": {
+            "contract_id": "4244-14d451-145d54",
+            "sign_date": "2023-09-11",
+            "link": "https://demo.docusign.net/restapi2",
+            "status": "Signed",
+            "created_at": "2023-09-09T09:03:29.673Z",
+            "updated_at": "2023-09-11T13:25:17.854Z",
+            "booking": 18
+        }
+    },
+    {
+        "model": "mysite.contract",
+        "pk": 19,
+        "fields": {
+            "contract_id": "12sdf444154gws2414",
+            "sign_date": null,
+            "link": "http://example.com/contract",
+            "status": "",
+            "created_at": "2023-09-11T13:36:03.591Z",
+            "updated_at": "2023-09-11T13:36:03.591Z",
+            "booking": 18
+        }
+    },
+    {
+        "model": "mysite.contract",
+        "pk": 20,
+        "fields": {
+            "contract_id": "1dfsdf4sdssda",
+            "sign_date": "2023-07-21",
+            "link": "http://example.com/contract23",
+            "status": "Pending",
+            "created_at": "2023-09-11T13:49:25.133Z",
+            "updated_at": "2023-09-11T14:57:38.989Z",
+            "booking": 6
+        }
+    },
+    {
+        "model": "mysite.contract",
+        "pk": 21,
+        "fields": {
+            "contract_id": "1244-14d451-145d54",
+            "sign_date": null,
+            "link": "https://demo.docusign.net/restapi",
+            "status": "Pending",
+            "created_at": "2023-09-11T15:25:44.322Z",
+            "updated_at": "2023-09-11T15:25:44.322Z",
+            "booking": 19
+        }
+    },
+    {
+        "model": "mysite.paymentmethod",
+        "pk": 1,
+        "fields": {
+            "name": "Zelle",
+            "type": "Payment Method",
+            "notes": null,
+            "created_at": "2023-09-01T17:07:34.441Z",
+            "updated_at": "2023-09-01T17:07:34.441Z"
+        }
+    },
+    {
+        "model": "mysite.paymentmethod",
+        "pk": 2,
+        "fields": {
+            "name": "CC",
+            "type": "Payment Method",
+            "notes": null,
+            "created_at": "2023-09-01T17:07:34.641Z",
+            "updated_at": "2023-09-01T17:07:34.641Z"
+        }
+    },
+    {
+        "model": "mysite.paymentmethod",
+        "pk": 3,
+        "fields": {
+            "name": "Paypal",
+            "type": "Payment Method",
+            "notes": null,
+            "created_at": "2023-09-01T17:07:34.841Z",
+            "updated_at": "2023-09-01T17:07:34.841Z"
+        }
+    },
+    {
+        "model": "mysite.paymentmethod",
+        "pk": 4,
+        "fields": {
+            "name": "Cash",
+            "type": "Payment Method",
+            "notes": null,
+            "created_at": "2023-09-01T17:07:35.041Z",
+            "updated_at": "2023-09-01T17:07:35.041Z"
+        }
+    },
+    {
+        "model": "mysite.paymentmethod",
+        "pk": 5,
+        "fields": {
+            "name": "Venmo",
+            "type": "Payment Method",
+            "notes": null,
+            "created_at": "2023-09-01T17:07:35.241Z",
+            "updated_at": "2023-09-01T17:07:35.241Z"
+        }
+    },
+    {
+        "model": "mysite.paymentmethod",
+        "pk": 6,
+        "fields": {
+            "name": "BA",
+            "type": "Bank",
+            "notes": null,
+            "created_at": "2023-09-01T17:07:35.439Z",
+            "updated_at": "2023-09-01T17:07:35.439Z"
+        }
+    },
+    {
+        "model": "mysite.paymentmethod",
+        "pk": 7,
+        "fields": {
+            "name": "TD",
+            "type": "Bank",
+            "notes": null,
+            "created_at": "2023-09-01T17:07:35.641Z",
+            "updated_at": "2023-09-01T17:07:35.641Z"
+        }
+    },
+    {
+        "model": "mysite.paymentmethod",
+        "pk": 8,
+        "fields": {
+            "name": "PNC",
+            "type": "Bank",
+            "notes": null,
+            "created_at": "2023-09-01T17:07:35.840Z",
+            "updated_at": "2023-09-01T17:07:35.841Z"
+        }
+    },
+    {
+        "model": "mysite.paymentmethod",
+        "pk": 9,
+        "fields": {
+            "name": "TEF",
+            "type": "Payment Method",
+            "notes": "etst",
+            "created_at": "2023-09-01T17:45:16.888Z",
+            "updated_at": "2023-09-01T17:45:16.888Z"
+        }
+    },
+    {
+        "model": "mysite.payment",
+        "pk": 1,
+        "fields": {
+            "payment_date": "2023-07-21",
+            "amount": "500.00",
+            "payment_type": "Holding Deposit",
+            "payment_status": "Confirmed",
+            "payment_method": 2,
+            "bank": 8,
+            "notes": "Holding Deposit",
+            "booking": 1,
+            "created_at": "2023-09-01T17:07:38.440Z",
+            "updated_at": "2023-09-01T17:07:38.440Z"
+        }
+    },
+    {
+        "model": "mysite.payment",
+        "pk": 2,
+        "fields": {
+            "payment_date": "2023-07-22",
+            "amount": "200.00",
+            "payment_type": "Damage Deposit",
+            "payment_status": "Confirmed",
+            "payment_method": 3,
+            "bank": 8,
+            "notes": "Damage Deposit",
+            "booking": 1,
+            "created_at": "2023-09-01T17:07:38.640Z",
+            "updated_at": "2023-09-01T17:07:38.640Z"
+        }
+    },
+    {
+        "model": "mysite.payment",
+        "pk": 3,
+        "fields": {
+            "payment_date": "2023-07-22",
+            "amount": "2000.00",
+            "payment_type": "Income",
+            "payment_status": "Confirmed",
+            "payment_method": 4,
+            "bank": 8,
+            "notes": "Daily rent payment",
+            "booking": 1,
+            "created_at": "2023-09-01T17:07:38.841Z",
+            "updated_at": "2023-09-01T17:07:38.841Z"
+        }
+    },
+    {
+        "model": "mysite.payment",
+        "pk": 4,
+        "fields": {
+            "payment_date": "2023-05-22",
+            "amount": "500.00",
+            "payment_type": "Holding Deposit",
+            "payment_status": "Confirmed",
+            "payment_method": 2,
+            "bank": 8,
+            "notes": "Holding Deposit",
+            "booking": 2,
+            "created_at": "2023-09-01T17:07:40.869Z",
+            "updated_at": "2023-09-01T17:07:40.869Z"
+        }
+    },
+    {
+        "model": "mysite.payment",
+        "pk": 5,
+        "fields": {
+            "payment_date": "2023-05-23",
+            "amount": "200.00",
+            "payment_type": "Damage Deposit",
+            "payment_status": "Confirmed",
+            "payment_method": 3,
+            "bank": 8,
+            "notes": "Damage Deposit",
+            "booking": 2,
+            "created_at": "2023-09-01T17:07:41.069Z",
+            "updated_at": "2023-09-01T17:07:41.069Z"
+        }
+    },
+    {
+        "model": "mysite.payment",
+        "pk": 6,
+        "fields": {
+            "payment_date": "2023-06-21",
+            "amount": "2500.00",
+            "payment_type": "Income",
+            "payment_status": "Confirmed",
+            "payment_method": 5,
+            "bank": 8,
+            "notes": "Ask bank for confirmation",
+            "booking": 2,
+            "created_at": "2023-09-01T17:07:41.270Z",
+            "updated_at": "2023-09-01T17:07:41.270Z"
+        }
+    },
+    {
+        "model": "mysite.payment",
+        "pk": 7,
+        "fields": {
+            "payment_date": "2023-07-21",
+            "amount": "3000.00",
+            "payment_type": "Income",
+            "payment_status": "Confirmed",
+            "payment_method": 5,
+            "bank": 8,
+            "notes": "Ask bank for confirmation",
+            "booking": 2,
+            "created_at": "2023-09-01T17:07:41.672Z",
+            "updated_at": "2023-09-01T17:07:41.672Z"
+        }
+    },
+    {
+        "model": "mysite.payment",
+        "pk": 8,
+        "fields": {
+            "payment_date": "2023-08-20",
+            "amount": "3000.00",
+            "payment_type": "Income",
+            "payment_status": "Confirmed",
+            "payment_method": 5,
+            "bank": 8,
+            "notes": "Ask bank for confirmation",
+            "booking": 2,
+            "created_at": "2023-09-01T17:07:42.079Z",
+            "updated_at": "2023-09-01T17:07:42.079Z"
+        }
+    },
+    {
+        "model": "mysite.payment",
+        "pk": 9,
+        "fields": {
+            "payment_date": "2023-08-20",
+            "amount": "1000.00",
+            "payment_type": "Holding Deposit",
+            "payment_status": "Pending",
+            "payment_method": 2,
+            "bank": 8,
+            "notes": "Holding Deposit",
+            "booking": 3,
+            "created_at": "2023-09-01T17:07:44.079Z",
+            "updated_at": "2023-09-01T17:07:44.079Z"
+        }
+    },
+    {
+        "model": "mysite.payment",
+        "pk": 10,
+        "fields": {
+            "payment_date": "2023-08-21",
+            "amount": "400.00",
+            "payment_type": "Damage Deposit",
+            "payment_status": "Pending",
+            "payment_method": 3,
+            "bank": 8,
+            "notes": "Damage Deposit",
+            "booking": 3,
+            "created_at": "2023-09-01T17:07:44.279Z",
+            "updated_at": "2023-09-01T17:07:44.279Z"
+        }
+    },
+    {
+        "model": "mysite.payment",
+        "pk": 11,
+        "fields": {
+            "payment_date": "2023-09-19",
+            "amount": "2000.00",
+            "payment_type": "Income",
+            "payment_status": "Pending",
+            "payment_method": 5,
+            "bank": 8,
+            "notes": "Ask bank for confirmation",
+            "booking": 3,
+            "created_at": "2023-09-01T17:07:44.478Z",
+            "updated_at": "2023-09-01T17:07:44.478Z"
+        }
+    },
+    {
+        "model": "mysite.payment",
+        "pk": 12,
+        "fields": {
+            "payment_date": "2023-10-19",
+            "amount": "3000.00",
+            "payment_type": "Income",
+            "payment_status": "Pending",
+            "payment_method": 5,
+            "bank": 8,
+            "notes": "Ask bank for confirmation",
+            "booking": 3,
+            "created_at": "2023-09-01T17:07:44.878Z",
+            "updated_at": "2023-09-01T17:07:44.878Z"
+        }
+    },
+    {
+        "model": "mysite.payment",
+        "pk": 13,
+        "fields": {
+            "payment_date": "2023-11-18",
+            "amount": "3000.00",
+            "payment_type": "Income",
+            "payment_status": "Pending",
+            "payment_method": 5,
+            "bank": 8,
+            "notes": "Ask bank for confirmation",
+            "booking": 3,
+            "created_at": "2023-09-01T17:07:45.278Z",
+            "updated_at": "2023-09-01T17:07:45.278Z"
+        }
+    },
+    {
+        "model": "mysite.payment",
+        "pk": 14,
+        "fields": {
+            "payment_date": "2023-09-19",
+            "amount": "1500.00",
+            "payment_type": "Holding Deposit",
+            "payment_status": "Canceled",
+            "payment_method": 2,
+            "bank": 8,
+            "notes": "Holding Deposit",
+            "booking": 4,
+            "created_at": "2023-09-01T17:07:47.278Z",
+            "updated_at": "2023-09-01T17:07:47.278Z"
+        }
+    },
+    {
+        "model": "mysite.payment",
+        "pk": 15,
+        "fields": {
+            "payment_date": "2023-09-20",
+            "amount": "600.00",
+            "payment_type": "Damage Deposit",
+            "payment_status": "Canceled",
+            "payment_method": 3,
+            "bank": 8,
+            "notes": "Damage Deposit",
+            "booking": 4,
+            "created_at": "2023-09-01T17:07:47.478Z",
+            "updated_at": "2023-09-01T17:07:47.478Z"
+        }
+    },
+    {
+        "model": "mysite.payment",
+        "pk": 16,
+        "fields": {
+            "payment_date": "2023-10-19",
+            "amount": "1500.00",
+            "payment_type": "Income",
+            "payment_status": "Canceled",
+            "payment_method": 5,
+            "bank": 8,
+            "notes": "Ask bank for confirmation",
+            "booking": 4,
+            "created_at": "2023-09-01T17:07:47.677Z",
+            "updated_at": "2023-09-01T17:07:47.677Z"
+        }
+    },
+    {
+        "model": "mysite.payment",
+        "pk": 17,
+        "fields": {
+            "payment_date": "2023-11-18",
+            "amount": "3000.00",
+            "payment_type": "Income",
+            "payment_status": "Canceled",
+            "payment_method": 5,
+            "bank": 8,
+            "notes": "Ask bank for confirmation",
+            "booking": 4,
+            "created_at": "2023-09-01T17:07:48.087Z",
+            "updated_at": "2023-09-01T17:07:48.087Z"
+        }
+    },
+    {
+        "model": "mysite.payment",
+        "pk": 18,
+        "fields": {
+            "payment_date": "2023-12-18",
+            "amount": "3000.00",
+            "payment_type": "Income",
+            "payment_status": "Canceled",
+            "payment_method": 5,
+            "bank": 8,
+            "notes": "Ask bank for confirmation",
+            "booking": 4,
+            "created_at": "2023-09-01T17:07:48.486Z",
+            "updated_at": "2023-09-01T17:07:48.486Z"
+        }
+    },
+    {
+        "model": "mysite.payment",
+        "pk": 19,
+        "fields": {
+            "payment_date": "2023-09-09",
+            "amount": "2000.00",
+            "payment_type": "Holding Deposit",
+            "payment_status": "Pending",
+            "payment_method": 2,
+            "bank": 8,
+            "notes": "Holding Deposit",
+            "booking": 5,
+            "created_at": "2023-09-01T17:07:51.014Z",
+            "updated_at": "2023-09-01T17:07:51.014Z"
+        }
+    },
+    {
+        "model": "mysite.payment",
+        "pk": 20,
+        "fields": {
+            "payment_date": "2023-09-10",
+            "amount": "800.00",
+            "payment_type": "Damage Deposit",
+            "payment_status": "Pending",
+            "payment_method": 3,
+            "bank": 8,
+            "notes": "Damage Deposit",
+            "booking": 5,
+            "created_at": "2023-09-01T17:07:51.217Z",
+            "updated_at": "2023-09-01T17:07:51.217Z"
+        }
+    },
+    {
+        "model": "mysite.payment",
+        "pk": 21,
+        "fields": {
+            "payment_date": "2023-10-09",
+            "amount": "0.00",
+            "payment_type": "Income",
+            "payment_status": "Pending",
+            "payment_method": 5,
+            "bank": 8,
+            "notes": "Ask bank for confirmation",
+            "booking": 5,
+            "created_at": "2023-09-01T17:07:51.419Z",
+            "updated_at": "2023-09-01T17:07:51.419Z"
+        }
+    },
+    {
+        "model": "mysite.payment",
+        "pk": 22,
+        "fields": {
+            "payment_date": "2023-10-14",
+            "amount": "2500.00",
+            "payment_type": "Holding Deposit",
+            "payment_status": "Pending",
+            "payment_method": 2,
+            "bank": 8,
+            "notes": "Holding Deposit",
+            "booking": 6,
+            "created_at": "2023-09-01T17:07:53.436Z",
+            "updated_at": "2023-09-01T17:07:53.436Z"
+        }
+    },
+    {
+        "model": "mysite.payment",
+        "pk": 23,
+        "fields": {
+            "payment_date": "2023-10-15",
+            "amount": "1000.00",
+            "payment_type": "Damage Deposit",
+            "payment_status": "Pending",
+            "payment_method": 3,
+            "bank": 8,
+            "notes": "Damage Deposit",
+            "booking": 6,
+            "created_at": "2023-09-01T17:07:53.636Z",
+            "updated_at": "2023-09-01T17:07:53.636Z"
+        }
+    },
+    {
+        "model": "mysite.payment",
+        "pk": 24,
+        "fields": {
+            "payment_date": "2023-10-15",
+            "amount": "5000.00",
+            "payment_type": "Income",
+            "payment_status": "Pending",
+            "payment_method": 4,
+            "bank": 8,
+            "notes": "Daily rent payment",
+            "booking": 6,
+            "created_at": "2023-09-01T17:07:53.836Z",
+            "updated_at": "2023-09-01T17:07:53.836Z"
+        }
+    },
+    {
+        "model": "mysite.payment",
+        "pk": 25,
+        "fields": {
+            "payment_date": "2023-09-01",
+            "amount": "500.00",
+            "payment_type": "Holding Deposit",
+            "payment_status": "Pending",
+            "payment_method": null,
+            "bank": null,
+            "notes": null,
+            "booking": null,
+            "created_at": "2023-09-01T17:32:48.196Z",
+            "updated_at": "2023-09-01T17:32:48.196Z"
+        }
+    },
+    {
+        "model": "mysite.payment",
+        "pk": 26,
+        "fields": {
+            "payment_date": "2023-09-01",
+            "amount": "500.00",
+            "payment_type": "Damage Deposit",
+            "payment_status": "Pending",
+            "payment_method": null,
+            "bank": null,
+            "notes": null,
+            "booking": null,
+            "created_at": "2023-09-01T17:32:48.405Z",
+            "updated_at": "2023-09-01T17:32:48.405Z"
+        }
+    },
+    {
+        "model": "mysite.payment",
+        "pk": 27,
+        "fields": {
+            "payment_date": "2023-09-19",
+            "amount": "2134500.00",
+            "payment_type": "Booking",
+            "payment_status": "Pending",
+            "payment_method": null,
+            "bank": null,
+            "notes": null,
+            "booking": null,
+            "created_at": "2023-09-01T17:32:48.621Z",
+            "updated_at": "2023-09-01T17:32:48.621Z"
+        }
+    },
+    {
+        "model": "mysite.payment",
+        "pk": 28,
+        "fields": {
+            "payment_date": "2023-09-01",
+            "amount": "500.00",
+            "payment_type": "Holding Deposit",
+            "payment_status": "Pending",
+            "payment_method": null,
+            "bank": null,
+            "notes": null,
+            "booking": 14,
+            "created_at": "2023-09-01T19:08:51.261Z",
+            "updated_at": "2023-09-01T19:08:51.261Z"
+        }
+    },
+    {
+        "model": "mysite.payment",
+        "pk": 29,
+        "fields": {
+            "payment_date": "2023-09-01",
+            "amount": "300.00",
+            "payment_type": "Damage Deposit",
+            "payment_status": "Pending",
+            "payment_method": null,
+            "bank": null,
+            "notes": null,
+            "booking": 14,
+            "created_at": "2023-09-01T19:08:51.557Z",
+            "updated_at": "2023-09-01T19:08:51.557Z"
+        }
+    },
+    {
+        "model": "mysite.payment",
+        "pk": 30,
+        "fields": {
+            "payment_date": "2023-09-27",
+            "amount": "414500.00",
+            "payment_type": "Booking",
+            "payment_status": "Pending",
+            "payment_method": null,
+            "bank": null,
+            "notes": null,
+            "booking": 14,
+            "created_at": "2023-09-01T19:08:51.776Z",
+            "updated_at": "2023-09-01T19:08:51.776Z"
+        }
+    },
+    {
+        "model": "mysite.payment",
+        "pk": 31,
+        "fields": {
+            "payment_date": "2023-09-01",
+            "amount": "500.00",
+            "payment_type": "Holding Deposit",
+            "payment_status": "Pending",
+            "payment_method": null,
+            "bank": null,
+            "notes": null,
+            "booking": 15,
+            "created_at": "2023-09-01T19:10:37.545Z",
+            "updated_at": "2023-09-01T19:10:37.545Z"
+        }
+    },
+    {
+        "model": "mysite.payment",
+        "pk": 32,
+        "fields": {
+            "payment_date": "2023-09-01",
+            "amount": "300.00",
+            "payment_type": "Damage Deposit",
+            "payment_status": "Pending",
+            "payment_method": null,
+            "bank": null,
+            "notes": null,
+            "booking": 15,
+            "created_at": "2023-09-01T19:10:37.756Z",
+            "updated_at": "2023-09-01T19:10:37.756Z"
+        }
+    },
+    {
+        "model": "mysite.payment",
+        "pk": 33,
+        "fields": {
+            "payment_date": "2023-08-28",
+            "amount": "569500.00",
+            "payment_type": "Booking",
+            "payment_status": "Pending",
+            "payment_method": null,
+            "bank": null,
+            "notes": null,
+            "booking": 15,
+            "created_at": "2023-09-01T19:10:38.066Z",
+            "updated_at": "2023-09-01T19:10:38.066Z"
+        }
+    },
+    {
+        "model": "mysite.payment",
+        "pk": 34,
+        "fields": {
+            "payment_date": "2023-09-01",
+            "amount": "4444.00",
+            "payment_type": "Holding Deposit",
+            "payment_status": "Pending",
+            "payment_method": null,
+            "bank": null,
+            "notes": null,
+            "booking": 16,
+            "created_at": "2023-09-01T19:12:33.710Z",
+            "updated_at": "2023-09-01T19:12:33.710Z"
+        }
+    },
+    {
+        "model": "mysite.payment",
+        "pk": 35,
+        "fields": {
+            "payment_date": "2023-09-01",
+            "amount": "444.00",
+            "payment_type": "Damage Deposit",
+            "payment_status": "Pending",
+            "payment_method": null,
+            "bank": null,
+            "notes": null,
+            "booking": 16,
+            "created_at": "2023-09-01T19:12:33.714Z",
+            "updated_at": "2023-09-01T19:12:33.714Z"
+        }
+    },
+    {
+        "model": "mysite.payment",
+        "pk": 36,
+        "fields": {
+            "payment_date": "2023-09-20",
+            "amount": "4000.00",
+            "payment_type": "Booking",
+            "payment_status": "Pending",
+            "payment_method": null,
+            "bank": null,
+            "notes": "",
+            "booking": 16,
+            "created_at": "2023-09-01T19:12:33.716Z",
+            "updated_at": "2023-09-11T15:10:10.132Z"
+        }
+    },
+    {
+        "model": "mysite.payment",
+        "pk": 37,
+        "fields": {
+            "payment_date": "2023-09-09",
+            "amount": "5000.00",
+            "payment_type": "Booking",
+            "payment_status": "Pending",
+            "payment_method": null,
+            "bank": null,
+            "notes": null,
+            "booking": 17,
+            "created_at": "2023-09-09T08:55:03.624Z",
+            "updated_at": "2023-09-09T08:55:03.624Z"
+        }
+    },
+    {
+        "model": "mysite.payment",
+        "pk": 38,
+        "fields": {
+            "payment_date": "2023-09-27",
+            "amount": "105000.00",
+            "payment_type": "Booking",
+            "payment_status": "Pending",
+            "payment_method": null,
+            "bank": null,
+            "notes": null,
+            "booking": 18,
+            "created_at": "2023-09-09T09:03:34.907Z",
+            "updated_at": "2023-09-09T09:03:34.907Z"
+        }
+    },
+    {
+        "model": "mysite.payment",
+        "pk": 40,
+        "fields": {
+            "payment_date": "2023-09-12",
+            "amount": "300.00",
+            "payment_type": "Income",
+            "payment_status": "Received",
+            "payment_method": null,
+            "bank": null,
+            "notes": "",
+            "booking": 4,
+            "created_at": "2023-09-11T15:07:58.154Z",
+            "updated_at": "2023-09-11T15:09:47.948Z"
+        }
+    },
+    {
+        "model": "mysite.payment",
+        "pk": 41,
+        "fields": {
+            "payment_date": "2023-09-11",
+            "amount": "500.00",
+            "payment_type": "Holding Deposit",
+            "payment_status": "Pending",
+            "payment_method": null,
+            "bank": null,
+            "notes": null,
+            "booking": 19,
+            "created_at": "2023-09-11T15:25:44.330Z",
+            "updated_at": "2023-09-11T15:25:44.330Z"
+        }
+    },
+    {
+        "model": "mysite.payment",
+        "pk": 42,
+        "fields": {
+            "payment_date": "2023-09-11",
+            "amount": "750.00",
+            "payment_type": "Damage Deposit",
+            "payment_status": "Pending",
+            "payment_method": null,
+            "bank": null,
+            "notes": null,
+            "booking": 19,
+            "created_at": "2023-09-11T15:25:44.334Z",
+            "updated_at": "2023-09-11T15:25:44.334Z"
+        }
+    },
+    {
+        "model": "mysite.payment",
+        "pk": 43,
+        "fields": {
+            "payment_date": "2023-09-09",
+            "amount": "2100.00",
+            "payment_type": "Booking",
+            "payment_status": "Pending",
+            "payment_method": null,
+            "bank": null,
+            "notes": null,
+            "booking": 19,
+            "created_at": "2023-09-11T15:25:44.336Z",
+            "updated_at": "2023-09-11T15:25:44.336Z"
+        }
+    },
+    {
+        "model": "mysite.payment",
+        "pk": 44,
+        "fields": {
+            "payment_date": "2023-10-09",
+            "amount": "2600.00",
+            "payment_type": "Booking",
+            "payment_status": "Pending",
+            "payment_method": null,
+            "bank": null,
+            "notes": null,
+            "booking": 19,
+            "created_at": "2023-09-11T15:25:44.338Z",
+            "updated_at": "2023-09-11T15:25:44.338Z"
+        }
+    },
+    {
+        "model": "mysite.cleaning",
+        "pk": 1,
+        "fields": {
+            "date": "2023-08-11",
+            "status": "Scheduled",
+            "tasks": "Buy pls new cleaning chemicals",
+            "notes": "I left keys under the mat",
+            "cleaner": 2,
+            "booking": 1,
+            "created_at": "2023-09-01T17:07:38.240Z",
+            "updated_at": "2023-09-01T17:07:38.240Z"
+        }
+    },
+    {
+        "model": "mysite.cleaning",
+        "pk": 2,
+        "fields": {
+            "date": "2023-08-21",
+            "status": "Scheduled",
+            "tasks": "Buy pls new cleaning chemicals",
+            "notes": "I left keys under the mat",
+            "cleaner": 3,
+            "booking": 2,
+            "created_at": "2023-09-01T17:07:40.670Z",
+            "updated_at": "2023-09-01T17:07:40.670Z"
+        }
+    },
+    {
+        "model": "mysite.cleaning",
+        "pk": 3,
+        "fields": {
+            "date": "2023-11-19",
+            "status": "Scheduled",
+            "tasks": "Buy pls new cleaning chemicals",
+            "notes": "I left keys under the mat",
+            "cleaner": 2,
+            "booking": 3,
+            "created_at": "2023-09-01T17:07:43.878Z",
+            "updated_at": "2023-09-01T17:07:43.878Z"
+        }
+    },
+    {
+        "model": "mysite.cleaning",
+        "pk": 4,
+        "fields": {
+            "date": "2023-12-19",
+            "status": "Canceled",
+            "tasks": "Buy pls new cleaning chemicals",
+            "notes": "I left keys under the mat",
+            "cleaner": 3,
+            "booking": 4,
+            "created_at": "2023-09-01T17:07:47.077Z",
+            "updated_at": "2023-09-01T17:07:47.077Z"
+        }
+    },
+    {
+        "model": "mysite.cleaning",
+        "pk": 5,
+        "fields": {
+            "date": "2023-10-10",
+            "status": "Scheduled",
+            "tasks": "Buy pls new cleaning chemicals",
+            "notes": "I left keys under the mat",
+            "cleaner": 2,
+            "booking": 5,
+            "created_at": "2023-09-01T17:07:50.709Z",
+            "updated_at": "2023-09-01T17:07:50.709Z"
+        }
+    },
+    {
+        "model": "mysite.cleaning",
+        "pk": 6,
+        "fields": {
+            "date": "2023-10-20",
+            "status": "Scheduled",
+            "tasks": "Buy pls new cleaning chemicals",
+            "notes": "I left keys under the mat",
+            "cleaner": 3,
+            "booking": 6,
+            "created_at": "2023-09-01T17:07:53.236Z",
+            "updated_at": "2023-09-01T17:07:53.236Z"
+        }
+    },
+    {
+        "model": "mysite.cleaning",
+        "pk": 7,
+        "fields": {
+            "date": "2024-11-20",
+            "status": "Scheduled",
+            "tasks": null,
+            "notes": null,
+            "cleaner": 2,
+            "booking": null,
+            "created_at": "2023-09-01T17:32:47.986Z",
+            "updated_at": "2023-09-01T17:32:47.986Z"
+        }
+    },
+    {
+        "model": "mysite.cleaning",
+        "pk": 8,
+        "fields": {
+            "date": "2023-12-20",
+            "status": "Scheduled",
+            "tasks": null,
+            "notes": null,
+            "cleaner": 2,
+            "booking": 14,
+            "created_at": "2023-09-01T19:08:51.011Z",
+            "updated_at": "2023-09-01T19:08:51.012Z"
+        }
+    },
+    {
+        "model": "mysite.cleaning",
+        "pk": 9,
+        "fields": {
+            "date": "2023-12-21",
+            "status": "Scheduled",
+            "tasks": null,
+            "notes": null,
+            "cleaner": 2,
+            "booking": 15,
+            "created_at": "2023-09-01T19:10:37.335Z",
+            "updated_at": "2023-09-01T19:10:37.335Z"
+        }
+    },
+    {
+        "model": "mysite.cleaning",
+        "pk": 10,
+        "fields": {
+            "date": "2023-09-22",
+            "status": "Scheduled",
+            "tasks": null,
+            "notes": null,
+            "cleaner": 2,
+            "booking": 16,
+            "created_at": "2023-09-01T19:12:33.706Z",
+            "updated_at": "2023-09-01T19:12:33.706Z"
+        }
+    },
+    {
+        "model": "mysite.cleaning",
+        "pk": 11,
+        "fields": {
+            "date": "2023-09-11",
+            "status": "Scheduled",
+            "tasks": null,
+            "notes": null,
+            "cleaner": 2,
+            "booking": 17,
+            "created_at": "2023-09-09T08:55:03.402Z",
+            "updated_at": "2023-09-09T08:55:03.402Z"
+        }
+    },
+    {
+        "model": "mysite.cleaning",
+        "pk": 12,
+        "fields": {
+            "date": "2023-10-19",
+            "status": "Scheduled",
+            "tasks": null,
+            "notes": null,
+            "cleaner": 2,
+            "booking": 18,
+            "created_at": "2023-09-09T09:03:34.697Z",
+            "updated_at": "2023-09-09T09:03:34.697Z"
+        }
+    },
+    {
+        "model": "mysite.cleaning",
+        "pk": 14,
+        "fields": {
+            "date": "2023-11-20",
+            "status": "Scheduled",
+            "tasks": null,
+            "notes": null,
+            "cleaner": 17,
+            "booking": 19,
+            "created_at": "2023-09-11T15:25:44.326Z",
+            "updated_at": "2023-09-11T15:25:44.326Z"
+        }
+    },
+    {
+        "model": "mysite.notification",
+        "pk": 1,
+        "fields": {
+            "date": "2023-08-10",
+            "status": "Pending",
+            "send_in_telegram": true,
+            "message": "Rent for Apartment 1 is finishing at 2023-08-10.",
+            "booking": 1,
+            "created_at": "2023-09-01T17:07:39.040Z",
+            "updated_at": "2023-09-01T17:07:39.040Z"
+        }
+    },
+    {
+        "model": "mysite.notification",
+        "pk": 2,
+        "fields": {
+            "date": "2023-08-11",
+            "status": "Pending",
+            "send_in_telegram": true,
+            "message": "Cleaning for Apartment 1 is scheduled at 2023-08-11.",
+            "booking": 1,
+            "created_at": "2023-09-01T17:07:39.240Z",
+            "updated_at": "2023-09-01T17:07:39.240Z"
+        }
+    },
+    {
+        "model": "mysite.notification",
+        "pk": 3,
+        "fields": {
+            "date": "2023-08-10",
+            "status": "Pending",
+            "send_in_telegram": true,
+            "message": "Contract for Apartment 1 has been send to tenant Tenant One at 2023-07-21",
+            "booking": 1,
+            "created_at": "2023-09-01T17:07:39.440Z",
+            "updated_at": "2023-09-01T17:07:39.440Z"
+        }
+    },
+    {
+        "model": "mysite.notification",
+        "pk": 4,
+        "fields": {
+            "date": "2023-07-21",
+            "status": "Pending",
+            "send_in_telegram": true,
+            "message": "Contract for Apartment 1 has been signed at 2023-07-22",
+            "booking": 1,
+            "created_at": "2023-09-01T17:07:39.640Z",
+            "updated_at": "2023-09-01T17:07:39.640Z"
+        }
+    },
+    {
+        "model": "mysite.notification",
+        "pk": 5,
+        "fields": {
+            "date": "2023-07-26",
+            "status": "Pending",
+            "send_in_telegram": true,
+            "message": "Ask tenant if everything is okay and if they want additional cleaning at 2023-07-26",
+            "booking": 1,
+            "created_at": "2023-09-01T17:07:39.966Z",
+            "updated_at": "2023-09-01T17:07:39.966Z"
+        }
+    },
+    {
+        "model": "mysite.notification",
+        "pk": 6,
+        "fields": {
+            "date": "2023-06-21",
+            "status": "Pending",
+            "send_in_telegram": true,
+            "message": "Payment of $2500 for Apartmentttt 2 at 2023-06-21",
+            "booking": 2,
+            "created_at": "2023-09-01T17:07:41.469Z",
+            "updated_at": "2023-09-01T17:07:41.469Z"
+        }
+    },
+    {
+        "model": "mysite.notification",
+        "pk": 7,
+        "fields": {
+            "date": "2023-07-21",
+            "status": "Pending",
+            "send_in_telegram": true,
+            "message": "Payment of $3000 for Apartmentttt 2 at 2023-07-21",
+            "booking": 2,
+            "created_at": "2023-09-01T17:07:41.878Z",
+            "updated_at": "2023-09-01T17:07:41.878Z"
+        }
+    },
+    {
+        "model": "mysite.notification",
+        "pk": 8,
+        "fields": {
+            "date": "2023-08-20",
+            "status": "Pending",
+            "send_in_telegram": true,
+            "message": "Payment of $3000 for Apartmentttt 2 at 2023-08-20",
+            "booking": 2,
+            "created_at": "2023-09-01T17:07:42.279Z",
+            "updated_at": "2023-09-01T17:07:42.279Z"
+        }
+    },
+    {
+        "model": "mysite.notification",
+        "pk": 9,
+        "fields": {
+            "date": "2023-08-20",
+            "status": "Pending",
+            "send_in_telegram": true,
+            "message": "Rent for Apartmentttt 2 is finishing at 2023-08-20.",
+            "booking": 2,
+            "created_at": "2023-09-01T17:07:42.479Z",
+            "updated_at": "2023-09-01T17:07:42.479Z"
+        }
+    },
+    {
+        "model": "mysite.notification",
+        "pk": 10,
+        "fields": {
+            "date": "2023-08-21",
+            "status": "Pending",
+            "send_in_telegram": true,
+            "message": "Cleaning for Apartmentttt 2 is scheduled at 2023-08-21.",
+            "booking": 2,
+            "created_at": "2023-09-01T17:07:42.679Z",
+            "updated_at": "2023-09-01T17:07:42.679Z"
+        }
+    },
+    {
+        "model": "mysite.notification",
+        "pk": 11,
+        "fields": {
+            "date": "2023-08-20",
+            "status": "Pending",
+            "send_in_telegram": true,
+            "message": "Contract for Apartmentttt 2 has been send to tenant Tenant Two at 2023-05-22",
+            "booking": 2,
+            "created_at": "2023-09-01T17:07:42.878Z",
+            "updated_at": "2023-09-01T17:07:42.878Z"
+        }
+    },
+    {
+        "model": "mysite.notification",
+        "pk": 12,
+        "fields": {
+            "date": "2023-05-22",
+            "status": "Pending",
+            "send_in_telegram": true,
+            "message": "Contract for Apartmentttt 2 has been signed at 2023-05-23",
+            "booking": 2,
+            "created_at": "2023-09-01T17:07:43.079Z",
+            "updated_at": "2023-09-01T17:07:43.079Z"
+        }
+    },
+    {
+        "model": "mysite.notification",
+        "pk": 13,
+        "fields": {
+            "date": "2023-05-27",
+            "status": "Pending",
+            "send_in_telegram": true,
+            "message": "Ask tenant if everything is okay and if they want additional cleaning at 2023-05-27",
+            "booking": 2,
+            "created_at": "2023-09-01T17:07:43.279Z",
+            "updated_at": "2023-09-01T17:07:43.279Z"
+        }
+    },
+    {
+        "model": "mysite.notification",
+        "pk": 14,
+        "fields": {
+            "date": "2023-09-19",
+            "status": "Pending",
+            "send_in_telegram": true,
+            "message": "Payment of $2000 for Apartment 3 at 2023-09-19",
+            "booking": 3,
+            "created_at": "2023-09-01T17:07:44.678Z",
+            "updated_at": "2023-09-01T17:07:44.678Z"
+        }
+    },
+    {
+        "model": "mysite.notification",
+        "pk": 15,
+        "fields": {
+            "date": "2023-10-19",
+            "status": "Pending",
+            "send_in_telegram": true,
+            "message": "Payment of $3000 for Apartment 3 at 2023-10-19",
+            "booking": 3,
+            "created_at": "2023-09-01T17:07:45.078Z",
+            "updated_at": "2023-09-01T17:07:45.078Z"
+        }
+    },
+    {
+        "model": "mysite.notification",
+        "pk": 16,
+        "fields": {
+            "date": "2023-11-18",
+            "status": "Pending",
+            "send_in_telegram": true,
+            "message": "Payment of $3000 for Apartment 3 at 2023-11-18",
+            "booking": 3,
+            "created_at": "2023-09-01T17:07:45.480Z",
+            "updated_at": "2023-09-01T17:07:45.480Z"
+        }
+    },
+    {
+        "model": "mysite.notification",
+        "pk": 17,
+        "fields": {
+            "date": "2023-11-18",
+            "status": "Pending",
+            "send_in_telegram": true,
+            "message": "Rent for Apartment 3 is finishing at 2023-11-18.",
+            "booking": 3,
+            "created_at": "2023-09-01T17:07:45.678Z",
+            "updated_at": "2023-09-01T17:07:45.678Z"
+        }
+    },
+    {
+        "model": "mysite.notification",
+        "pk": 18,
+        "fields": {
+            "date": "2023-11-19",
+            "status": "Pending",
+            "send_in_telegram": true,
+            "message": "Cleaning for Apartment 3 is scheduled at 2023-11-19.",
+            "booking": 3,
+            "created_at": "2023-09-01T17:07:45.878Z",
+            "updated_at": "2023-09-01T17:07:45.878Z"
+        }
+    },
+    {
+        "model": "mysite.notification",
+        "pk": 19,
+        "fields": {
+            "date": "2023-11-18",
+            "status": "Pending",
+            "send_in_telegram": true,
+            "message": "Contract for Apartment 3 has been send to tenant Tenant Three at 2023-08-20",
+            "booking": 3,
+            "created_at": "2023-09-01T17:07:46.078Z",
+            "updated_at": "2023-09-01T17:07:46.078Z"
+        }
+    },
+    {
+        "model": "mysite.notification",
+        "pk": 20,
+        "fields": {
+            "date": "2023-08-20",
+            "status": "Pending",
+            "send_in_telegram": true,
+            "message": "Contract for Apartment 3 has been signed at 2023-08-21",
+            "booking": 3,
+            "created_at": "2023-09-01T17:07:46.278Z",
+            "updated_at": "2023-09-01T17:07:46.278Z"
+        }
+    },
+    {
+        "model": "mysite.notification",
+        "pk": 21,
+        "fields": {
+            "date": "2023-08-25",
+            "status": "Pending",
+            "send_in_telegram": true,
+            "message": "Ask tenant if everything is okay and if they want additional cleaning at 2023-08-25",
+            "booking": 3,
+            "created_at": "2023-09-01T17:07:46.475Z",
+            "updated_at": "2023-09-01T17:07:46.475Z"
+        }
+    },
+    {
+        "model": "mysite.notification",
+        "pk": 22,
+        "fields": {
+            "date": "2023-10-19",
+            "status": "Pending",
+            "send_in_telegram": true,
+            "message": "Payment of $1500 for Apartment 1 at 2023-10-19",
+            "booking": 4,
+            "created_at": "2023-09-01T17:07:47.885Z",
+            "updated_at": "2023-09-01T17:07:47.885Z"
+        }
+    },
+    {
+        "model": "mysite.notification",
+        "pk": 23,
+        "fields": {
+            "date": "2023-11-18",
+            "status": "Pending",
+            "send_in_telegram": true,
+            "message": "Payment of $3000 for Apartment 1 at 2023-11-18",
+            "booking": 4,
+            "created_at": "2023-09-01T17:07:48.287Z",
+            "updated_at": "2023-09-01T17:07:48.287Z"
+        }
+    },
+    {
+        "model": "mysite.notification",
+        "pk": 24,
+        "fields": {
+            "date": "2023-12-18",
+            "status": "Pending",
+            "send_in_telegram": true,
+            "message": "Payment of $3000 for Apartment 1 at 2023-12-18",
+            "booking": 4,
+            "created_at": "2023-09-01T17:07:48.687Z",
+            "updated_at": "2023-09-01T17:07:48.687Z"
+        }
+    },
+    {
+        "model": "mysite.notification",
+        "pk": 25,
+        "fields": {
+            "date": "2023-12-18",
+            "status": "Pending",
+            "send_in_telegram": true,
+            "message": "Rent for Apartment 1 is finishing at 2023-12-18.",
+            "booking": 4,
+            "created_at": "2023-09-01T17:07:48.894Z",
+            "updated_at": "2023-09-01T17:07:48.894Z"
+        }
+    },
+    {
+        "model": "mysite.notification",
+        "pk": 26,
+        "fields": {
+            "date": "2023-12-19",
+            "status": "Pending",
+            "send_in_telegram": true,
+            "message": "Cleaning for Apartment 1 is scheduled at 2023-12-19.",
+            "booking": 4,
+            "created_at": "2023-09-01T17:07:49.171Z",
+            "updated_at": "2023-09-01T17:07:49.171Z"
+        }
+    },
+    {
+        "model": "mysite.notification",
+        "pk": 27,
+        "fields": {
+            "date": "2023-12-18",
+            "status": "Pending",
+            "send_in_telegram": true,
+            "message": "Contract for Apartment 1 has been send to tenant Tenant One at 2023-09-19",
+            "booking": 4,
+            "created_at": "2023-09-01T17:07:49.478Z",
+            "updated_at": "2023-09-01T17:07:49.478Z"
+        }
+    },
+    {
+        "model": "mysite.notification",
+        "pk": 28,
+        "fields": {
+            "date": "2023-09-24",
+            "status": "Pending",
+            "send_in_telegram": true,
+            "message": "Ask tenant if everything is okay and if they want additional cleaning at 2023-09-24",
+            "booking": 4,
+            "created_at": "2023-09-01T17:07:49.785Z",
+            "updated_at": "2023-09-01T17:07:49.785Z"
+        }
+    },
+    {
+        "model": "mysite.notification",
+        "pk": 29,
+        "fields": {
+            "date": "2023-10-09",
+            "status": "Pending",
+            "send_in_telegram": true,
+            "message": "Payment of $0 for Apartmentttt 2 at 2023-10-09",
+            "booking": 5,
+            "created_at": "2023-09-01T17:07:51.626Z",
+            "updated_at": "2023-09-01T17:07:51.626Z"
+        }
+    },
+    {
+        "model": "mysite.notification",
+        "pk": 30,
+        "fields": {
+            "date": "2023-10-09",
+            "status": "Pending",
+            "send_in_telegram": true,
+            "message": "Rent for Apartmentttt 2 is finishing at 2023-10-09.",
+            "booking": 5,
+            "created_at": "2023-09-01T17:07:51.829Z",
+            "updated_at": "2023-09-01T17:07:51.829Z"
+        }
+    },
+    {
+        "model": "mysite.notification",
+        "pk": 31,
+        "fields": {
+            "date": "2023-10-10",
+            "status": "Pending",
+            "send_in_telegram": true,
+            "message": "Cleaning for Apartmentttt 2 is scheduled at 2023-10-10.",
+            "booking": 5,
+            "created_at": "2023-09-01T17:07:52.036Z",
+            "updated_at": "2023-09-01T17:07:52.036Z"
+        }
+    },
+    {
+        "model": "mysite.notification",
+        "pk": 32,
+        "fields": {
+            "date": "2023-10-09",
+            "status": "Pending",
+            "send_in_telegram": true,
+            "message": "Contract for Apartmentttt 2 has been send to tenant Tenant Two at 2023-09-09",
+            "booking": 5,
+            "created_at": "2023-09-01T17:07:52.240Z",
+            "updated_at": "2023-09-01T17:07:52.240Z"
+        }
+    },
+    {
+        "model": "mysite.notification",
+        "pk": 33,
+        "fields": {
+            "date": "2023-09-09",
+            "status": "Pending",
+            "send_in_telegram": true,
+            "message": "Contract for Apartmentttt 2 has been signed at 2023-09-10",
+            "booking": 5,
+            "created_at": "2023-09-01T17:07:52.436Z",
+            "updated_at": "2023-09-01T17:07:52.436Z"
+        }
+    },
+    {
+        "model": "mysite.notification",
+        "pk": 34,
+        "fields": {
+            "date": "2023-09-14",
+            "status": "Pending",
+            "send_in_telegram": true,
+            "message": "Ask tenant if everything is okay and if they want additional cleaning at 2023-09-14",
+            "booking": 5,
+            "created_at": "2023-09-01T17:07:52.636Z",
+            "updated_at": "2023-09-01T17:07:52.636Z"
+        }
+    },
+    {
+        "model": "mysite.notification",
+        "pk": 35,
+        "fields": {
+            "date": "2023-10-19",
+            "status": "Pending",
+            "send_in_telegram": true,
+            "message": "Rent for Apartmentttt 2 is finishing at 2023-10-19.",
+            "booking": 6,
+            "created_at": "2023-09-01T17:07:54.036Z",
+            "updated_at": "2023-09-01T17:07:54.036Z"
+        }
+    },
+    {
+        "model": "mysite.notification",
+        "pk": 36,
+        "fields": {
+            "date": "2023-10-20",
+            "status": "Pending",
+            "send_in_telegram": true,
+            "message": "Cleaning for Apartmentttt 2 is scheduled at 2023-10-20.",
+            "booking": 6,
+            "created_at": "2023-09-01T17:07:54.235Z",
+            "updated_at": "2023-09-01T17:07:54.235Z"
+        }
+    },
+    {
+        "model": "mysite.notification",
+        "pk": 37,
+        "fields": {
+            "date": "2023-10-19",
+            "status": "Pending",
+            "send_in_telegram": true,
+            "message": "Contract for Apartmentttt 2 has been send to tenant Tenant Three at 2023-10-14",
+            "booking": 6,
+            "created_at": "2023-09-01T17:07:54.436Z",
+            "updated_at": "2023-09-01T17:07:54.436Z"
+        }
+    },
+    {
+        "model": "mysite.notification",
+        "pk": 38,
+        "fields": {
+            "date": "2023-10-14",
+            "status": "Pending",
+            "send_in_telegram": true,
+            "message": "Contract for Apartmentttt 2 has been signed at 2023-10-15",
+            "booking": 6,
+            "created_at": "2023-09-01T17:07:55.065Z",
+            "updated_at": "2023-09-01T17:07:55.066Z"
+        }
+    },
+    {
+        "model": "mysite.notification",
+        "pk": 39,
+        "fields": {
+            "date": "2023-10-19",
+            "status": "Pending",
+            "send_in_telegram": true,
+            "message": "Ask tenant if everything is okay and if they want additional cleaning at 2023-10-19",
+            "booking": 6,
+            "created_at": "2023-09-01T17:07:55.259Z",
+            "updated_at": "2023-09-01T17:07:55.259Z"
+        }
+    }
+]
