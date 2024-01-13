@@ -59,8 +59,9 @@ https://www.npmjs.com/package/@railway/cli to install raillway locally
 ```python manage.py seed_db```
 
 
-## Dumb 
-```python manage.py dumpdata --output=data.json```
+## Dumb And Restore Data
+```python manage.py dumpdata > backup.json```
+```python manage.py flush; python manage.py loaddata backup.json```
 
 ## Update Cron job
 ```python manage.py crontab add```
@@ -68,3 +69,9 @@ https://www.npmjs.com/package/@railway/cli to install raillway locally
 ```python manage.py crontab show```
 ## Remove Cron jobs
 ```python manage.py crontab remove```
+
+### Consent URL
+https://account-d.docusign.com/oauth/auth?response_type=code&scope=signature%20impersonation&client_id=e235ff67-bdf0-475e-8bf1-6c26da649954&redirect_uri=http://localhost:8000/
+
+
+systemctl restart site

@@ -16,9 +16,8 @@ Including another URLconf
 from django.contrib import admin
 from django.urls import path
 from . import views
-from .views import custom_login_view 
+from .views import custom_login_view
 from .views import CustomLogoutView
-from django.contrib.auth import views as auth_views
 
 urlpatterns = [
     path('admin/', admin.site.urls),
@@ -27,11 +26,17 @@ urlpatterns = [
     path('logout/', CustomLogoutView.as_view(), name='logout'),
     path('users/', views.users, name='users'),
     path('apartments/', views.apartments, name='apartments'),
+    path('apartment/', views.apartment, name='apartment'),
+    path('apartments_analytics/', views.apartments_analytics, name='apartments_analytics'),
     path('cleanings/', views.cleanings, name='cleanings'),
     path('bookings/', views.bookings, name='bookings'),
-    path('contracts/', views.contracts, name='contracts'),
+    # path('contracts/', views.contracts, name='contracts'),
     path('payments/', views.payments, name='payments'),
     path('notifications/', views.notifications, name='notifications'),
     path('paymentmethods/', views.payment_methods, name='paymentmethods'),
+    path('paymenttypes/', views.payment_types, name='paymenttypes'),
     path('notifications/', views.notifications, name='notifications'),
+    # path('docusign/', views.docusign, name='docusign'),
+    # path('callback/', views.callback, name='callback'),
+    path('payment-report/', views.paymentReport, name='paymentReport'),
 ]

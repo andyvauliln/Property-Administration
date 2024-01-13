@@ -2,3 +2,18 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+
+/* Set a maximum height for the row */
+.notification-box {
+    max-height: 100px;
+    overflow: hidden;
+    cursor: pointer;
+}
+
+/* Style for the expanded row */
+.notification-box.expanded {
+    max-height: none; /* Remove the maximum height */
+    overflow-y: visible; /* Show all content */
+}
+

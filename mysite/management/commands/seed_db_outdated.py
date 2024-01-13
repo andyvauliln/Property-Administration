@@ -1,16 +1,15 @@
 from django.core.management.base import BaseCommand
-from django.utils import timezone
 from django.apps import apps
 from datetime import timedelta, date
 from mysite.models import User, Apartment, Booking, Payment, Cleaning, Contract, Notification, PaymentMethod
-from django.core.management.color import no_style
 from django.db import connection
+
 
 class Command(BaseCommand):
     help = 'Seeds the database with initial data'
-    
+
     def reset_sequences(self):
-    # Get the table names for the app
+        # Get the table names for the app
         tables = connection.introspection.table_names()
         tables = [t for t in tables if t.startswith("mysite" + '_')]
 
@@ -28,13 +27,13 @@ class Command(BaseCommand):
 
         # Delete all rows for each model
         for model in all_models:
-            model.objects.all().delete()   
-    
+            model.objects.all().delete()
+
     def handle(self, *args, **kwargs):
         self.stdout.write('Deleting all data...')
         self.delete_all_rows()
         self.reset_sequences()
-        
+
         self.stdout.write('Seeding data...')
         self._create_users()
         self._create_payment_methods()
@@ -47,16 +46,26 @@ class Command(BaseCommand):
         admin_user = User.objects.create(email="admin@gmail.com", role="admin", full_name="Admin")
         admin_user.set_password("admin")
         admin_user.save()
-        User.objects.create(email="cleaner1@example.com", phone="+14345676", role="Cleaner", password="test", full_name="Cleaner One")
-        User.objects.create(email="cleaner2@example.com", password="test", phone="+13345676", role="Cleaner", full_name="Cleaner Two")
-        User.objects.create(email="manager1@example.com", password="test", phone="+15345676", role="Manager", full_name="Manager One")
-        User.objects.create(email="manager2@example.com", password="test", phone="+12345676", role="Manager", full_name="Manager Two")
-        User.objects.create(email="tenant1@example.com", password="test",phone="+16345676", role="Tenant", full_name="Tenant One")
-        User.objects.create(email="tenant2@example.com", password="test",phone="+17345676", role="Tenant", full_name="Tenant Two")
-        User.objects.create(email="tenant3@example.com", password="test",phone="+18314676", role="Tenant", full_name="Tenant Three")
-        User.objects.create(email="owner1@example.com", password="test", phone="+19314676", role="Owner", full_name="Owner One")
-        User.objects.create(email="owner2@example.com", password="test", phone="+11445676", role="Owner", full_name="Owner Two")
-        User.objects.create(email="owner3@example.com", password="test", phone="+155345676", role="Owner", full_name="Owner Three")
+        User.objects.create(email="cleaner1@example.com", phone="+14345676",
+                            role="Cleaner", password="test", full_name="Cleaner One")
+        User.objects.create(email="cleaner2@example.com", password="test",
+                            phone="+13345676", role="Cleaner", full_name="Cleaner Two")
+        User.objects.create(email="manager1@example.com", password="test",
+                            phone="+15345676", role="Manager", full_name="Manager One")
+        User.objects.create(email="manager2@example.com", password="test",
+                            phone="+12345676", role="Manager", full_name="Manager Two")
+        User.objects.create(email="tenant1@example.com", password="test",
+                            phone="+16345676", role="Tenant", full_name="Tenant One")
+        User.objects.create(email="tenant2@example.com", password="test",
+                            phone="+17345676", role="Tenant", full_name="Tenant Two")
+        User.objects.create(email="tenant3@example.com", password="test",
+                            phone="+18314676", role="Tenant", full_name="Tenant Three")
+        User.objects.create(email="owner1@example.com", password="test",
+                            phone="+19314676", role="Owner", full_name="Owner One")
+        User.objects.create(email="owner2@example.com", password="test",
+                            phone="+11445676", role="Owner", full_name="Owner Two")
+        User.objects.create(email="owner3@example.com", password="test",
+                            phone="+155345676", role="Owner", full_name="Owner Three")
 
     def _create_payment_methods(self):
         methods = ["Zelle", "CC", "Paypal", "Cash", "Venmo"]
@@ -92,7 +101,7 @@ class Command(BaseCommand):
             name="Apartmentttt 2",
             apartment_type="In Management",
             status="Available",
-            manager=managers[1],  
+            manager=managers[1],
             owner=owners[1],
             notes="This is a note for Apartment 2",
             web_link="http://example.com/apartment2",
@@ -106,13 +115,13 @@ class Command(BaseCommand):
             name="Apartment 3",
             apartment_type="In Ownership",
             status="Available",
-            owner=owners[2],  
+            owner=owners[2],
             notes="This is a note for Apartment 3",
             web_link="http://example.com/apartment3",
             address="789 Third St, City, Country",
             bedrooms=2,
             bathrooms=1
-    )
+        )
 
     def _create_bookings(self):
         today = date(2023, 8, 20)
@@ -122,20 +131,19 @@ class Command(BaseCommand):
         cleaners = list(User.objects.filter(role="Cleaner"))
         apartments = list(Apartment.objects.all())
         payment_methods = list(PaymentMethod.objects.all())  # Fetching multiple payment methods
-        
 
         booking_details = [
             # prope1 (not available) past 20d
-            {"duration": 20, "booking_status": "Confirmed", "price": 100, "offset": -30, "period": "Dayly"}, 
-             # prope2 feature 20d
+            {"duration": 20, "booking_status": "Confirmed", "price": 100, "offset": -30, "period": "Dayly"},
+            # prope2 feature 20d
             {"duration": 90, "booking_status": "Confirmed", "price": 3000, "offset": -90, "period": "Monthly"},
-             # prope3 past 3m
+            # prope3 past 3m
             {"duration": 90, "booking_status": "Pending", "price": 3000, "offset": 0, "period": "Monthly"},
-             # prope1 feature 20d
+            # prope1 feature 20d
             {"duration": 90, "booking_status": "Canceled", "price": 3000, "offset": 30, "period": "Monthly"},
-             # prope2 feature 20d
+            # prope2 feature 20d
             {"duration": 30, "booking_status": "Pending", "price": 2000, "offset": 20, "period": "Monthly"},
-             # prope3 feature 20d
+            # prope3 feature 20d
             {"duration": 5, "booking_status": "Pending", "price": 1000, "offset": 55, "period": "Dayly"},
         ]
         apartments.append(apartments[0])
@@ -144,15 +152,13 @@ class Command(BaseCommand):
         # Create bookings for all apartments
         for idx, apartment in enumerate(apartments):
             details = booking_details[idx % len(booking_details)]
-            tenant = tenants[idx % len(tenants)] 
+            tenant = tenants[idx % len(tenants)]
             holding_deposit = 500 * (idx or 1)
             damage_deposit = 200 * (idx or 1)
 
             start_date = today + timedelta(days=details["offset"])
             end_date = start_date + timedelta(days=details["duration"])
-            
-           
-            
+
             # *************** BOOKING ***************
 
             booking = Booking.objects.create(
@@ -164,9 +170,9 @@ class Command(BaseCommand):
                 status=details["booking_status"],
                 price=details["price"],
             )
-            
-             # *************** CONTRACT ***************
-            
+
+            # *************** CONTRACT ***************
+
             if details["booking_status"] == "Confirmed":
                 contract_status = "Signed" if details["offset"] < 0 else "Signed"
             elif details["booking_status"] == "Pending":
@@ -174,7 +180,7 @@ class Command(BaseCommand):
             elif details["booking_status"] == "Canceled":
                 contract_status = "Canceled"
             else:
-                contract_status = "pending" 
+                contract_status = "pending"
 
             Contract.objects.create(
                 sign_date=start_date,
@@ -183,8 +189,8 @@ class Command(BaseCommand):
                 contract_id="12sdf444154gws2414" + str(idx),
                 booking=booking,
             )
-          
-             # *************** CLEANINGS ***************
+
+            # *************** CLEANINGS ***************
             if details["booking_status"] == "Completed":
                 cleaning_status = "Completed" if details["offset"] < 0 else "Scheduled"
             elif details["booking_status"] == "Scheduled":
@@ -192,9 +198,8 @@ class Command(BaseCommand):
             elif details["booking_status"] == "Canceled":
                 cleaning_status = "Canceled"
             else:
-                cleaning_status = "Scheduled" 
-            
-                
+                cleaning_status = "Scheduled"
+
             Cleaning.objects.create(
                 date=booking.end_date + timedelta(days=1),
                 booking=booking,
@@ -203,9 +208,9 @@ class Command(BaseCommand):
                 tasks="Buy pls new cleaning chemicals",  # You can customize this as needed
                 notes="I left keys under the mat"
             )
-            
-             # *************** PAYMENTS ***************
-            
+
+            # *************** PAYMENTS ***************
+
             if details["booking_status"] == "Confirmed":
                 payment_status = "Confirmed" if details["offset"] < 0 else "Pending"
             elif details["booking_status"] == "Pending":
@@ -213,7 +218,7 @@ class Command(BaseCommand):
             elif details["booking_status"] == "Canceled":
                 payment_status = "Canceled"
             else:
-                payment_status = "Pending" 
+                payment_status = "Pending"
 
             Payment.objects.create(
                 payment_date=start_date,
@@ -237,7 +242,7 @@ class Command(BaseCommand):
             )
 
             # ******** DAYLT PAYMENTS *********
-            
+
             if details["period"] == "Dayly":
                 Payment.objects.create(
                     payment_date=start_date + timedelta(days=1),
@@ -256,7 +261,6 @@ class Command(BaseCommand):
                     payment_amount = details["price"]
                     if month == 0:
                         payment_amount -= holding_deposit  # Subtracting damage holding for the first month
-
 
                     payment = Payment.objects.create(
                         payment_date=start_date + timedelta(days=30 * (month + 1)),

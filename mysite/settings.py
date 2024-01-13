@@ -27,10 +27,6 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # SECURITY WARNING: keep the secret key used in production secret!
 SECRET_KEY = os.environ["SECRET_KEY"],
 
-#docusing
-DOCUSIGN_ACCOUNT_ID = os.environ["DOCUSIGN_ACCOUNT_ID"],
-DOCUSIGN_ACCESS_TOKEN = os.environ["DOCUSIGN_ACCESS_TOKEN"],
-
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = os.environ["DEBUG"] or False
 
@@ -38,9 +34,9 @@ ALLOWED_HOSTS = ["*"]
 
 AUTH_USER_MODEL = 'mysite.User'
 LOGIN_URL = '/login'
-LOGIN_REDIRECT_URL = '/' 
+LOGIN_REDIRECT_URL = '/'
 
-#ENABLE_DYNAMIC_MODEL_FIELDS = True
+# ENABLE_DYNAMIC_MODEL_FIELDS = True
 
 # FORM SUBMISSION
 # Comment out the following line and place your railway URL, and your production URL in the array.
@@ -63,15 +59,12 @@ LOGIN_REDIRECT_URL = '/'
 # }
 
 # Application definition
-#CSRF_COOKIE_DOMAIN = '127.0.0.1'
+# CSRF_COOKIE_DOMAIN = '127.0.0.1'
 
-CRONJOBS = [
-("0 8 * * *", "mysite.cron.my_cron_job")
-]
+
 INSTALLED_APPS = [
     'django.contrib.admin',
     'django.contrib.auth',
-    "django_crontab",
     'django.contrib.contenttypes',
     'django.contrib.sessions',
     'django.contrib.messages',
@@ -115,7 +108,7 @@ TEMPLATES = [
                 'mysite.context_processors.current_user_context',
                 'django.contrib.messages.context_processors.messages',
             ],
-        "builtins": ["slippers.templatetags.slippers"],
+            "builtins": ["slippers.templatetags.slippers"],
         },
     },
 ]

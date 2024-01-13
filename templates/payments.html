@@ -1,11 +1,55 @@
 {% extends "_base.html" %}
 {% load slippers %}
 {% block content %}
-<script>
-</script>
 
 
 {% #table  model_fields=model_fields items_json=items_json  model="payments" search_query=request.GET.q items=items %}
+<div class="flex flex-col md:flex-row items-center justify-between space-y-3 md:space-y-0 md:space-x-4 p-4">
+    <select onchange="updateSearchInput()" name="payment_status" class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-primary-500 focus:border-primary-500 block w-1/6 p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white dark:focus:ring-primary-500 dark:focus:border-primary-500">
+        <option value="">All Statuses</option>
+        <option value="Pending" {% if current_payment_status == 'Pending' %}selected{% endif %}>Pending</option>
+        <option value="Completed" {% if current_payment_status == 'Completed' %}selected{% endif %}>Completed</option>
+    </select>
+</div>
+<script>
+    function updateSearchInput() {
+        const paymentStatusDropdown = document.querySelector('[name="payment_status"]');
+        const paymentStatus = paymentStatusDropdown.value;
+        const searchInput = document.getElementById('simple-search');
+        
+        // Check if the search input contains values other than payment_status
+        const otherFiltersExist = searchInput.value && !searchInput.value.match(/^payment_status=[^&]+$/);
+
+        if (paymentStatus) {
+            if (otherFiltersExist) {
+                // Remove existing payment_status if it exists
+                searchInput.value = searchInput.value.replace(/(AND\s*)?payment_status=[^&]+(&)?/g, '');
+                
+                // Add the new payment_status. We use trim to remove any leading or trailing spaces.
+                searchInput.value = (searchInput.value + " AND payment_status=" + paymentStatus).trim();
+            } else {
+                searchInput.value = "payment_status=" + paymentStatus;
+            }
+        } else {
+            // Handle the case when "All Statuses" is selected. Remove the payment_status filter.
+            searchInput.value = searchInput.value.replace(/(AND\s*)?payment_status=[^&]+(&)?/g, '').trim();
+        }
+    }
+    
+      document.addEventListener('DOMContentLoaded', function() {
+        const urlParams = new URLSearchParams(window.location.search);
+        const qValue = urlParams.get('q'); // This will give "payment_status=Pending"
+        
+        // Further split the qValue to get the actual payment_status
+        const paymentStatus = qValue.split('=')[1];
+    
+        const paymentStatusDropdown = document.querySelector('[name="payment_status"]');
+        if (paymentStatus) {
+            paymentStatusDropdown.value = paymentStatus;
+        }
+    });
+</script>
+
 {% /table %}
 
 {% endblock content %}

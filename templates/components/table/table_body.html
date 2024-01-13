@@ -2,34 +2,48 @@
 
 <tbody>
     {% for item in items %}
-        <tr class="border-b cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-800 dark:border-gray-700 {{model}}-row" data-id="{{ item|get_item:"id" }}">
-            {% for field_name, field_instance in model_fields %}
-                {% if field_instance.isColumn %}
+    <tr class="border-b cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-800 dark:border-gray-700 {{model}}-row" data-id="{{ item|get_item:"id" }}">
+        {% for field_name, field_instance in model_fields %}
+            {% if field_instance.isColumn %}
+                {% if "status" in field_name %}
                     <td class="px-4 py-4">
-                        {% if "status" in field_name %}
-                            {% if item|get_item:field_name in "Pending,Scheduled" %}
-                                <span class="bg-yellow-200 text-yellow-500 px-2 py-1 rounded-full">{{ item|get_item:field_name }}</span>
-                            {% elif item|get_item:field_name in "Confirmed,Signed,Received,Completed,Done" %}
-                                <span class="bg-green-200 text-green-700 px-2 py-1 rounded-full">{{ item|get_item:field_name }}</span>
-                            {% elif item|get_item:field_name == "Canceled" %}
-                                <span class="bg-red-200 text-red-700 px-2 py-1 rounded-full">{{ item|get_item:field_name }}</span>
-                            {% else %}
-                                {{ item|get_item:field_name }}
-                            {% endif %}
-                        {% elif field_instance.display_field %}
-                            {{ item|get_custom_item:field_instance.display_field }}
+                        {% if item|get_item:field_name in "Pending,Scheduled,Waiting Contract,Waiting Payment" %}
+                            <span class="bg-yellow-200 text-yellow-500 px-2 py-1 rounded-full">{{ item|get_item:field_name }}</span>
+                        {% elif item|get_item:field_name in "Confirmed,Signed,Completed,Done" %}
+                            <span class="bg-green-200 text-green-700 px-2 py-1 rounded-full">{{ item|get_item:field_name }}</span>
+                        {% elif item|get_item:field_name in "Blocked" %}
+                            <span class="bg-red-200 text-red-700 px-2 py-1 rounded-full">{{ item|get_item:field_name }}</span>
                         {% else %}
                             {{ item|get_item:field_name }}
                         {% endif %}
                     </td>
+                    {% elif field_instance.display_field %}
+                    {% for display in field_instance.display_field %}
+                        {% if display == "apartment.name" and "booking.apartment.name" in field_instance.display_field %}
+                            {# Do nothing for now as you haven't specified any logic for this condition #}
+                        {% elif display == "booking.apartment.name" and "apartment.name" in field_instance.display_field %}
+                            <td class="px-4 py-4">
+                                {% with item_booking_apartment_name=item|get_custom_item:"booking.apartment.name" item_apartment_name=item|get_custom_item:"apartment.name" %}
+                                    {{ item_booking_apartment_name|default:item_apartment_name }}
+                                {% endwith %}
+                            </td>
+                        {% else %}
+                            <td class="px-4 py-4">
+                                {{ item|get_custom_item:display }}
+                            </td>
+                        {% endif %}
+                    {% endfor %}
+                {% else %}
+                    <td class="px-4 py-4">{{ item|get_item:field_name }}</td>
                 {% endif %}
-            {% endfor %}
+            {% endif %}
+        {% endfor %}
         </tr>
     {% empty %}
         <tr>
             <td colspan="{{ model_fields|length }}" class="text-center py-4">No data found</td>
         </tr>
-    {% endfor %}
+ {% endfor %}
 </tbody>
 
 

@@ -1,0 +1,327 @@
+{% extends "_base.html" %}
+{% load slippers %}
+{% load custom_filters %}
+{% block content %}
+
+
+  <section class="bg-white dark:bg-gray-900"> 
+    <div class="pb-8 px-4 mx-auto max-w-screen-xl lg:pb-16 lg:px-6">
+        
+        
+      
+        <div class="flex justify-start items-center py-5 ">
+            <select  name="type" class="mr-5 filter bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-primary-500 focus:border-primary-500 block w-[200px] p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white dark:focus:ring-primary-500 dark:focus:border-primary-500">
+                <option value="">All Types</option>
+                <option value="In Ownership">In Ownership</option>
+                <option value="In Management">In Management</option>
+            </select>
+            <select  name="rooms" class="mr-5 filter bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-primary-500 focus:border-primary-500 block w-[200px] p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white dark:focus:ring-primary-500 dark:focus:border-primary-500">
+                <option value="">Rooms Number</option>
+                <option value="1">1 room</option>
+                <option value="2">2 room</option>
+                <option value="3">3 room</option>
+                <option value="4">4 room</option>
+            </select>
+            <button id="filterDropdownButton" data-dropdown-toggle="filterDropdown" class="mr-5 flex items-center justify-center p-2.5 text-sm font-medium text-gray-900 focus:outline-none bg-white rounded-lg border border-gray-200 hover:bg-gray-100 hover:text-primary-700 focus:z-10 focus:ring-4 focus:ring-gray-200 dark:focus:ring-gray-700 dark:bg-gray-800 dark:text-gray-400 dark:border-gray-600 dark:hover:text-white dark:hover:bg-gray-700" type="button">
+                <svg xmlns="http://www.w3.org/2000/svg" aria-hidden="true" class="h-4 w-4 mr-2 text-gray-400" viewBox="0 0 20 20" fill="currentColor">
+                    <path fill-rule="evenodd" d="M3 3a1 1 0 011-1h12a1 1 0 011 1v3a1 1 0 01-.293.707L12 11.414V15a1 1 0 01-.293.707l-2 2A1 1 0 018 17v-5.586L3.293 6.707A1 1 0 013 6V3z" clip-rule="evenodd" />
+                </svg>
+                Apartments Filter
+                <svg class="-mr-1 ml-1.5 w-5 h-5" fill="currentColor" viewbox="0 0 20 20" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+                    <path clip-rule="evenodd" fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" />
+                </svg>
+            </button>
+            <div id="filterDropdown" class="z-10 mr-5  hidden w-56 p-3 bg-white rounded-lg shadow dark:bg-gray-700">
+                <h6 class="mb-3 text-sm font-medium text-gray-900 dark:text-white">Apartments</h6>
+                <ul class="space-y-2 text-sm" aria-labelledby="filterDropdownButton">
+                    <div class="flex items-center mb-4">
+                        <input  id="apartment_all" onchange="toggleAllCheckboxes()" type="checkbox" name="apartment_ids" value="-1" class="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 dark:focus:ring-blue-600 dark:ring-offset-gray-800 focus:ring-2 dark:bg-gray-700 dark:border-gray-600">
+                        <label for="apartment_all" class="ml-2 text-sm font-medium text-gray-900 dark:text-gray-300">All Apartments</label>
+                    </div>
+                    {% for apartment in apartments %}
+                        <div class="flex items-center mb-4">
+                            <input  id="apartment_{{ apartment.0 }}" type="checkbox" name="apartment_ids" value="{{ apartment.0 }}" class="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 dark:focus:ring-blue-600 dark:ring-offset-gray-800 focus:ring-2 dark:bg-gray-700 dark:border-gray-600">
+                            <label for="apartment_{{ apartment.0 }}" class="ml-2 text-sm font-medium text-gray-900 dark:text-gray-300">{{ apartment.1 }}</label>
+                        </div>
+                    {% endfor %}
+                </ul>
+            </div>
+            <select name="year" class="filter mr-5 bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-primary-500 focus:border-primary-500 block w-[200px] p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white dark:focus:ring-primary-500 dark:focus:border-primary-500">
+                {% for year in year_range %}
+                    <option value="{{ year }}">{{ year }}</option>
+                {% endfor %}
+            </select>
+            <button  onclick="applyFilters()" class="w-[100px] block bg-blue-500 text-white rounded p-2">Generate</button> 
+        </div>
+        {% if isFilter %}
+             <div class="py-4  border-b text-2xl border-gray-200">Total Selected Apartment Report </div>
+        {% else %}
+             <div class="py-4  border-b text-2xl border-gray-200">All Apartments Report </div>
+        {% endif%}
+        <table class="w-full text-sm text-left text-gray-500 dark:text-gray-400">
+            <thead class="text-xs text-gray-700 uppercase bg-gray-50 dark:bg-gray-700 dark:text-gray-400">
+                <tr class="w-full">
+                    <th scope="col" class="px-4 py-4 min-w-[100px] align-top">Month</th>
+                    <th scope="col" class="px-4 py-4 min-w-[150px] align-top">Occupancy</th>
+                    <th scope="col" class="px-4 py-4 min-w-[100px] align-top">Revenue</th>
+                    <th scope="col" class="px-4 py-4 min-w-[100px] align-top">Expense</th>
+                    <th scope="col" class="px-4 py-4 min-w-[100px] align-top">Pending Expense</th>               
+                    <th scope="col" class="px-4 py-4 min-w-[100px] align-top">Pending Revenue</th>               
+                    <th scope="col" class="px-4 py-4 min-w-[100px] align-top">Completed Profit</th>               
+                    <th scope="col" class="px-4 py-4 min-w-[100px] align-top">Pending Profit</th>               
+                    <th scope="col" class="px-4 py-4 min-w-[100px] align-top">AVG Profit</th>               
+                    <th scope="col" class="px-4 py-4 min-w-[100px] align-top">AVG Revenue</th>               
+                    <th scope="col" class="px-4 py-4 min-w-[100px] align-top">AVG Expense</th>               
+                    <th scope="col" class="px-4 py-4 min-w-[100px] align-top">Aprt #</th>               
+                </tr>
+            </thead>
+            <tbody>
+                {% for data in apartments_data.apartments_month_data %}
+            
+                    <tr  class="border-b w-full  hover:bg-gray-100 dark:hover:bg-gray-800 dark:border-gray-700">
+                        <td class="px-4 py-4 min-w-[100px] font-extrabold">{{ data.date }}</td>
+                        <td class="px-4 py-4 min-w-[150px]"> {{data.month_occupancy}}%[{{data.month_total_booked_days}}/ {{data.month_total_days}}]</td>
+                        <td class="px-4 py-4 min-w-[100px]"> ${{data.month_income|format_number}} </td>
+                        <td class="px-4 py-4 min-w-[100px]"> ${{data.month_outcome|format_number}} </td>
+                        <td class="px-4 py-4 min-w-[100px]"> ${{data.month_pending_outcome|format_number}} </td>
+                        <td class="px-4 py-4 min-w-[100px]"> ${{data.month_pending_income|format_number}} </td>
+                        <td class="px-4 py-4 min-w-[100px]"> ${{data.month_sure_profit|format_number}} </td>
+                        <td class="px-4 py-4 min-w-[100px]"> ${{data.month_expectied_proift|format_number}} </td>
+                        <td class="px-4 py-4 min-w-[100px]"> ${{data.month_avg_profit|format_number}} </td>
+                        <td class="px-4 py-4 min-w-[100px]"> ${{data.month_avg_income|format_number}} </td>
+                        <td class="px-4 py-4 min-w-[100px]"> ${{data.month_avg_outcome|format_number}} </td>
+                        <td class="px-4 py-4 min-w-[100px]">
+                             <span onclick="showModal('{{ data.apartment_names|join:', ' }}')" class="text-blue-500 underline cursor-pointer"> {{data.month_apartments_length}} </span>
+
+                        </td>
+                    </tr>
+                {% empty %}
+                    <tr>
+                        <td colspan="6" class="text-center py-4">No data found</td>
+                    </tr>
+             {% endfor %}
+             <tr  class="border-b-2 border-t-2 w-full  bg-gray-100">
+                <td class="px-4 py-4 min-w-[100px] font-extrabold">Total</td>
+                <td class="px-4 py-4 min-w-[100px] font-extrabold"> {{apartments_data.year_occupancy|format_number}}% </td>
+                <td class="px-4 py-4 min-w-[100px] font-extrabold"> ${{apartments_data.year_income|format_number}} </td>
+                <td class="px-4 py-4 min-w-[100px] font-extrabold"> ${{apartments_data.year_outcome|format_number}} </td>
+                <td class="px-4 py-4 min-w-[100px] font-extrabold"> ${{apartments_data.year_pending_outcome|format_number}} </td>
+                <td class="px-4 py-4 min-w-[100px] font-extrabold"> ${{apartments_data.year_pending_income|format_number}} </td>
+                <td class="px-4 py-4 min-w-[100px] font-extrabold"> ${{apartments_data.year_sure_profit|format_number}} </td>
+                <td class="px-4 py-4 min-w-[100px] font-extrabold"> ${{apartments_data.year_expectied_proift|format_number}} </td>
+                <td class="px-4 py-4 min-w-[100px] font-extrabold"> ${{apartments_data.year_avg_profit|format_number}} </td>
+                <td class="px-4 py-4 min-w-[100px] font-extrabold"> ${{apartments_data.year_avg_income|format_number}} </td>
+                <td class="px-4 py-4 min-w-[100px] font-extrabold"> ${{apartments_data.year_avg_outcome|format_number}} </td>
+                <td class="px-4 py-4 min-w-[100px] font-extrabold"> {{aprat_len}} </td>
+            </tr>
+            </tbody>
+            
+        </table> 
+        <div class="py-4 mt-5 border-b text-2xl border-gray-200">Selected Apartments Report </div>
+        {% for apartment_data in apartments_data.selected_apartments_data %}
+            <div class="flex items-center justify-between text-lg font-semibold mt-4 mb-2">
+                <div class="flex justify-between items-center">
+                    <div class="">{{ apartment_data.apartment.name }}  </div>
+                    <a class="cursor-pointer ml-3" target="_blank" href="/apartments/?q=id={{apartment_data.apartment.id}}">
+                        <svg class="w-4 h-4 text-blue-500 dark:text-white" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="currentColor" viewBox="0 0 20 18">
+                            <path d="M12.687 14.408a3.01 3.01 0 0 1-1.533.821l-3.566.713a3 3 0 0 1-3.53-3.53l.713-3.566a3.01 3.01 0 0 1 .821-1.533L10.905 2H2.167A2.169 2.169 0 0 0 0 4.167v11.666A2.169 2.169 0 0 0 2.167 18h11.666A2.169 2.169 0 0 0 16 15.833V11.1l-3.313 3.308Zm5.53-9.065.546-.546a2.518 2.518 0 0 0 0-3.56 2.576 2.576 0 0 0-3.559 0l-.547.547 3.56 3.56Z"/>
+                            <path d="M13.243 3.2 7.359 9.081a.5.5 0 0 0-.136.256L6.51 12.9a.5.5 0 0 0 .59.59l3.566-.713a.5.5 0 0 0 .255-.136L16.8 6.757 13.243 3.2Z"/>
+                        </svg>
+                    </a>
+                </div>
+            
+                <div class="">
+                    <span class="mr-4 text-green-600">AVG INCOME: ${{apartment_data.year_avg_income|format_number}}</span>
+                    <span class="mr-4 text-red-600">AVG EXPENSE: ${{apartment_data.year_avg_outcome|format_number}}</span>
+                    <span class="mr-4 text-blue-600">AVG PROFIT: ${{apartment_data.year_avg_profit|format_number}}</span>
+                    <span class="text-purple-600">Occupancy: {{apartment_data.year_occupancy}}%</span>
+                </div>
+            </div>
+            <table class="w-full text-sm text-left text-gray-500 dark:text-gray-400">
+                <thead class="text-xs text-gray-700 uppercase bg-gray-50 dark:bg-gray-700 dark:text-gray-400">
+                    <tr class="w-full">
+                        <th scope="col" class="px-4 py-4 min-w-[100px] align-top">Date</th>
+                        <th scope="col" class="px-4 py-4 min-w-[100px] align-top">Occupancy</th>
+                        <th scope="col" class="px-4 py-4 min-w-[100px] align-top">Income</th>
+                        <th scope="col" class="px-4 py-4 min-w-[100px] align-top">Expense</th>
+                        <th scope="col" class="px-4 py-4 min-w-[100px] align-top">Pending Expense</th>
+                        <th scope="col" class="px-4 py-4 min-w-[100px] align-top">Pending Income</th>
+                        <th scope="col" class="px-4 py-4 min-w-[100px] align-top">Sure Profit</th>
+                        <th scope="col" class="px-4 py-4 min-w-[100px] align-top">Expected Profit</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for data in apartment_data.month_data %}
+                        <tr class="border-b w-full hover:bg-gray-100 dark:hover:bg-gray-800 dark:border-gray-700">
+                            <td class="px-4 py-4 min-w-[100px] font-extrabold">{{ data.month_date }}</td>
+                            <td class="px-4 py-4 min-w-[100px]">{{ data.month_occupancy }}%-[{{data.total_booked_days}}/{{data.total_days_in_month}}]</td>
+                            <td class="px-4 py-4 min-w-[100px]">${{ data.month_income|format_number }}</td>
+                            <td class="px-4 py-4 min-w-[100px]">${{ data.month_outcome|format_number }}</td>
+                            <td class="px-4 py-4 min-w-[100px]">${{ data.month_pending_outcome|format_number }}</td>
+                            <td class="px-4 py-4 min-w-[100px]">${{ data.month_pending_income|format_number }}</td>
+                            <td class="px-4 py-4 min-w-[100px]">${{ data.month_sure_profit|format_number }}</td>
+                            <td class="px-4 py-4 min-w-[100px]">${{ data.month_total_profit|format_number }}</td>
+                        </tr>
+                    {% endfor %}
+                    <tr class="border-b-2 border-t-2 w-full bg-gray-100">
+                        <td class="px-4 py-4 min-w-[100px] font-extrabold">Total</td>
+                        <td class="px-4 py-4 min-w-[100px] font-extrabold">{{ apartment_data.year_occupancy }}%</td>
+                        <td class="px-4 py-4 min-w-[100px] font-extrabold">${{ apartment_data.year_income|format_number }}</td>
+                        <td class="px-4 py-4 min-w-[100px] font-extrabold">${{ apartment_data.year_outcome|format_number }}</td>
+                        <td class="px-4 py-4 min-w-[100px] font-extrabold">${{ apartment_data.year_pending_outcome|format_number }}</td>
+                        <td class="px-4 py-4 min-w-[100px] font-extrabold">${{ apartment_data.year_pending_income|format_number }}</td>
+                        <td class="px-4 py-4 min-w-[100px] font-extrabold">${{ apartment_data.year_sure_profit|format_number }}</td>
+                        <td class="px-4 py-4 min-w-[100px] font-extrabold">${{ apartment_data.year_total_profit|format_number }}</td>
+                    </tr>
+                </tbody>
+            </table>
+            {% empty %}
+                <div  class="flex items-center justify-center text-center min-h-[300px] w-full p-4">No selected apartment</div>
+        {% endfor %}
+  </div>
+</section>
+<!-- The Modal -->
+
+<div id="myModal" class="hidden fixed z-10 inset-0 overflow-y-auto" aria-labelledby="modalTitle" aria-modal="true">
+    <div class="flex items-center justify-center min-h-screen">
+        <!-- Overlay -->
+        <div class="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity" aria-hidden="true"></div>
+
+        <!-- Modal content -->
+        <div class="bg-white rounded-lg overflow-hidden shadow-xl transform transition-all sm:max-w-lg sm:w-full">
+            <div class="px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
+                <h3 class="text-lg leading-6 font-medium text-gray-900" id="modalTitle">Apartment Details</h3>
+                <div class="mt-2 max-h-64 overflow-y-auto">
+                    <ul id="modalList" class="list-disc list-inside text-sm text-gray-500">
+                        <!-- Apartment names will be listed here -->
+                    </ul>
+                </div>
+            </div>
+            <div class="px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse">
+                <button type="button" class="w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none sm:ml-3 sm:w-auto sm:text-sm" onclick="toggleModal()">
+                    Close
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+
+
+
+<script>
+    console.log({{apartments_data_json|safe}})
+
+    function toggleAllCheckboxes() {
+        // Get the state of the "All Apartments" checkbox
+        var isAllChecked = document.getElementById('apartment_all').checked;
+    
+        // Find all checkboxes with the name 'apartment_ids'
+        var checkboxes = document.querySelectorAll('input[name="apartment_ids"]');
+    
+        // Loop through each checkbox and update its state
+        checkboxes.forEach(function(checkbox) {
+            // Avoid changing the state of the "All Apartments" checkbox itself
+            if (checkbox.id !== 'apartment_all') {
+                checkbox.checked = isAllChecked;
+            }
+        });
+    }
+
+    document.addEventListener("DOMContentLoaded", function() {
+        initializeFilters();
+    })
+
+    function toggleModal() {
+        var modal = document.getElementById("myModal");
+        modal.classList.toggle("hidden");
+    }
+    
+    function showModal(apartmentNames) {
+        var modalList = document.getElementById("modalList");
+        modalList.innerHTML = ''; // Clear existing list items
+    
+        // Split apartment names and create list items
+        apartmentNames.split(', ').forEach(function(name) {
+            var li = document.createElement("li");
+            li.textContent = name;
+            modalList.appendChild(li);
+        });
+    
+        toggleModal();
+    }
+    
+    // Close modal when clicking outside
+    window.addEventListener("click", function(event) {
+        var modal = document.getElementById("myModal");
+        if (event.target === modal) {
+            toggleModal();
+        }
+    });
+
+    function initializeFilters() {
+        // Parse the URL to get the query parameters
+        const urlSearchParams = new URLSearchParams(window.location.search);
+        const params = Object.fromEntries(urlSearchParams.entries());
+
+        // Set the filter values based on the query parameters
+        if (params.type) {
+            document.querySelector('select[name="type"]').value = params.type;
+        }
+        if (params.rooms) {
+            document.querySelector('select[name="rooms"]').value = params.rooms;
+        }
+        
+        document.querySelector('select[name="year"]').value = {{year}};
+        
+        
+        if (params.ids) {
+            const selectedApartments = params.ids.split(',');
+            selectedApartments.forEach((apartmentId) => {
+                const checkbox = document.querySelector(`input[name="apartment_ids"][value="${apartmentId}"]`);
+                if (checkbox) {
+                    checkbox.checked = true;
+                }
+            });
+        }
+    }
+
+
+    function applyFilters() {
+        const type = document.querySelector('select[name="type"]').value;
+        const rooms = document.querySelector('select[name="rooms"]').value;
+        const year = document.querySelector('select[name="year"]').value;
+
+        const apartmentCheckboxes = document.querySelectorAll('input[name="apartment_ids"]');
+        const selectedApartments = Array.from(apartmentCheckboxes)
+            .filter((checkbox) => checkbox.checked)
+            .map((checkbox) => checkbox.value)
+            .join(',');
+
+        const queryParams = [];
+        console.log(selectedApartments)
+
+        if (type) {
+            queryParams.push(`type=${type}`);
+        }
+        if (rooms) {
+            queryParams.push(`rooms=${rooms}`);
+        }
+        if (year) {
+            queryParams.push(`year=${year}`);
+        }
+        if (selectedApartments) {
+            queryParams.push(`ids=${selectedApartments}`);
+        }
+
+        const queryString = queryParams.join('&');
+        const url = `/apartments_analytics/?${queryString}`;
+
+        window.location.href = url;
+    }
+    
+    
+</script>
+
+
+{% endblock content %}

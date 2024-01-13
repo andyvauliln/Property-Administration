@@ -3,8 +3,6 @@
 
 <script>
     const items_json ={{ items_json|safe }}
-    console.log(items_json, "items_json")
-    console.log("{{model_fields|safe}}", "model_fields")
 </script>
 <section class="bg-gray-50 dark:bg-gray-900 p-3 sm:p-5 antialiased">
     <div class="mx-auto max-w-screen-xl px-4 lg:px-12">
@@ -13,7 +11,7 @@
                 <div class="w-full">
                     {% include "components/table/table_search.html" %}
                 </div>
-                
+               
                 <div class="w-full md:w-auto flex flex-col md:flex-row space-y-2 md:space-y-0 items-stretch md:items-center justify-end md:space-x-3 flex-shrink-0">
                     <button type="button" id="createNewItem" data-modal-target="createModal" data-modal-toggle="createModal" class="flex items-center justify-center text-white bg-primary-700 hover:bg-primary-800 focus:ring-4 focus:ring-primary-300 font-medium rounded-lg text-sm px-4 py-2 dark:bg-primary-600 dark:hover:bg-primary-700 focus:outline-none dark:focus:ring-primary-800">
                         <svg class="h-3.5 w-3.5 mr-2" fill="currentColor" viewbox="0 0 20 20" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
@@ -21,7 +19,6 @@
                         </svg>
                         Add Item
                     </button>
-                    {% comment %} {% include "components/table/table_filter.html" %} {% endcomment %}
                 </div>
                 <button id="helpButton" class="font-medium text-sm px-4 py-2">
                     <svg class="w-6 h-6 text-gray-800 dark:text-white" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 20 20">
@@ -35,6 +32,8 @@
                   </button>
                 
             </div>
+
+            {{children}}
             
             <div  class="overflow-x-auto">
                 {% with show_keys=show|split:", " %}
