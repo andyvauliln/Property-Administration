@@ -22,9 +22,9 @@ var modelsData = {
         "fields": [
             "name",
             "web_link",
-            "house_number",
+            "building_n",
             "street",
-            "room",
+            "apartment_n",
             "state",
             "city",
             "zip_index",
@@ -54,36 +54,33 @@ var modelsData = {
             "start_date",
             "end_date",
             "status",
-            "notes"
+            "notes",
+            'other_tenants'
         ],
         "options": {
             "status": [
                 "Confirmed",
-                "Canceled",
-                "Pending"
-            ]
+                "Waiting Contract",
+                "Waiting Payment",
+            ],
+            "animals": [
+                "Cat",
+                "Dog",
+                "Other"
+            ],
+            "visit_purpose": [
+                "Tourism",
+                "Work",
+                "Between Houses",
+                "Snow Bird",
+                "Medical",
+                "Other"
+            ],
+
         },
         "relatedModels": {
             "apartment": "apartments",
             "tenant": "users"
-        }
-    },
-    "contracts": {
-        "fields": [
-            "contract_id",
-            "sign_date",
-            "link",
-            "status"
-        ],
-        "options": {
-            "status": [
-                "Signed",
-                "Pending",
-                "Canceled"
-            ]
-        },
-        "relatedModels": {
-            "booking": "bookings"
         }
     },
     "paymentmethods": {
@@ -100,6 +97,19 @@ var modelsData = {
         },
         "relatedModels": {}
     },
+    "paymenttypes": {
+        "fields": [
+            "name",
+            "type",
+        ],
+        "options": {
+            "type": [
+                "In",
+                "Out"
+            ]
+        },
+        "relatedModels": {}
+    },
     "payments": {
         "fields": [
             "payment_date",
@@ -111,21 +121,15 @@ var modelsData = {
         "options": {
             "payment_status": [
                 "Pending",
-                "Received",
-                "Cancelled"
+                "Completed",
             ],
-            "payment_type": [
-                "Income",
-                "Outcome",
-                "Damage Deposit",
-                "Hold Deposit",
-                "Booking"
-            ]
         },
         "relatedModels": {
             "payment_method": "paymentmethods",
+            "payment_type": "paymenttypes",
             "bank": "paymentmethods",
-            "booking": "bookings"
+            "booking": "bookings",
+            "apartment": "apartments",
         }
     },
     "cleanings": {
@@ -139,7 +143,6 @@ var modelsData = {
             "status": [
                 "Scheduled",
                 "Completed",
-                "Canceled"
             ]
         },
         "relatedModels": {
@@ -158,11 +161,12 @@ var modelsData = {
             "status": [
                 "Done",
                 "Pending",
-                "Canceled"
             ]
         },
         "relatedModels": {
-            "booking": "bookings"
+            "booking": "bookings",
+            "cleaning": "cleanings",
+            "payment": "payments"
         }
     }
 }

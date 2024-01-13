@@ -1,3 +1,4 @@
+{% load custom_filters %}
 <nav class="flex flex-col md:flex-row justify-between items-start md:items-center space-y-3 md:space-y-0 p-4" aria-label="Table navigation">
     <span class="text-sm font-normal text-gray-500 dark:text-gray-400">
         Showing
@@ -16,15 +17,30 @@
         </a>
         {% endif %}
     </li>
-    {% for page_num in items.paginator.page_range %}
-    <li>
-        <a href="?q={{ search_query }}&page={{ page_num }}" 
-                                                                                                                                                                                                       {% comment %} flex items-center justify-center text-sm py-2 px-3 leading-tight text-gray-500 bg-white border border-gray-300 hover:bg-gray-100 hover:text-gray-700 " {% endcomment %}
-           class="{% if page_num == items.number %}bg-primary-50 text-primary-600 border-primary-300{% else %} bg-white text-gray-500 border-gray-300 hover:bg-gray-100 hover:text-gray-700{% endif %} border flex items-center justify-center text-sm py-2 px-3 leading-tight ">
-            {{ page_num }}
-        </a>
-    </li>
-    {% endfor %}
+    {% with num_pages_minus_5=items.paginator.num_pages|subtract:5 %}
+    {% with  page_rest=items.paginator.num_pages|subtract:4%}
+        {% for page_num in items.paginator.page_range %}
+            {% if page_num <= 5 or page_num > num_pages_minus_5 or page_num == items.number %}
+                <li>
+                    <a href="?q={{ search_query }}&page={{ page_num }}" 
+                    class="{% if page_num == items.number %}bg-primary-50 text-primary-600 border-primary-300{% else %} bg-white text-gray-500 border-gray-300 hover:bg-gray-100 hover:text-gray-700{% endif %} border flex items-center justify-center text-sm py-2 px-3 leading-tight ">
+                        {{ page_num }}
+                    </a>
+                </li>
+                {% if page_num == page_rest %}
+                    <li>
+                        <span class="border flex items-center justify-center text-sm py-2 px-3 leading-tight bg-white text-gray-500 border-gray-300">
+                            ...
+                        </span>
+                    </li>
+                {% endif %}
+            {% endif %}
+    
+        {% endfor %}
+    {% endwith %}
+    {% endwith %}
+
+
     <li>
         {% if items.has_next %}
         <a href="?q={{ search_query }}&page={{ items.next_page_number }}" class="flex items-center justify-center h-full py-1.5 px-3 leading-tight text-gray-500 bg-white rounded-r-lg border border-gray-300 hover:bg-gray-100 hover:text-gray-700 dark:bg-gray-800 dark:border-gray-700 dark:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-white">
@@ -38,4 +54,4 @@
 </ul>
 </nav>
 
-{% load custom_filters %}
+

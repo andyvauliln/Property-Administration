@@ -1,45 +1,76 @@
 {% load custom_filters %}
 <div
     class="w-full max-w-lg p-6 mx-auto bg-white rounded-2xl shadow-xl flex flex-col">
-    <div class="flex justify-between pb-4">
-        <span class="uppercase text-sm font-semibold text-gray-600">{{ month|date:"F Y" }}</span>
+    <div class="flex justify-between pb-2 flex-col border-b">
+        {% if month_occupancy is not None or month_profit is not None  %}
+         
+        <div class="flex justify-between items-center">
+            <div class="uppercase text-sm font-semibold text-gray-600">{{ month|date:"F Y" }}</div>
+            <div class="text-purple-600 text-sm font-bold">{{ month_occupancy }}%</div>
+        </div>
+        <div class="flex justify-between items-center border-t pt-2 mt-2">
+            <div>
+                <span class="text-blue-700 text-sm font-bold">${{ monh_income|default:0|format_number }}</span>
+                <span> / </span>
+                <span class="text-red-700 text-sm font-bold">${{ month_outcome|format_number }}</span>
+             </div>
+            {%if month_sure_profit == month_total_profit%}
+                <div class="text-green-600 text-sm font-bold">${{ month_sure_profit|format_number }}</span></div>
+            {% else %}
+            <div class="text-green-600 text-sm font-bold">${{ month_sure_profit|format_number }} / <span class="text-yellow-500">${{month_total_profit|format_number}}</span></div>
+            {% endif %}
+        </div>
+        {% else %}
+            <div class="uppercase text-sm font-semibold text-gray-600">{{ month|date:"F Y" }}</div>
+        {% endif %}
     </div>
     {% with days_of_week="sun mon tue wed thu fri sat" %}
-    <div class="flex justify-between font-medium uppercase text-xs pt-4 pb-2 border-t">
+    <div class="flex justify-between font-medium uppercase text-xs pt-4 pb-2">
         {% for day in days_of_week.split %}
             <div class="px-3 border rounded-sm w-10 h-5 flex items-center justify-center border-green-500 text-green-500 shadow-md">{{ day }}</div>
         {% endfor %}
     </div>
     {% endwith %}
     {% for week in weeks %}
-    <div class="flex justify-between">
+        <div class="flex justify-between">
         {% for day_data in week %}
             {% if day_data.day.month == month.month %}
-                <span class="day px-1 mb-1 w-10 flex justify-center items-center 
-                    {% if day_data.booking_ids %}  text-blue-500{% endif %}
-                    {% if day_data.cleaning_ids %}bg-green-100{% endif %}
-                    {% if day_data.payment_ids %}border border-red-600{% endif %}
-                    {% if day_data.day in day_data.booking_starts %}font-extrabold{% endif %}
-                    {% if day_data.day in day_data.booking_ends %}font-extrabold{% endif %}
-                      cursor-pointer rounded-sm"
-                      data-booking-ids="{{ day_data.booking_ids|join:',' }}"
-                      data-booking-statuses="{{ day_data.booking_statuses|join:',' }}"
-                      data-booking-starts="{{ day_data.booking_starts|join:',' }}"
-                      data-booking-ends="{{ day_data.booking_ends|join:',' }}"
-                      data-cleaning-ids="{{ day_data.cleaning_ids|join:',' }}"
-                      data-cleaning-statuses="{{ day_data.cleaning_statuses|join:',' }}"
-                      data-date="{{ day_data.day }}"
-                      data-payment-ids="{{ day_data.payment_ids|join:',' }}"
-                      data-payment-types="{{ day_data.payment_types|join:',' }}"
-                      data-payment-amounts="{{ day_data.payment_amounts|join:',' }}"
-                      data-payment-statuses="{{ day_data.payment_statuses|join:',' }}"
-                     >
+                <div class="relative day px-1 mb-1 w-10 flex justify-center items-center 
+                    {% if 'Blocked' in day_data.booking_statuses %} text-red-500 border border-red-500 font-extrabold
+                    {% elif 'Waiting Payment' in day_data.booking_statuses or 'Waiting Contract' in day_data.booking_statuses %} text-yellow-500 border border-yellow-500 font-extrabold
+                    {% elif day_data.booking_ids %} text-blue-500 border border-blue-500 font-extrabold
+                    {% endif %}
+                    {% if day_data.day in day_data.booking_starts or day_data.day in day_data.booking_ends %}text-purple-500 font-extrabold{% endif %}
+                    cursor-pointer rounded-sm"
+                    data-booking-ids="{{ day_data.booking_ids|join:',' }}"
+                    data-tenants="{{ day_data.tenants|join:',' }}"
+                    data-tenants-ids="{{ day_data.tenants_ids|join:',' }}"
+                    data-booking-statuses="{{ day_data.booking_statuses|join:',' }}"
+                    data-booking-starts="{{ day_data.booking_starts|join:',' }}"
+                    data-booking-ends="{{ day_data.booking_ends|join:',' }}"
+                    data-cleaning-ids="{{ day_data.cleaning_ids|join:',' }}"
+                    data-cleaning-statuses="{{ day_data.cleaning_statuses|join:',' }}"
+                    data-date="{{ day_data.day }}"
+                    data-payment-ids="{{ day_data.payment_ids|join:',' }}"
+                    data-payment-types="{{ day_data.payment_types|join:',' }}"
+                    data-payment-amounts="{{ day_data.payment_amounts|join:',' }}"
+                    data-payment-statuses="{{ day_data.payment_statuses|join:',' }}"
+                    >
                     {{ day_data.day|date:"d" }}
-                </span>
+                    
+                    {% if day_data.cleaning_ids %}
+                        <div class="absolute top-0 right-0 w-2 h-2 bg-transparent" style="clip-path: polygon(100% 0, 0 0, 100% 100%); background-color: #4ade80;"></div>
+                    {% endif %}
+
+                    {% if day_data.payment_ids %}
+                    <div class="absolute bottom-0 right-0 w-2 h-2 bg-transparent" style="clip-path: polygon(100% 100%, 100% 0, 0 100%); background-color: #facc15;"></div>
+                    {% endif %}
+                    
+                </div>
             {% else %}
                 <span class="day-empty px-1 text-gray-400 w-10 flex justify-center items-center"></span>
             {% endif %}
         {% endfor %}
-    </div>
+        </div>
     {% endfor %}
 </div>

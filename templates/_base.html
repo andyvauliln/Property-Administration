@@ -4,7 +4,7 @@
 {% load static %}
 
 <!DOCTYPE html>
-<html lang="en">
+<html  lang="en">
 
 <head class="h-[100vh]">
     <meta charset="UTF-8">
@@ -18,7 +18,7 @@
 
 </head>
 
-<body class="h-[100vh]">
+<body id="calendar-container" class="h-[100vh] overflow-auto">
     <div class="antialiased bg-gray-50 dark:bg-gray-900">
         <nav class="bg-white border-b border-gray-200 px-4 py-2.5 dark:bg-gray-800 dark:border-gray-700 fixed left-0 right-0 top-0 z-50">
           <div class="flex flex-wrap justify-between items-center">
@@ -58,11 +58,11 @@
     
         <!-- Sidebar -->
         {% with request.path as current_path %}
-        {{current_path}}
         <aside class="fixed top-0 left-0 z-40 w-64 h-screen pt-14 transition-transform -translate-x-full bg-white border-r border-gray-200 md:translate-x-0 dark:bg-gray-800 dark:border-gray-700" aria-label="Sidenav" id="drawer-navigation" aria-hidden="true">
           <div class="overflow-y-auto py-5 px-3 h-full bg-white dark:bg-gray-800">
             
             <ul class="space-y-2">
+              {% if user_role in 'Admin,Manager' %}
               <li>
                 <a href="/" class="flex items-center p-2 text-base font-medium text-gray-900 rounded-lg dark:text-white hover:bg-gray-100 dark:hover:bg-gray-700 group {% if current_path == '/' %}bg-gray-100{% endif %}">
                     <svg class="w-6 h-6 text-gray-800 dark:text-white" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="currentColor" viewBox="0 0 20 18">
@@ -71,6 +71,8 @@
                   <span class="ml-3">Dashboard</span>
                 </a>
               </li>
+              {% endif %}
+              {% if user_role in 'Admin' %}
               <li>
                 <a href="/users" class="flex items-center p-2 text-base font-medium text-gray-900 rounded-lg dark:text-white hover:bg-gray-100 dark:hover:bg-gray-700 group {% if current_path == '/users/' %}bg-gray-100{% endif %}">
                     <svg class="w-6 h-6 text-gray-800 dark:text-white" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="currentColor" viewBox="0 0 20 18">
@@ -79,14 +81,28 @@
                   <span class="ml-3">Users</span>
                 </a>
               </li>
+              {% endif %}
+              {% if user_role in 'Admin,Manager' %}
               <li>
                 <a href="/apartments" class="flex items-center p-2 text-base font-medium text-gray-900 rounded-lg dark:text-white hover:bg-gray-100 dark:hover:bg-gray-700 group {% if current_path == '/apartments/' %}bg-gray-100{% endif %}">
                     <svg class="w-6 h-6 text-gray-800 dark:text-white" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="currentColor" viewBox="0 0 20 20">
                         <path d="m19.707 9.293-2-2-7-7a1 1 0 0 0-1.414 0l-7 7-2 2a1 1 0 0 0 1.414 1.414L2 10.414V18a2 2 0 0 0 2 2h3a1 1 0 0 0 1-1v-4a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v4a1 1 0 0 0 1 1h3a2 2 0 0 0 2-2v-7.586l.293.293a1 1 0 0 0 1.414-1.414Z"/>
                       </svg>
-                  <span class="ml-3">Apartemnts</span>
+                  <span class="ml-3">Apartments</span>
                 </a>
               </li>
+              {% endif %}
+              {% if user_role in 'Admin' %}
+              <li>
+                <a href="/apartment" class="flex items-center p-2 text-base font-medium text-gray-900 rounded-lg dark:text-white hover:bg-gray-100 dark:hover:bg-gray-700 group {% if current_path == '/apartment/' %}bg-gray-100{% endif %}">
+                    <svg class="w-6 h-6 text-gray-800 dark:text-white" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 20 20">
+                      <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 1v3m5-3v3m5-3v3M1 7h18M5 11h10M2 3h16a1 1 0 0 1 1 1v14a1 1 0 0 1-1 1H2a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1Z"/>
+                    </svg>
+                  <span class="ml-3">Apartment Calendar</span>
+                </a>
+              </li>
+              {% endif %}
+              {% if user_role in 'Admin,Manager' %}
               <li>
                 <a href="/bookings" class="flex items-center p-2 text-base font-medium text-gray-900 rounded-lg dark:text-white hover:bg-gray-100 dark:hover:bg-gray-700 group {% if current_path == '/bookings/' %}bg-gray-100{% endif %}">
                     <svg class="w-6 h-6 text-gray-800 dark:text-white" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 20 20">
@@ -95,14 +111,18 @@
                   <span class="ml-3">Bookings</span>
                 </a>
               </li>
+              {% endif %}
+              {% if user_role in 'Admin' %}
               <li>
                 <a href="/payments" class="flex items-center p-2 text-base font-medium text-gray-900 rounded-lg dark:text-white hover:bg-gray-100 dark:hover:bg-gray-700 group {% if current_path == '/payments/' %}bg-gray-100{% endif %}">
                     <svg class="w-6 h-6 text-gray-800 dark:text-white" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="currentColor" viewBox="0 0 19 20">
                         <path d="M18.972.863a.913.913 0 0 0-.041-.207.956.956 0 0 0-.107-.19 1.01 1.01 0 0 0-.065-.116c-.008-.01-.02-.013-.028-.022a1.008 1.008 0 0 0-.174-.137 1.085 1.085 0 0 0-.141-.095 1.051 1.051 0 0 0-.171-.047.985.985 0 0 0-.207-.041C18.025.007 18.014 0 18 0h-3.207a1 1 0 1 0 0 2h.5l-4.552 3.9-3.5-.874a1 1 0 0 0-.867.189l-5 4a1 1 0 0 0 1.25 1.562L7.238 7.09l3.52.88a1 1 0 0 0 .892-.211L17 3.173v1.034a1 1 0 0 0 2 0V1a.9.9 0 0 0-.028-.137ZM13.5 9a5.5 5.5 0 1 0 0 11 5.5 5.5 0 0 0 0-11Zm.24 4.591a3.112 3.112 0 0 1 1.935 1.374 2.036 2.036 0 0 1 .234 1.584 2.255 2.255 0 0 1-1.374 1.469.982.982 0 0 1-1.953.09 2.943 2.943 0 0 1-1.475-.92 1 1 0 0 1 1.536-1.283.953.953 0 0 0 .507.29.778.778 0 0 0 .831-.18 1.108 1.108 0 0 0-.714-.481 3.105 3.105 0 0 1-1.934-1.374 2.042 2.042 0 0 1-.233-1.584 2.264 2.264 0 0 1 1.45-1.493v-.03a1 1 0 0 1 2 0c.517.159.98.457 1.337.862a1.002 1.002 0 1 1-1.524 1.3.962.962 0 0 0-.507-.286.775.775 0 0 0-.829.18 1.113 1.113 0 0 0 .713.482ZM6 20a1 1 0 0 1-1-1v-6a1 1 0 1 1 2 0v6a1 1 0 0 1-1 1Zm-4 0a1 1 0 0 1-1-1v-4a1 1 0 1 1 2 0v4a1 1 0 0 1-1 1Z"/>
                       </svg>
-                  <span class="ml-3">Pyments</span>
+                  <span class="ml-3">Payments</span>
                 </a>
               </li>
+              {% endif %}
+              {% if user_role in 'Admin,Cleaner' %}
               <li>
                 <a href="/cleanings" class="flex items-center p-2 text-base font-medium text-gray-900 rounded-lg dark:text-white hover:bg-gray-100 dark:hover:bg-gray-700 group {% if current_path == '/cleanings/' %}bg-gray-100{% endif %}">
                     <svg class="w-6 h-6 text-gray-800 dark:text-white" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 18 20">
@@ -111,22 +131,48 @@
                   <span class="ml-3">Cleanings</span>
                 </a>
               </li>
-              <li>
-                <a href="/contracts" class="flex items-center p-2 text-base font-medium text-gray-900 rounded-lg dark:text-white hover:bg-gray-100 dark:hover:bg-gray-700 group {% if current_path == '/contracts/' %}bg-gray-100{% endif %}">
-                    <svg class="w-6 h-6 text-gray-800 dark:text-white" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 18 20">
-                        <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 5h8m-1-3a1 1 0 0 0-1-1H7a1 1 0 0 0-1 1m6 0v3H6V2m6 0h4a1 1 0 0 1 1 1v15a1 1 0 0 1-1 1H2a1 1 0 0 1-1-1V3a1 1 0 0 1 1-1h4m0 9.464 2.025 1.965L12 9.571"/>
-                      </svg>
-                  <span class="ml-3">Contracts</span>
-                </a>
-              </li>
+              {% endif %}
+              {% if user_role in 'Admin' %}
               <li>
                 <a href="/paymentmethods" class="flex items-center p-2 text-base font-medium text-gray-900 rounded-lg dark:text-white hover:bg-gray-100 dark:hover:bg-gray-700 group {% if current_path == '/paymentmethods/' %}bg-gray-100{% endif %}">
                   <svg class="w-6 h-6 text-gray-800 dark:text-white" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 18 18">
                     <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 1h12M3 1v16M3 1H2m13 0v16m0-16h1m-1 16H3m12 0h2M3 17H1M6 4h1v1H6V4Zm5 0h1v1h-1V4ZM6 8h1v1H6V8Zm5 0h1v1h-1V8Zm-3 4h2a1 1 0 0 1 1 1v4H7v-4a1 1 0 0 1 1-1Z"/>
                   </svg>
+                  <span class="ml-3">Payment Methods</span>
+                </a>
+              </li>
+              {% endif%}
+              {% if user_role in 'Admin' %}
+              <li>
+                <a href="/paymenttypes" class="flex items-center p-2 text-base font-medium text-gray-900 rounded-lg dark:text-white hover:bg-gray-100 dark:hover:bg-gray-700 group {% if current_path == '/paymenttypes/' %}bg-gray-100{% endif %}">
+                  <svg class="w-6 h-6 text-gray-800 dark:text-white" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 20 16">
+                    <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 2a1 1 0 0 1 1-1h12a1 1 0 0 1 1 1v8a1 1 0 0 1-1 1M2 5h12a1 1 0 0 1 1 1v8a1 1 0 0 1-1 1H2a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1Zm8 5a2 2 0 1 1-4 0 2 2 0 0 1 4 0Z"/>
+                  </svg>
                   <span class="ml-3">Payment Types</span>
                 </a>
               </li>
+              {% endif %}
+              {% if user_role in 'Admin' %}
+              <li>
+                <a href="/payment-report/" class="flex items-center p-2 text-base font-medium text-gray-900 rounded-lg dark:text-white hover:bg-gray-100 dark:hover:bg-gray-700 group {% if current_path == '/payment-report/' %}bg-gray-100{% endif %}">
+                  <svg class="w-6 h-6 text-gray-800 dark:text-white" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 18 16">
+                    <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M1 1v14h16m0-9-3-2-3 5-3-2-3 4"/>
+                  </svg>
+                  <span class="ml-3">Payments Report</span>
+                </a>
+              </li>
+              {% endif %}
+              {% if user_role in 'Admin' %}
+              <li>
+                <a href="/apartments_analytics/" class="flex items-center p-2 text-base font-medium text-gray-900 rounded-lg dark:text-white hover:bg-gray-100 dark:hover:bg-gray-700 group {% if current_path == '/apartments_analytics/' %}bg-gray-100{% endif %}">
+                  <svg class="w-6 h-6 text-gray-800 dark:text-white" aria-hidden="true" xmlns="http://www.w3.org/2000/svg"fill="none" viewBox="0 0 17 18">
+                    <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M1 12v5m5-9v9m5-5v5m5-9v9M1 7l5-6 5 6 5-6"/>
+                  </svg>
+                  <span class="ml-3">Apartments Report</span>
+                </a>
+              </li>
+              {% endif %}
+              {% if user_role in 'Admin' %}
               <li>
                 <a href="/notifications" class="flex items-center p-2 text-base font-medium text-gray-900 rounded-lg dark:text-white hover:bg-gray-100 dark:hover:bg-gray-700 group {% if current_path == '/notifications/' %}bg-gray-100{% endif %}">
                   <svg class="w-6 h-6 text-gray-800 dark:text-white" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 20 18">
@@ -135,12 +181,13 @@
                   <span class="ml-3">Notifications</span>
                 </a>
               </li>
+              {% endif %}
             </ul>
           </div>
         </aside>
         {% endwith %}
-        <main class="p-4 md:ml-64 h-[100vh] pt-20">
-            <div class="container mx-auto mt-4 relative">
+        <main  class="p-4 md:ml-64 h-[100vh] pt-20">
+            <div  class="container mx-auto mt-4 relative">
                   {% if messages %}
                   <section class="bg-gray-50 dark:bg-gray-900 p-3 sm:p-5 antialiased">
                     <div class="mx-auto max-w-screen-xl px-4 lg:px-12">

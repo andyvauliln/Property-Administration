@@ -1,0 +1,230 @@
+{% extends "_base.html" %}
+{% load slippers %}
+{% load custom_filters %}
+{% block content %}
+
+<section class="bg-gray-50 dark:bg-gray-900 p-3 sm:p-5 antialiased">
+    <div class="mx-auto max-w-screen-xl px-4 lg:px-12">
+        <div class="bg-white dark:bg-gray-800 relative shadow-md sm:rounded-lg overflow-hidden">
+            
+            <div class="flex items-start justify-between w-full">
+                <div class="grid grid-cols-3 gap-2 w-1/2 p-2">
+                    <div class="flex flex-col justify-between">
+                        <select id="apartment" name="apartment" class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-primary-500 focus:border-primary-500 block w-full p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white dark:focus:ring-primary-500 dark:focus:border-primary-500">
+                            <option value="" {% if not current_apartment %}selected{% endif %}>All Apart Name</option>
+                            {% for apt in apartments %}
+                                <option value="{{ apt }}" {% if current_apartment == apt %}selected{% endif %}>{{ apt }}</option>
+                            {% endfor %}
+                        </select>
+                        <input id="start_date" name="start_date" datepicker type="text" value="{{ start_date }}" class="mt-2 bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white dark:focus:ring-blue-500 dark:focus:border-blue-500" placeholder="Start Date">
+                        
+                    </div>
+                    <div class="flex flex-col justify-between">
+                        <select name="apartment_type" class=" bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-primary-500 focus:border-primary-500 block w-full p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white dark:focus:ring-primary-500 dark:focus:border-primary-500">
+                            <option value="">All Apart Types</option>
+                            {% for type_value, type_name in apartment_types %}
+                                <option value="{{ type_value }}" {% if current_apartment_type == type_value %}selected{% endif %}>
+                                    {{ type_name }}
+                                </option>
+                            {% endfor %}
+                        </select>
+                        <input id="end_date" name="end_date" datepicker type="text" value="{{ end_date }}" class="mt-2 bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white dark:focus:ring-blue-500 dark:focus:border-blue-500" placeholder="End Date">
+                        
+                        
+                    </div>
+                    <div class="flex flex-col justify-between">
+                        <select name="payment_type" class=" bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-primary-500 focus:border-primary-500 block w-full p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white dark:focus:ring-primary-500 dark:focus:border-primary-500">
+                            <option value="" >All Payment Types</option>
+                            {% for type_name in payment_types %}
+                                <option value="{{ type_name }}" {% if current_payment_type == type_name %}selected{% endif %}>
+                                    {{ type_name }}
+                                </option>
+                            {% endfor %}
+                        </select>
+                        <select name="payment_status" class=" bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-primary-500 focus:border-primary-500 block w-full p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white dark:focus:ring-primary-500 dark:focus:border-primary-500">
+                            <option value="">All Statuses</option>
+                            <option value="Pending" {% if current_payment_status == 'Pending' %}selected{% endif %}>Pending</option>
+                            <option value="Completed" {% if current_payment_status == 'Completed' %}selected{% endif %}>Completed</option>
+                        </select>
+                        
+
+                    </div>
+                </div>
+            
+            
+               
+            
+                <!-- Stats (shortened) -->
+                <div class="w-1/2 flex items-center flex-col  mx-4 h-24">
+                    <div class="w-full flex items-center justify-between">
+                        <div class="flex flex-col h-full justify-center">   
+                            <div class="text-blue-500"><span class="font-bold">Completed Revenue:</span> ${{ summary.total_income|default:0|format_number }}</div>
+                            <div class="text-yellow-500"><span class="font-bold">Pending Revenue:</span> ${{ summary.total_pending_income|default:0|format_number }}</div>
+                        
+                        </div>
+                        <div class="flex flex-col h-full justify-center">
+                            <div class="text-red-500"><span class="font-bold">Expense:</span> ${{ summary.total_expense|default:0|format_number }}</div>
+                            <div class="text-yellow-500"><span class="font-bold">Expense:</span> ${{ summary.total_pending_outcome|default:0|format_number }}</div>
+                        </div>   
+                        <div class="flex flex-col h-full justify-center">
+                            <div class="text-green-500"><span class="font-bold">Profit:</span> ${{ summary.total_profit|default:0|format_number }}</div>
+                            <div class="text-yellow-500"><span class="font-bold">Profit:</span> ${{ summary.total_pending_profit|default:0|format_number }}</div>
+                        </div> 
+                        
+                    </div>
+                    <button class="mt-2 w-full block bg-blue-500 text-white rounded p-2" onclick="getReport()">Get Report</button> 
+                </div> 
+            </div>
+
+            
+            {% for month_data in monthly_data %}
+                <!-- Monthly Report Header with Summaries -->
+                <div class="p-4 flex items-center justify-between bg-zinc-200"> 
+                    <div class="flex items-center w-1/3 text-lg font-bold text-blue-500 underline">{{ month_data.month_name }} Report</div> 
+                    <div class="flex items-center justify-between w-3/5 ml-auto">
+                        <div class="flex flex-col">   
+                            <span class="mr-4 text-blue-500"><span class="font-bold">Completed Revenue:</span> ${{ month_data.income|default:0|format_number }}</span>
+                            <span class="text-yellow-500"><span class="font-bold">Pending Revenue</span> ${{ month_data.pending_income|default:0|format_number }}</span>
+                        </div>
+                        <div class="flex flex-col">
+                            <span class="mr-4 text-red-600"><span class="font-bold">Expense:</span> ${{ month_data.outcome|default:0|format_number }}</span>
+                            <span class="text-yellow-500"><span class="font-bold">Expense:</span> ${{ month_data.pending_outcome|default:0|format_number }}</span>
+                        </div>   
+                        <div class="flex flex-col">
+                            <div class="mr-4 text-green-500"><span class="font-bold">Profit:</span> ${{ month_data.profit|default:0|format_number }}</div>
+                            <div class="text-yellow-500"><span class="font-bold">Profit:</span> ${{ month_data.pending_profit|default:0|format_number }}</div>
+                        </div>   
+                    </div>   
+                </div>
+
+                <!-- Monthly Payments Table -->
+                <div class="overflow-x-auto">
+                    <table class="w-full text-sm text-left text-gray-500 dark:text-gray-400">
+                        <thead class="text-xs text-gray-700 uppercase bg-gray-50 dark:bg-gray-700 dark:text-gray-400">
+                            <tr>    
+                                <th scope="col" class="px-4 py-4">Payment Date</th> 
+                                <th scope="col" class="px-4 py-4">Payment Notes</th> 
+                                <th scope="col" class="px-4 py-4">Payment Amount</th> 
+                                <th scope="col" class="px-4 py-4">Payment Type</th> 
+                                <th scope="col" class="px-4 py-4">Payment Method</th> 
+                                <th scope="col" class="px-4 py-4">Bank</th> 
+                                <th scope="col" class="px-4 py-4">Apartment</th> 
+                                <th scope="col" class="px-4 py-4">Tenant</th> 
+                                <th scope="col" class="px-4 py-4">Status</th> 
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for payment in month_data.payments %}
+                                <tr class="border-b dark:hover:bg-gray-800 cursor-pointer dark:border-gray-700" data-id="{{ payment.id }}">
+                                    <td class="px-4 py-4 font-bold text-fuchsia-800">{{ payment.payment_date|default:'' }}</td>
+                                    <td style="max-width: 150px;" class="px-4 py-4 truncate">{{ payment.notes|default:'' }}</td>
+                                    <td class="px-4 py-4">
+                                        {% if payment.payment_type.type == 'Out' %}
+                                            <span class="text-red-500 font-bold">- ${{ payment.amount|default:0|format_number }}</span>
+                                        {% else %}
+                                            <span class="text-green-500 font-bold">${{ payment.amount|default:0|format_number }}</span>
+                                        {% endif %}
+                                    </td>
+                                    <td class="px-4 py-4 font-bold {{ payment.color_class|default:'text-gray-500' }}">
+                                        {% if payment.payment_type %}
+                                            {{ payment.payment_type.name }}
+                                        {% else %}
+                                            
+                                        {% endif %}
+                                    </td>
+                                    <td class="px-4 py-4">{% if payment.payment_method %}{{ payment.payment_method.name }}{% else %}{% endif %}</td>
+                                    <td class="px-4 py-4">{% if payment.bank %}{{ payment.bank.name }}{% else %}{% endif %}</td>
+                                    <td class="px-4 py-4">
+                                        {% if payment.booking and payment.booking.apartment %}
+                                            <a href="/apartments?q=id={{ payment.booking.apartment.id }}" target="_blank" onclick="event.stopPropagation();" class="font-bold text-blue-500 underline">
+                                                {{ payment.booking.apartment.name }}
+                                            </a>
+                                        {% elif payment.apartment %}
+                                            <a href="/apartments?q=id={{ payment.apartment.id }}" target="_blank" onclick="event.stopPropagation();" class="font-bold text-blue-500 underline">
+                                                {{ payment.apartment.name }}
+                                            </a>
+                                        {% else %}
+                                            
+                                        {% endif %}
+                                    </td>
+                                    <td class="px-4 py-4">{% if payment.booking %}{{ payment.booking.tenant.full_name }}{% else %}{% endif %}</td>
+                                    {% if payment.payment_status == "Pending" %}
+                                        <td class="px-4 py-4"> <span class="bg-yellow-200 text-yellow-500 px-2 py-1 rounded-full">{{ payment.payment_status }}</span></td>
+                                    {% else %}
+                                        <td class="px-4 py-4"> <span class="bg-green-200 text-green-700 px-2 py-1 rounded-full">{{ payment.payment_status }}</span></td>
+                                    {% endif %}
+                                </tr>
+                            {% empty %}
+                                <tr>
+                                    <td colspan="8" class="text-center py-4">No data found</td>
+                                </tr>
+                            {% endfor %}
+                        </tbody>
+                        
+                    </table>
+                </div>
+            {% endfor %}
+            
+        </div>
+    </div>
+</section>
+
+
+<div class="hidden">
+    <!-- For Tailwind Compilation as classes set in a view and compilator no recognize it -->
+    <div class="text-rose-200"></div>
+    <div class="text-rose-300"></div>
+    <div class="text-rose-400"></div>
+    <div class="text-rose-500"></div>
+    <div class="text-rose-600"></div>
+    <div class="text-rose-700"></div>
+    <div class="text-rose-800"></div>
+    <div class="text-rose-900"></div>
+    <div class="text-emerald-200"></div>
+    <div class="text-emerald-300"></div>
+    <div class="text-emerald-400"></div>
+    <div class="text-emerald-500"></div>
+    <div class="text-emerald-600"></div>
+    <div class="text-emerald-700"></div>
+    <div class="text-emerald-800"></div>
+    <div class="text-emerald-900"></div>
+</div>
+
+<script>
+    function getReport() {
+        const startDate = document.getElementById('start_date').value;
+        const endDate = document.getElementById('end_date').value;
+        const apartment = document.getElementById('apartment').value;
+        const apartmentType = document.querySelector('[name="apartment_type"]').value;
+        const paymentType = document.querySelector('[name="payment_type"]').value;
+        const paymentStatus = document.querySelector('[name="payment_status"]').value;
+      
+        let url = '?';
+        if (startDate) url += `start_date=${startDate}&`;
+        if (endDate) url += `end_date=${endDate}&`;
+        if (apartment) url += `apartment=${apartment}&`;
+        if (apartmentType) url += `apartment_type=${apartmentType}&`;
+        if (paymentType) url += `payment_type=${paymentType}&`;
+        if (paymentStatus) url += `payment_status=${paymentStatus}&`;
+      
+        location.href = url;
+      }
+    document.addEventListener('DOMContentLoaded', function() {
+        // Get all table rows
+        const rows = document.querySelectorAll('[data-id]');
+
+        // Add click event to each row
+        rows.forEach(row => {
+            row.addEventListener('click', function(event) {
+                
+                if (event.target == this || event.target.tagName !== 'A') {
+                    const paymentId = this.getAttribute('data-id');
+                    window.open(`/payments?q=id=${paymentId}`, '_blank');
+                }
+            });
+        });
+    });
+</script>
+  
+
+{% endblock content %}

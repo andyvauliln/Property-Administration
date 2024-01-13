@@ -22,7 +22,7 @@
    
     <button type="submit" class="ml-2 text-white bg-primary-700 hover:bg-primary-800 focus:ring-4 focus:outline-none focus:ring-primary-300 font-medium rounded-lg text-sm px-4 py-2 dark:bg-primary-600 dark:hover:bg-primary-700 dark:focus:ring-primary-800">Search</button>
 </form>
-<div id="helpModal" tabindex="-1" aria-hidden="true" class="hidden fixed inset-0 z-50 flex justify-center items-center bg-black bg-opacity-50 backdrop-blur-md">
+<div id="helpModal" tabindex="-1" aria-hidden="true" class="hidden fixed inset-0 z-50 justify-center items-center bg-black bg-opacity-50 backdrop-blur-md">
     <div class="bg-white rounded-lg p-8 w-3/4">
         <h2 class="text-2xl mb-4">Search Help</h2>
         <p>Here's how to use the advanced search:</p>
@@ -56,7 +56,6 @@
             <li><code>tenant.full_name=Dona</code>: Matches bookings with a tenant name containing "Dona".</li>
             <li><code>status=Confirmed</code>: Matches bookings with a status of "Confirmed".</li>
             <li><code>price>=100 AND price<=500</code>: Matches bookings with a price between 100 and 500.</li>
-            <!-- Add more examples as needed -->
         </ul>
 
         <button id="closeHelpModal" class="mt-4 text-white bg-red-500 hover:bg-red-600 focus:ring-4 focus:outline-none focus:ring-red-300 font-medium rounded-lg text-sm px-4 py-2">Close</button>
@@ -65,13 +64,11 @@
  
 <script>
     document.addEventListener('DOMContentLoaded', function() {
-        const modelsData = window.modelsData; // Assuming modelsData is a global variable
+        const modelsData = window.modelsData; 
     
         const searchInput = document.getElementById('simple-search');
         const dropdown = document.getElementById('autocomplete-dropdown');
-        const currentModel = window.location.pathname.split('/')[1]; // Assuming URL structure is /model-name/...
-        //console.log(currentModel, "currentModel")
-        //console.log(modelsData, "modelsData")
+        const currentModel = window.location.pathname.split('/')[1]; 
 
         function generateFieldList(modelName) {
             let fields = [];
@@ -102,15 +99,12 @@
         }
         
         const allFields = generateFieldList(currentModel);
-        console.log(allFields, "allFields")
+        
 
         searchInput.addEventListener('input', function() {
             const value = searchInput.value.trim();
-            //console.log(value, "value")
             const lastWord = value.split(/[\s\+\|]/).pop();
-            //console.log(lastWord, "lastWord")
             let suggestions = allFields.filter(field => field.startsWith(lastWord));
-            //console.log(suggestions, "suggestions")
         
             // Populate the dropdown with suggestions
             dropdown.innerHTML = suggestions.map(s => `<div class="p-2 hover:bg-gray-200 cursor-pointer">${s}</div>`).join('');
@@ -139,15 +133,9 @@
         document.querySelector('form').addEventListener('submit', function(event) {
             let searchValue = searchInput.value;
 
-            console.log(searchValue, "searchValue1")
     
             // Replace AND and OR with + and | respectively, case-insensitively
-            searchValue = searchValue.replace(/\band\b/gi, '+').replace(/\bor\b/gi, '|');
-            console.log(searchValue, "searchValue2")
-    
-            // Here, you can add validation logic to ensure the search query is valid.
-            // If it's not valid, you can prevent the form submission and show an error message.
-    
+            searchValue = searchValue.replace(/\band\b/gi, '+').replace(/\bor\b/gi, '|');    
             searchInput.value = searchValue;
         });
 

@@ -4,13 +4,154 @@
 
 
 {% #table  model_fields=model_fields items_json=items_json  model="bookings" search_query=request.GET.q items=items %}
+<div class="flex flex-col md:flex-row items-center justify-between space-y-3 md:space-y-0 md:space-x-4 p-4">
+    <select onchange="updateSearchInput()" name="status" class="filter bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-primary-500 focus:border-primary-500 block w-1/5 p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white dark:focus:ring-primary-500 dark:focus:border-primary-500">
+        <option value="">All Statuses</option>
+        <option value="Waiting Contract" {% if current_status == 'Waiting Contract' %}selected{% endif %}>Waiting Contract</option>
+        <option value="Waiting Payment" {% if current_status == 'Waiting Payment' %}selected{% endif %}>Waiting Payment</option>
+        <option value="Confirmed" {% if current_status == 'Confirmed' %}selected{% endif %}>Confirmed</option>
+        <option value="Blocked" {% if current_status == 'Confirmed' %}selected{% endif %}>Blocked</option>
+    </select>
+    <select onchange="updateSearchInput()" name="apartment.id" class="filter bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-primary-500 focus:border-primary-500 block w-1/5 p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white dark:focus:ring-primary-500 dark:focus:border-primary-500">
+        <option value="">All Apartments</option>
+        {% for field_name, field_instance in model_fields %}
+            {% if field_name == "apartment" %}
+                {% for option in field_instance.dropdown_options %}
+                    <option value="{{ option.value }}">{{ option.label }}</option>
+                {% endfor %}
+            {% endif %}
+        {% endfor %}
+    </select>
+    <input id="filter_start_date" name="start_date" onchange="updateSearchInput()" datepicker type="text" value="" class="filter bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-1/5 p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white dark:focus:ring-blue-500 dark:focus:border-blue-500" placeholder="Select date">
+
+    <input id="filter_end_date" name="end_date" onchange="updateSearchInput()" datepicker type="text" value="" class="filter bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-1/5 p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white dark:focus:ring-blue-500 dark:focus:border-blue-500" placeholder="Select date">
+    <select onchange="updateSearchInput()" name="owner.id" class="filter bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-primary-500 focus:border-primary-500 block w-1/5 p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white dark:focus:ring-primary-500 dark:focus:border-primary-500">
+        <option value="">All Owners</option>
+        {% for field_name, field_instance in model_fields %}
+            {% if field_name == "owner" %}
+                {% for option in field_instance.dropdown_options %}
+                    <option value="{{ option.value }}">{{ option.label }}</option>
+                {% endfor %}
+            {% endif %}
+        {% endfor %}
+    </select>
+</div>
+<script>
+        document.addEventListener("DOMContentLoaded", function() {
+            // This code will run when the DOM is fully loaded
+            datePickerStart = document.getElementById("filter_start_date")
+            datePickerEnd = document.getElementById("filter_end_date")
+            
+
+            datePickerStart.addEventListener('changeDate', (e) => {
+            
+                updateSearchInput()
+              });
+
+              datePickerEnd.addEventListener('changeDate', (e) => {
+            
+                updateSearchInput()
+              });
+
+        
+        
+            // Parse the URL
+            var urlParams = new URLSearchParams(window.location.search);
+        
+            // Get the "q" parameter
+            var queryParam = urlParams.get("q");
+    
+        
+            if (queryParam) {
+                // Split the "q" parameter into individual filter conditions
+                var filterConditions = queryParam.split("+");
+        
+                // Loop through filter conditions
+                filterConditions.forEach(function(condition) {
+                    // Split each condition into key and value
+
+                    var parts = condition.split("=");
+                    var key = decodeURIComponent(parts[0]).replace(">", "").replace("<", "").trim();
+                    var value = decodeURIComponent(parts[1]).replace("<", "").replace("<", "").trim();
+        
+                    // Set the selected options in your dropdowns
+                    const selector = '[name="' + key + '"]'
+                    console.log(selector, "selector")
+                    
+                    var dropdown = document.querySelector(selector);
+                    console.log(dropdown)
+
+                    if(dropdown){
+                        dropdown.value = value;
+                    }
+
+                });
+            }
+        });
+        function updateSearchInput() {
+            // Get all select elements with name attributes
+            console.log("datapicker")
+            var filterSelects = document.querySelectorAll('.filter');
+        
+            // Get the current search input value
+            var searchInput = document.querySelector('#simple-search').value;
+        
+            // Create an array to store filter conditions
+            var filterConditions = [];
+        
+            // Loop through each filter select element
+            filterSelects.forEach(function(filterSelect) {
+                var filterName = filterSelect.name;
+                var filterValue = filterSelect.value;
+                
+                if (filterName && filterValue) {
+                    // Adjust the regular expression to handle the new filter conditions
+                    var regexPattern = new RegExp(filterName + '(?:=|>=|<=)[^]*(?:\\s+AND|$)', 'g');
+                    searchInput = searchInput.replace(regexPattern, '');
+            
+                    // Check if the filter condition already exists
+                    var filterConditionExists = filterConditions.some(function(condition) {
+                        return condition.startsWith(filterName);
+                    });
+            
+                    // Add the filter condition with ">= x" and "<= x" if it doesn't exist
+                    if (!filterConditionExists) {
+                        if (filterName === 'start_date') {
+                            filterConditions.push(filterName + '>=' + filterValue);
+                        } else if (filterName === 'end_date') {
+                            filterConditions.push(filterName + '<=' + filterValue);
+                        } else {
+                            filterConditions.push(filterName + '=' + filterValue);
+                        }
+                    }
+                } else {
+                    // Remove filter condition if the value is empty
+                    searchInput = searchInput.replace(new RegExp(filterName + '(?:=|>=|<=)[^]*(?:\\s+AND|$)', 'g'), '');
+                }
+            });
+
+            searchInput = searchInput.trim();
+            // Add filter conditions to the search input
+            if (filterConditions.length > 0) {
+                searchInput += ' AND ' + filterConditions.join(' AND ');
+            }
+
+             // Remove leading " AND " if it exists
+             searchInput = searchInput.replace(/^ AND /, '');
+             searchInput = searchInput.replace(/ AND$/, '');
+             searchInput = searchInput.trim();
+        
+            // Set the updated search input
+            document.querySelector('#simple-search').value = searchInput;
+        }
+        </script>        
 {% /table %}
 
 <script>
 
     const paymentTypes = [
         {% for field_name, field_instance in model_fields %}
-            {% if field_name == "payment_types" %}
+            {% if field_name == "payment_type" %}
                 {% for option in field_instance.dropdown_options %}
                     {"value": "{{ option.value }}", "label": "{{ option.label }}"},
                 {% endfor %}
@@ -19,59 +160,85 @@
     ];
 
     function addPaymentRow(modal) {
-        const paymentsContainer = document.getElementById('paymentsContainer-'+modal);
     
-        const paymentRow = document.createElement('div');
-        paymentRow.className = 'paymentRow flex gap-4 mb-4';
-    
-        const paymentDateInput = document.createElement('input');
-        paymentDateInput.setAttribute('name', 'payment_date[]');
-        paymentDateInput.setAttribute('type', 'text');
-        paymentDateInput.setAttribute('placeholder', 'Select date');
-        paymentDateInput.setAttribute('datepicker', ''); 
-        paymentDateInput.className = 'bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-primary-500 focus:border-primary-500 block w-full p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white dark:focus:ring-primary-500 dark:focus:border-primary-500';
-        paymentRow.appendChild(paymentDateInput);
+            const paymentsContainer = document.getElementById('paymentsContainer-' + modal);
 
-        new Flowbite.default.Datepicker(paymentDateInput, {});
-    
-        const amountInput = document.createElement('input');
-        amountInput.setAttribute('name', 'amount[]');
-        amountInput.setAttribute('type', 'text');
-        amountInput.setAttribute('placeholder', 'Amount');
-        amountInput.className = 'bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-primary-500 focus:border-primary-500 block w-full p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white dark:focus:ring-primary-500 dark:focus:border-primary-500';
-        paymentRow.appendChild(amountInput);
-    
-        const paymentTypeSelect = document.createElement('select');
-        paymentTypeSelect.setAttribute('name', 'payment_type[]');
-        paymentTypeSelect.className = 'bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-primary-500 focus:border-primary-500 block w-full p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white dark:focus:ring-primary-500 dark:focus:border-primary-500';
+            
         
-        // Dynamically generate options based on paymentTypes
-        paymentTypes.forEach(type => {
-            const option = document.createElement('option');
-            option.setAttribute('value', type.value);
-            option.textContent = type.label;
-            paymentTypeSelect.appendChild(option);
-        });
-    
-        paymentRow.appendChild(paymentTypeSelect);
-    
-        // Create a delete button with an icon
-        const deleteButton = document.createElement('button');
-        deleteButton.className = 'text-red-600 hover:text-red-800 focus:outline-none';
-        deleteButton.setAttribute('type', 'button'); // So it doesn't submit the form
-        deleteButton.innerHTML = `<svg class="text-gray-400 dark:text-gray-500 w-8 h-8 mx-auto" aria-hidden="true" fill="currentColor" viewbox="0 0 20 20" xmlns="http://www.w3.org/2000/svg">
-                    <path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clip-rule="evenodd" />
-             </svg>`;
+            const paymentRow = document.createElement('div');
+            paymentRow.className = 'paymentRow flex flex-col gap-4 mb-4 items-start w-full';
+        
+            // This is the flex container row for the 3 inputs
+            const inputRow = document.createElement('div');
+            inputRow.className = 'flex gap-4 w-full';
+        
+            const paymentDateInput = document.createElement('input');
+            paymentDateInput.setAttribute('name', 'payment_date[]');
+            paymentDateInput.setAttribute('type', 'text');
+            paymentDateInput.setAttribute('placeholder', 'Select date');
+            paymentDateInput.setAttribute('datepicker', '');
+            paymentDateInput.className = 'w-1/4 bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-primary-500 focus:border-primary-500 block p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white dark:focus:ring-primary-500 dark:focus:border-primary-500 datepicker-input';
+            
+            new Flowbite.default.Datepicker(paymentDateInput, {});
 
-        // Add an event listener to remove the payment row when the delete button is clicked
-        deleteButton.addEventListener('click', function() {
-            paymentsContainer.removeChild(paymentRow);
-        });
+            const amountInput = document.createElement('input');
+            amountInput.setAttribute('name', 'amount[]');
+            amountInput.setAttribute('type', 'text');
+            amountInput.setAttribute('placeholder', 'Amount');
+            amountInput.className = 'w-1/4 bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-primary-500 focus:border-primary-500 block p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white dark:focus:ring-primary-500 dark:focus:border-primary-500';
+            
+            const number_of_months = document.createElement('input');
+            number_of_months.setAttribute('name', 'number_of_months[]');
+            number_of_months.setAttribute('type', 'text');
+            number_of_months.setAttribute('value', '1');
+            number_of_months.setAttribute('placeholder', 'Number of months');
+            number_of_months.className = 'w-1/4 bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-primary-500 focus:border-primary-500 block p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white dark:focus:ring-primary-500 dark:focus:border-primary-500';
+        
+            const paymentTypeSelect = document.createElement('select');
+            paymentTypeSelect.setAttribute('name', 'payment_type[]');
+            paymentTypeSelect.className = 'w-1/4 bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-primary-500 focus:border-primary-500 block p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white dark:focus:ring-primary-500 dark:focus:border-primary-500';
+        
+            // Dynamically generate options based on paymentTypes
+            paymentTypes.forEach(type => {
+                const option = document.createElement('option');
+                option.setAttribute('value', type.value);
+                option.textContent = type.label;
+                paymentTypeSelect.appendChild(option);
+            });
 
-        // Append the delete button to the payment row
-        paymentRow.appendChild(deleteButton);
-
-        paymentsContainer.appendChild(paymentRow);
+            const deleteButton = document.createElement('button');
+            deleteButton.className = 'text-red-600 hover:text-red-800 focus:outline-none';
+            deleteButton.setAttribute('type', 'button');
+            deleteButton.innerHTML = `<svg class="text-gray-400 dark:text-gray-500 w-8 h-8 mx-auto" aria-hidden="true" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg">
+                        <path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clip-rule="evenodd"></path>
+                    </svg>`;
+        
+            // Add an event listener to remove the payment row when the delete button is clicked
+            deleteButton.addEventListener('click', function() {
+                paymentsContainer.removeChild(paymentRow);
+            });
+        
+        
+            // Append the 3 inputs to the input row
+            inputRow.appendChild(paymentDateInput);
+            inputRow.appendChild(amountInput);
+            inputRow.appendChild(number_of_months);
+            inputRow.appendChild(paymentTypeSelect);
+            inputRow.appendChild(deleteButton);
+        
+            // Append the input row, textarea, and delete button to the payment row
+            paymentRow.appendChild(inputRow);
+        
+            const payments_notes = document.createElement('textarea');
+            payments_notes.setAttribute('name', 'payment_notes[]');
+            payments_notes.setAttribute('rows', '2');
+            payments_notes.setAttribute('placeholder', 'Payment notes');
+            payments_notes.className = 'w-full bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-primary-500 focus:border-primary-500 block p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white dark:focus:ring-primary-500 dark:focus:border-primary-500';
+            paymentRow.appendChild(payments_notes);
+        
+        
+            // Append the payment row to the payments container
+            paymentsContainer.appendChild(paymentRow);
     }
 </script>
 

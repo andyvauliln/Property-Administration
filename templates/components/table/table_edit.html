@@ -8,7 +8,6 @@
             <div class="flex justify-between items-center pb-4 mb-4 rounded-t border-b sm:mb-5 dark:border-gray-600">
                 <h3 class="text-lg font-semibold text-gray-900 dark:text-white">Update / Delete {{ model|title }}</h3>
                 <button id="closeEditModal" type="button" class="text-gray-400 bg-transparent hover:bg-gray-200 hover:text-gray-900 rounded-lg text-sm p-1.5 ml-auto inline-flex items-center dark:hover:bg-gray-600 dark:hover:text-white" data-modal-toggle="updateModal">
-                    <!-- ... (close button SVG) ... -->
                     <span class="sr-only">Close modal</span>
                 </button>
             </div>
@@ -24,7 +23,7 @@
                                     <label for="{{ field_name }}" class="block mb-2 text-sm font-medium text-gray-900 dark:text-white">{{ field_name|split_underscore|title }}
                                         {% if field_instance.required %}<span class="text-red-600">*</span>{% endif %}
                                     </label>
-                                    <textarea id="{{field_name}}" name="{{field_name}}" rows="5" class="block p-2.5 w-full text-sm text-gray-900 bg-gray-50 rounded-lg border border-gray-300 focus:ring-primary-500 focus:border-primary-500 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white dark:focus:ring-primary-500 dark:focus:border-primary-500" placeholder="Write a description..."></textarea>
+                                    <textarea id="{{field_name}}" name="{{field_name}}" rows="5" class="block p-2.5 w-full text-sm text-gray-900 bg-gray-50 rounded-lg border border-gray-300 focus:ring-primary-500 focus:border-primary-500 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white dark:focus:ring-primary-500 dark:focus:border-primary-500" placeholder=""></textarea>
                                 </div>
                             {% else %}
                                 <div>
@@ -78,29 +77,32 @@
 <script>
     function formatDate(dateString) {
         if (!dateString) {
-            return ""; // or return any default value you want
+            return "";
         }
     
-        const options = { year: 'numeric', month: '2-digit', day: '2-digit' };
-        return new Date(dateString).toLocaleDateString(undefined, options);
+        const date = new Date(dateString);
+        const isoString = date.toISOString();
+        const [year, month, day] = isoString.substring(0, 10).split('-');
+        return `${month}/${day}/${year}`;
     }
     document.addEventListener('DOMContentLoaded', function() {
         const rows = document.querySelectorAll('.{{ model|lower }}-row');
         const updateModal = document.getElementById('updateModal');
-
-
+    
         const closeModalButton = document.getElementById('closeEditModal');
         closeModalButton.addEventListener('click', function() {
             updateModal.style.display = 'none';
         });
+    
         window.addEventListener('click', function(event) {
             if (event.target === updateModal) {
                 updateModal.style.display = 'none';
             }
         });
+    
         const deleteIdInput = document.getElementById('deleteId');
         const editIdInput = document.getElementById('editId');
-
+    
         window.addEventListener('keydown', function(event) {
             if (event.key === 'Escape' && updateModal.style.display === 'flex') {
                 updateModal.style.display = 'none';
@@ -110,86 +112,87 @@
         rows.forEach(row => {
             row.addEventListener('click', function() {
                 const itemId = parseInt(row.getAttribute('data-id'));
-                const item = items_json.find(i => i.id === itemId);
-                deleteIdInput.value = itemId;
-                editIdInput.value = itemId;
-        
-                if (item) {
-                    // Populate the modal fields based on the item data
-                    for (const [fieldName, fieldValue] of Object.entries(item)) {
-                        const inputField = updateModal.querySelector(`[name="${fieldName}"]`);
-                        if (inputField) {
-                            if (inputField.tagName === 'SELECT') {
-                                let valueSet = false;
-                                for (const option of inputField.options) {
-                                    if (option.value == fieldValue) {
-                                        option.selected = true;
-                                        valueSet = true;
-                                    } else {
-                                        option.selected = false;
-                                    }
+                openModalForItemId(itemId);
+            });
+        });
+    
+        function openModalForItemId(itemId) {
+            const item = items_json.find(i => i.id === itemId);
+            deleteIdInput.value = itemId;
+            editIdInput.value = itemId;
+    
+            if (item) {
+                for (const [fieldName, fieldValue] of Object.entries(item)) {
+                    const inputField = updateModal.querySelector(`[name="${fieldName}"]`);
+                    if (inputField) {
+                        if (inputField.tagName === 'SELECT') {
+                            let valueSet = false;
+                            for (const option of inputField.options) {
+                                if (option.value == fieldValue) {
+                                    option.selected = true;
+                                    valueSet = true;
+                                } else {
+                                    option.selected = false;
                                 }
-                                if (!valueSet && !fieldValue) {
-                                    inputField.options[0].selected = true; // This will select the "None" option if no value is set
-                                }
-                            } else if (inputField.tagName === 'INPUT' && inputField.hasAttribute('datepicker')) {
-                                inputField.setAttribute('data-date', formatDate(fieldValue));
-                                inputField.value = formatDate(fieldValue);
-                            } else if (inputField.tagName === 'TEXTAREA') {
-                                console.log(fieldValue, "notes")
-                                inputField.innerHTML = fieldValue;
-                            } else if (inputField.tagName === 'INPUT' && inputField.type === 'checkbox') {
-                                inputField.checked = (fieldValue === true || fieldValue === '1');
-                            } else {
-                                inputField.value = fieldValue;
                             }
+                            if (!valueSet && !fieldValue) {
+                                inputField.options[0].selected = true; 
+                            }
+                        } else if (inputField.tagName === 'INPUT' && inputField.hasAttribute('datepicker')) {
+                            inputField.setAttribute('data-date', formatDate(fieldValue));
+                            inputField.value = formatDate(fieldValue);
+                        } else if (inputField.tagName === 'TEXTAREA') {
+                            inputField.innerHTML = fieldValue;
+                        } else if (inputField.tagName === 'INPUT' && inputField.type === 'checkbox') {
+                            inputField.checked = (fieldValue === true || fieldValue === '1');
+                        } else {
+                            inputField.value = fieldValue;
                         }
                     }
-        
-                    const linksContainer = document.querySelector('#updateModal .related-links');
-                    linksContainer.innerHTML = ''; // Clear previous links
-
-                    item.links.forEach(link => {
-                        // Split the name by ':'
-                        const parts = link.name.split(':');
-                        if (parts.length !== 2) return;  // Ensure there are two parts
-
-                        // Create a container div for each link with flex display
-                        const linkContainer = document.createElement('div');
-                        linkContainer.classList.add('flex', 'items-center', 'mb-2');  // Flex container
-
-                        // Create a bold text element for the first part
-                        const boldText = document.createElement('span');
-                        boldText.textContent = parts[0].trim() + ': ';
-                        boldText.classList.add('font-bold', 'mr-1');  // Add some classes for styling
-
-                        // Create a link element for the second part
-                        const linkElement = document.createElement('a');
-                        linkElement.href = link.link;
-                        linkElement.textContent = parts[1].trim();
-                        linkElement.setAttribute('target', '_blank');
-                        linkElement.classList.add('text-blue-500', 'hover:text-blue-700', 'mr-2');
-
-                        // Create an arrow symbol
-                        const arrowSymbol = document.createElement('span');
-                        arrowSymbol.innerHTML = '&rarr;';  // Rightwards Arrow
-                        arrowSymbol.classList.add('ml-2');  // Margin to separate it from the link
-
-                        // Append elements to the linkContainer
-                        linkContainer.appendChild(boldText);
-                        linkContainer.appendChild(linkElement);
-                        linkElement.appendChild(arrowSymbol);
-
-                        // Append linkContainer to the main linksContainer
-                        linksContainer.appendChild(linkContainer);
-                    });
-
                 }
-        
-                // Show the modal
-                updateModal.style.display = 'flex';
-            });
-        });        
- });
     
-</script>
+                const linksContainer = document.querySelector('#updateModal .related-links');
+                linksContainer.innerHTML = ''; 
+    
+                item.links.forEach(link => {
+                    const parts = link.name.split(':');
+                    if (parts.length !== 2) return;
+    
+                    const linkContainer = document.createElement('div');
+                    linkContainer.classList.add('flex', 'items-center', 'mb-2');
+    
+                    const boldText = document.createElement('span');
+                    boldText.textContent = parts[0].trim() + ': ';
+                    boldText.classList.add('font-bold', 'mr-1');
+    
+                    const linkElement = document.createElement('a');
+                    linkElement.href = link.link;
+                    linkElement.textContent = parts[1].trim();
+                    linkElement.setAttribute('target', '_blank');
+                    linkElement.classList.add('text-blue-500', 'hover:text-blue-700', 'mr-2');
+    
+                    const arrowSymbol = document.createElement('span');
+                    arrowSymbol.innerHTML = '&rarr;';
+                    arrowSymbol.classList.add('ml-2');
+    
+                    linkContainer.appendChild(boldText);
+                    linkContainer.appendChild(linkElement);
+                    linkElement.appendChild(arrowSymbol);
+    
+                    linksContainer.appendChild(linkContainer);
+                });
+            }
+    
+            updateModal.style.display = 'flex';
+        }
+    
+        const urlParams = new URLSearchParams(window.location.search);
+        const qValue = urlParams.get('q');
+    
+        if (qValue && qValue.startsWith('id=')) {
+            const itemId = parseInt(qValue.split('=')[1]);
+            openModalForItemId(itemId);
+        }
+    
+    });
+</script>    

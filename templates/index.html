@@ -3,12 +3,11 @@
 {% load custom_filters %}
 {% block content %}
 
-<script>
-    console.log({{ apartments_data_json|safe }}, "apartments_data_json");
-</script>
-<script>
 
-    function toggleNotifications() {
+<script>
+    {% comment %} console.log({{apartments_data_json|safe}}) {% endcomment %}
+
+    {% comment %} function toggleNotifications() {
         const notifications = document.getElementById('notifications');
         const plusIcon = document.getElementById('plusIcon');
         const minusIcon = document.getElementById('minusIcon');
@@ -21,7 +20,7 @@
         
         // Toggle visibility of notifications
         if (notifications.style.display === 'none' || !notifications.style.display) {
-            notifications.style.display = 'grid'; // or whatever display value you want
+            notifications.style.display = 'grid'; 
         } else {
             notifications.style.display = 'none';
         }
@@ -29,33 +28,40 @@
         // Toggle icons
         plusIcon.classList.toggle('hidden');
         minusIcon.classList.toggle('hidden');
-    }
+    } {% endcomment %}
 </script>
-<section class="bg-white dark:bg-gray-900">
+{% comment %} <section class="bg-white dark:bg-gray-900">
     <div class="py-8 px-4 mx-auto max-w-screen-xl lg:py-16 lg:px-6">
         <div class="mx-auto max-w-screen-md mb-8 lg:mb-12 flex justify-center items-center">
             <h2 class="text-4xl tracking-tight font-extrabold text-gray-900 dark:text-white mr-4">Notifications</h2>
             <button onclick="toggleNotifications()" class="focus:outline-none">
-                <svg id="minusIcon" class="w-[25px] h-[25px] text-gray-800 dark:text-white hidden" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 18 2">
+                <svg id="plusIcon" class="w-[25px] h-[25px] text-gray-800 dark:text-white hidden" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 18 2">
                     <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M1 1h16"/>
                 </svg>
-                <svg id="plusIcon" class="w-[25px] h-[25px] text-gray-800 dark:text-white block" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 18 18">
+                <svg id="minusIcon" class="w-[25px] h-[25px] text-gray-800 dark:text-white block" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 18 18">
                     <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 1v16M1 9h16"/>
                 </svg>
             </button>
         </div>
         <div id="notifications" class="hidden space-y-8 lg:grid lg:grid-cols-3 sm:gap-6 xl:gap-10 lg:space-y-0">
           
-            <!-- Pricing Card -->
+            <!-- Today Notifications -->
             {% #card title="Today" %}
 
                 {% for notification in today_notifications %}
                     <li class="flex items-center space-x-3">
                         <svg class="flex-shrink-0 w-5 h-5 text-green-500 dark:text-green-400" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"></path></svg>
-                        <span>{{ notification.message }} 
+                        <span>{{ notification.notification_message }}
+                        </br>
                             {% if notification.booking %}
-                            <a href="/bookings?q=id={{ notification.booking.id }}" target="_blank" class="text-blue-500 underline">View Booking</a>
-                        {% endif %} 
+                                <a href="/bookings?q=id={{ notification.booking.id }}" target="_blank" class="text-blue-500 underline">View Booking</a>
+                            {% endif %}
+                            {% if notification.payment %}
+                                <a href="/payments?q=id={{ notification.payment.id }}" target="_blank" class="text-blue-500 underline">View Payment</a>
+                             {% endif %}  
+                            {% if notification.cleaning %}
+                                <a href="/cleanings?q=id={{ notification.cleaning.id }}" target="_blank" class="text-blue-500 underline">View Cleaning</a>
+                             {% endif %}  
                         </span>
                     </li>
                     {% empty %}
@@ -63,15 +69,22 @@
                 {% endfor %}
             {% /card %}
 
+            <!-- This week Notifications -->
             {% #card title="Current Week" %}
             {% for notification in next_week_notifications %}
                     <li class="flex items-center space-x-3">
                         <svg class="flex-shrink-0 w-5 h-5 text-green-500 dark:text-green-400" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"></path></svg>
-                        <span>
-                            {{ notification.message }} 
+                        <span>{{ notification.notification_message }}
+                        </br>
                             {% if notification.booking %}
-                            <a href="/bookings?q=id={{ notification.booking.id }}" target="_blank" class="text-blue-500 underline">View Booking</a>
-                        {% endif %} 
+                                <a href="/bookings?q=id={{ notification.booking.id }}" target="_blank" class="text-blue-500 underline">View Booking</a>
+                            {% endif %}
+                            {% if notification.payment %}
+                                <a href="/payments?q=id={{ notification.payment.id }}" target="_blank" class="text-blue-500 underline">View Payment</a>
+                             {% endif %}  
+                            {% if notification.cleaning %}
+                                <a href="/cleanings?q=id={{ notification.cleaning.id }}" target="_blank" class="text-blue-500 underline">View Cleaning</a>
+                             {% endif %}  
                         </span>
                     </li>
                     {% empty %}
@@ -80,52 +93,80 @@
 
            {% /card %}
 
+         <!-- This Month Notifications -->
         {% #card title="Current Month" %}
                 {% for notification in next_month_notifications %}
                     <li class="flex items-center space-x-3">
                         <svg class="flex-shrink-0 w-5 h-5 text-green-500 dark:text-green-400" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"></path></svg>
-                        <span>{{ notification.message }}
+                        <span>{{ notification.notification_message }}
+                        </br>
                             {% if notification.booking %}
-                            <a href="/bookings?q=id={{ notification.booking.id }}" target="_blank" class="text-blue-500 underline">View Booking</a>
-                        {% endif %} 
+                                <a href="/bookings?q=id={{ notification.booking.id }}" target="_blank" class="text-blue-500 underline">View Booking</a>
+                            {% endif %}
+                            {% if notification.payment %}
+                                <a href="/payments?q=id={{ notification.payment.id }}" target="_blank" class="text-blue-500 underline">View Payment</a>
+                             {% endif %}  
+                            {% if notification.cleaning %}
+                                <a href="/cleanings?q=id={{ notification.cleaning.id }}" target="_blank" class="text-blue-500 underline">View Cleaning</a>
+                             {% endif %}  
                         </span>
                     </li>
                     {% empty %}
                         <div class="text-center py-4">No Notifications Current Month</div>
                 {% endfor %}
             {% /card %}
-                   
-         
+        </div>
     </div>
-    </div>
-  </section>
+  </section> {% endcomment %}
 
   <section class="bg-white dark:bg-gray-900"> 
     <div class="pb-8 px-4 mx-auto max-w-screen-xl lg:pb-16 lg:px-6">
         <div class="mx-auto max-w-screen-md mb-8 lg:mb-12 flex justify-center items-center">
-          <h2 class="text-4xl tracking-tight font-extrabold text-gray-900 dark:text-white mr-4">Calendars</h2>
+          <h2 class="text-4xl tracking-tight font-extrabold text-gray-900 dark:text-white mr-4">Calendars2</h2>
         </div>
         <div class="flex justify-center items-center mb-6">
             <div class="flex items-center mr-2">
-                <span class="  w-10 flex justify-center items-center  text-blue-500 rounded-sm mr-2">01</span>
+                <span class="w-10 flex justify-center items-center text-blue-500 border border-blue-500 font-extrabold rounded-sm mr-2">01</span>
                 <span>- Booking</span>
             </div>
             <div class="flex items-center mr-2">
-                <span class="  w-10 flex justify-center items-center  bg-green-100  rounded-sm mr-2">01</span>
+                <span class="w-10 flex justify-center items-center relative rounded-sm mr-2">01
+                    <div class="absolute top-0 right-0 w-2 h-2 bg-transparent" style="clip-path: polygon(100% 0, 0 0, 100% 100%); background-color: #4ade80;"></div>
+                </span>
                 <span>- Cleaning</span>
             </div>
             <div class="flex items-center">
-                <span class="  w-10 flex justify-center items-center  border border-red-600 rounded-sm mr-2">01</span>
+                <span class="w-10 flex justify-center items-center relative rounded-sm mr-2">01
+                    <div class="absolute bottom-0 right-0 w-2 h-2 bg-transparent" style="clip-path: polygon(100% 100%, 100% 0, 0 100%); background-color: #facc15;"></div>
+                </span>
                 <span>- Payment</span>
+            </div>
+            <div class="flex items-center mr-2">
+                <span class="w-10 flex justify-center items-center text-purple-500 font-extrabold rounded-sm mr-2">01</span>
+                <span>- Start/End Date</span>
             </div>
         </div>
         
+        
         {% for apartment_id, apartment_data in apartments_data.items %}
-            <h2 class="text-2xl text-center mb-2 tracking-tight font-extrabold text-gray-900 dark:text-white mr-4">{{  apartment_data.apartment.name }}</h2>
+                <div class="flex justify-center items-center">
+                    <h2 class="text-2xl text-center mb-2 tracking-tight font-extrabold text-gray-500 dark:text-white mr-4">{{  apartment_data.apartment.name }} [{{apartment_data.apartment.status}}]</h2>
+                    <a class="cursor-pointer ml-4" target="_blank" href="/apartments/?q=id={{apartment_id}}">
+                        <svg class="w-8 h-8 text-blue-500 dark:text-white" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="currentColor" viewBox="0 0 20 18">
+                            <path d="M12.687 14.408a3.01 3.01 0 0 1-1.533.821l-3.566.713a3 3 0 0 1-3.53-3.53l.713-3.566a3.01 3.01 0 0 1 .821-1.533L10.905 2H2.167A2.169 2.169 0 0 0 0 4.167v11.666A2.169 2.169 0 0 0 2.167 18h11.666A2.169 2.169 0 0 0 16 15.833V11.1l-3.313 3.308Zm5.53-9.065.546-.546a2.518 2.518 0 0 0 0-3.56 2.576 2.576 0 0 0-3.559 0l-.547.547 3.56 3.56Z"/>
+                            <path d="M13.243 3.2 7.359 9.081a.5.5 0 0 0-.136.256L6.51 12.9a.5.5 0 0 0 .59.59l3.566-.713a.5.5 0 0 0 .255-.136L16.8 6.757 13.243 3.2Z"/>
+                        </svg>
+                    </a>
+                    <a class="cursor-pointer ml-4" target="_blank"  href="/apartment?apartment.id={{apartment_id}}">
+                        <svg class="w-8 h-8 text-blue-500 dark:text-white" aria-hidden="true" xmlns="http://www.w3.org/2000/svg"fill="none" viewBox="0 0 17 18">
+                            <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M1 12v5m5-9v9m5-5v5m5-9v9M1 7l5-6 5 6 5-6"/>
+                        </svg>
+                    </a>
+                </div>
             
             <div class="flex items-center mb-8">
                 <!-- Previous Button -->
-                <a href="?page={{ request.GET.page|default:"1"|add:"-1" }}" class=" text-white p-4 rounded-l" style="height: fit-content;">
+                <a href="?page={{ prev_page }}" class="text-white p-4 rounded-l" style="height: fit-content;">
                     <svg class="w-6 h-6 text-gray-800 dark:text-white" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 8 14">
                         <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 1 1.3 6.326a.91.91 0 0 0 0 1.348L7 13"/>
                     </svg>
@@ -139,7 +180,7 @@
                 </div>
         
                 <!-- Next Button -->
-                <a href="?page={{ request.GET.page|default:"1"|add:"1" }}" class=" text-white p-4 rounded-r" style="height: fit-content;">
+                <a href="?page={{ next_page }}" class=" text-white p-4 rounded-r" style="height: fit-content;">
                     <svg class="w-6 h-6 text-gray-800 dark:text-white" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 8 14">
                         <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m1 13 5.7-5.326a.909.909 0 0 0 0-1.348L1 1"/>
                     </svg>
@@ -150,6 +191,28 @@
   </div>
 </section>
 
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Function to save scroll position
+        function saveScrollPosition() {
+            localStorage.setItem('calendarScrollPosition', window.scrollY);
+        }
+
+        // Function to restore scroll position
+        function restoreScrollPosition() {
+            const storedScrollPosition = localStorage.getItem('calendarScrollPosition');
+            if (storedScrollPosition !== null) {
+                window.scrollTo(0, parseInt(storedScrollPosition, 10));
+            }
+        }
+
+        // Attach a scroll event listener to the window
+        window.addEventListener('scroll', saveScrollPosition);
+
+        // Restore scroll position when the page loads
+        window.addEventListener('load', restoreScrollPosition);
+    });
+</script>
 
 <script>
     document.addEventListener('DOMContentLoaded', function() {
@@ -161,6 +224,8 @@
         closeButton.addEventListener('click', function() {
             popover.classList.add('hidden');
         });
+
+        
     
         days.forEach(day => {
             day.addEventListener('click', function(event) {
@@ -168,6 +233,8 @@
     
                 const bookingIds = day.dataset.bookingIds.split(',');
                 const bookingStarts = day.dataset.bookingStarts.split(',');
+                const tenants = day.dataset.tenants.split(',');
+                const tenantsIds = day.dataset.tenantsIds.split(',');
                 const bookingEnds = day.dataset.bookingEnds.split(',');
                 const bookingStatuses = day.dataset.bookingStatuses.split(',');
     
@@ -187,7 +254,12 @@
     
                 bookingIds.forEach((bookingId, index) => {
                     if (bookingId) {
-                        content += `<strong>Booking:</strong> <a class='text-blue-500 underline' href="/bookings?q=id=${bookingId}">${bookingStarts[index]} - ${bookingEnds[index]} [${bookingStatuses[index]}] </a><br>`;
+                        content += `<strong>Booking:</strong> <a class='text-blue-500 underline' href="/bookings?q=id=${bookingId}">${bookingStarts[index]} - ${bookingEnds[index]} [${bookingStatuses[index]}]. </a><br>`;
+                    }
+                });
+                tenantsIds.forEach((tenantId, index) => {
+                    if (tenantId) {
+                        content += `<strong>Tenant:</strong> <a class='text-blue-500 underline' href="/users?q=id=${tenantId}">${tenants[index]}. </a><br>`;
                     }
                 });
     
@@ -226,7 +298,7 @@
     
 </script>
 
-<div id="dynamic-popover" class="hidden fixed z-10 w-[350px] text-sm text-gray-500  bg-white border border-gray-200 rounded-lg shadow-sm  dark:text-gray-400 dark:border-gray-600 dark:bg-gray-800">
+<div id="dynamic-popover" class="hidden fixed z-10 w-[375px] text-sm text-gray-500  bg-white border border-gray-200 rounded-lg shadow-sm  dark:text-gray-400 dark:border-gray-600 dark:bg-gray-800">
     <div class="px-3 py-2 bg-gray-100 border-b border-gray-200 rounded-t-lg dark:border-gray-600 dark:bg-gray-700 flex justify-between items-center">
         <h3 class="font-semibold text-gray-900 dark:text-white" id="popover-title"></h3>
         <button id="close-popover" class="text-gray-600 hover:text-gray-800 dark:text-gray-300 dark:hover:text-white">

@@ -8,7 +8,6 @@
             <div class="flex justify-between items-center pb-4 mb-4 rounded-t border-b sm:mb-5 dark:border-gray-600">
                 <h3 class="text-lg font-semibold text-gray-900 dark:text-white">Create {{ model|title }}</h3>
                 <button id="closeCreateModal" type="button" class="text-gray-400 bg-transparent hover:bg-gray-200 hover:text-gray-900 rounded-lg text-sm p-1.5 ml-auto inline-flex items-center dark:hover:bg-gray-600 dark:hover:text-white" data-modal-target="createModal" data-modal-toggle="createModal">
-                    <!-- ... (close button SVG) ... -->
                     <span class="sr-only">Close modal</span>
                 </button>
             </div>
@@ -23,7 +22,7 @@
                                     <label for="{{ field_name }}" class="block mb-2 text-sm font-medium text-gray-900 dark:text-white">{{ field_name|split_underscore|title }}
                                         {% if field_instance.required %}<span class="text-red-600">*</span>{% endif %}
                                     </label>
-                                    <textarea id="{{field_name}}" name="{{field_name}}" rows="5" class="block p-2.5 w-full text-sm text-gray-900 bg-gray-50 rounded-lg border border-gray-300 focus:ring-primary-500 focus:border-primary-500 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white dark:focus:ring-primary-500 dark:focus:border-primary-500" placeholder="Write a description..."></textarea>
+                                    <textarea id="{{field_name}}" name="{{field_name}}" rows="5" class="block p-2.5 w-full text-sm text-gray-900 bg-gray-50 rounded-lg border border-gray-300 focus:ring-primary-500 focus:border-primary-500 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white dark:focus:ring-primary-500 dark:focus:border-primary-500" placeholder=""></textarea>
                                 </div>
                             {% else %}
                                 <div>
@@ -31,7 +30,7 @@
                                         {% if field_instance.required %}<span class="text-red-600">*</span>{% endif %}
                                     </label>
                                     {% if field_instance.ui_element == "datepicker" %}
-                                        <input name="{{field_name}}" datepicker type="text" value="" class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white dark:focus:ring-blue-500 dark:focus:border-blue-500" placeholder="Select date">
+                                        <input name="{{field_name}}" datepicker type="text"  value="{% if model != 'apartments' %}{% now 'm/d/Y' %}{% endif %}"  class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white dark:focus:ring-blue-500 dark:focus:border-blue-500" placeholder="Select date">
                                     {% elif field_instance.ui_element == "checkbox" %}
                                         <input checked id="{{field_name}}" type="checkbox" name="{{field_name}}" value="1" class="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 dark:focus:ring-blue-600 dark:ring-offset-gray-800 focus:ring-2 dark:bg-gray-700 dark:border-gray-600">
                                     {% elif field_instance.ui_element == "dropdown" %}
@@ -50,6 +49,7 @@
                     {% endfor %}
                     
                 </div> 
+                 <!-- Payment Container -->
                 <div id="paymentsContainer-create"></div>        
                 <div class="flex items-center space-x-4">
                     <button type="submit" class="text-white bg-primary-700 hover:bg-primary-800 focus:ring-4 focus:outline-none focus:ring-primary-300 font-medium rounded-lg text-sm px-5 py-2.5 text-center dark:bg-primary-600 dark:hover:bg-primary-700 dark:focus:ring-primary-500">Create</button>
@@ -63,15 +63,6 @@
 </div>
 
 <script>
-    function formatDate(dateString) {
-        if (!dateString) {
-            return ""; // or return any default value you want
-        }
-    
-        const options = { year: 'numeric', month: '2-digit', day: '2-digit' };
-        return new Date(dateString).toLocaleDateString(undefined, options);
-    }
-    
 
     document.addEventListener('DOMContentLoaded', function() {
         const createModal = document.getElementById('createModal');
