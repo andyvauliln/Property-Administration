@@ -36,7 +36,7 @@
         {% for day_data in week %}
             {% if day_data.day.month == month.month %}
                 <div class="relative day px-1 mb-1 w-10 flex justify-center items-center 
-                    {% if 'Blocked' in day_data.booking_statuses %} text-red-500 border border-red-500 font-extrabold
+                    {% if 'Blocked' in day_data.booking_statuses %} bg-black font-extrabold
                     {% elif 'Waiting Payment' in day_data.booking_statuses or 'Waiting Contract' in day_data.booking_statuses %} text-yellow-500 border border-yellow-500 font-extrabold
                     {% elif day_data.booking_ids %} text-blue-500 border border-blue-500 font-extrabold
                     {% endif %}

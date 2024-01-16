@@ -844,6 +844,16 @@ def apartment(request):
         'profit': {}  # Initialize profit data
     }
 
+    min_month = 1
+    max_month = 13
+    if apartment.start_date and apartment.start_date.date() > start_date and apartment.start_date.date() < end_date:
+        min_month = apartment.start_date.month
+        
+    if apartment.end_date and apartment.end_date.date() < end_date and apartment.end_date.date() > start_date:
+        max_month = apartment.end_date.month
+
+    num_month = max_month - min_month
+
     for i in range(12):
         # Calculate the month, wrapping around to the next year if needed
         month_date = start_date + relativedelta(months=i)
@@ -915,7 +925,7 @@ def apartment(request):
         }
 
         apartment_data["total_occupancy"] = round(sum(month_data.get('month_occupancy', 0)
-                                                      for month_data in apartment_data['months'].values()) / 12)
+                                                      for month_data in apartment_data['months'].values()) / num_month)
         apartment_data["profit"] = sum(month_data.get('month_sure_profit', 0)
                                        for month_data in apartment_data['months'].values())
         apartment_data["pending_profit"] = sum(month_data.get('month_pending_profit', 0)
@@ -1168,6 +1178,23 @@ def apartments_analytics(request):
                 "year_avg_outcome": 0,
             }
 
+            if apartment.start_date and apartment.start_date.date() >= end_date:
+                continue
+            if apartment.end_date and apartment.end_date.date() <= start_date:
+                continue
+
+            # Define the minimum and maximum months based on start_date, start_date_apartment, end_date, and end_date_apartment
+            min_month = 1
+            max_month = 13
+            if apartment.start_date and apartment.start_date.date() > start_date and apartment.start_date.date() < end_date:
+                min_month = apartment.start_date.month
+                
+            if apartment.end_date and apartment.end_date.date() < end_date and apartment.end_date.date() > start_date:
+                max_month = apartment.end_date.month
+
+            num_month = max_month - min_month
+            print(num_month, "num_month")
+          
             for i in range(12):
                 month_date = start_date + relativedelta(months=i)
                 next_month_date = month_date + \
@@ -1219,14 +1246,14 @@ def apartments_analytics(request):
                 selected_apartment["year_occupancy"] += month_occupancy
 
             selected_apartment["year_avg_profit"] = round(
-                selected_apartment["year_total_profit"]/12)
+                selected_apartment["year_total_profit"]/num_month)
             selected_apartment["year_avg_income"] = round(
-                (selected_apartment["year_income"] + selected_apartment["year_pending_income"])/12)
+                (selected_apartment["year_income"] + selected_apartment["year_pending_income"])/num_month)
             selected_apartment["year_avg_outcome"] = round(
-                (selected_apartment["year_outcome"] + selected_apartment["year_pending_outcome"])/12)
+                (selected_apartment["year_outcome"] + selected_apartment["year_pending_outcome"])/num_month)
             selected_apartments_data.append(selected_apartment)
             selected_apartment["year_occupancy"] = round(
-                selected_apartment["year_occupancy"]/12)
+                selected_apartment["year_occupancy"]/num_month)
 
     apartments_data["selected_apartments_data"] = selected_apartments_data
     apartments_data_str_keys = stringify_keys(apartments_data)

@@ -420,9 +420,10 @@ class Booking(models.Model):
                     {"name": f"Owner: {owner.full_name}", "link": f"/users?q=id={owner.id}"})
         payments = self.payments.all()
         for payment in payments:
+            formatted_date = payment.payment_date.strftime("%m/%d/%Y")
             links_list.append({
                 "name":
-                f"Payment: {payment.payment_type} - {payment.amount}$ on {payment.payment_date} [{payment.payment_status}]",
+                f"Payment: {payment.payment_type} - {payment.amount}$ on {formatted_date} [{payment.payment_status}]",
                 "link": f"/payments?q=id={payment.id}"})
 
         cleanings = self.cleanings.all()
@@ -430,7 +431,7 @@ class Booking(models.Model):
             cleaner = cleaning.cleaner
             if cleaner:
                 links_list.append(
-                    {"name": f"Cleaning: {cleaning.date} [{cleaning.status}]",
+                    {"name": f"Cleaning: {cleaning.date.strftime('%m/%d/%Y')} [{cleaning.status}]",
                      "link": f"/cleanings?q=id={cleaning.id}"})
                 links_list.append(
                     {"name": f"Cleaner: {cleaner.full_name}", "link": f"/users?q=id={cleaner.id}"})
@@ -560,7 +561,7 @@ class Payment(models.Model):
         if self.booking:
             links_list.append({
                 "name":
-                f"Booking: Apartment {self.booking.apartment.name} from {self.booking.start_date} to {self.booking.end_date}",
+                f"Booking: Apartment {self.booking.apartment.name} from {self.booking.start_date.strftime('%m/%d/%Y')} to {self.booking.end_date.strftime('%m/%d/%Y')}",
                 "link": f"/bookings?q=id={self.booking.id}"})
             links_list.append({
                 "name":
@@ -620,7 +621,7 @@ class Cleaning(models.Model):
         if self.booking:
             links_list.append({
                 "name":
-                f"Booking: Apartment {self.booking.apartment.name} from {self.booking.start_date} to {self.booking.end_date}",
+                f"Booking: Apartment {self.booking.apartment.name} from {self.booking.start_date.strftime('%m/%d/%Y')} to {self.booking.end_date.strftime('%m/%d/%Y')}",
                 "link": f"/bookings?q=id={self.booking.id}"})
 
         return links_list
