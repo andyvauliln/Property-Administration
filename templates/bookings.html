@@ -158,8 +158,30 @@
             {% endif %}
         {% endfor %}
     ];
-
-    function addPaymentRow(modal) {
+    function addDefaultPayments(modal) {
+        //<option value="1">Income</option>
+       //<option value="2">Expense</option>
+       //<option value="3">Damage Deposit</option>
+       //<option value="4">Hold Deposit</option>
+       //<option value="5">Damage Deposit Return</option>
+       //<option value="6">Rent</option>
+       //<option value="7">Mortage</option>
+       const startDateInput = document.getElementById("start_date");
+       const startDate = new Date(startDateInput.value);
+   
+       var currentDate = new Date();
+       var holdDepositDate = new Date(currentDate);
+       holdDepositDate.setDate(currentDate.getDate() + 2);
+   
+       const ownerPaymentDate = new Date(startDate);
+       ownerPaymentDate.setDate(startDate.getDate() + 4);
+   
+       addPaymentRow(modal, holdDepositDate, 0, 4);
+       addPaymentRow(modal, startDate, 750, 3);
+       addPaymentRow(modal, startDate, 0, 6);
+       addPaymentRow(modal, ownerPaymentDate, 0, 2);
+   }
+    function addPaymentRow(modal, defaultDate = "", defaultAmount = "", defaultPaymentType = "") {
     
             const paymentsContainer = document.getElementById('paymentsContainer-' + modal);
 
@@ -178,7 +200,8 @@
             paymentDateInput.setAttribute('placeholder', 'Select date');
             paymentDateInput.setAttribute('datepicker', '');
             paymentDateInput.className = 'w-1/4 bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-primary-500 focus:border-primary-500 block p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white dark:focus:ring-primary-500 dark:focus:border-primary-500 datepicker-input';
-            
+            paymentDateInput.setAttribute('value', defaultDate);
+
             new Flowbite.default.Datepicker(paymentDateInput, {});
 
             const amountInput = document.createElement('input');
@@ -186,7 +209,8 @@
             amountInput.setAttribute('type', 'text');
             amountInput.setAttribute('placeholder', 'Amount');
             amountInput.className = 'w-1/4 bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-primary-500 focus:border-primary-500 block p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white dark:focus:ring-primary-500 dark:focus:border-primary-500';
-            
+            amountInput.value = defaultAmount;
+
             const number_of_months = document.createElement('input');
             number_of_months.setAttribute('name', 'number_of_months[]');
             number_of_months.setAttribute('type', 'text');
@@ -197,13 +221,18 @@
             const paymentTypeSelect = document.createElement('select');
             paymentTypeSelect.setAttribute('name', 'payment_type[]');
             paymentTypeSelect.className = 'w-1/4 bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-primary-500 focus:border-primary-500 block p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white dark:focus:ring-primary-500 dark:focus:border-primary-500';
-        
+           
+
             // Dynamically generate options based on paymentTypes
             paymentTypes.forEach(type => {
                 const option = document.createElement('option');
                 option.setAttribute('value', type.value);
                 option.textContent = type.label;
+                if (type.value == defaultPaymentType) {
+                    option.selected = true;
+                }
                 paymentTypeSelect.appendChild(option);
+                
             });
 
             const deleteButton = document.createElement('button');

@@ -129,6 +129,7 @@ DATABASES = {
         'PORT': os.environ["PGPORT"],
     }
 }
+print(DATABASES, "DATABASES")
 
 
 # Password validation

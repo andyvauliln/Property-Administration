@@ -198,6 +198,7 @@ class Booking(models.Model):
 
     start_date = models.DateField(db_index=True)
     end_date = models.DateField(db_index=True)
+    tenants_n = models.DecimalField(max_digits=2, decimal_places=0, null=True, blank=True)
     status = models.CharField(max_length=32, db_index=True,
                               blank=True, choices=STATUS, default='Waiting Contract')
     animals = models.CharField(max_length=32, blank=True, choices=ANIMALS)
@@ -222,6 +223,7 @@ class Booking(models.Model):
         if self.pk:  # If primary key exists, it's an update
             form_data = kwargs.pop('form_data', None)
             payments_data = kwargs.pop('payments_data', None)
+            self.get_or_create_tenant(form_data)
             self.create_payments(payments_data)
             orig = Booking.objects.get(pk=self.pk)
             # If start_date has changed
@@ -294,13 +296,23 @@ class Booking(models.Model):
         tenant_phone = form_data.get('tenant_phone')
 
         if tenant_email:
-            # Check if a user with this email already exists
-            user, created = User.objects.get_or_create(email=tenant_email, defaults={
-                'full_name': tenant_full_name,
-                'phone': tenant_phone,
-                'role': 'Tenant',
-                'password': User.objects.make_random_password()
-            })
+            # Try to retrieve an existing user with the given email
+            user = User.objects.filter(email=tenant_email).first()
+
+            if user:
+                # If the user exists, update the full_name and phone fields
+                user.full_name = tenant_full_name
+                user.phone = tenant_phone
+                user.save()
+            else:
+                # If the user doesn't exist, create a new one
+                user = User.objects.create(
+                    email=tenant_email,
+                    full_name=tenant_full_name,
+                    phone=tenant_phone,
+                    role='Tenant',
+                    password=User.objects.make_random_password()
+                )
 
             # Assign the user to the booking's tenant field
             self.tenant = user
@@ -393,12 +405,6 @@ class Booking(models.Model):
     def links(self):
         links_list = []
 
-        # Link to the contract associated with this booking
-        # contract = self.contract.first()
-        # if contract:
-        #     links_list.append({"name": f"Contract: {contract.contract_id or contract.id}",
-        #                        "link": f"/contracts?q=id={contract.id}"})
-        # Link to the tenant associated with this booking
         if self.tenant:
             links_list.append({"name": f"Tenant: {self.tenant.full_name}",
                               "link": f"/users?q=id={self.tenant.id}"})

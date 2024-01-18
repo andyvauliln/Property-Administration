@@ -36,12 +36,24 @@
         {% for day_data in week %}
             {% if day_data.day.month == month.month %}
                 <div class="relative day px-1 mb-1 w-10 flex justify-center items-center 
-                    {% if 'Blocked' in day_data.booking_statuses %} bg-black font-extrabold
-                    {% elif 'Waiting Payment' in day_data.booking_statuses or 'Waiting Contract' in day_data.booking_statuses %} text-yellow-500 border border-yellow-500 font-extrabold
-                    {% elif day_data.booking_ids %} text-blue-500 border border-blue-500 font-extrabold
+                    {% if 'Blocked' in day_data.booking_statuses %} 
+                        bg-black font-extrabold
+                    {% elif 'Waiting Payment' in day_data.booking_statuses or 'Waiting Contract' in day_data.booking_statuses %}
+                        text-yellow-500 border border-yellow-500 font-extrabold
+                    {% elif day_data.booking_ids %}
+                         text-blue-500 border border-blue-500 font-extrabold
                     {% endif %}
-                    {% if day_data.day in day_data.booking_starts or day_data.day in day_data.booking_ends %}text-purple-500 font-extrabold{% endif %}
-                    cursor-pointer rounded-sm"
+                    {% if day_data.day in day_data.booking_starts or day_data.day in day_data.booking_ends %}
+                        text-purple-500 font-extrabold
+                    {% endif %}
+                    cursor-pointer rounded-sm" 
+                    {% if day_data.booking_ids %}
+                         onclick="openModalForItemId({{ day_data.booking_ids.0 }})"
+                    {% else %}
+                         onclick="openCreateModal()"
+                    {% endif %}
+                    
+                    data-apartment-id="{{apartment_id}}"
                     data-booking-ids="{{ day_data.booking_ids|join:',' }}"
                     data-tenants="{{ day_data.tenants|join:',' }}"
                     data-tenants-ids="{{ day_data.tenants_ids|join:',' }}"
@@ -63,7 +75,7 @@
                     {% endif %}
 
                     {% if day_data.payment_ids %}
-                    <div class="absolute bottom-0 right-0 w-2 h-2 bg-transparent" style="clip-path: polygon(100% 100%, 100% 0, 0 100%); background-color: #facc15;"></div>
+                        <div class="absolute bottom-0 right-0 w-2 h-2 bg-transparent" style="clip-path: polygon(100% 100%, 100% 0, 0 100%); background-color: #facc15;"></div>
                     {% endif %}
                     
                 </div>
