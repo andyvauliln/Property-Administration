@@ -27,6 +27,7 @@ import requests
 from django.http import HttpResponseBadRequest
 from .decorators import user_has_role
 from django.db.models import Min
+from django.core.serializers.json import DjangoJSONEncoder
 # from docusign_esign import EnvelopesApi, EnvelopeDefinition, TemplateRole, Text, Tabs, EnvelopeEvent
 # from docusign_esign import ApiClient, AuthenticationApi, RecipientViewRequest, EventNotification, RecipientEvent
 
@@ -45,18 +46,19 @@ def generate_weeks(month_start):
     cal = calendar.Calendar(firstweekday=calendar.SUNDAY)
     return cal.monthdatescalendar(month_start.year, month_start.month)
 
+class DateEncoder(DjangoJSONEncoder):
+    def default(self, obj):
+        if isinstance(obj, date):
+            return obj.isoformat()
+        return super().default(obj)
 
 @user_has_role('Admin', "Manager")
 def index(request):
 
-    # Fetch today's notifications
-    # today = date.today()
-    # next_week = today + timedelta(days=7)
-    # next_month = today + timedelta(days=30)
-    # all_notifications = Notification.objects.filter(
-    #     date__range=(today, next_month))
-
     page = request.GET.get('page', 1)
+
+    if request.method == 'POST':
+        handle_post_request(request, Booking, BookingForm)
 
     try:
         page = int(page)
@@ -65,9 +67,9 @@ def index(request):
 
     prev_page = page - 1
     next_page = page + 1
-    start_month = (date.today() + relativedelta(months=3 *
+    start_month = (date.today() + relativedelta(months=12 *
                    (page - 1))).replace(day=1)
-    months = [start_month + relativedelta(months=i) for i in range(3)]
+    months = [start_month + relativedelta(months=i) for i in range(12)]
     end_date = months[-1] + relativedelta(months=1) - timedelta(days=1)
 
     if request.user.role == 'Manager':
@@ -85,43 +87,15 @@ def index(request):
         # Filter payments related to bookings managed by this user
         payments = Payment.objects.filter(booking__apartment__manager=request.user, payment_date__range=(
             start_month, end_date)).select_related('booking__apartment')
-
-        # manager_related_notifications = []
-        # for notification in all_notifications:
-        #     if notification.booking:
-        #         if notification.booking.apartment.manager == request.user:
-        #             manager_related_notifications.append(notification)
-        #     elif notification.cleaning:
-        #         if notification.cleaning.booking and notification.cleaning.booking.apartment.manager == request.user:
-        #             manager_related_notifications.append(notification)
-        #     elif notification.payment:
-        #         related_apartment = notification.payment.booking.apartment if notification.payment.booking else notification.payment.apartment
-        #         if related_apartment and related_apartment.manager == request.user:
-        #             manager_related_notifications.append(notification)
-
-        # Group notifications by period
-        # today_notifications = [
-        #     n for n in manager_related_notifications if n.date == today]
-        # next_week_notifications = [
-        #     n for n in manager_related_notifications if today < n.date <= next_week]
-        # next_month_notifications = [
-        #     n for n in manager_related_notifications if next_week < n.date <= next_month]
     else:
         # Fetch all properties
         apartments = Apartment.objects.filter(
             Q(end_date__gte=start_month) | Q(end_date__isnull=True)).order_by('name')
-        bookings = Booking.objects.all()
+        bookings = Booking.objects.filter(Q(start_date__lte=end_date, end_date__gte=start_month))
         cleanings = Cleaning.objects.filter(date__range=(
             start_month, end_date)).select_related('booking__apartment')
         payments = Payment.objects.filter(payment_date__range=(start_month, end_date)
                                           ).select_related('booking__apartment')
-
-        # Group notifications by period
-        # today_notifications = [n for n in all_notifications if n.date == today]
-        # next_week_notifications = [
-        #     n for n in all_notifications if today < n.date <= next_week]
-        # next_month_notifications = [
-        #     n for n in all_notifications if next_week < n.date <= next_month]
 
     event_data = defaultdict(lambda: defaultdict(list))
 
@@ -199,11 +173,30 @@ def index(request):
     for apartment_id, apartment_data in apartments_data.items():
         apartment_data['months'] = dict(apartment_data['months'])
 
+    bookings_list = list(bookings.values())
+
+    # Extract the 'fields' from each item in the list
+    bookings_data_list = [{'id': booking['id'], **booking} for booking in bookings_list]
+
+    for item, original_obj in zip(bookings_data_list, bookings):
+        if hasattr(original_obj, 'assigned_cleaner'):
+            item['assigned_cleaner'] = original_obj.assigned_cleaner.id if original_obj.assigned_cleaner else None
+        if hasattr(original_obj, 'tenant'):
+            item['tenant_full_name'] = original_obj.tenant.full_name
+            item['tenant_email'] = original_obj.tenant.email
+            item['tenant_phone'] = original_obj.tenant.phone
+        item['links'] = original_obj.links
+
+    items_json = json.dumps(bookings_data_list, cls=DateEncoder)
+
+    model_fields = get_model_fields(BookingForm(request=request))
     context = {
         'apartments_data': apartments_data,
         'current_date': timezone.now(),
         # 'apartments_data_json': apartments_data_json,
         'months': months,
+        'items_json': items_json,
+        'model_fields': model_fields,
         'prev_page': prev_page,
         'next_page': next_page,
         'bookings': bookings,
@@ -359,6 +352,18 @@ def handle_post_request(request, model, form_class):
         form = form_class()
         return redirect(request.path)
 
+def get_model_fields(form):
+    fields = [
+        (field_name, field_instance)
+        for field_name, field_instance in form.fields.items()
+        if isinstance(field_instance, CustomFieldMixin)
+    ]
+
+    # Sort fields by the 'order' attribute
+    sorted_fields = sorted(fields, key=lambda item: item[1].order)
+    return sorted_fields
+
+
 
 def generic_view(request, model_name, form_class, template_name, pages=30):
     search_query = request.GET.get('q', '')
@@ -412,15 +417,17 @@ def generic_view(request, model_name, form_class, template_name, pages=30):
     for item, original_obj in zip(items_list, items_on_page):
         if hasattr(original_obj, 'assigned_cleaner'):
             item['assigned_cleaner'] = original_obj.assigned_cleaner.id if original_obj.assigned_cleaner else None
+        if hasattr(original_obj, 'tenant'):
+            item['tenant_full_name'] = original_obj.tenant.full_name
+            item['tenant_email'] = original_obj.tenant.email
+            item['tenant_phone'] = original_obj.tenant.phone
         item['links'] = original_obj.links
 
     # Convert the list back to a JSON string for passing to the template
     items_json = json.dumps(items_list)
 
     # Get fields from the model's metadata
-    model_fields = [
-        (field_name, field_instance) for field_name, field_instance in form.fields.items()
-        if isinstance(field_instance, CustomFieldMixin)]
+    model_fields = get_model_fields(form)
 
     return render(
         request, template_name,

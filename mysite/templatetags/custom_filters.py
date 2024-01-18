@@ -78,3 +78,16 @@ def format_number(value):
         return "{:,.0f}".format(value)
     except (ValueError, TypeError):
         return value
+
+
+@register.filter
+def format_nullable_date(date_string):
+    if date_string is None:
+        return '-'
+
+    try:
+        formatted_date = date_string.strftime('%b. %d, %Y')
+    except AttributeError:
+        return '-'
+
+    return formatted_date
