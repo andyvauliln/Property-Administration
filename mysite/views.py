@@ -67,9 +67,9 @@ def index(request):
 
     prev_page = page - 1
     next_page = page + 1
-    start_month = (date.today() + relativedelta(months=12 *
+    start_month = (date.today() + relativedelta(months=9 *
                    (page - 1))).replace(day=1)
-    months = [start_month + relativedelta(months=i) for i in range(12)]
+    months = [start_month + relativedelta(months=i) for i in range(9)]
     end_date = months[-1] + relativedelta(months=1) - timedelta(days=1)
 
     if request.user.role == 'Manager':

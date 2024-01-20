@@ -14,14 +14,11 @@ def convert_date_format(value):
     if isinstance(value, date):
         # If date_str is already a date object, return it as is
         return value
-    # Define the possible date formats to check
-    date_formats = ['%d/%m/%Y', '%d.%m.%Y', '%m/%d/%Y']
-
-    for date_format in date_formats:
-        try:
-            return datetime.strptime(value, date_format).date()
-        except ValueError:
-            pass
+    
+    try:
+        return datetime.strptime(value, '%m/%d/%Y').date()
+    except ValueError:
+        pass
 
     raise ValueError(f"Invalid date format: {value}")
 

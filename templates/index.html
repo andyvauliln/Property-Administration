@@ -127,19 +127,20 @@
 
 <script>
     function formatDate(inputDate) {
-        // Parse the input date string
-        const parsedDate = new Date(inputDate);
-      
+        // Parse the input date string in "MMMM D, YYYY" format
+        const parsedDate = new Date(Date.parse(inputDate));
+        console.log(parsedDate, "parsedDate")
+    
         // Get the month, day, and year components
         const month = (parsedDate.getMonth() + 1).toString().padStart(2, '0');
         const day = parsedDate.getDate().toString().padStart(2, '0');
         const year = parsedDate.getFullYear();
-      
+    
         // Format the date as MM/DD/YYYY
         const formattedDate = `${month}/${day}/${year}`;
-      
+    
         return formattedDate;
-      }
+    }
     function setSelectedOptionByText(selectId, optionText) {
         const selectElement = document.getElementById(selectId);
       
@@ -178,6 +179,18 @@
         
     
         days.forEach(day => {
+            day.addEventListener('click', function(event) {
+                const date = day.dataset.date;
+                const start_date = document.getElementById('start_date');
+                const end_date = document.getElementById('end_date');
+                
+
+                start_date.value = formatDate(date)
+                end_date.value = formatDate(date)
+                console.log(date, "date")
+                console.log(formatDate(date), "formatDate(date)")
+                setSelectedOptionByText("apartment", day.dataset.apartmentId)
+            })
             day.addEventListener('mouseenter', function(event) {
                 const date = day.dataset.date;
     
@@ -198,13 +211,7 @@
     
                 // Set the title of the popover with the date
                 popoverTitle.textContent = date;
-                const start_date = document.getElementById('start_date');
-                const end_date = document.getElementById('end_date');
                 
-
-                start_date.value = formatDate(date)
-                end_date.value = formatDate(date)
-                setSelectedOptionByText("apartment", day.dataset.apartmentId)
 
                 // Prepare the content for the popover
                 let content = '';

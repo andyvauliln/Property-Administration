@@ -29,6 +29,9 @@ venv.bak/
 
 static/CACHE/
 
+backups/
 backup.json
 
 .DS_Store
+
+.env.example
