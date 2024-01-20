@@ -100,7 +100,7 @@
 
 
 <script>
-    function formatDate(dateString) {
+    {% comment %} function formatDate(dateString) {
         if (!dateString) {
             return "";
         }
@@ -109,7 +109,7 @@
         const isoString = date.toISOString();
         const [year, month, day] = isoString.substring(0, 10).split('-');
         return `${month}/${day}/${year}`;
-    }
+    } {% endcomment %}
     document.addEventListener('DOMContentLoaded', function() {
        
        

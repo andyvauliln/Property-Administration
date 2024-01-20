@@ -144,7 +144,7 @@
             // Set the updated search input
             document.querySelector('#simple-search').value = searchInput;
         }
-        </script>        
+ </script>        
 {% /table %}
 
 <script>
@@ -166,8 +166,9 @@
        //<option value="5">Damage Deposit Return</option>
        //<option value="6">Rent</option>
        //<option value="7">Mortage</option>
-       const startDateInput = document.getElementById("start_date");
+       const startDateInput = document.getElementById("start_date-create");
        const startDate = new Date(startDateInput.value);
+      
    
        var currentDate = new Date();
        var holdDepositDate = new Date(currentDate);
@@ -175,18 +176,35 @@
    
        const ownerPaymentDate = new Date(startDate);
        ownerPaymentDate.setDate(startDate.getDate() + 4);
-   
+       console.log(start_date, "start_date")
+       console.log(holdDepositDate, "holdDepositDate" )
+       console.log(ownerPaymentDate, "ownerPaymentDate")
+        
        addPaymentRow(modal, holdDepositDate, 0, 4);
        addPaymentRow(modal, startDate, 750, 3);
        addPaymentRow(modal, startDate, 0, 6);
        addPaymentRow(modal, ownerPaymentDate, 0, 2);
    }
+   function parseDate(inputDate) {
+        // Parse the input date string in "MMMM D, YYYY" format
+        const parsedDate = new Date(Date.parse(inputDate));
+        console.log(inputDate, "inputDate")
+        console.log(parsedDate, "parsedDate")
+
+        // Get the month, day, and year components
+        const month = (parsedDate.getMonth() + 1).toString().padStart(2, '0');
+        const day = parsedDate.getDate().toString().padStart(2, '0');
+        const year = parsedDate.getFullYear();
+
+        // Format the date as MM/DD/YYYY
+        const formattedDate = `${month}/${day}/${year}`;
+
+        return formattedDate;
+    }
     function addPaymentRow(modal, defaultDate = "", defaultAmount = "", defaultPaymentType = "") {
     
             const paymentsContainer = document.getElementById('paymentsContainer-' + modal);
 
-            
-        
             const paymentRow = document.createElement('div');
             paymentRow.className = 'paymentRow flex flex-col gap-4 mb-4 items-start w-full';
         
@@ -200,7 +218,7 @@
             paymentDateInput.setAttribute('placeholder', 'Select date');
             paymentDateInput.setAttribute('datepicker', '');
             paymentDateInput.className = 'w-1/4 bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-primary-500 focus:border-primary-500 block p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white dark:focus:ring-primary-500 dark:focus:border-primary-500 datepicker-input';
-            paymentDateInput.setAttribute('value', defaultDate);
+            paymentDateInput.setAttribute('value', parseDate(defaultDate));
 
             new Flowbite.default.Datepicker(paymentDateInput, {});
 
