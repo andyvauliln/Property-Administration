@@ -35,3 +35,7 @@ backup.json
 .DS_Store
 
 .env.example
+
+.env.prod
+
+README.md/

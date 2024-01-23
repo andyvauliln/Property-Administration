@@ -16,18 +16,18 @@ Including another URLconf
 from django.contrib import admin
 from django.urls import path
 from . import views
-from .views import custom_login_view
-from .views import CustomLogoutView
+
 
 urlpatterns = [
     path('admin/', admin.site.urls),
     path('', views.index, name='index'),
-    path('login/', custom_login_view, name='login'),
-    path('logout/', CustomLogoutView.as_view(), name='logout'),
+    path('login/', views.custom_login_view, name='login'),
+    path('logout/', views.CustomLogoutView.as_view(), name='logout'),
     path('users/', views.users, name='users'),
     path('apartments/', views.apartments, name='apartments'),
     path('apartment/', views.apartment, name='apartment'),
-    path('apartments_analytics/', views.apartments_analytics, name='apartments_analytics'),
+    path('apartments_analytics/', views.apartments_analytics,
+         name='apartments_analytics'),
     path('cleanings/', views.cleanings, name='cleanings'),
     path('bookings/', views.bookings, name='bookings'),
     # path('contracts/', views.contracts, name='contracts'),
@@ -39,4 +39,7 @@ urlpatterns = [
     # path('docusign/', views.docusign, name='docusign'),
     # path('callback/', views.callback, name='callback'),
     path('payment-report/', views.paymentReport, name='paymentReport'),
+    path('forward-message/', views.forward_message, name='paymentReport'),
+    path('forward-message2/', views.forward_message2, name='paymentReport'),
+    # path('telegram_webhook/', views.forward_telegram, name='telegram_webhook'),
 ]

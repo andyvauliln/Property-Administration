@@ -8,19 +8,45 @@ from dateutil.relativedelta import relativedelta
 from datetime import datetime
 from django.utils import timezone
 from datetime import datetime, date, timedelta
+import re
 
 
 def convert_date_format(value):
     if isinstance(value, date):
         # If date_str is already a date object, return it as is
         return value
-    
+
     try:
         return datetime.strptime(value, '%m/%d/%Y').date()
     except ValueError:
         pass
 
     raise ValueError(f"Invalid date format: {value}")
+
+
+def format_phone(phone):
+    if phone:
+        if phone.startswith(('+')):
+            cleaned_phone = re.sub(r'\D', '', phone)
+            cleaned_phone = "+" + cleaned_phone
+            return cleaned_phone
+
+        elif phone.startswith(('0')):
+            cleaned_phone = re.sub(r'\D', '', phone)
+            cleaned_phone = "+1" + cleaned_phone[1:]
+            return cleaned_phone
+
+        elif phone.startswith(('1')):
+            cleaned_phone = re.sub(r'\D', '', phone)
+            cleaned_phone = "+" + cleaned_phone
+            return cleaned_phone
+
+        else:
+            cleaned_phone = re.sub(r'\D', '', phone)
+            cleaned_phone = "+1" + cleaned_phone
+            return cleaned_phone
+    else:
+        return ""
 
 
 class CustomUserManager(BaseUserManager):
@@ -72,6 +98,7 @@ class User(AbstractBaseUser, PermissionsMixin):
         # Check if the password is not hashed
         if self.password and not self.password.startswith(('pbkdf2_sha256$', 'bcrypt')):
             self.password = make_password(self.password)
+        self.phone = format_phone(self.phone)
         super(User, self).save(*args, **kwargs)
 
     @property
@@ -195,7 +222,8 @@ class Booking(models.Model):
 
     start_date = models.DateField(db_index=True)
     end_date = models.DateField(db_index=True)
-    tenants_n = models.DecimalField(max_digits=2, decimal_places=0, null=True, blank=True)
+    tenants_n = models.DecimalField(
+        max_digits=2, decimal_places=0, null=True, blank=True)
     status = models.CharField(max_length=32, db_index=True,
                               blank=True, choices=STATUS, default='Waiting Contract')
     animals = models.CharField(max_length=32, blank=True, choices=ANIMALS)
@@ -635,12 +663,6 @@ def format_date(date):
         return date.strftime("%m-%d-%Y")
     return ""
 
-# Notifications Model
-# for cleaning
-# for booking start and end
-# for payments
-# custome notifications
-
 
 class Notification(models.Model):
     def __str__(self):
@@ -698,6 +720,61 @@ class Notification(models.Model):
 
         return links_list
 
+
+class Chat(models.Model):
+    SENDER_TYPE = [
+        ('USER', 'USER'),
+        ('SYSTEM', 'SYSTEM'),
+        ('MANAGER', 'MANAGER'),
+        ('GPT_GESS', 'GPT_GESS'),
+        ('GPT_APPROVED', 'GPT_APPROVED'),
+    ]
+    MESSAGE_TYPE = [
+        ('NO_NEED_ACTION', 'NO_NEED_ACTION'),
+        ('DB', 'DB'),
+        ('KNOWLEDGE_BASE', 'KNOWLEDGE_BASE'),
+        ('NOTIFICATION', 'NOTIFICATION'),
+    ]
+    MESSAGE_STATUS = [
+        ('ERROR', 'ERROR'),
+        ('SENDED', 'SENDED'),
+        ('NEED_ANSWERE', 'NEED_ANSWERE'),
+        ('ANSWERED', 'ANSWERED'),
+    ]
+    sender_phone = models.CharField(max_length=20, blank=True, null=True)
+    receiver_phone = models.CharField(max_length=20, blank=True, null=True)
+    timestamp = models.DateTimeField(auto_now_add=True, db_index=True)
+    booking = models.ForeignKey(Booking, on_delete=models.SET_NULL, db_index=True,
+                                related_name='chat', null=True, blank=True)
+    message = models.TextField()
+    sender_type = models.CharField(
+        max_length=32, db_index=True, choices=SENDER_TYPE, null=True, blank=True)
+    context = models.TextField(null=True, blank=True)
+    message_type = models.CharField(
+        max_length=32, db_index=True, choices=MESSAGE_TYPE, default='NO_NEED_ACTION', null=True, blank=True)
+    message_status = models.CharField(
+        max_length=32, db_index=True, choices=MESSAGE_STATUS, default='SENDED')
+
+
+# class Chat(models.Model):
+#     MESSAGE_TYPE = [
+#         ('NO_NEED_ACTION', 'NO_NEED_ACTION'),
+#         ('DB', 'DB'),
+#         ('KNOWLEDGE_BASE', 'KNOWLEDGE_BASE'),
+#         ('MANAGER', 'MANAGER'),
+#         ('NOTIFICATION', 'NOTIFICATION'),
+#     ]
+#     tenant = models.ForeignKey(
+#         User, on_delete=models.SET_NULL, db_index=True, related_name='chat', null=True, blank=True)
+#     timestamp = models.DateTimeField(auto_now_add=True, db_index=True)
+#     booking = models.ForeignKey(Booking, on_delete=models.SET_NULL, db_index=True,
+#                                 related_name='payments', null=True, blank=True)
+#     message = models.TextField()
+#     message_type = models.CharField(
+#         max_length=32, db_index=True, choices=MESSAGE_TYPE, null=True, blank=True)
+#     gpt_response = models.TextField()
+#     gpt_context = models.TextField()
+#     manager_response = models.TextField()
 
 # Contract Model
 # class Contract(models.Model):
