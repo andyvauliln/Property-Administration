@@ -9,7 +9,7 @@ from django.utils import timezone
 from dateutil.relativedelta import relativedelta
 from django.http import HttpResponseBadRequest
 from ..decorators import user_has_role
-from .utils import generate_weeks, stringify_keys
+from .utils import generate_weeks, stringify_keys, aggregate_data
 
 
 @user_has_role('Admin')
