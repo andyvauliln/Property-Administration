@@ -136,11 +136,11 @@
                                     <td class="px-4 py-4">{% if payment.bank %}{{ payment.bank.name }}{% else %}{% endif %}</td>
                                     <td class="px-4 py-4">
                                         {% if payment.booking and payment.booking.apartment %}
-                                            <a href="/apartments?q=id={{ payment.booking.apartment.id }}" target="_blank" onclick="event.stopPropagation();" class="font-bold text-blue-500 underline">
+                                            <a href="/apartments/?q=id={{ payment.booking.apartment.id }}" target="_blank" onclick="event.stopPropagation();" class="font-bold text-blue-500 underline">
                                                 {{ payment.booking.apartment.name }}
                                             </a>
                                         {% elif payment.apartment %}
-                                            <a href="/apartments?q=id={{ payment.apartment.id }}" target="_blank" onclick="event.stopPropagation();" class="font-bold text-blue-500 underline">
+                                            <a href="/apartments/?q=id={{ payment.apartment.id }}" target="_blank" onclick="event.stopPropagation();" class="font-bold text-blue-500 underline">
                                                 {{ payment.apartment.name }}
                                             </a>
                                         {% else %}
@@ -219,7 +219,7 @@
                 
                 if (event.target == this || event.target.tagName !== 'A') {
                     const paymentId = this.getAttribute('data-id');
-                    window.open(`/payments?q=id=${paymentId}`, '_blank');
+                    window.open(`/payments/?q=id=${paymentId}`, '_blank');
                 }
             });
         });

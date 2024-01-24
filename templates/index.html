@@ -48,7 +48,7 @@
                                 <path d="M13.243 3.2 7.359 9.081a.5.5 0 0 0-.136.256L6.51 12.9a.5.5 0 0 0 .59.59l3.566-.713a.5.5 0 0 0 .255-.136L16.8 6.757 13.243 3.2Z"/>
                             </svg>
                         </a> {% endcomment %}
-                        <a class="cursor-pointer ml-4" target="_blank"  href="/apartment?apartment.id={{apartment_id}}">
+                        <a class="cursor-pointer ml-4" target="_blank"  href="/apartment/?apartment.id={{apartment_id}}">
                             <svg class="w-8 h-8 text-blue-500 dark:text-white" aria-hidden="true" xmlns="http://www.w3.org/2000/svg"fill="none" viewBox="0 0 17 18">
                                 <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M1 12v5m5-9v9m5-5v5m5-9v9M1 7l5-6 5 6 5-6"/>
                             </svg>
@@ -62,7 +62,7 @@
             
             <div class="flex items-center mb-8">
                 <!-- Previous Button -->
-                <a href="?page={{ prev_page }}" class="text-white p-4 rounded-l" style="height: fit-content;">
+                <a href="/?page={{ prev_page }}" class="text-white p-4 rounded-l" style="height: fit-content;">
                     <svg class="w-6 h-6 text-gray-800 dark:text-white" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 8 14">
                         <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 1 1.3 6.326a.91.91 0 0 0 0 1.348L7 13"/>
                     </svg>
@@ -76,7 +76,7 @@
                 </div>
         
                 <!-- Next Button -->
-                <a href="?page={{ next_page }}" class=" text-white p-4 rounded-r" style="height: fit-content;">
+                <a href="/?page={{ next_page }}" class=" text-white p-4 rounded-r" style="height: fit-content;">
                     <svg class="w-6 h-6 text-gray-800 dark:text-white" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 8 14">
                         <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m1 13 5.7-5.326a.909.909 0 0 0 0-1.348L1 1"/>
                     </svg>
@@ -218,24 +218,24 @@
     
                 bookingIds.forEach((bookingId, index) => {
                     if (bookingId) {
-                        content += `<strong>Booking:</strong> <a class='text-blue-500 underline' href="/bookings?q=id=${bookingId}">${bookingStarts[index]} - ${bookingEnds[index]} [${bookingStatuses[index]}]. </a><br>`;
+                        content += `<strong>Booking:</strong> <a class='text-blue-500 underline' href="/bookings/?q=id=${bookingId}">${bookingStarts[index]} - ${bookingEnds[index]} [${bookingStatuses[index]}]. </a><br>`;
                     }
                 });
                 tenantsIds.forEach((tenantId, index) => {
                     if (tenantId) {
-                        content += `<strong>Tenant:</strong> <a class='text-blue-500 underline' href="/users?q=id=${tenantId}">${tenants[index]}. </a><br>`;
+                        content += `<strong>Tenant:</strong> <a class='text-blue-500 underline' href="/users/?q=id=${tenantId}">${tenants[index]}. </a><br>`;
                     }
                 });
     
                 cleaningIds.forEach((cleaningId, index) => {
                     if (cleaningId) {
-                        content += `<strong>Cleaning:</strong> <a class='text-blue-500 underline' href="/cleanings?q=id=${cleaningId}">Cleaning: [${cleaningStatuses[index]}]</a><br>`;
+                        content += `<strong>Cleaning:</strong> <a class='text-blue-500 underline' href="/cleanings/?q=id=${cleaningId}">Cleaning: [${cleaningStatuses[index]}]</a><br>`;
                     }
                 });
     
                 paymentIds.forEach((paymentId, index) => {
                     if (paymentId) {
-                        content += `<strong>Payment:</strong>  <a class='text-blue-500 underline' href="/payments?q=id=${paymentId}">${paymentTypes[index]} ${paymentAmounts[index]} [${paymentStatuses[index]}]</a><br>`;
+                        content += `<strong>Payment:</strong>  <a class='text-blue-500 underline' href="/payments/?q=id=${paymentId}">${paymentTypes[index]} ${paymentAmounts[index]} [${paymentStatuses[index]}]</a><br>`;
                     }
                 });
     

@@ -9,17 +9,25 @@ from twilio.base.exceptions import TwilioException
 from twilio.rest import Client
 from django.views.decorators.csrf import csrf_exempt
 import re
+import logging
 
 current_customer_phone = None
+logging.basicConfig(filename='message.log', level=logging.DEBUG,
+                    format='%(asctime)s - %(levelname)s - %(message)s')
 
+
+def print2(message):
+    logging.debug(message)
 
 # @csrf_exempt
+
+
 @require_http_methods(["POST"])
 def forward_message2(request):
-    print("FORWARD MESSAGE FROM SECOND NUMBER!!!")
+    print2("FORWARD MESSAGE FROM SECOND NUMBER!!!")
     from_phone = request.POST.get('From', None)
-    print(from_phone)
-    print(request)
+    print2(from_phone)
+    print2(request)
     return HttpResponse("Success", status=200)
 
 
@@ -32,14 +40,19 @@ def forward_message(request):
     twilio_phone = os.environ["TWILIO_PHONE"]
     manager_phone = os.environ["TWILIO_MANAGER_PHONE"]
 
-    print("***************SENDING SMS***************\n")
-    print(f"Message came from {from_phone} \n")
+    print2("***************SENDING SMS***************\n")
+    print2(f"Message came from {from_phone} \n")
+    print2(f"Current Twilio Phone {twilio_phone} \n")
+    print2(f"Manager Phone {manager_phone} \n")
+    print2(f"Incoming Message {incoming_message} \n")
 
     if (from_phone == manager_phone):  # message came from Manager
         if is_phone_number(incoming_message):
-            print(f"Message Contains Phone")
+            print2(f"Message Contains Phone")
             recipient, message = get_phone_number_from_message(
                 incoming_message)
+            print2(
+                f"Parsed Phone and message :{recipient} /n Message: {message}")
             booking = getBookingByPhone(recipient)
             db_message = create_db_message(
                 twilio_phone, recipient, message, booking)
@@ -92,19 +105,19 @@ def send_sms(message, recipient, db_message: Chat, count=0):
             body=message
         )
 
-        print(
+        print2(
             f'SMS sent from {twilio_phone} to {recipient} \n{message}')
         return HttpResponse("Success", status=200)
 
     except TwilioException as e:
         context = f'Error sending SMS notification to {recipient}. \n{message} \n Error: {str(e)}, '
-        print(context)
+        print2(context)
         if (count == 0):
-            print(
+            print2(
                 f"Try send message one more time to {recipient} \n {message}")
             return send_sms(manager_phone, context, db_message, 1)
         else:
-            print(
+            print2(
                 f"SMS can't be sent to {recipient} \n {message} after {count} attempt")
             db_message.message_status = "ERROR"
             db_message.context = context
@@ -116,16 +129,29 @@ def getBookingByPhone(phone):
     booking = Booking.objects.filter(
         tenant__phone=phone).order_by('-created_at').first()
     if (booking):
-        print(
+        print2(
             f'Found last booking {booking.id} {booking.created_at} for phone {phone} ')
     return booking
 
 
-def get_phone_number_from_message(incoming_message):
-    phone = incoming_message.split(' ')[1]
-    message = incoming_message.split(' ')[0]
-    print(f'Parsed message {phone}, {message} \n {message}')
-    return phone, message
+def get_phone_number_from_message(incoming_message: str):
+    # Define a regular expression pattern to capture the phone number and the rest of the message
+    pattern = r'\+(\d+)\s*(.*)'
+
+    # Use re.match to find the match at the beginning of the string
+    match = re.match(pattern, incoming_message.strip())
+
+    # Check if there is a match
+    if match:
+        # Extract the phone number and message
+        phone_number = match.group(1)
+        # Remove leading and trailing whitespaces
+        message = match.group(2).strip()
+
+        return phone_number, message
+    else:
+        # Return None if there is no match
+        return None, incoming_message
 
 
 def is_phone_number(text):
@@ -145,7 +171,7 @@ def create_db_message(sender_phone, receiver_phone, message, booking=None, conte
         message_status=message_status,
     )
     chat.save()
-    print(
+    print2(
         f"\n Message Saved to DB. Sender: {chat.sender_phone} Receiver: {chat.receiver_phone}. Message Status: {message_status}, Message Type: {message_type} Context: {context}  Sender Type: {sender_type} \n{message}\n")
     return chat
 
@@ -161,7 +187,7 @@ def create_db_message(sender_phone, receiver_phone, message, booking=None, conte
 #         if is_phone_number(incoming_message):
 #             phone = incoming_message.split(' ')[1]
 #             message = incoming_message.split(' ')[0]
-#             print(phone, message)
+#             print2(phone, message)
 #             if message == "/history":
 #                 history = getUserMessages(from_phone)
 #                 reply(history, manager_phone)
