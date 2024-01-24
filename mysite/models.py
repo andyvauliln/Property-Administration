@@ -108,22 +108,22 @@ class User(AbstractBaseUser, PermissionsMixin):
         # For Tenant
         if self.role == "Tenant":
             links_list.append({"name": "Bookings: User Bookings",
-                              "link": f"/bookings?q=tenant.id={self.id}"})
+                              "link": f"/bookings/?q=tenant.id={self.id}"})
 
         # For Cleaner
         if self.role == "Cleaner":
             links_list.append({"name": "Cleanings: User Cleanings",
-                              "link": f"/cleanings?q=cleaner.id={self.id}"})
+                              "link": f"/cleanings/?q=cleaner.id={self.id}"})
 
         # For Owner
         if self.role == "Owner":
             links_list.append({"name": "Apartments: Owner Apartments",
-                              "link": f"/apartments?q=owner.id={self.id}"})
+                              "link": f"/apartments/?q=owner.id={self.id}"})
 
         # For Manager
         if self.role == "Manager":
             links_list.append({"name": "Apartemnts: Manager Apartments",
-                              "link": f"/apartments?q=manager.id={self.id}"})
+                              "link": f"/apartments/?q=manager.id={self.id}"})
 
         return links_list
 
@@ -170,22 +170,22 @@ class Apartment(models.Model):
     def links(self):
         links_list = []
         links_list.append({"name": "Booking Payments: Booking Payments",
-                          "link": f"/payments?q=booking.apartment.id={self.id}"})
+                          "link": f"/payments/?q=booking.apartment.id={self.id}"})
         links_list.append({"name": "Apartment Payments: Apartment Payments",
-                           "link": f"/payments?q=apartment.id={self.id}"})
+                           "link": f"/payments/?q=apartment.id={self.id}"})
         # links_list.append({"name": "Contracts: Apartment Contracts:", "link": f"/contracts?q=apartment.id={self.id}"})
         links_list.append({"name": "Cleanings: Apartment Cleanings",
-                          "link": f"/cleanings?q=booking.apartment.id={self.id}"})
+                          "link": f"/cleanings/?q=booking.apartment.id={self.id}"})
         links_list.append({"name": "Bookings: Apartment Bookings",
-                          "link": f"/bookings?q=apartment.id={self.id}"})
+                          "link": f"/bookings/?q=apartment.id={self.id}"})
 
         if self.manager:
             links_list.append({"name": f"Manager:{self.manager.full_name}",
-                              "link": f"/users?q=id={self.manager.id}"})
+                              "link": f"/users/?q=id={self.manager.id}"})
 
         if self.owner:
             links_list.append(
-                {"name": f"Owner: {self.owner.full_name}", "link": f"/users?q=id={self.owner.id}"})
+                {"name": f"Owner: {self.owner.full_name}", "link": f"/users/?q=id={self.owner.id}"})
 
         return links_list
 
@@ -432,7 +432,7 @@ class Booking(models.Model):
 
         if self.tenant:
             links_list.append({"name": f"Tenant: {self.tenant.full_name}",
-                              "link": f"/users?q=id={self.tenant.id}"})
+                              "link": f"/users/?q=id={self.tenant.id}"})
 
         if self.apartment:
 
@@ -440,22 +440,22 @@ class Booking(models.Model):
             owner = self.apartment.owner
 
             links_list.append({"name": f"Apartment: {self.apartment.name}",
-                              "link": f"/apartments?q=id={self.apartment.id}"})
+                              "link": f"/apartments/?q=id={self.apartment.id}"})
 
             if manager:
                 links_list.append(
-                    {"name": f"Manager: {manager.full_name}", "link": f"/users?q=id={manager.id}"})
+                    {"name": f"Manager: {manager.full_name}", "link": f"/users/?q=id={manager.id}"})
 
             if owner:
                 links_list.append(
-                    {"name": f"Owner: {owner.full_name}", "link": f"/users?q=id={owner.id}"})
+                    {"name": f"Owner: {owner.full_name}", "link": f"/users/?q=id={owner.id}"})
         payments = self.payments.all()
         for payment in payments:
             formatted_date = payment.payment_date.strftime("%m/%d/%Y")
             links_list.append({
                 "name":
                 f"Payment: {payment.payment_type} - {payment.amount}$ on {formatted_date} [{payment.payment_status}]",
-                "link": f"/payments?q=id={payment.id}"})
+                "link": f"/payments/?q=id={payment.id}"})
 
         cleanings = self.cleanings.all()
         for cleaning in cleanings:
@@ -463,9 +463,9 @@ class Booking(models.Model):
             if cleaner:
                 links_list.append(
                     {"name": f"Cleaning: {cleaning.date.strftime('%m/%d/%Y')} [{cleaning.status}]",
-                     "link": f"/cleanings?q=id={cleaning.id}"})
+                     "link": f"/cleanings/?q=id={cleaning.id}"})
                 links_list.append(
-                    {"name": f"Cleaner: {cleaner.full_name}", "link": f"/users?q=id={cleaner.id}"})
+                    {"name": f"Cleaner: {cleaner.full_name}", "link": f"/users/?q=id={cleaner.id}"})
 
         return links_list
 
@@ -593,14 +593,14 @@ class Payment(models.Model):
             links_list.append({
                 "name":
                 f"Booking: Apartment {self.booking.apartment.name} from {self.booking.start_date.strftime('%m/%d/%Y')} to {self.booking.end_date.strftime('%m/%d/%Y')}",
-                "link": f"/bookings?q=id={self.booking.id}"})
+                "link": f"/bookings/?q=id={self.booking.id}"})
             links_list.append({
                 "name":
                 f"Tenant: {self.booking.tenant.full_name} {self.booking.tenant.phone} ",
-                "link": f"/bookings?q=id={self.booking.id}"})
+                "link": f"/bookings/?q=id={self.booking.id}"})
         if self.apartment:
             links_list.append({"name": f"Apartment: {self.apartment.name}",
-                              "link": f"/apartments?q=id={self.apartment.id}"})
+                              "link": f"/apartments/?q=id={self.apartment.id}"})
 
         return links_list
 
@@ -653,7 +653,7 @@ class Cleaning(models.Model):
             links_list.append({
                 "name":
                 f"Booking: Apartment {self.booking.apartment.name} from {self.booking.start_date.strftime('%m/%d/%Y')} to {self.booking.end_date.strftime('%m/%d/%Y')}",
-                "link": f"/bookings?q=id={self.booking.id}"})
+                "link": f"/bookings/?q=id={self.booking.id}"})
 
         return links_list
 
@@ -707,16 +707,16 @@ class Notification(models.Model):
             links_list.append({
                 "name":
                 f"Booking: Apartment {self.booking.apartment.name} from {self.booking.start_date} to {self.booking.end_date}",
-                "link": f"/bookings?q=id={self.booking.id}"})
+                "link": f"/bookings/?q=id={self.booking.id}"})
         if self.payment:
             links_list.append({
                 "name":
                 f"Payment: {self.payment.payment_type} - {self.payment.amount}$ on {self.payment.payment_date} [{self.payment.payment_status}]",
-                "link": f"/payments?q=id={self.payment.id}"})
+                "link": f"/payments/?q=id={self.payment.id}"})
         if self.cleaning:
             links_list.append(
                 {"name": f"Cleaning: {self.cleaning.date} [{self.cleaning.status}]",
-                    "link": f"/cleanings?q=id={self.cleaning.id}"})
+                    "link": f"/cleanings/?q=id={self.cleaning.id}"})
 
         return links_list
 

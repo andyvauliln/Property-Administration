@@ -8,6 +8,8 @@ from mysite.models import Booking, Chat
 import os
 from twilio.base.exceptions import TwilioException
 from twilio.twiml.messaging_response import MessagingResponse
+from django.db.models import F
+from django.db import models
 
 
 class Command(BaseCommand):
@@ -46,17 +48,20 @@ class Command(BaseCommand):
         now = timezone.now()
 
         if event_type == 'unsigned_contract':
-            # Get bookings for unsigned_contract (3 days after booking created and booking in status Waiting Contract)
+            # Get bookings for unsigned_contract (3 days after booking created and booking start date more then 3 days from creation and booking in status Waiting Contract)
             return Booking.objects.filter(
                 status='Waiting Contract',
-                created_at__gte=now - timedelta(days=3)
+                created_at__gte=now - timedelta(days=3),
+                start_date__lte=now + timedelta(days=3)
             )
+        # booking creation date 3 day from now and booking starts меньше 4 дня после сейчас
 
         elif event_type == 'deposit_reminder':
             # Get bookings for deposit_reminder (4 days after booking created and booking in status Waiting Payment)
             return Booking.objects.filter(
                 status='Waiting Payment',
-                created_at__gte=now - timedelta(days=4)
+                created_at__gte=now - timedelta(days=4),
+                start_date__lte=now + timedelta(days=4)
             )
 
         elif event_type == 'move_in':
@@ -72,11 +77,12 @@ class Command(BaseCommand):
                 payments__payment_type__name='Rent',
                 payments__payment_status='Pending'
             )
-
         elif event_type == 'extension':
-            # Get bookings for extension (1 week before booking end date)
             return Booking.objects.filter(
-                end_date=now.date() + timedelta(weeks=1)
+                models.Q(end_date__gt=F('start_date') + timedelta(days=25), end_date=now.date() + timedelta(weeks=1)) |
+                models.Q(end_date__lte=F('start_date') + timedelta(days=25),
+                         end_date=now.date() + timedelta(days=1)),
+                start_date__lte=now.date()
             )
 
         elif event_type == 'move_out':
