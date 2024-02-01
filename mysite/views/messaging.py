@@ -12,22 +12,23 @@ import re
 import logging
 
 current_customer_phone = None
-logging.basicConfig(filename='message.log', level=logging.DEBUG,
-                    format='%(asctime)s - %(levelname)s - %(message)s')
+
+logger_sms = logging.getLogger('mysite.sms_webhooks')
 
 
-def print2(message):
-    logging.debug(message)
+def print_info(message):
+    print(message)
+    logger_sms.debug(message)
 
 # @csrf_exempt
 
 
 @require_http_methods(["POST"])
 def forward_message2(request):
-    print2("FORWARD MESSAGE FROM SECOND NUMBER!!!")
+    print_info("FORWARD MESSAGE FROM SECOND NUMBER!!!")
     from_phone = request.POST.get('From', None)
-    print2(from_phone)
-    print2(request)
+    print_info(from_phone)
+    print_info(request)
     return HttpResponse("Success", status=200)
 
 
@@ -40,18 +41,18 @@ def forward_message(request):
     twilio_phone = os.environ["TWILIO_PHONE"]
     manager_phone = os.environ["TWILIO_MANAGER_PHONE"]
 
-    print2("***************SENDING SMS***************\n")
-    print2(f"Message came from {from_phone} \n")
-    print2(f"Current Twilio Phone {twilio_phone} \n")
-    print2(f"Manager Phone {manager_phone} \n")
-    print2(f"Incoming Message {incoming_message} \n")
+    print_info("***************SENDING SMS***************\n")
+    print_info(f"Message came from {from_phone} \n")
+    print_info(f"Current Twilio Phone {twilio_phone} \n")
+    print_info(f"Manager Phone {manager_phone} \n")
+    print_info(f"Incoming Message {incoming_message} \n")
 
     if (from_phone == manager_phone):  # message came from Manager
         if is_phone_number(incoming_message):
-            print2(f"Message Contains Phone")
+            print_info(f"Message Contains Phone")
             recipient, message = get_phone_number_from_message(
                 incoming_message)
-            print2(
+            print_info(
                 f"Parsed Phone and message :{recipient} /n Message: {message}")
             booking = getBookingByPhone(recipient)
             db_message = create_db_message(
@@ -105,19 +106,19 @@ def send_sms(message, recipient, db_message: Chat, count=0):
             body=message
         )
 
-        print2(
+        print_info(
             f'SMS sent from {twilio_phone} to {recipient} \n{message}')
         return HttpResponse("Success", status=200)
 
     except TwilioException as e:
         context = f'Error sending SMS notification to {recipient}. \n{message} \n Error: {str(e)}, '
-        print2(context)
+        print_info(context)
         if (count == 0):
-            print2(
+            print_info(
                 f"Try send message one more time to {recipient} \n {message}")
             return send_sms(manager_phone, context, db_message, 1)
         else:
-            print2(
+            print_info(
                 f"SMS can't be sent to {recipient} \n {message} after {count} attempt")
             db_message.message_status = "ERROR"
             db_message.context = context
@@ -129,7 +130,7 @@ def getBookingByPhone(phone):
     booking = Booking.objects.filter(
         tenant__phone=phone).order_by('-created_at').first()
     if (booking):
-        print2(
+        print_info(
             f'Found last booking {booking.id} {booking.created_at} for phone {phone} ')
     return booking
 
@@ -171,7 +172,7 @@ def create_db_message(sender_phone, receiver_phone, message, booking=None, conte
         message_status=message_status,
     )
     chat.save()
-    print2(
+    print_info(
         f"\n Message Saved to DB. Sender: {chat.sender_phone} Receiver: {chat.receiver_phone}. Message Status: {message_status}, Message Type: {message_type} Context: {context}  Sender Type: {sender_type} \n{message}\n")
     return chat
 
@@ -187,7 +188,7 @@ def create_db_message(sender_phone, receiver_phone, message, booking=None, conte
 #         if is_phone_number(incoming_message):
 #             phone = incoming_message.split(' ')[1]
 #             message = incoming_message.split(' ')[0]
-#             print2(phone, message)
+#             print_info(phone, message)
 #             if message == "/history":
 #                 history = getUserMessages(from_phone)
 #                 reply(history, manager_phone)
