@@ -41,22 +41,57 @@ LOGIN_REDIRECT_URL = '/'
 # FORM SUBMISSION
 # Comment out the following line and place your railway URL, and your production URL in the array.
 # CSRF_TRUSTED_ORIGINS = ["*"]
-# LOGGING = {
-#     'version': 1,
-#     'disable_existing_loggers': False,
-#     'handlers': {
-#         'console': {
-#             'class': 'logging.StreamHandler',
-#         },
-#     },
-#     'loggers': {
-#         'django': {
-#             'handlers': ['console'],
-#             'level': 'DEBUG',
-#             'propagate': True,
-#         },
-#     },
-# }
+LOGGING = {
+    'version': 1,
+    'disable_existing_loggers': False,
+    'formatters': {
+        'verbose': {
+            'format': '{levelname} {asctime} {module} {message}',
+            'style': '{',
+        },
+    },
+    'handlers': {
+        'sms_nofitications': {
+            'level': 'DEBUG',
+            'class': 'logging.FileHandler',
+            'filename': 'sms_nofitications.log',
+            'formatter': 'verbose',
+        },
+        'sms_webhooks': {
+            'level': 'DEBUG',
+            'class': 'logging.FileHandler',
+            'filename': 'sms_webhooks.log',
+            'formatter': 'verbose',
+        },
+        'common': {
+            'level': 'DEBUG',
+            'class': 'logging.FileHandler',
+            'filename': 'common.log',
+            'formatter': 'verbose',
+        },
+    },
+    'loggers': {
+        'mysite.sms_nofitications': {
+            'handlers': ['sms_nofitications'],
+            'level': 'DEBUG',
+            'propagate': False,
+        },
+        'mysite.sms_webhooks': {
+            'handlers': ['sms_webhooks'],
+            'level': 'DEBUG',
+            'propagate': False,
+        },
+        'mysite.common': {
+            'handlers': ['common'],
+            'level': 'DEBUG',
+            'propagate': True,
+        },
+    },
+    'root': {
+        'handlers': ['common'],
+        'level': 'WARNING',
+    },
+}
 
 # Application definition
 # CSRF_COOKIE_DOMAIN = '127.0.0.1'

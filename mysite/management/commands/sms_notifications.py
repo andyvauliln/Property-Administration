@@ -10,20 +10,28 @@ from twilio.base.exceptions import TwilioException
 from twilio.twiml.messaging_response import MessagingResponse
 from django.db.models import F
 from django.db import models
+import logging
+
+logger_sms = logging.getLogger('mysite.sms_nofitications')
+
+
+def print_info(message):
+    print(message)
+    logger_sms.debug(message)
 
 
 class Command(BaseCommand):
     help = 'Send SMS notifications for upcoming booking events'
 
     def handle(self, *args, **options):
-        print("**************** START NOTIFICATION PROCESS ************")
-        # self.send_sms_for_event('move_in')
+        print_info("**************** START NOTIFICATION PROCESS ************")
+        self.send_sms_for_event('move_in')
         self.send_sms_for_event('unsigned_contract')
-        # self.send_sms_for_event('deposit_reminder')
-        # self.send_sms_for_event('due_payment')
-        # self.send_sms_for_event('extension')
-        # self.send_sms_for_event('move_out')
-        # self.send_sms_for_event('safe_travel')
+        self.send_sms_for_event('deposit_reminder')
+        self.send_sms_for_event('due_payment')
+        self.send_sms_for_event('extension')
+        self.send_sms_for_event('move_out')
+        self.send_sms_for_event('safe_travel')
 
     def send_sms_for_event(self, event_type):
         bookings = self.get_bookings_for_event(event_type)
@@ -32,17 +40,18 @@ class Command(BaseCommand):
             if booking.tenant.phone:
                 message = self.get_message_for_event(event_type)
                 # self.send_sms(booking, message) TODO: uncomment after test
-                print("\n**********************************************\n")
-                print(
+                print_info(
+                    "\n**********************************************\n")
+                print_info(
                     f"\n Found SMS to Send {event_type} for {booking.tenant.phone} {booking.apartment.name}  \n{message}\n")
                 send_sms_test_version(booking, message)
 
             else:
                 message = f'Can not nofify tenant {booking.tenant.full_name} about {event_type} event because he doesnt have phone number. Apt: [{booking.apartment.name}]. Booking id: {booking.id},  [{booking.start_date} {booking.end_date}]'
                 send_to_manager(message, booking)
-                print(message)
+                print_info(message)
 
-            print("\n**********************************************\n")
+            print_info("\n**********************************************\n")
 
     def get_bookings_for_event(self, event_type):
         now = timezone.now()
@@ -157,11 +166,11 @@ class Command(BaseCommand):
                 body=message
             )
 
-            print(
+            print_info(
                 f'SMS sent to {booking.tenant.full_name}({booking.tenant.phone}): {message.sid} \n Message: {message}')
         except TwilioException as e:
             context = f'Error sending SMS notification to {booking.tenant.full_name}({booking.tenant.phone}). Apt: {booking.apartment.name} \n Error: {str(e)}, '
-            print(context)
+            print_info(context)
             send_to_manager(context, booking)  # TODO remove it later
             chat.message_status = "ERROR"
             chat.context = context
@@ -193,7 +202,7 @@ def send_to_manager(message, booking, message_status="SENDED"):
             to=twilio_manager_number,
             body=message
         )
-        print(
+        print_info(
             f'\nMessage Sent from Twilio: {twilio_phone_number} to Menadger: {twilio_manager_number} Status: {message.status} SID: {message.sid} \n {message} \n')
 
     except TwilioException as e:
@@ -201,7 +210,7 @@ def send_to_manager(message, booking, message_status="SENDED"):
         chat.message_status = "ERROR"
         chat.context = context
         chat.save()
-        print(context)
+        print_info(context)
 
 
 def create_notification(sender_phone, receiver_phone, booking, message, context=None, message_status="SENDED", sender_type='SYSTEM', message_type='NOTIFICATION'):
@@ -217,6 +226,6 @@ def create_notification(sender_phone, receiver_phone, booking, message, context=
         message_status=message_status,
     )
     chat.save()
-    print(
+    print_info(
         f"\n Message Saved to DB. Sender: {chat.sender_phone} Receiver: {chat.receiver_phone}. Message Status: {message_status}, Message Type: {message_type} Context: {context}  Sender Type: {sender_type} \n{message}\n")
     return chat
