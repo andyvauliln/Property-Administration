@@ -1,6 +1,5 @@
 
 from django.shortcuts import render
-import logging
 from mysite.forms import CustomUserForm, BookingForm, ApartmentForm, CleaningForm,  PaymentMethodForm, PaymentForm, PaymentTypeForm
 from django.core.paginator import Paginator
 import json
@@ -9,8 +8,6 @@ from datetime import date
 from django.db.models import F, ExpressionWrapper, DateField, Value
 from ..decorators import user_has_role
 from .utils import handle_post_request, MODEL_MAP, get_related_fields, parse_query, get_model_fields
-
-logger = logging.getLogger(__name__)
 
 
 @user_has_role('Admin')
