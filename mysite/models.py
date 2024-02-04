@@ -234,6 +234,7 @@ class Booking(models.Model):
                                   related_name='booked_apartments', null=True)
     notes = models.TextField(blank=True, null=True)
     other_tenants = models.TextField(blank=True, null=True)
+
     tenant = models.ForeignKey(
         User, on_delete=models.SET_NULL, db_index=True, related_name='bookings', null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
@@ -316,45 +317,48 @@ class Booking(models.Model):
         payments_to_delete.delete()
 
     def get_or_create_tenant(self, form_data):
-        tenant_email = form_data.get('tenant_email')
-        tenant_full_name = form_data.get('tenant_full_name')
-        tenant_phone = form_data.get('tenant_phone')
+        if form_data:
+            tenant_email = form_data.get('tenant_email')
+            tenant_full_name = form_data.get('tenant_full_name')
+            tenant_phone = form_data.get('tenant_phone')
 
-        if tenant_email:
-            # Try to retrieve an existing user with the given email
-            user = User.objects.filter(email=tenant_email).first()
+            if tenant_email:
+                # Try to retrieve an existing user with the given email
+                user = User.objects.filter(email=tenant_email).first()
 
-            if user:
-                # If the user exists, update the full_name and phone fields
-                user.full_name = tenant_full_name
-                user.phone = tenant_phone
-                user.save()
-            else:
-                # If the user doesn't exist, create a new one
-                user = User.objects.create(
-                    email=tenant_email,
-                    full_name=tenant_full_name,
-                    phone=tenant_phone,
-                    role='Tenant',
-                    password=User.objects.make_random_password()
-                )
+                if user:
+                    # If the user exists, update the full_name and phone fields
+                    user.full_name = tenant_full_name
+                    user.phone = tenant_phone
+                    user.save()
+                else:
+                    # If the user doesn't exist, create a new one
+                    user = User.objects.create(
+                        email=tenant_email,
+                        full_name=tenant_full_name,
+                        phone=tenant_phone,
+                        role='Tenant',
+                        password=User.objects.make_random_password()
+                    )
 
-            # Assign the user to the booking's tenant field
-            self.tenant = user
+                # Assign the user to the booking's tenant field
+                self.tenant = user
 
     def create_payments(self, payments_data):
-        payment_dates = payments_data.get('payment_dates', [])
-        amounts = payments_data.get('amounts', [])
-        payment_types = payments_data.get('payment_types', [])
-        payment_notes = payments_data.get('payment_notes', [])
-        number_of_months = payments_data.get('number_of_months', [])
+        if payments_data:
+            payment_dates = payments_data.get('payment_dates', [])
+            amounts = payments_data.get('amounts', [])
+            payment_types = payments_data.get('payment_types', [])
+            payment_notes = payments_data.get('payment_notes', [])
+            number_of_months = payments_data.get('number_of_months', [])
 
-        # Convert the dates to the expected format
-        payment_dates = [convert_date_format(date) for date in payment_dates]
+            # Convert the dates to the expected format
+            payment_dates = [convert_date_format(
+                date) for date in payment_dates]
 
-        for date, amount, p_type, p_notes, n_months in zip(payment_dates, amounts, payment_types, payment_notes, number_of_months):
+            for date, amount, p_type, p_notes, n_months in zip(payment_dates, amounts, payment_types, payment_notes, number_of_months):
 
-            self.create_payment(p_type, amount, date, p_notes, n_months)
+                self.create_payment(p_type, amount, date, p_notes, n_months)
 
     def create_booking_notifications(self):
 
@@ -515,6 +519,7 @@ class Payment(models.Model):
         ('Pending', 'Pending'),
         ('Completed', 'Completed'),
     ]
+    invoice_url = models.TextField(blank=True, null=True)
     payment_date = models.DateField(db_index=True)
     amount = models.DecimalField(max_digits=14, decimal_places=2)
     payment_type = models.ForeignKey(PaymenType, blank=True, on_delete=models.SET_NULL,
@@ -601,6 +606,13 @@ class Payment(models.Model):
         if self.apartment:
             links_list.append({"name": f"Apartment: {self.apartment.name}",
                               "link": f"/apartments/?q=id={self.apartment.id}"})
+        if self.booking:
+            if self.invoice_url:
+                links_list.append({"name": f"Payment Invoice: Open Google Doc",
+                                   "link": self.invoice_url})
+            else:
+                links_list.append({"name": f"Payment Invoice: Generate",
+                                   "link": f"/generate-invoice/?id={self.id}"})
 
         return links_list
 

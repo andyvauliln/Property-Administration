@@ -4,6 +4,11 @@ from datetime import datetime
 import calendar
 from ..decorators import user_has_role
 from .utils import aggregate_data, aggregate_summary, assign_color_classes
+from google.oauth2.service_account import Credentials
+from googleapiclient.discovery import build
+from django.http import HttpResponseRedirect
+from django.urls import reverse
+from urllib.parse import urlencode
 
 
 @user_has_role('Admin')
@@ -14,6 +19,7 @@ def paymentReport(request):
     payment_type_filter = request.GET.get('payment_type', None)
     apartment_type_filter = request.GET.get('apartment_type', None)
     payment_status_filter = request.GET.get('payment_status', None)
+    isExcel = request.GET.get('isExcel', None)
 
     # Convert the date strings to datetime objects or set to the start and end of the current year
     if start_date_str:
@@ -112,6 +118,11 @@ def paymentReport(request):
             current_month = current_month.replace(month=current_month.month+1)
 
     summary = aggregate_summary(payments_within_range)
+    excel_link = ""
+    if isExcel:
+        excel_link = generate_excel(
+            summary, monthly_data, start_date, end_date)
+        return HttpResponseRedirect(excel_link)
 
     context = {
         'start_date': start_date.strftime('%m/%d/%Y'),
@@ -128,3 +139,125 @@ def paymentReport(request):
     }
 
     return render(request, 'payment_report.html', context)
+
+
+def generate_excel(summary, monthly_data, start_date, end_date):
+    sheets_service, drive_service = get_google_sheets_service()
+    print("Got GOOGLE Services")
+    # Create a new spreadsheet
+    spreadsheet_body = {
+        'properties': {
+            'title': f"Payment Report: {start_date.strftime('%m/%d/%Y')} - {end_date.strftime('%m/%d/%Y')}"
+        },
+        'sheets': [{
+            'properties': {
+                'title': 'Summary'
+            }
+        }]
+    }
+    spreadsheet = sheets_service.create(body=spreadsheet_body).execute()
+    spreadsheet_id = spreadsheet.get('spreadsheetId')
+    print(f"Spredsheet created {spreadsheet_id}")
+
+    # Insert summary data into the Summary sheet
+    insert_summary_data(sheets_service, spreadsheet_id, summary)
+
+    # Generate and insert monthly data reports
+    for month_data in monthly_data:
+        insert_monthly_data_report(sheets_service, spreadsheet_id, month_data)
+
+    share_document_with_user(drive_service, spreadsheet_id)
+
+    # Generate and return the link to the spreadsheet
+    excel_link = f'https://docs.google.com/spreadsheets/d/{spreadsheet_id}/edit'
+    return excel_link
+
+
+def insert_summary_data(sheets_service, spreadsheet_id, summary):
+    summary_values = [
+        ['Completed Revenue:', f"${summary['total_income']}"],
+        ['Pending Revenue:', f"${summary['total_pending_income']}"],
+        ['Expense:', f"${summary['total_expense']}"],
+        ['Pending Expense:', f"${summary['total_pending_outcome']}"],
+        ['Profit:', f"${summary['total_profit']}"],
+        ['Pending Profit:', f"${summary['total_pending_profit']}"]
+    ]
+    summary_range = 'Summary!A1:B6'
+    sheets_service.values().update(
+        spreadsheetId=spreadsheet_id, range=summary_range,
+        valueInputOption='USER_ENTERED', body={'values': summary_values}).execute()
+    print(f"Created Summary Sheet for {spreadsheet_id}")
+
+
+def insert_monthly_data_report(sheets_service, spreadsheet_id, month_data):
+    month_sheet_title = month_data['month_name'].replace(' ', '_')
+    # Add a new sheet for the month
+    sheets_service.batchUpdate(spreadsheetId=spreadsheet_id, body={
+        'requests': [{'addSheet': {'properties': {'title': month_sheet_title}}}]
+    }).execute()
+
+    # Combine month summary and payment details
+    month_summary_values = [
+        [f"{month_data['month_name']} Report"],
+        ["Completed Revenue:", f"${month_data['income']}"],
+        ["Pending Revenue:", f"${month_data['pending_income']}"],
+        ["Expense:", f"${month_data['outcome']}"],
+        ["Pending Expense:", f"${month_data['pending_outcome']}"],
+        ["Profit:", f"${month_data['profit']}"],
+        ["Pending Profit:", f"${month_data['pending_profit']}"],
+        [],  # Empty row for spacing
+        ["Payment Date", "Payment Notes", "Payment Amount", "Payment Type",
+            "Payment Method", "Bank", "Apartment", "Tenant", "Status"]
+    ]
+    # Append payment details to summary values
+    for payment in month_data['payments']:
+        month_summary_values.append([
+            str(
+                payment.payment_date), payment.notes, f"${payment.amount}", payment.payment_type.name,
+            payment.payment_method.name if payment.payment_method else '', payment.bank.name if payment.bank else '',
+            payment.booking.apartment.name if payment.booking and payment.booking.apartment else '',
+            payment.booking.tenant.full_name if payment.booking else '', payment.payment_status
+        ])
+
+    # Insert data into the month sheet
+    month_range = f'{month_sheet_title}!A1'
+    sheets_service.values().batchUpdate(
+        spreadsheetId=spreadsheet_id,
+        body={'valueInputOption': 'USER_ENTERED', 'data': [
+            {'range': month_range, 'values': month_summary_values}]}
+    ).execute()
+
+    print(f"Created Sheet for {month_sheet_title}")
+
+
+def get_google_sheets_service():
+    SCOPES = ['https://www.googleapis.com/auth/spreadsheets',
+              'https://www.googleapis.com/auth/drive']
+    SERVICE_ACCOUNT_FILE = 'google_tokens.json.json'
+
+    credentials = Credentials.from_service_account_file(
+        SERVICE_ACCOUNT_FILE, scopes=SCOPES)
+
+    sheets_service = build('sheets', 'v4', credentials=credentials)
+    drive_service = build('drive', 'v3', credentials=credentials)
+
+    return sheets_service.spreadsheets(), drive_service
+
+
+def share_document_with_user(service, document_id):
+
+    try:
+       # Permission for public read access
+        public_permission = {
+            'type': 'anyone',
+            'role': 'reader',
+        }
+        service.permissions().create(
+            fileId=document_id,
+            body=public_permission,
+            fields='id',
+        ).execute()
+
+        print(f"Document {document_id} shared to public")
+    except Exception as e:
+        print(f"Failed to share document: {e}")

@@ -39,7 +39,8 @@ urlpatterns = [
     # path('docusign/', views.docusign, name='docusign'),
     # path('callback/', views.callback, name='callback'),
     path('payment-report/', views.paymentReport, name='paymentReport'),
-    path('forward-message/', views.forward_message, name='paymentReport'),
-    path('forward-message2/', views.forward_message2, name='paymentReport'),
+    path('forward-message/', views.forward_message, name='forwardMessage'),
+    path('forward-message2/', views.forward_message2, name='forwardMessage2'),
+    path('generate-invoice/', views.generate_invoice, name='generateInvoice'),
     # path('telegram_webhook/', views.forward_telegram, name='telegram_webhook'),
 ]

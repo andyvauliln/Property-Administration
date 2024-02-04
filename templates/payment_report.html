@@ -72,10 +72,18 @@
                         </div> 
                         
                     </div>
-                    <button class="mt-2 w-full block bg-blue-500 text-white rounded p-2" onclick="getReport()">Get Report</button> 
+                    <div class="flex w-full justify-center items-center">
+                        <button class="mt-2 w-1/2 block bg-blue-500 mr-2 text-white rounded p-2" onclick="getReport()">Get Report</button>
+                        <button class="mt-2 w-1/2 block bg-blue-500 ml-2 text-white rounded p-2" onclick="getReport(true)">Generate Excel</button>
+                    </div>  
                 </div> 
             </div>
-
+            {% comment %} {% if excel_link %}
+                <div class="flex">
+                   <span class="green-500 text-lg font-bold"> Last Generated Report: </span> 
+                   <a href="{{excel_link}}" class="blue-500 text-lg font-bold underline" target="_blank">{{excel_link}}</a>
+                </div>
+            {% endif %} {% endcomment %}
             
             {% for month_data in monthly_data %}
                 <!-- Monthly Report Header with Summaries -->
@@ -111,6 +119,7 @@
                                 <th scope="col" class="px-4 py-4">Apartment</th> 
                                 <th scope="col" class="px-4 py-4">Tenant</th> 
                                 <th scope="col" class="px-4 py-4">Status</th> 
+                                <th scope="col" class="px-4 py-4">Invoice</th> 
                             </tr>
                         </thead>
                         <tbody>
@@ -153,6 +162,25 @@
                                     {% else %}
                                         <td class="px-4 py-4"> <span class="bg-green-200 text-green-700 px-2 py-1 rounded-full">{{ payment.payment_status }}</span></td>
                                     {% endif %}
+                                    <td class="px-4 py-4">
+                                        {% if payment.booking %}
+                                            {% if payment.invoice_url %}
+                                            <a href="{{payment.invoice_url}}" onclick="event.stopPropagation()">
+                                                <svg class="w-6 h-6 text-gray-800 dark:text-white" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="currentColor" viewBox="0 0 24 24">
+                                                    <path fill-rule="evenodd" d="M9 7V2.2a2 2 0 0 0-.5.4l-4 3.9a2 2 0 0 0-.3.5H9Zm2 0V2h7a2 2 0 0 1 2 2v16a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V9h5a2 2 0 0 0 2-2Zm2-2a1 1 0 1 0 0 2h3a1 1 0 1 0 0-2h-3Zm0 3a1 1 0 1 0 0 2h3a1 1 0 1 0 0-2h-3Zm-6 4c0-.6.4-1 1-1h8c.6 0 1 .4 1 1v6c0 .6-.4 1-1 1H8a1 1 0 0 1-1-1v-6Zm8 1v1h-2v-1h2Zm0 3h-2v1h2v-1Zm-4-3v1H9v-1h2Zm0 3H9v1h2v-1Z" clip-rule="evenodd"/>
+                                                </svg> 
+                                            </a>
+                                            {% else %}
+                                                <a href="/generate-invoice/?id={{payment.id}}" onclick="event.stopPropagation()">
+                                                <svg class="w-6 h-6 text-gray-800 dark:text-white" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="currentColor" viewBox="0 0 24 24">
+                                                    <path fill-rule="evenodd" d="M9 7V2.2a2 2 0 0 0-.5.4l-4 3.9a2 2 0 0 0-.3.5H9Zm2 0V2h7a2 2 0 0 1 2 2v6.4A7.5 7.5 0 1 0 10.5 22H6a2 2 0 0 1-2-2V9h5a2 2 0 0 0 2-2Z" clip-rule="evenodd"/>
+                                                    <path fill-rule="evenodd" d="M9 16a6 6 0 1 1 12 0 6 6 0 0 1-12 0Zm6-3c.6 0 1 .4 1 1v1h1a1 1 0 1 1 0 2h-1v1a1 1 0 1 1-2 0v-1h-1a1 1 0 1 1 0-2h1v-1c0-.6.4-1 1-1Z" clip-rule="evenodd"/>
+                                                </svg>
+                                                
+                                            </a>
+                                            {% endif %}
+                                        {% endif %}
+                                    </td>
                                 </tr>
                             {% empty %}
                                 <tr>
@@ -191,7 +219,7 @@
 </div>
 
 <script>
-    function getReport() {
+    function getReport(isExcel) {
         const startDate = document.getElementById('start_date').value;
         const endDate = document.getElementById('end_date').value;
         const apartment = document.getElementById('apartment').value;
@@ -206,8 +234,15 @@
         if (apartmentType) url += `apartment_type=${apartmentType}&`;
         if (paymentType) url += `payment_type=${paymentType}&`;
         if (paymentStatus) url += `payment_status=${paymentStatus}&`;
+        if (isExcel){ 
+            url += `isExcel=${isExcel}`;
+            window.open(url, '_blank').focus();
+        }
+        else {
+            location.href = url;
+        }
       
-        location.href = url;
+       
       }
     document.addEventListener('DOMContentLoaded', function() {
         // Get all table rows
