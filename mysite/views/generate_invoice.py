@@ -25,7 +25,6 @@ def generate_invoice(request):
     try:
         referer_url = request.META.get('HTTP_REFERER', '/payments')
         payment_id = request.GET.get('id')
-        print_info(payment_id, "payment_id")
         if (payment_id):
             payment = Payment.objects.get(pk=int(payment_id))
             if (payment and not payment.invoice_url):
@@ -35,7 +34,7 @@ def generate_invoice(request):
             print_info(f'Cant find a pyament Id: {payment_id}')
         return redirect(referer_url)
     except Exception as e:
-        print_info("Error: Generating Invoice Error", str(e))
+        print_info(f"Error: Generating Invoice Error, {str(e)}")
         return redirect(referer_url)
 
 
@@ -119,8 +118,8 @@ def replaceText(payment: Payment, document_id, docs_service):
         tenant_name = payment.booking.tenant.full_name
         address = f"{payment.booking.apartment.building_n} {payment.booking.apartment.city} {payment.booking.apartment.street}, {payment.booking.apartment.state}, {payment.booking.apartment.zip_index}"
         room_number = payment.booking.apartment.apartment_n
+        rent_period = f"{payment.booking.start_date.strftime('%Y-%m-%d')} - {payment.booking.end_date.strftime('%Y-%m-%d')}"
 
-    rent_period = f"{payment.payment_date.strftime('%Y-%m-%d')} - {(payment.payment_date + relativedelta(months=1) ).strftime('%Y-%m-%d')}"
     payment_date = payment.payment_date.strftime('%Y-%m-%d')
     total_price = payment.amount
     if payment.payment_method:
