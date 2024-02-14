@@ -267,6 +267,7 @@ def apartments_analytics(request):
         'year_range': year_range,
         'aprat_len': aprat_len,
         'year': year,
+        'title': "Apt. Report",
         'isFilter': isFilter
     }
 

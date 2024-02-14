@@ -20,8 +20,6 @@ def print_info(message):
     print(message)
     logger_sms.debug(message)
 
-# @csrf_exempt
-
 
 @require_http_methods(["POST"])
 def forward_message2(request):
