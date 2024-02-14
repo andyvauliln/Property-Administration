@@ -11,21 +11,32 @@ from django.db.models import Sum
 from dateutil.relativedelta import relativedelta
 import logging
 
+logger_common = logging.getLogger('mysite.common')
+
+
+def print_info(message):
+    print(message)
+    logger_common.debug(message)
+
 
 @user_has_role('Admin')
 def generate_invoice(request):
 
-    referer_url = request.META.get('HTTP_REFERER', '/payments')
-    payment_id = request.GET.get('id')
-    print(payment_id, "payment_id")
-    if (payment_id):
-        payment = Payment.objects.get(pk=int(payment_id))
-        if (payment and not payment.invoice_url):
-            invoice_url = generate_invoice_for_payment(payment)
-            print(f'Invoice created {invoice_url}')
+    try:
+        referer_url = request.META.get('HTTP_REFERER', '/payments')
+        payment_id = request.GET.get('id')
+        print_info(payment_id, "payment_id")
+        if (payment_id):
+            payment = Payment.objects.get(pk=int(payment_id))
+            if (payment and not payment.invoice_url):
+                invoice_url = generate_invoice_for_payment(payment)
+                print_info(f'Invoice created {invoice_url}')
 
-        print(f'Cant find a pyament Id: {payment_id}')
-    return redirect(referer_url)
+            print_info(f'Cant find a pyament Id: {payment_id}')
+        return redirect(referer_url)
+    except Exception as e:
+        print_info("Error: Generating Invoice Error", str(e))
+        return redirect(referer_url)
 
 
 def generate_invoice_for_payment(payment: Payment):
@@ -37,7 +48,7 @@ def generate_invoice_for_payment(payment: Payment):
         replaceText(payment, document_id, docs_service)
 
         share_document_with_user(
-            drive_service, document_id, "andy.vaulin@gmail.com")
+            drive_service, document_id)
 
         payment.invoice_url = f"https://docs.google.com/document/d/{document_id}/edit"
         payment.save()
@@ -46,15 +57,15 @@ def generate_invoice_for_payment(payment: Payment):
 
     except Exception as e:
         # Handle errors appropriately
-        print(f"Error: {e}")
+        print_info(f"Error: {e}")
         return None
 
 
 def get_services():
-    print("Getting GOOGLE Services")
+    print_info("Getting GOOGLE Services")
     # Authenticate with Google Docs API using service account credentials
     credentials = service_account.Credentials.from_service_account_file(
-        'cobalt-alchemy-386114-2d7f09a69c2e.json',
+        'google_tokens.json',
         scopes=['https://www.googleapis.com/auth/documents',
                 'https://www.googleapis.com/auth/drive']
     )
@@ -67,7 +78,7 @@ def get_services():
 
 
 def create_doc_from_template(payment, drive_service):
-    print("Creating Document from Template")
+    print_info("Creating Document from Template")
     copy_title = f'Booking Invoice {payment.booking.id} [{payment.booking.apartment.name}]'
     document_copy = drive_service.files().copy(
         fileId=os.environ["TEMPLATE_DOCUMENT_ID"],
@@ -78,7 +89,7 @@ def create_doc_from_template(payment, drive_service):
     return id
 
 
-def share_document_with_user(service, document_id, user_email):
+def share_document_with_user(service, document_id):
 
     try:
        # Permission for public read access
@@ -92,9 +103,9 @@ def share_document_with_user(service, document_id, user_email):
             fields='id',
         ).execute()
 
-        print(f"Document {document_id} shared to public")
+        print_info(f"Document {document_id} shared to public")
     except Exception as e:
-        print(f"Failed to share document: {e}")
+        print_info(f"Failed to share document: {e}")
 
 
 def replaceText(payment: Payment, document_id, docs_service):
@@ -182,5 +193,7 @@ def replaceText(payment: Payment, document_id, docs_service):
 
     result = docs_service.documents().batchUpdate(
         documentId=document_id, body={'requests': requests}).execute()
+
+    print_info("Template values are replaced")
 
     return result

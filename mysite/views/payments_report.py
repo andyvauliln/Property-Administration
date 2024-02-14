@@ -9,7 +9,13 @@ from googleapiclient.discovery import build
 from django.http import HttpResponseRedirect
 from django.urls import reverse
 from urllib.parse import urlencode
+import logging
 
+logger_common = logging.getLogger('mysite.common')
+
+def print_info(message):
+    print(message)
+    logger_common.debug(message)
 
 @user_has_role('Admin')
 def paymentReport(request):
@@ -122,7 +128,8 @@ def paymentReport(request):
     if isExcel:
         excel_link = generate_excel(
             summary, monthly_data, start_date, end_date)
-        return HttpResponseRedirect(excel_link)
+        if(excel_link)
+            return HttpResponseRedirect(excel_link)
 
     context = {
         'start_date': start_date.strftime('%m/%d/%Y'),
@@ -142,35 +149,39 @@ def paymentReport(request):
 
 
 def generate_excel(summary, monthly_data, start_date, end_date):
-    sheets_service, drive_service = get_google_sheets_service()
-    print("Got GOOGLE Services")
-    # Create a new spreadsheet
-    spreadsheet_body = {
-        'properties': {
-            'title': f"Payment Report: {start_date.strftime('%m/%d/%Y')} - {end_date.strftime('%m/%d/%Y')}"
-        },
-        'sheets': [{
+    try:
+        sheets_service, drive_service = get_google_sheets_service()
+        print_info("Got GOOGLE Services")
+        # Create a new spreadsheet
+        spreadsheet_body = {
             'properties': {
-                'title': 'Summary'
-            }
-        }]
-    }
-    spreadsheet = sheets_service.create(body=spreadsheet_body).execute()
-    spreadsheet_id = spreadsheet.get('spreadsheetId')
-    print(f"Spredsheet created {spreadsheet_id}")
+                'title': f"Payment Report: {start_date.strftime('%m/%d/%Y')} - {end_date.strftime('%m/%d/%Y')}"
+            },
+            'sheets': [{
+                'properties': {
+                    'title': 'Summary'
+                }
+            }]
+        }
+        spreadsheet = sheets_service.create(body=spreadsheet_body).execute()
+        spreadsheet_id = spreadsheet.get('spreadsheetId')
+        print_info(f"Spredsheet created {spreadsheet_id}")
 
-    # Insert summary data into the Summary sheet
-    insert_summary_data(sheets_service, spreadsheet_id, summary)
+        # Insert summary data into the Summary sheet
+        insert_summary_data(sheets_service, spreadsheet_id, summary)
 
-    # Generate and insert monthly data reports
-    for month_data in monthly_data:
-        insert_monthly_data_report(sheets_service, spreadsheet_id, month_data)
+        # Generate and insert monthly data reports
+        for month_data in monthly_data:
+            insert_monthly_data_report(sheets_service, spreadsheet_id, month_data)
 
-    share_document_with_user(drive_service, spreadsheet_id)
+        share_document_with_user(drive_service, spreadsheet_id)
 
-    # Generate and return the link to the spreadsheet
-    excel_link = f'https://docs.google.com/spreadsheets/d/{spreadsheet_id}/edit'
-    return excel_link
+        # Generate and return the link to the spreadsheet
+        excel_link = f'https://docs.google.com/spreadsheets/d/{spreadsheet_id}/edit'
+        return excel_link
+    except Exception as e:
+        print_info("ERROR: Error while generating Excel Report")
+        return ""
 
 
 def insert_summary_data(sheets_service, spreadsheet_id, summary):
@@ -186,7 +197,8 @@ def insert_summary_data(sheets_service, spreadsheet_id, summary):
     sheets_service.values().update(
         spreadsheetId=spreadsheet_id, range=summary_range,
         valueInputOption='USER_ENTERED', body={'values': summary_values}).execute()
-    print(f"Created Summary Sheet for {spreadsheet_id}")
+
+    print_info(f"Created Summary Sheet for {spreadsheet_id}")
 
 
 def insert_monthly_data_report(sheets_service, spreadsheet_id, month_data):
@@ -227,13 +239,13 @@ def insert_monthly_data_report(sheets_service, spreadsheet_id, month_data):
             {'range': month_range, 'values': month_summary_values}]}
     ).execute()
 
-    print(f"Created Sheet for {month_sheet_title}")
+    print_info(f"Created Sheet for {month_sheet_title}")
 
 
 def get_google_sheets_service():
     SCOPES = ['https://www.googleapis.com/auth/spreadsheets',
               'https://www.googleapis.com/auth/drive']
-    SERVICE_ACCOUNT_FILE = 'google_tokens.json.json'
+    SERVICE_ACCOUNT_FILE = 'google_tokens.json'
 
     credentials = Credentials.from_service_account_file(
         SERVICE_ACCOUNT_FILE, scopes=SCOPES)
@@ -258,6 +270,6 @@ def share_document_with_user(service, document_id):
             fields='id',
         ).execute()
 
-        print(f"Document {document_id} shared to public")
+        print_info(f"Document {document_id} shared to public")
     except Exception as e:
-        print(f"Failed to share document: {e}")
+        print_info(f"Failed to share document: {e}")
