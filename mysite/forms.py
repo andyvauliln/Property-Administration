@@ -396,7 +396,7 @@ class BookingForm(forms.ModelForm):
         ui_element="radio", _dropdown_options=lambda: get_dropdown_options("visit_purpose"))
 
     is_rent_car = BooleanFieldEx(
-        required=False, isCreate=True, initial=False, isEdit=True, ui_element="radio", _dropdown_options=lambda: get_dropdown_options("is_rent_car"), order=11)
+        required=False, isCreate=True, initial="false", isEdit=True, ui_element="radio", _dropdown_options=lambda: get_dropdown_options("is_rent_car"), order=11)
     car_model = CharFieldEx(max_length=100, initial="", required=False,
                             isCreate=True, isEdit=True, ui_element="input", order=12)
     car_price = DecimalFieldEx(
