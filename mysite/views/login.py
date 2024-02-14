@@ -26,7 +26,7 @@ def custom_login_view(request):
             return redirect('/')
     else:
         form = CustomUserLoginForm()
-    return render(request, 'login.html', {'form': form})
+    return render(request, 'login.html', {'form': form, "title": "login"})
 
 
 class CustomLogoutView(LogoutView):

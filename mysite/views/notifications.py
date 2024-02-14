@@ -78,6 +78,7 @@ def notifications(request):
         'prev_page': page - 1,
         'next_page': page + 1,
         'items_json': items_json,
+        'title': "notifications",
         "model_fields": model_fields
     }
 

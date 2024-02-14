@@ -203,6 +203,7 @@ def apartment(request):
         'current_year': today.year,
         'next_year': next_year,
         'bookings': bookings,
+        'title': "Apt. Callendar",
     }
 
     return render(request, 'apartment.html', context)

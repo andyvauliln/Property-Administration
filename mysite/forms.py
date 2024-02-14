@@ -83,6 +83,12 @@ def get_dropdown_options(identifier, isData=False, request=None):
             return items
         return [{"value": item.id, "label": item.name} for item in items]
 
+    elif identifier == 'is_rent_car':
+        items = [True, False]
+        if isData:
+            return items
+        return [{"value": "true", "label": "Rent"}, {"value": "false", "label": "Own"}]
+
     elif identifier == 'banks':
         items = PaymentMethod.objects.filter(type='Bank')
         if isData:
@@ -217,8 +223,8 @@ class CustomUserForm(forms.ModelForm):
     phone = CharFieldEx(max_length=15, required=False, isColumn=True,
                         isEdit=True, isCreate=True, ui_element="input")
     role = CharFieldEx(max_length=14, isColumn=True, isEdit=True, isCreate=True,
-                       ui_element="dropdown", _dropdown_options=lambda: get_dropdown_options("roles"))
-    notes = CharFieldEx(required=False, isColumn=False,
+                       ui_element="radio", _dropdown_options=lambda: get_dropdown_options("roles"))
+    notes = CharFieldEx(required=False, initial="", isColumn=False,
                         isEdit=True, isCreate=True, ui_element="textarea")
 
 
@@ -296,7 +302,8 @@ class BookingForm(forms.ModelForm):
         fields = [
             'tenant_email', 'tenant_full_name', 'tenant_phone', 'assigned_cleaner',
             'status', 'start_date', 'end_date', 'notes', 'tenant', 'apartment', 'source', 'tenants_n',
-            'payment_type', 'payment_date', 'amount', "animals", "visit_purpose",  "other_tenants",
+            'payment_type', 'payment_date', 'amount', "animals", "visit_purpose",  "other_tenants",  'is_rent_car',
+            'car_model', 'car_price', 'car_rent_days',
         ]
 
     def __init__(self, *args, **kwargs):
@@ -314,7 +321,6 @@ class BookingForm(forms.ModelForm):
 
         self.fields['apartment']._dropdown_options = get_dropdown_options(
             "apartments", False, request=self.request)
-
 
     def save(self, **kwargs):
         instance = super().save(commit=False)
@@ -348,7 +354,7 @@ class BookingForm(forms.ModelForm):
         queryset=User.objects.all(),
         order=1,
         initial=17,
-        isColumn=False, isEdit=True, isCreate=True, required=False, ui_element="dropdown",
+        isColumn=False, isEdit=True, isCreate=True, required=False, ui_element="radio",
         _dropdown_options=lambda: get_dropdown_options("cleaners"))
     owner = ModelChoiceFieldEx(
         queryset=User.objects.all(),
@@ -375,18 +381,28 @@ class BookingForm(forms.ModelForm):
         isColumn=False, isEdit=True, initial="", order=9, isCreate=True, ui_element="textarea", required=False)
     tenant = ModelChoiceFieldEx(queryset=User.objects.all(), required=False, isColumn=True,
                                 isEdit=False, isCreate=False, ui_element="input", display_field=["tenant.full_name"])
-    tenants_n = DecimalFieldEx(isColumn=False, initial=1, order=8, isEdit=True, isCreate=True,required=False,  ui_element="input")
+    tenants_n = DecimalFieldEx(isColumn=False, initial=1, order=8,
+                               isEdit=True, isCreate=True, required=False,  ui_element="input")
     status = ChoiceFieldEx(choices=Booking.STATUS, isColumn=True, initial='Waiting Contract', isEdit=True,
-                           required=False, isCreate=True, ui_element="dropdown", order=0,
+                           required=False, isCreate=True, ui_element="radio", order=0,
                            _dropdown_options=lambda: get_dropdown_options("booking_status"))
     source = ChoiceFieldEx(choices=Booking.SOURCE, initial="Airbnb", order=5, isColumn=False, isEdit=True,
-                           required=False, isCreate=True, ui_element="dropdown",
+                           required=False, isCreate=True, ui_element="radio",
                            _dropdown_options=lambda: get_dropdown_options("booking_source"))
     animals = ChoiceFieldEx(choices=Booking.ANIMALS, order=7,  isColumn=False,  isEdit=True, required=False,
-                            isCreate=True, ui_element="dropdown", _dropdown_options=lambda: get_dropdown_options("animals"))
+                            isCreate=True, ui_element="radio", _dropdown_options=lambda: get_dropdown_options("animals"))
     visit_purpose = ChoiceFieldEx(
         choices=Booking.VISIT_PURPOSE, isColumn=False, order=6, isEdit=True, required=False, isCreate=True,
-        ui_element="dropdown", _dropdown_options=lambda: get_dropdown_options("visit_purpose"))
+        ui_element="radio", _dropdown_options=lambda: get_dropdown_options("visit_purpose"))
+
+    is_rent_car = BooleanFieldEx(
+        required=False, isCreate=True, initial=False, isEdit=True, ui_element="radio", _dropdown_options=lambda: get_dropdown_options("is_rent_car"), order=11)
+    car_model = CharFieldEx(max_length=100, initial="", required=False,
+                            isCreate=True, isEdit=True, ui_element="input", order=12)
+    car_price = DecimalFieldEx(
+        max_digits=10, required=False, initial=0,  isCreate=True, isEdit=True, ui_element="input", order=13)
+    car_rent_days = IntegerFieldEx(
+        required=False,  isCreate=True, initial=0, isEdit=True, ui_element="input", order=14)
 
     def clean(self):
         cleaned_data = super().clean()
@@ -449,24 +465,24 @@ class PaymentForm(forms.ModelForm):
         isColumn=False, isEdit=False, initial=1, order=1, required=False, isCreate=True, ui_element="input")
     payment_status = ChoiceFieldEx(
         choices=Payment.PAYMENT_STATUS, initial='Pending', order=8, required=False, isColumn=True, isEdit=True, isCreate=True,
-        ui_element="dropdown", _dropdown_options=lambda: get_dropdown_options("payment_status"))
+        ui_element="radio", _dropdown_options=lambda: get_dropdown_options("payment_status"))
     payment_method = ModelChoiceFieldEx(
         queryset=PaymentMethod.objects.all(),
-        isColumn=False, isEdit=True, required=False, initial=1, isCreate=True, ui_element="dropdown",
+        isColumn=False, isEdit=True, required=False, initial=1, isCreate=True, ui_element="radio",
         _dropdown_options=lambda: get_dropdown_options("payment_methods"),
         order=6,
-        display_field=["payment_method.name"])     
+        display_field=["payment_method.name"])
     payment_type = ModelChoiceFieldEx(
         queryset=PaymenType.objects.all(),
         order=7,
-        isColumn=True, isEdit=True, isCreate=True, ui_element="dropdown",
+        isColumn=True, isEdit=True, isCreate=True, ui_element="radio",
         _dropdown_options=lambda: get_dropdown_options("payment_type"),
         display_field=["payment_type.name"])
     bank = ModelChoiceFieldEx(
         queryset=PaymentMethod.objects.all(),
         initial=6,
         order=5,
-        isColumn=False, isEdit=True, isCreate=True, required=False, ui_element="dropdown",
+        isColumn=False, isEdit=True, isCreate=True, required=False, ui_element="radio",
         _dropdown_options=lambda: get_dropdown_options("banks"))
     notes = CharFieldEx(isColumn=True, required=False, order=9, initial="",
                         isEdit=True, isCreate=True, ui_element="textarea")
@@ -548,9 +564,9 @@ class CleaningForm(forms.ModelForm):
     status = ChoiceFieldEx(
         choices=Cleaning.STATUS, required=False, initial='Scheduled', isColumn=True, isEdit=True, isCreate=True,
         ui_element="dropdown", _dropdown_options=lambda: get_dropdown_options("cleaning_status"))
-    tasks = CharFieldEx(isColumn=False, isEdit=True,
+    tasks = CharFieldEx(isColumn=False, initial="", isEdit=True,
                         required=False, isCreate=True, ui_element="textarea")
-    notes = CharFieldEx(isColumn=False, isEdit=True,
+    notes = CharFieldEx(isColumn=False, initial="", isEdit=True,
                         required=False, isCreate=True, ui_element="textarea")
     cleaner = ModelChoiceFieldEx(
         queryset=User.objects.all(),
@@ -587,7 +603,7 @@ class NotificationForm(forms.ModelForm):
                        isCreate=True, ui_element="datepicker")
     send_in_telegram = BooleanFieldEx(
         isColumn=True, required=False, isEdit=True, isCreate=True, ui_element="checkbox")
-    message = CharFieldEx(isColumn=True,  isEdit=True,
+    message = CharFieldEx(isColumn=True, initial="",  isEdit=True,
                           isCreate=True, ui_element="textarea")
     booking = ModelChoiceFieldEx(
         queryset=Booking.objects.all(),
@@ -611,11 +627,11 @@ class PaymentMethodForm(forms.ModelForm):
         model = PaymentMethod
         fields = ['name', 'type', "notes"]
 
-    name = CharFieldEx(max_length=32, isColumn=True,
+    name = CharFieldEx(max_length=32, initial="", isColumn=True,
                        isEdit=True, isCreate=True, ui_element="input")
     type = ChoiceFieldEx(choices=PaymentMethod.TYPE, isColumn=True, isEdit=True, isCreate=True,
                          ui_element="dropdown", _dropdown_options=lambda: get_dropdown_options("payment_method_type"))
-    notes = CharFieldEx(isColumn=False, isEdit=True,
+    notes = CharFieldEx(isColumn=False, initial="", isEdit=True,
                         required=False, isCreate=True, ui_element="textarea")
 
     def __init__(self, *args, **kwargs):
@@ -629,7 +645,7 @@ class PaymentTypeForm(forms.ModelForm):
         model = PaymenType
         fields = ['name', 'type']
 
-    name = CharFieldEx(max_length=32, isColumn=True,
+    name = CharFieldEx(max_length=32, initial="", isColumn=True,
                        isEdit=True, isCreate=True, ui_element="input")
     type = ChoiceFieldEx(choices=PaymenType.TYPE, isColumn=True, isEdit=True, isCreate=True,
                          ui_element="dropdown", _dropdown_options=lambda: get_dropdown_options("payment_type_direction"))

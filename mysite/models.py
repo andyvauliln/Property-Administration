@@ -237,6 +237,16 @@ class Booking(models.Model):
 
     tenant = models.ForeignKey(
         User, on_delete=models.SET_NULL, db_index=True, related_name='bookings', null=True, blank=True)
+
+    is_rent_car = models.BooleanField(
+        default=False, verbose_name="Is Rent Car")
+    car_model = models.CharField(
+        max_length=100, default="", verbose_name="Car Model")
+    car_price = models.DecimalField(
+        max_digits=10, decimal_places=2, default=0, verbose_name="Car Price")
+    car_rent_days = models.IntegerField(
+        default=0, verbose_name="Car Rent Days")
+
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 

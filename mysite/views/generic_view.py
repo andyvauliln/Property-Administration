@@ -111,4 +111,4 @@ def generic_view(request, model_name, form_class, template_name, pages=30):
 
     return render(
         request, template_name,
-        {'items': items_on_page, "items_json": items_json, 'search_query': search_query, 'model_fields': model_fields})
+        {'items': items_on_page, "items_json": items_json, 'search_query': search_query, 'model_fields': model_fields, "title": model_name.capitalize()})

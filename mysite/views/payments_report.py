@@ -13,9 +13,11 @@ import logging
 
 logger_common = logging.getLogger('mysite.common')
 
+
 def print_info(message):
     print(message)
     logger_common.debug(message)
+
 
 @user_has_role('Admin')
 def paymentReport(request):
@@ -128,7 +130,7 @@ def paymentReport(request):
     if isExcel:
         excel_link = generate_excel(
             summary, monthly_data, start_date, end_date)
-        if(excel_link)
+        if (excel_link):
             return HttpResponseRedirect(excel_link)
 
     context = {
@@ -143,6 +145,7 @@ def paymentReport(request):
         'current_apartment_type': apartment_type_filter,
         'current_payment_status': payment_status_filter,
         'current_payment_type': payment_type_filter,
+        'title': "Payments Report",
     }
 
     return render(request, 'payment_report.html', context)
@@ -172,7 +175,8 @@ def generate_excel(summary, monthly_data, start_date, end_date):
 
         # Generate and insert monthly data reports
         for month_data in monthly_data:
-            insert_monthly_data_report(sheets_service, spreadsheet_id, month_data)
+            insert_monthly_data_report(
+                sheets_service, spreadsheet_id, month_data)
 
         share_document_with_user(drive_service, spreadsheet_id)
 
