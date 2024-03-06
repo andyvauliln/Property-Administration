@@ -3,6 +3,9 @@
 {% load custom_filters %}
 {% block content %}
 
+<script>
+    const items_json ={{ items_json|safe }}
+</script>
 
   <section class="bg-white dark:bg-gray-900"> 
     <div class="pb-8 px-4 mx-auto max-w-screen-xl lg:pb-16 lg:px-6">
@@ -10,20 +13,20 @@
         
         <div class="flex justify-center items-center mb-8">
             <!-- Previous Year Button -->
-            <a href="/?apartment.id={{ apartment_id }}&year={{ prev_year }}" id="prevYearLink" class="text-blue-500 underline p-4 block text-2xl font-extrabold" style="height: fit-content;">
+            <a href="/apartment/?apartment.id={{ apartment_id }}&year={{ prev_year }}" id="prevYearLink" class="text-blue-500 underline p-4 block text-2xl font-extrabold" style="height: fit-content;">
                 Previous Year
             </a>
             
             <!-- Current Year Button -->
-            <a href="/?apartment.id={{ apartment_id }}" id="fromNowLink" class="text-blue-500 underline p-4 block text-2xl font-extrabold" style="height: fit-content;">
+            <a href="/apartment/?apartment.id={{ apartment_id }}" id="fromNowLink" class="text-blue-500 underline p-4 block text-2xl font-extrabold" style="height: fit-content;">
                 From Now
             </a>
-            <a href="/?apartment.id={{ apartment_id }}&year={{ current_year }}"  id="currentYearLink"  class="text-blue-500 underline p-4 block text-2xl font-extrabold" style="height: fit-content;">
+            <a href="/apartment/?apartment.id={{ apartment_id }}&year={{ current_year }}"  id="currentYearLink"  class="text-blue-500 underline p-4 block text-2xl font-extrabold" style="height: fit-content;">
                 Current Year
             </a>
             
             <!-- Next Year Button -->
-            <a href="/?apartment.id={{ apartment_id }}&year={{ next_year }}"  id="nextYearLink"  class="text-blue-500 underline p-4 block text-2xl font-extrabold" style="height: fit-content;">
+            <a href="/apartment/?apartment.id={{ apartment_id }}&year={{ next_year }}"  id="nextYearLink"  class="text-blue-500 underline p-4 block text-2xl font-extrabold" style="height: fit-content;">
                 Next Year
             </a>
             <select id="apartment" onchange="updateLinks()" name="apartment" class="bg-gray-50 border ml-6 border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-primary-500 focus:border-primary-500 block w-30 p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white dark:focus:ring-primary-500 dark:focus:border-primary-500">
@@ -81,20 +84,20 @@
        {% endfor %}
        <div class="flex justify-center items-center mt-8">
         <!-- Previous Year Button -->
-        <a href="/?apartment.id={{ apartment_id }}&year={{ prev_year }}" class="text-blue-500 underline p-4 block" style="height: fit-content;">
+        <a href="/apartment/?apartment.id={{ apartment_id }}&year={{ prev_year }}" class="text-blue-500 underline p-4 block" style="height: fit-content;">
             Previous Year
         </a>
         
         <!-- Current Year Button -->
-        <a href="/?apartment.id={{ apartment_id }}" class="text-blue-500 underline p-4 block" style="height: fit-content;">
+        <a href="/apartment/?apartment.id={{ apartment_id }}" class="text-blue-500 underline p-4 block" style="height: fit-content;">
             From Now
         </a>
-        <a href="/?apartment.id={{ apartment_id }}&year={{ current_year }}" class="text-blue-500 underline p-4 block" style="height: fit-content;">
+        <a href="/apartment/?apartment.id={{ apartment_id }}&year={{ current_year }}" class="text-blue-500 underline p-4 block" style="height: fit-content;">
             Current Year
         </a>
         
         <!-- Next Year Button -->
-        <a href="/?apartment.id={{ apartment_id }}&year={{ next_year }}" class="text-blue-500 underline p-4 block" style="height: fit-content;">
+        <a href="/apartment/?apartment.id={{ apartment_id }}&year={{ next_year }}" class="text-blue-500 underline p-4 block" style="height: fit-content;">
             Next Year
         </a>
     </div>
@@ -128,7 +131,21 @@
 
 <script>
     {% comment %} console.log({{apartments_data_json|safe}}) {% endcomment %}
-     
+    function formatDate(inputDate) {
+        // Parse the input date string in "MMMM D, YYYY" format
+        const parsedDate = new Date(Date.parse(inputDate));
+        console.log(parsedDate, "parsedDate")
+    
+        // Get the month, day, and year components
+        const month = (parsedDate.getMonth() + 1).toString().padStart(2, '0');
+        const day = parsedDate.getDate().toString().padStart(2, '0');
+        const year = parsedDate.getFullYear();
+    
+        // Format the date as MM/DD/YYYY
+        const formattedDate = `${month}/${day}/${year}`;
+    
+        return formattedDate;
+    }
     function updateLinks() {
         var apartmentId = document.getElementById('apartment').value;
         var currentYear = {{current_year}};
@@ -140,6 +157,27 @@
         document.getElementById('currentYearLink').href = '?apartment.id=' + apartmentId + '&year=' + currentYear;
         document.getElementById('nextYearLink').href = '?apartment.id=' + apartmentId + '&year=' + nextYear;
     }
+    function setSelectedOptionByText(selectId, optionText) {
+        const selectElement = document.getElementById(selectId);
+      
+        if (selectElement) {
+          for (let i = 0; i < selectElement.options.length; i++) {
+            const option = selectElement.options[i];
+           
+            if (option.value === optionText) {
+              // Set the selected property
+              option.selected = true;
+      
+              // If you also want to add the 'selected' attribute
+              option.setAttribute('selected', 'selected');
+              
+            } else {
+              // Ensure other options don't have the 'selected' attribute
+              option.removeAttribute('selected');
+            }
+          }
+        }
+      }
     document.addEventListener('DOMContentLoaded', function() {
         const days = document.querySelectorAll('.day');
         const popover = document.getElementById('dynamic-popover');
@@ -163,6 +201,17 @@
     
         days.forEach(day => {
             day.addEventListener('click', function(event) {
+                const date = day.dataset.date;
+                const start_date = document.getElementById('start_date');
+                const end_date = document.getElementById('end_date');
+                
+
+                start_date.value = formatDate(date)
+                end_date.value = formatDate(date)
+                setSelectedOptionByText("apartment", day.dataset.apartmentId)
+            })
+
+            day.addEventListener('mouseenter', function(event) {
                 const date = day.dataset.date;
     
                 const bookingIds = day.dataset.bookingIds.split(',');
@@ -213,24 +262,18 @@
                 popoverContent.innerHTML = content || 'No events for this day';
     
                 // Position the popover above the clicked day
-                popover.style.left = `${event.clientX - popover.offsetWidth / 2}px`;
+                popover.style.left = `${event.clientX + 50 - (popover.offsetWidth) / 2}px`;
                 popover.style.top = `${event.clientY - popover.offsetHeight - 10}px`;
     
                 // Show the popover
                 popover.classList.remove('hidden');
             });
-        });
-
-
-   
-    
-        // Hide the popover when clicking outside
-        document.addEventListener('click', function(event) {
-            if (!event.target.closest('.day') && !event.target.closest('#dynamic-popover')) {
-                popover.classList.add('hidden');
-            }
-        });
-    });
+            // Hide the popover when clicking outside
+           day.addEventListener('mouseleave', function(event) {
+               popover.classList.add('hidden');
+           });
+       });
+   });
     
     
 </script>
@@ -246,6 +289,9 @@
         <!-- Content will be dynamically added here -->
     </div>
 </div>
+  
+{% include "booking_create.html" %}
+{% include "booking_edit.html" %}
   
 
 {% endblock content %}

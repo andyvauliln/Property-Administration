@@ -61,7 +61,7 @@ def create_doc_from_template(payment, drive_service):
     print("Creating Document from Template")
     copy_title = f'Payment Invoice For[{payment.booking.apartment.name}] N {payment.booking.id}'
     document_copy = drive_service.files().copy(
-        fileId=os.environ["TEMPLATE_DOCUMENT_ID"],
+        fileId=os.environ["TEMPLATE_INVOICE_DOCUMENT_ID"],
         body={"name": copy_title},
     ).execute()
 

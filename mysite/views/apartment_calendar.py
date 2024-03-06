@@ -1,6 +1,7 @@
 from django.shortcuts import render
 from django.contrib.auth.views import LogoutView
 from ..models import Apartment, Booking, Cleaning, Payment
+from mysite.forms import BookingForm
 from django.db.models import Q
 import json
 from datetime import date, timedelta
@@ -8,8 +9,9 @@ from collections import defaultdict
 from django.utils import timezone
 from dateutil.relativedelta import relativedelta
 from django.http import HttpResponseBadRequest
+from ..models import Apartment, Booking, Cleaning, Payment
 from ..decorators import user_has_role
-from .utils import generate_weeks, stringify_keys, aggregate_data
+from .utils import generate_weeks, DateEncoder, handle_post_request, stringify_keys, aggregate_data, get_model_fields
 
 
 @user_has_role('Admin')
@@ -17,6 +19,9 @@ def apartment(request):
     apartment_id = request.GET.get('apartment.id', 22)
     year = request.GET.get('year')
     apartments = Apartment.objects.all().order_by('name').values_list('id', 'name')
+
+    if request.method == 'POST':
+        handle_post_request(request, Booking, BookingForm)
 
     try:
         apartment_id = int(apartment_id)
@@ -193,17 +198,35 @@ def apartment(request):
     for apartment_id, apartment_data in apartments_data.items():
         apartment_data['months'] = dict(apartment_data['months'])
 
+    model_fields = get_model_fields(BookingForm(request=request))
+    bookings_list = list(bookings.values())
+
+    # Extract the 'fields' from each item in the list
+    bookings_data_list = [{'id': booking['id'], **booking}
+                          for booking in bookings_list]
+    for item, original_obj in zip(bookings_data_list, bookings):
+        if hasattr(original_obj, 'assigned_cleaner'):
+            item['assigned_cleaner'] = original_obj.assigned_cleaner.id if original_obj.assigned_cleaner else None
+        if hasattr(original_obj, 'tenant'):
+            item['tenant_full_name'] = original_obj.tenant.full_name
+            item['tenant_email'] = original_obj.tenant.email
+            item['tenant_phone'] = original_obj.tenant.phone
+        item['links'] = original_obj.links
+    items_json = json.dumps(bookings_data_list, cls=DateEncoder)
     context = {
         'apartments_data': apartments_data,
         'apartments': apartments,
+        'items_json': items_json,
         'apartment_id': apartment_id,
         'current_date': timezone.now(),
         'apartments_data_json': apartments_data_json,
         'prev_year': prev_year,
+        'model_fields': model_fields,
         'current_year': today.year,
         'next_year': next_year,
         'bookings': bookings,
         'title': "Apt. Callendar",
+        'endpoint': "apartment/",
     }
 
     return render(request, 'apartment.html', context)
