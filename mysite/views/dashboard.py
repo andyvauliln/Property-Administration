@@ -164,6 +164,7 @@ def index(request):
         'next_page': next_page,
         'bookings': bookings,
         'title': "Dashboard",
+        'endpoint': "",
         # 'today_notifications': today_notifications,
         # 'next_week_notifications': next_week_notifications,
         # 'next_month_notifications': next_month_notifications,

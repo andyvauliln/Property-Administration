@@ -12,7 +12,7 @@
                 </button>
             </div>
             <!-- Modal body -->
-            <form method="POST" action="/">
+            <form id="create_form" method="POST" action="">
                 <input type="hidden" name="add" value="true">
                 <div class="grid gap-4 mb-4 sm:grid-cols-2">
                     {% for field_name, field_instance in model_fields %}
@@ -81,6 +81,9 @@
 <script>
 
     document.addEventListener('DOMContentLoaded', function() {
+        var currentUrl = window.location.href;
+        document.getElementById("create_form").action = currentUrl;
+
         const createModal = document.getElementById('createModal');
         
         const closeModalButton = document.getElementById('closeCreateModal');
