@@ -19,6 +19,7 @@ from google.auth.transport.requests import Request
 import re
 import base64
 import json
+import pickle
 import os
 
 
@@ -348,13 +349,16 @@ class Booking(models.Model):
                 drive_service, document_id)
 
             self.contract_url = f"https://docs.google.com/document/d/{document_id}/edit"
-            self.save()
-
+            self.update()
+            print(f"Contract was made link is {self.contract_url}")
             message = f"Hi, here you will find a link for your apartment rental reservation. Please, fill it out and sign. {self.contract_url}"
             if self.tenant.email and self.tenant.email != "not_availabale@gmail.com":
                 send_email(self.tenant.email, message)
-            if self.tenant.phone:
+            if self.tenant.phone and self.tenant.phone.startswith("+1"):
                 send_sms(self, message, self.tenant.phone)
+
+            if not self.tenant.email and self.tenant.email == "not_availabale@gmail.com" and not self.tenant.phone and self.tenant.phone.startswith("+1"):
+                print("Client wasn't notified about contract to sign")
 
             return self.contract_url
 
@@ -362,9 +366,6 @@ class Booking(models.Model):
             # Handle errors appropriately
             print(f"Error: {e}")
             return None
-
-    def send_contract_to_tenant(self):
-        print("Sending Contract to Tenant")
 
     def deletePayments(self):
         payments_to_delete = Payment.objects.filter(
@@ -499,7 +500,7 @@ class Booking(models.Model):
             links_list.append({"name": f"Tenant: {self.tenant.full_name}",
                               "link": f"/users/?q=id={self.tenant.id}"})
         if self.contract_url:
-            links_list.append({"name": f"Contract: {self.contract_url}",
+            links_list.append({"name": f"Contract: Open Contract",
                               "link": f"{self.contract_url}"})
 
         if self.apartment:
@@ -590,7 +591,7 @@ def replaceText(booking: Booking, document_id, docs_service):
     variables = {
         "owner": booking.apartment.owner.full_name,
         "occupant": booking.tenant.full_name,
-        "phone": booking.tenant.full_name or "",
+        "phone": booking.tenant.phone or "",
         "email": booking.tenant.email or "",
         "start_date":  booking.start_date.strftime('%Y-%m-%d'),
         "end_date":  booking.end_date.strftime('%Y-%m-%d'),
@@ -656,7 +657,7 @@ def send_sms(booking, message, recipient, count=0):
         if (count == 0):
             print(
                 f"Try send message one more time to {recipient} \n {message}")
-            return send_sms(manager_phone, context, 1)
+            return send_sms(booking, message, recipient, context, 1)
         else:
             print(
                 f"SMS can't be sent to {recipient} \n {message} after {count} attempt")
@@ -678,7 +679,7 @@ def send_email(recipient_email, message):
 
         mimeMessage = MIMEMultipart()
         mimeMessage['to'] = recipient_email
-        mimeMessage['subject'] = 'You won'
+        mimeMessage['subject'] = 'Booking Contract Signing'
         mimeMessage.attach(MIMEText(message, 'plain'))
         raw_string = base64.urlsafe_b64encode(mimeMessage.as_bytes()).decode()
 
@@ -701,13 +702,12 @@ def create_service(client_secret_file, api_name, api_version, *scopes):
 
     cred = None
 
-    json_file = f'token_{API_SERVICE_NAME}_{API_VERSION}.json'
-    # print(json_file)
+    pickle_file = f'token_{API_SERVICE_NAME}_{API_VERSION}.pickle'
+    # print(pickle_file)
 
-    if os.path.exists(json_file):
-        with open(json_file, 'r') as token:
-            cred_data = json.load(token)
-            cred = Credentials.from_authorized_user_info(cred_data)
+    if os.path.exists(pickle_file):
+        with open(pickle_file, 'rb') as token:
+            cred = pickle.load(token)
 
     if not cred or not cred.valid:
         if cred and cred.expired and cred.refresh_token:
@@ -717,8 +717,8 @@ def create_service(client_secret_file, api_name, api_version, *scopes):
                 CLIENT_SECRET_FILE, SCOPES)
             cred = flow.run_local_server()
 
-        with open(json_file, 'w') as token:
-            json.dump(cred.to_json(), token)
+        with open(pickle_file, 'wb') as token:
+            pickle.dump(cred, token)
 
     try:
         service = build(API_SERVICE_NAME, API_VERSION, credentials=cred)
