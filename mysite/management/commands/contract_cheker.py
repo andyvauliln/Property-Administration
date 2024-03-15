@@ -2,7 +2,7 @@
 
 import requests
 from datetime import timedelta, date
-from mysite.models import Booking
+from mysite.models import Booking, User
 import os
 from django.core.management.base import BaseCommand
 from googleapiclient.discovery import build
@@ -11,6 +11,7 @@ from google.oauth2.credentials import Credentials
 from twilio.base.exceptions import TwilioException
 from twilio.rest import Client
 from mysite.models import Chat
+import re
 
 
 def check_contract():
@@ -24,7 +25,6 @@ def check_contract():
             if isSigned:
                 update_values(booking, doc_id, docs_service)
                 send_notification(booking)
-                print(f"Signature is {isSigned}")
 
 
 class Command(BaseCommand):
@@ -83,28 +83,68 @@ def check_signiture(doc_id, docs_service):
     return False
 
 
-def extract_value(doc_content, field_name):
-    print(f"Extracting value {field_name}")
-    # TODO: Extraction of Values from DOC
-    print(doc_content)
-    return ""
+def extract_plain_text(doc_content):
+    plain_text = ''
+    for elem in doc_content:
+        if 'paragraph' in elem and 'elements' in elem['paragraph']:
+            for element in elem['paragraph']['elements']:
+                if 'textRun' in element and 'content' in element['textRun']:
+                    plain_text += element['textRun']['content']
+    return plain_text
+
+
+def extract_and_update_values(booking, text):
+    print("exctractig values")
+    # Extracting E-mail
+    email_match = re.search(r'E-mail:\s*([^\s]+)', text)
+    if email_match:
+        email = email_match.group(1)
+        print(email,  booking.tenant.email)
+        if email and booking.tenant.email != email:
+            # Check if a user with the same email already exists
+            existing_user = User.objects.filter(email=email).first()
+            if existing_user:
+                # Update existing user instead of creating a new one
+                existing_user.email = email
+                existing_user.save()
+                # Assign existing user to the booking
+                booking.tenant = existing_user
+            else:
+                # No existing user with the same email, create a new one
+                new_user = User.objects.create(email=email, role='Tenant')
+                # Assign new user to the booking
+                booking.tenant = new_user
+
+    # Extracting Occupant Address
+    phone_match = re.search(r'Contact:\s*([^\n]+)', text)
+    if phone_match:
+        phone = phone_match.group(1)
+        print(phone,  booking.tenant.phone)
+        if phone and booking.tenant.phone != phone:
+            booking.tenant.phone = phone
+
+    occupant_match = re.search(r'Occupant:\s*([^\n]+)', text)
+    if occupant_match:
+        occupant = occupant_match.group(1)
+        print(occupant,  booking.tenant.full_name)
+        if occupant and booking.tenant.full_name != occupant:
+            booking.tenant.full_name = occupant
+
+    booking.tenant.save()
+    print("Updaiting Status")
+    booking.status = "Waiting Payment"
+
+    booking.update()
 
 
 def update_values(booking: Booking, doc_id, docs_service):
-    print("Getting Values")
+    print("Updating Values")
 
-    # Fetch the document content directly
     doc = docs_service.documents().get(documentId=doc_id).execute()
     doc_content = doc.get('body').get('content')
-    # doc_content_text = "\n".join([elem['paragraph']['elements'][0].get('textRun', {}).get('content', '') for elem in doc_content if elem.get('paragraph') and elem['paragraph'].get('elements')])
-
-    # address_value = extract_value(doc_content_text, "Address:")
-    # car_info_value = extract_value(doc_content_text, "Car Info:")
-    # print(f"Got Values {address_value} {car_info_value}")
-
-    # Update booking status and save
-    booking.status = "Waiting Payment"
-    booking.save()
+    doc_content_text = extract_plain_text(doc_content)
+    print(doc_content_text)
+    extract_and_update_values(booking, doc_content_text)
 
 
 def send_notification(booking: Booking):

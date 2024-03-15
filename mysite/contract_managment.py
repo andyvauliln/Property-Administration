@@ -27,15 +27,18 @@ def create_contract(booking):
     booking.update()
     print(f"Contract was made link is {booking.contract_url}")
     message = f"Hi, here you will find a link for your apartment rental reservation. Please, fill it out and sign. {booking.contract_url}"
-    if booking.tenant.email and booking.tenant.email != "not_available@gmail.com":
-        send_email(booking.tenant.email, message)
+
+    if booking.tenant.email and booking.tenant.email != "not_availabale@gmail.com":
+        print("Sending EMAIL")
+        send_email(booking, booking.tenant.email, message)
 
     if booking.tenant.phone and booking.tenant.phone.startswith("+1"):
         send_sms(booking, message, booking.tenant.phone)
 
-    if not (booking.tenant.email and booking.tenant.email != "not_available@gmail.com" and booking.tenant.phone and booking.tenant.phone.startswith("+1")):
+    if not (booking.tenant.email and booking.tenant.email != "not_availabale@gmail.com") and not (booking.tenant.phone and booking.tenant.phone.startswith("+1")):
         print("Client wasn't notified about contract to sign")
-        raise Exception("Client wasn't notified about contract to sign")
+        raise Exception(
+            "Client wasn't notified about contract to sign, please process manualy")
 
     return booking.contract_url
 
@@ -152,7 +155,11 @@ def send_sms(booking, message, recipient, count=0):
         print(
             f'SMS sent from {twilio_phone} to {recipient} \n{message}')
 
-        # messages.info(None, "Tenant was notified by sms")
+        if booking.contract_send_status == "Not Sent":
+            booking.contract_send_status = "Sent by SMS"
+        else:
+            booking.contract_send_status += ", Sent by SMS"
+        booking.update()
 
     except TwilioException as e:
         context = f'Error sending SMS notification to {recipient}. \n{message} \n Error: {str(e)}, '
@@ -162,7 +169,6 @@ def send_sms(booking, message, recipient, count=0):
                 f"Try send message one more time to {recipient} \n {message}")
             return send_sms(booking, message, recipient, context, 1)
         else:
-            # messages.info(None, "Tenant wasn't notified by sms")
             print(
                 f"SMS can't be sent to {recipient} \n {message} after {count} attempt")
             # db_message.message_status = "ERROR"
@@ -170,10 +176,10 @@ def send_sms(booking, message, recipient, count=0):
             # db_message.save()
 
 
-def send_email(recipient_email, message):
+def send_email(booking, recipient_email, message):
     try:
         print("Sending Email")
-        CLIENT_SECRET_FILE = 'gmail_oauth_token.json'
+        CLIENT_SECRET_FILE = os.environ.get("GOOGLE_OAUTH2_TOKEN_FILE")
         API_NAME = 'gmail'
         API_VERSION = 'v1'
         SCOPES = ['https://www.googleapis.com/auth/gmail.send']
@@ -190,12 +196,16 @@ def send_email(recipient_email, message):
         message = service.users().messages().send(
             userId='me', body={'raw': raw_string}).execute()
 
+        if booking.contract_send_status == "Not Sent":
+            booking.contract_send_status = "Sent by Email"
+        else:
+            booking.contract_send_status += "Sent by Email"
+
+        booking.update()
         print("Email sent successfully!")
-        # messages.info(None, "Tenant was notified by email")
 
     except Exception as e:
-        messages.info(None, f"Tenant wasn't notified by email {e}")
-        # print("An error occurred while sending the email:", e)
+        print("An error occurred while sending the email:", e)
 
 
 def create_service(client_secret_file, api_name, api_version, *scopes):

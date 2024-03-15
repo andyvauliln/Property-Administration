@@ -224,6 +224,8 @@ class Booking(models.Model):
     ]
 
     contract_url = models.TextField(blank=True, null=True)
+    contract_send_status = models.TextField(
+        blank=True, null=True, default="Not Sent")
     start_date = models.DateField(db_index=True)
     end_date = models.DateField(db_index=True)
     tenants_n = models.DecimalField(
@@ -458,7 +460,7 @@ class Booking(models.Model):
             links_list.append({"name": f"Tenant: {self.tenant.full_name}",
                               "link": f"/users/?q=id={self.tenant.id}"})
         if self.contract_url:
-            links_list.append({"name": f"Contract: Open Contract",
+            links_list.append({"name": f"Contract: Open Contract ({self.contract_send_status})",
                               "link": f"{self.contract_url}"})
 
         if self.apartment:
