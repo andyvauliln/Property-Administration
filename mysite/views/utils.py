@@ -13,32 +13,36 @@ from django.core.serializers.json import DjangoJSONEncoder
 
 
 def handle_post_request(request, model, form_class):
-    if 'edit' in request.POST:
-        item_id = request.POST['id']
-        if item_id:
-            instance = model.objects.get(id=item_id)
-            form = form_class(request.POST, instance=instance,
-                              request=request, action='edit')
+    try:
+        if 'edit' in request.POST:
+            item_id = request.POST['id']
+            if item_id:
+                instance = model.objects.get(id=item_id)
+                form = form_class(request.POST, instance=instance,
+                                  request=request, action='edit')
+                if form.is_valid():
+                    form.save()
+                else:
+                    for field, errors in form.errors.items():
+                        for error in errors:
+                            messages.error(request, f"{field}: {error}")
+            return redirect(request.path)
+        elif 'add' in request.POST:
+            form = form_class(request.POST, request=request)
             if form.is_valid():
                 form.save()
             else:
                 for field, errors in form.errors.items():
                     for error in errors:
                         messages.error(request, f"{field}: {error}")
-        return redirect(request.path)
-    elif 'add' in request.POST:
-        form = form_class(request.POST, request=request)
-        if form.is_valid():
-            form.save()
-        else:
-            for field, errors in form.errors.items():
-                for error in errors:
-                    messages.error(request, f"{field}: {error}")
-        return redirect(request.path)
-    elif 'delete' in request.POST:
-        instance = model.objects.get(id=request.POST['id'])
-        instance.delete()
-        form = form_class()
+            return redirect(request.path)
+        elif 'delete' in request.POST:
+            instance = model.objects.get(id=request.POST['id'])
+            instance.delete()
+            form = form_class()
+            return redirect(request.path)
+    except Exception as e:
+        messages.error(request, f"Error: {e}")
         return redirect(request.path)
 
 

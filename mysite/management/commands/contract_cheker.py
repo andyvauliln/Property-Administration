@@ -24,8 +24,7 @@ def check_contract():
             if isSigned:
                 update_values(booking, doc_id, docs_service)
                 send_notification(booking)
-
-    print(f"Signature is {isSigned}")
+                print(f"Signature is {isSigned}")
 
 
 class Command(BaseCommand):
@@ -94,19 +93,18 @@ def extract_value(doc_content, field_name):
 def update_values(booking: Booking, doc_id, docs_service):
     print("Getting Values")
 
-    response = docs_service.documents().export(
-        documentId=doc_id, mimeType='text/plain').execute()
+    # Fetch the document content directly
+    doc = docs_service.documents().get(documentId=doc_id).execute()
+    doc_content = doc.get('body').get('content')
+    # doc_content_text = "\n".join([elem['paragraph']['elements'][0].get('textRun', {}).get('content', '') for elem in doc_content if elem.get('paragraph') and elem['paragraph'].get('elements')])
 
-    doc_content = response.decode('utf-8')
+    # address_value = extract_value(doc_content_text, "Address:")
+    # car_info_value = extract_value(doc_content_text, "Car Info:")
+    # print(f"Got Values {address_value} {car_info_value}")
 
-    address_value = extract_value(doc_content, "Address:")
-    car_info_value = extract_value(doc_content, "Car Info:")
-    print(f"Got Values {address_value} {car_info_value}")
-
-    # TODO: Store Values in DB
-
+    # Update booking status and save
     booking.status = "Waiting Payment"
-    booking.update()
+    booking.save()
 
 
 def send_notification(booking: Booking):
@@ -116,7 +114,7 @@ def send_notification(booking: Booking):
     send_telegram_message(message)
 
 
-def send_sms(booking, message, recipient, count=0):
+def send_sms(booking, message, count=0):
     account_sid = os.environ["TWILIO_ACCOUNT_SID"]
     auth_token = os.environ["TWILIO_AUTH_TOKEN"]
     twilio_phone = os.environ["TWILIO_PHONE"]
@@ -126,7 +124,7 @@ def send_sms(booking, message, recipient, count=0):
     db_message = Chat.objects.create(
         booking=booking,
         sender_phone=twilio_phone,
-        receiver_phone=recipient,
+        receiver_phone=manager_phone,
         message=message,
         context="",
         sender_type="SYSTEM",
@@ -137,23 +135,23 @@ def send_sms(booking, message, recipient, count=0):
     try:
         twilio_message = client.messages.create(
             from_=twilio_phone,
-            to=recipient,
+            to=manager_phone,
             body=message
         )
 
         print(
-            f'SMS sent from {twilio_phone} to {recipient} \n{message}')
+            f'SMS sent from {twilio_phone} to {manager_phone} \n{message}')
 
     except TwilioException as e:
-        context = f'Error sending SMS notification to {recipient}. \n{message} \n Error: {str(e)}, '
+        context = f'Error sending SMS notification to {manager_phone}. \n{message} \n Error: {str(e)}, '
         print(context)
         if (count == 0):
             print(
-                f"Try send message one more time to {recipient} \n {message}")
-            return send_sms(manager_phone, context, 1)
+                f"Try send message one more time to {manager_phone} \n {message}")
+            return send_sms(booking, message)
         else:
             print(
-                f"SMS can't be sent to {recipient} \n {message} after {count} attempt")
+                f"SMS can't be sent to {manager_phone} \n {message} after {count} attempt")
             db_message.message_status = "ERROR"
             db_message.context = context
             db_message.save()
@@ -166,3 +164,5 @@ def send_telegram_message(message):
     for chat_id in telegram_chat_ids:
         base_url = f"https://api.telegram.org/bot{telegram_token}/sendMessage?chat_id={chat_id.strip()}&text={message}"
         requests.get(base_url)
+
+    print("telegram notification was sent")
