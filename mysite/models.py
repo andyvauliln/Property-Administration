@@ -321,8 +321,10 @@ class Booking(models.Model):
                 super().save(*args, **kwargs)  # Save the booking instance first to get an ID
                 self.schedule_cleaning(form_data)
                 self.create_booking_notifications()
+                if form_data["send_contract"]:
+                    create_contract(self)
+            if payments_data:
                 self.create_payments(payments_data)
-                create_contract(self)
 
             else:
                 super().save(*args, **kwargs)

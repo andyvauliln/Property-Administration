@@ -327,7 +327,6 @@ class BookingForm(forms.ModelForm):
 
         # Use self.cleaned_data to access the form's data
         form_data = self.cleaned_data
-
         payments_data = {
             'payment_dates': self.request.POST.getlist('payment_date[]'),
             'amounts': [abs(float(amount)) for amount in self.request.POST.getlist('amount[]')],
@@ -395,14 +394,16 @@ class BookingForm(forms.ModelForm):
         choices=Booking.VISIT_PURPOSE, isColumn=False, order=6, isEdit=True, required=False, isCreate=True,
         ui_element="radio", _dropdown_options=lambda: get_dropdown_options("visit_purpose"))
 
+    send_contract = BooleanFieldEx(
+        required=False, isCreate=True, initial="false", isEdit=False, ui_element="radio", _dropdown_options=[{"value": "false", "label": "Don't Send"}, {"value": "true", "label": "Send"}], order=11)
     is_rent_car = BooleanFieldEx(
-        required=False, isCreate=True, initial="false", isEdit=True, ui_element="radio", _dropdown_options=lambda: get_dropdown_options("is_rent_car"), order=11)
+        required=False, isCreate=True, initial="false", isEdit=True, ui_element="radio", _dropdown_options=lambda: get_dropdown_options("is_rent_car"), order=12)
     car_model = CharFieldEx(max_length=100, initial="", required=False,
-                            isCreate=True, isEdit=True, ui_element="input", order=12)
+                            isCreate=True, isEdit=True, ui_element="input", order=13)
     car_price = DecimalFieldEx(
-        max_digits=10, required=False, initial=0,  isCreate=True, isEdit=True, ui_element="input", order=13)
+        max_digits=10, required=False, initial=0,  isCreate=True, isEdit=True, ui_element="input", order=14)
     car_rent_days = IntegerFieldEx(
-        required=False,  isCreate=True, initial=0, isEdit=True, ui_element="input", order=14)
+        required=False,  isCreate=True, initial=0, isEdit=True, ui_element="input", order=15)
 
     def clean(self):
         cleaned_data = super().clean()
