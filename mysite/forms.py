@@ -177,10 +177,15 @@ class DateTimeFieldEx(CustomFieldMixin, forms.DateTimeField):
 class EmailFieldEx(CustomFieldMixin, forms.EmailField):
     pass
 
-
+class CustomBooleanField(CustomFieldMixin, forms.CharField):
+       def to_python(self, value):
+           print(value, "TEST")
+           if value == '' or value == None:
+               return None
+           return value == 'true'
+       
 class BooleanFieldEx(CustomFieldMixin, forms.BooleanField):
     pass
-
 
 class URLFieldEx(CustomFieldMixin, forms.URLField):
     pass
@@ -396,14 +401,16 @@ class BookingForm(forms.ModelForm):
 
     send_contract = BooleanFieldEx(
         required=False, isCreate=True, initial="false", isEdit=False, ui_element="radio", _dropdown_options=[{"value": "false", "label": "Don't Send"}, {"value": "true", "label": "Send"}], order=11)
-    is_rent_car = BooleanFieldEx(
-        required=False, isCreate=True, initial="false", isEdit=True, ui_element="radio", _dropdown_options=lambda: get_dropdown_options("is_rent_car"), order=12)
+    is_rent_car = CustomBooleanField(
+        required=False, initial="", isCreate=True, isEdit=True, ui_element="radio", _dropdown_options=lambda: get_dropdown_options("is_rent_car"), order=12)
+    
     car_model = CharFieldEx(max_length=100, initial="", required=False,
                             isCreate=True, isEdit=True, ui_element="input", order=13)
     car_price = DecimalFieldEx(
         max_digits=10, required=False, initial=0,  isCreate=True, isEdit=True, ui_element="input", order=14)
     car_rent_days = IntegerFieldEx(
         required=False,  isCreate=True, initial=0, isEdit=True, ui_element="input", order=15)
+    
 
     def clean(self):
         cleaned_data = super().clean()

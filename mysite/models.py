@@ -244,8 +244,7 @@ class Booking(models.Model):
     tenant = models.ForeignKey(
         User, on_delete=models.SET_NULL, db_index=True, related_name='bookings', null=True, blank=True)
 
-    is_rent_car = models.BooleanField(
-        default=False, verbose_name="Is Rent Car")
+    is_rent_car = models.BooleanField(null=True, blank=True, verbose_name="Is Rent Car")
     car_model = models.CharField(
         max_length=100, default="", verbose_name="Car Model")
     car_price = models.DecimalField(

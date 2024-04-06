@@ -54,12 +54,17 @@ def paymentReport(request):
         'payment_date'
     )
 
-    # Modify your payment query
     if apartment_filter:
-        payments_within_range = [
+        if apartment_filter == "None":
+           payments_within_range = [
             payment for payment in payments_within_range
-            if (payment.booking and payment.booking.apartment.name == apartment_filter)
-            or (payment.apartment and payment.apartment.name == apartment_filter)]
+            if not payment.booking
+        ]
+        else: 
+            payments_within_range = [
+                payment for payment in payments_within_range
+                if (payment.booking and payment.booking.apartment.name == apartment_filter)
+                or (payment.apartment and payment.apartment.name == apartment_filter)]
 
     if apartment_type_filter:
         payments_within_range = [payment for payment in payments_within_range if (
