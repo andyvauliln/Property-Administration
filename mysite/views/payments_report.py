@@ -55,11 +55,16 @@ def paymentReport(request):
     )
 
     if apartment_filter:
-        if apartment_filter == "None":
+        if apartment_filter == "None_Booking":
            payments_within_range = [
-            payment for payment in payments_within_range
-            if not payment.booking
-        ]
+                payment for payment in payments_within_range
+                if not payment.booking
+            ]
+        elif apartment_filter == "None_Apart":
+            payments_within_range = [
+                payment for payment in payments_within_range
+                if (not payment.booking) and (not payment.apartment)
+            ]
         else: 
             payments_within_range = [
                 payment for payment in payments_within_range
