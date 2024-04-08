@@ -12,7 +12,8 @@
                     <div class="flex flex-col justify-between">
                         <select id="apartment" name="apartment" class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-primary-500 focus:border-primary-500 block w-full p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white dark:focus:ring-primary-500 dark:focus:border-primary-500">
                             <option value="" {% if not current_apartment %}selected{% endif %}>All Apart Name</option>
-                            <option value="None">None Booking</option>
+                            <option value="None_Booking"  {% if current_apartment == "None_Booking" %}selected{% endif %} >None Booking</option>
+                            <option value="None_Apart" {% if current_apartment == "None_Apart" %}selected{% endif %}>None Apart</option>
                             {% for apt in apartments %}
                                 <option value="{{ apt }}" {% if current_apartment == apt %}selected{% endif %}>{{ apt }}</option>
                             {% endfor %}
@@ -29,8 +30,6 @@
                             {% endfor %}
                         </select>
                         <input id="end_date" name="end_date" datepicker type="text" value="{{ end_date }}" class="mt-2 bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white dark:focus:ring-blue-500 dark:focus:border-blue-500" placeholder="End Date">
-                        
-                        
                     </div>
                     <div class="flex flex-col justify-between">
                         <select name="payment_type" class=" bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-primary-500 focus:border-primary-500 block w-full p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white dark:focus:ring-primary-500 dark:focus:border-primary-500">
