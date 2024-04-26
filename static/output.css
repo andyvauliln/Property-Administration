@@ -1484,6 +1484,14 @@ input:checked + .toggle-bg {
   width: 100%;
 }
 
+.w-\[30\%\] {
+  width: 30%;
+}
+
+.w-\[70\%\] {
+  width: 70%;
+}
+
 .min-w-\[100px\] {
   min-width: 100px;
 }
@@ -2024,6 +2032,10 @@ input:checked + .toggle-bg {
 
 .p-4 {
   padding: 1rem;
+}
+
+.p-5 {
+  padding: 1.25rem;
 }
 
 .p-6 {
