@@ -74,4 +74,33 @@ https://www.npmjs.com/package/@railway/cli to install raillway locally
 https://account-d.docusign.com/oauth/auth?response_type=code&scope=signature%20impersonation&client_id=e235ff67-bdf0-475e-8bf1-6c26da649954&redirect_uri=http://localhost:8000/
 
 
-systemctl restart site
+systemctl restart site localhost
+pg_dump -U postgres_user -h 68.183.124.79 -d railway > backup.sql
+psql -U postgres_user -h 68.183.124.79 -d railway < data_backup.sql
+psql -U postgres_user -h localhost -d railway < backup.sql
+
+pg_dump -U postgres_user -h localhost -d railway > backup_localhost.sql
+
+psql -U hallojohnnypitt -d postgres
+ 
+DROP DATABASE railway;
+CREATE DATABASE railway;
+CREATE USER postgres_user WITH PASSWORD 'eEdjNBNeHtIvzO5RnzDJ';
+ALTER ROLE postgres_user SET client_encoding TO 'utf8';
+ALTER ROLE postgres_user SET default_transaction_isolation TO 'read committed';
+ALTER ROLE postgres_user SET timezone TO 'UTC';
+GRANT ALL PRIVILEGES ON DATABASE railway TO postgres_user;
+
+
+psql -U postgres_user -h 68.183.124.79 -d railway < backup_server.sql
+
+pg_dump -h localhost -U postgres_user -d railway --table=mysite_apartment --table=mysite_booking --table=mysite_cleaning --table=mysite_notification --table=mysite_payment --table=mysite_paymentmethod --table=mysite_paymentype --table=mysite_user > data_backup.sql
+
+
+
+psql -U postgres_user -h 68.183.124.79 -d postgres -c "DROP DATABASE railway;"
+
+local psql start
+pg_ctl -D /usr/local/var/postgresql@14/ start
+
+lsof -ti tcp:8000 | xargs kill -9

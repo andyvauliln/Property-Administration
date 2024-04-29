@@ -9,7 +9,17 @@
         <div class="bg-white dark:bg-gray-800 relative shadow-md sm:rounded-lg overflow-hidden  p-5">
 
             <form method="POST" action="/payments-sync/" enctype="multipart/form-data">
-                <div class="flex items-center justify-between">
+                <div class="flex w-1/2">
+                    <div class="flex mb-4">
+                        <label for="amount_delta" class="mb-2 text-sm font-medium text-gray-900 dark:text-gray-300">Amount Delta:</label>
+                        <input type="number" id="amount_delta" value="{{ data.amount_delta|default_if_none:'100' }}" name="amount_delta" class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white" placeholder="Enter amount difference">
+                    </div>
+                    <div class="flex mb-4 ml-4">
+                        <label for="date_delta" class="mb-2 text-sm font-medium text-gray-900 dark:text-gray-300">Date Delta (days):</label>
+                        <input type="number" id="date_delta" value="{{ data.date_delta|default_if_none:'4' }}" name="date_delta" class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5 dark:bg-gray-7000 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white" placeholder="Enter date difference in days">
+                    </div>
+                </div>
+                <div class="flex items-center justify-between ">
                     <input type="file" id="csv_file" name="csv_file" accept=".csv"
                         class=" block w-[70%] text-sm text-gray-900 bg-gray-50 rounded-lg border border-gray-300 cursor-pointer"
                         {% if data and data.file_name %} value="{{ data.file_name }}" {% endif %}
@@ -20,12 +30,30 @@
                     </button>
                 </div>
             </form>
+            
             {% if data %}
+            <div class="flex w-full justify-between py-4">
+                <div class=" text-black font-bold">File Payment Records:
+                    <span class="text-blue-500">
+                        {{ data.total_file_payments }}
+                    </span>
+                </div>
+                <div class="text-black font-bold">Report Start Date:
+                    <span class="text-blue-500">{{ data.start_date|date:"m/d/Y"}}</span>
+                </div>
+                <div class="text-black font-bold">Report End Date:
+                    <span class="text-blue-500">
+                        {{ data.end_date|date:"m/d/Y"}}
+                    </span>
+                </div>
+                
+            </div>
             <div id="payments_for_save_container">
                 {% comment %} genertated html for payments to save to db {% endcomment %}
             </div>
-                {% include "./payment_sync_not_matched.html" %}
-                {% include "./payment_sync_matched.html" %}
+                {% comment %} {% include "./payment_sync_not_matched.html" %}
+                {% include "./payment_sync_matched_db.html" %} {% endcomment %}
+                {% include "./payment_sync_matched_file.html" %}
             {% endif %}
         </div>
     </div>
