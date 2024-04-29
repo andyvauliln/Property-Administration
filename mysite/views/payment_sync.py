@@ -143,7 +143,7 @@ def update_payments(request, payments_to_update):
                     # booking_id=payment_info['booking'],
                     payment_status=payment_info['payment_status'],
                 )
-                messages.success(request, f"Added new Payment: {payment.id}")
+                messages.success(request, f"Created new Payment: {payment.id}")
         except Exception as e:
             messages.error(request, f"Failed to {'update' if payment_id else 'create'}  payment: {payment_id or ''} due  {str(e)}")
 

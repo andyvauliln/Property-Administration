@@ -255,9 +255,7 @@
             payment.apartment = payment.apartment || file_payment.apartment
             payment.payment_date = file_payment.payment_date
             payment.amount = Math.abs(file_payment.amount)
-            if(file_payment.payment_method){
-                payment.payment_method = file_payment.payment_method
-            }
+            payment.payment_method = file_payment.payment_method ? file_payment.payment_method : null
             payment.payment_type = payment.payment_type ? payment.payment_type : file_payment.payment_type
             payment.notes = payment.notes || '' +  `Tx Description: [${file_payment.notes}]`
             payment.payment_status = 'Completed'
@@ -276,6 +274,7 @@
                 if(fieldName === "apartment_id"){
                     fieldName = "apartment"
                 }
+                console.log(fieldName, fieldValue)
                 const inputFields = updateModal.querySelectorAll(`[name="${fieldName}"]`);
                 inputFields.forEach((inputField) => {
                    
