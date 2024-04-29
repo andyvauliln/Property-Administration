@@ -99,8 +99,8 @@ def replaceText(payment: Payment, document_id, docs_service):
         address = f"{payment.booking.apartment.building_n} {payment.booking.apartment.city} {payment.booking.apartment.street}, {payment.booking.apartment.state}, {payment.booking.apartment.zip_index}"
         room_number = payment.booking.apartment.apartment_n
 
-    rent_period = f"{payment.payment_date.strftime('%Y-%m-%d')} - {(payment.payment_date + relativedelta(months=1) ).strftime('%Y-%m-%d')}"
-    current_date = payment.payment_date.strftime('%Y-%m-%d')
+    rent_period = f"{payment.payment_date.strftime('%m/%d/%Y')} - {(payment.payment_date + relativedelta(months=1) ).strftime('%m/%d/%Y')}"
+    current_date = payment.payment_date.strftime('%m/%d/%Y')
     total_price = payment.amount
     payment_method = payment.payment_method
 

@@ -1,12 +1,22 @@
 {% load custom_filters %}
 
+{% if data %}
+<script>
+    const items_json ={{ data.db_payments_json|safe }}
+    const file_payments_json ={{ data.file_payments_json|safe }}
+    console.log("db_payments_json", items_json)
+    console.log("file_payments_json", {{data.file_payments_json|safe}})
+    const payments_for_save_to_db = []
+</script>
+{% endif %}
+
 <div id="updateModal" tabindex="-1" aria-hidden="true" class="hidden overflow-y-auto overflow-x-hidden fixed top-0 right-0 left-0 z-50 justify-center items-center w-full md:inset-0 h-[calc(100%-1rem)] max-h-full">
     <div class="relative p-4 w-full max-w-2xl max-h-full">
         <!-- Modal content -->
         <div class="relative p-4 bg-white rounded-lg shadow dark:bg-gray-800 sm:p-5">
             <!-- Modal header -->
             <div class="flex justify-between items-center pb-4 mb-4 rounded-t border-b sm:mb-5 dark:border-gray-600">
-                <h3 class="text-lg font-semibold text-gray-900 dark:text-white">Update / Delete Booking</h3>
+                <h3 class="text-lg font-semibold text-gray-900 dark:text-white">Add Payment For Save</h3>
                 <button id="closeEditModal" type="button" class="text-gray-400 bg-transparent hover:bg-gray-200 hover:text-gray-900 rounded-lg text-sm p-1.5 ml-auto inline-flex items-center dark:hover:bg-gray-600 dark:hover:text-white" data-modal-toggle="updateModal">
                     <span class="sr-only">Close modal</span>
                 </button>
@@ -16,7 +26,7 @@
                 <input type="hidden" name="edit" value="true">
                 <input type="hidden" name="id" id="editId" value="">
                 <div class="grid gap-4 mb-4 sm:grid-cols-2">
-                    {% for field_name, field_instance in model_fields %}
+                    {% for field_name, field_instance in data.model_fields %}
                         {% if field_instance.isEdit %}
                             {% if field_instance.ui_element == "textarea" %}
                                 <div class="sm:col-span-2">
@@ -62,64 +72,62 @@
                         {% endif %}
                     {% endfor %}
                 </div>
-                <div id="paymentsContainer-edit"></div>  
-                <div class="mb-4">
-                    <h4 class="text-xl font-semibold text-gray-900 dark:text-white mb-2">Related Objects:</h4>
-                    <div class="related-links flex flex-col">
-                        <!-- Links will be populated here by JavaScript -->
-                    </div>
-                </div>            
+
                 <div class="flex items-center space-x-4">
-                    <button type="submit" class="text-white bg-primary-700 hover:bg-primary-800 focus:ring-4 focus:outline-none focus:ring-primary-300 font-medium rounded-lg text-sm px-5 py-2.5 text-center dark:bg-primary-600 dark:hover:bg-primary-700 dark:focus:ring-primary-500">Update</button>
-                   
-                    <button data-modal-target="deleteModal" data-modal-toggle="deleteModal"  type="button" class="text-red-600 inline-flex items-center hover:text-white border border-red-600 hover:bg-red-600 focus:ring-4 focus:outline-none focus:ring-red-300 font-medium rounded-lg text-sm px-5 py-2.5 text-center dark:border-red-500 dark:text-red-500 dark:hover:text-white dark:hover:bg-red-600 dark:focus:ring-red-900">
-                        <svg class="mr-1 -ml-1 w-5 h-5" fill="currentColor" viewbox="0 0 20 20" xmlns="http://www.w3.org/2000/svg">
-                            <path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clip-rule="evenodd" />
-                        </svg>
-                        Delete
-                    </button>
-                    <button type="button" onclick='addPaymentRow("edit")' id="payment-button" class="text-white bg-primary-700 hover:bg-primary-800 focus:ring-4 focus:outline-none focus:ring-primary-300 font-medium rounded-lg text-sm px-5 py-2.5 text-center dark:bg-primary-600 dark:hover:bg-primary-700 dark:focus:ring-primary-500">Add Payment</button>
+                    <div id='add_payment_button' onclick='add_payment()' class="cursor cursor-pointer text-white bg-primary-700 hover:bg-primary-800 focus:ring-4 focus:outline-none focus:ring-primary-300 font-medium rounded-lg text-sm px-5 py-2.5 text-center dark:bg-primary-600 dark:hover:bg-primary-700 dark:focus:ring-primary-500">Add Payment</div>
+                    <button type="button" id='cancel_button' class="text-white bg-primary-700 hover:bg-primary-800 focus:ring-4 focus:outline-none focus:ring-primary-300 font-medium rounded-lg text-sm px-5 py-2.5 text-center dark:bg-primary-600 dark:hover:bg-primary-700 dark:focus:ring-primary-500">Cancel</button>
                 </div>
             </form>
         </div>
-    </div>
-</div>
-<!-- Delete modal -->
-<div id="deleteModal" tabindex="-1" aria-hidden="true" class="hidden overflow-y-auto overflow-x-hidden fixed top-0 right-0 left-0 z-50 justify-center items-center w-full md:inset-0 h-[calc(100%-1rem)] max-h-full">
-    <div class="relative p-4 w-full max-w-md max-h-full">
-        <!-- Modal content -->
-        <form  id="delete_form"  method="POST" action="" method="post" class="relative p-4 text-center bg-white rounded-lg shadow dark:bg-gray-800 sm:p-5">
-            <input type="hidden" name="delete" value="true">
-            <input type="hidden" name="id" id="deleteId" value="">
-            <button type="button" class="text-gray-400 absolute top-2.5 right-2.5 bg-transparent hover:bg-gray-200 hover:text-gray-900 rounded-lg text-sm p-1.5 ml-auto inline-flex items-center dark:hover:bg-gray-600 dark:hover:text-white" data-modal-toggle="deleteModal">
-                <svg aria-hidden="true" class="w-5 h-5" fill="currentColor" viewbox="0 0 20 20" xmlns="http://www.w3.org/2000/svg">
-                    <path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd" />
-                </svg>
-                <span class="sr-only">Close modal</span>
-            </button>
-            <svg class="text-gray-400 dark:text-gray-500 w-11 h-11 mb-3.5 mx-auto" aria-hidden="true" fill="currentColor" viewbox="0 0 20 20" xmlns="http://www.w3.org/2000/svg">
-                <path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clip-rule="evenodd" />
-            </svg>
-            <p class="mb-4 text-gray-500 dark:text-gray-300">Are you sure you want to delete it? It might delete related data</p>
-            <div class="flex justify-center items-center space-x-4">
-                <button data-modal-toggle="deleteModal" type="button" class="py-2 px-3 text-sm font-medium text-gray-500 bg-white rounded-lg border border-gray-200 hover:bg-gray-100 focus:ring-4 focus:outline-none focus:ring-primary-300 hover:text-gray-900 focus:z-10 dark:bg-gray-700 dark:text-gray-300 dark:border-gray-500 dark:hover:text-white dark:hover:bg-gray-600 dark:focus:ring-gray-600">No, cancel</button>
-                <button type="submit" class="py-2 px-3 text-sm font-medium text-center text-white bg-red-600 rounded-lg hover:bg-red-700 focus:ring-4 focus:outline-none focus:ring-red-300 dark:bg-red-500 dark:hover:bg-red-600 dark:focus:ring-red-900">Yes, I'm sure</button>
-            </div>
-        </form>
     </div>
 </div>
 
 
 <script>
 
+    function formatDate(dateString) {
+        if (!dateString) {
+            return "";
+        }
+    
+        const date = new Date(dateString);
+        const isoString = date.toISOString();
+        const [year, month, day] = isoString.substring(0, 10).split('-');
+        return `${month}/${day}/${year}`;
+    }
+
+    function getAllFormData() {
+        const form = document.getElementById('edit_form');
+        const formData = new FormData(form);
+        const data = {};
+        for (const [key, value] of formData.entries()) {
+            if (data[key]) {
+                if (!Array.isArray(data[key])) {
+                    data[key] = [data[key]];
+                }
+                data[key].push(value);
+            } else {
+                data[key] = value;
+            }
+        }
+        return data;
+    }
+
     document.addEventListener('DOMContentLoaded', function() {
        
         var currentUrl = window.location.href;
         document.getElementById("edit_form").action = currentUrl;
-        document.getElementById("delete_form").action = currentUrl;
     
         const closeModalButton = document.getElementById('closeEditModal');
+        const addPaymentButton = document.getElementById('add_payment_button');
+        const cancelButton = document.getElementById('cancel_button');
         closeModalButton.addEventListener('click', function() {
+            updateModal.style.display = 'none';
+        });
+        addPaymentButton.addEventListener('click', function() {
+            updateModal.style.display = 'none';
+        });
+        cancelButton.addEventListener('click', function() {
             updateModal.style.display = 'none';
         });
     
@@ -129,8 +137,6 @@
             }
         });
     
-       
-    
         window.addEventListener('keydown', function(event) {
             if (event.key === 'Escape' && updateModal.style.display === 'flex') {
                 updateModal.style.display = 'none';
@@ -138,14 +144,164 @@
         });
             
     });
-    function openModalForItemId(itemId) {
-        const deleteIdInput = document.getElementById('deleteId');
+    function add_payment(){
+        const formData = getAllFormData()
+        console.log("formData", formData)
+        payments_for_save_to_db.push(formData)
+        updateSavedPayments()
+        removePaymentFromList(formData.id)
+    }
+    function updateSavedPayments(){
+        const payments_for_save_to_db_html = document.getElementById('payments_for_save_container')
+        let html = `
+        <div class="flex flex-col py-5">
+            <div class="font-bold flex p-2 bg-gray-100 w-full justify-center items-center border-b border-t border-gray-300">
+                Payments For Save
+            </div>`
+        payments_for_save_to_db.forEach(payment => {
+            html += `<div class="flex p-2 w-full justify-center items-center border-b border-t border-gray-300">
+                        <div class="w-[90px] flex-shrink-0 p-2 border-r items-center justify-center border-gray-300">
+                            ${payment.id}
+                        </div>
+                        <div class="w-[120px] flex-shrink-0 p-2 border-r border-gray-300">
+                            ${payment.payment_date}
+                        </div>
+                        <div class="flex flex-grow p-2 flex-col border-r border-gray-300">
+                            <div class="flex justify-between border-b mb-1 pb-1 border-gray-300">
+                                <div><span class="font-bold"> Notes: </span> ${payment.notes || "N/A"}</div>
+                                <div><span class="font-bold"> Payment Method Id: </span> ${payment.payment_method || "N/A"}</div>
+                                <div><span class="font-bold"> Bank Id: </span> ${payment.bank || "N/A"}</div>
+                            </div>
+                            <div class="flex justify-between">
+                                <div> <span class="font-bold">Payment Type Id:</span> ${payment.payment_type || "N/A"}</div>
+                                <div> <span class="font-bold">Status:</span> ${payment.payment_status || "N/A"}</div>
+                            </div>
+                        </div>
+                        <div class="w-[150px] flex-shrink-0 flex justify-center p-2 border-r border-gray-300">
+                            ${payment.apartment || "N/A"}
+                        </div>
+                        <div class="w-[150px] flex-shrink-0 flex justify-center p-2">
+                            $${payment.amount}
+                        </div>
+                    </div>`;
+        });
+        html += `</div>`;
+        html += `<button onclick="saveAllPayments()" class="flex justify-end w-full bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded mt-4">Save All Payments</button>`;
+        payments_for_save_to_db_html.innerHTML = html;
+    }
+
+    function saveAllPayments() {
+        const form = new FormData();
+        form.append('payments_to_update', JSON.stringify(payments_for_save_to_db));
+
+        fetch('/payments-sync/', {
+            method: 'POST',
+            body: form
+        })
+        .then(response => {
+            if (!response.ok) {
+                throw new Error('Network response was not ok');
+            }
+            return response.text(); // Assuming the response is HTML
+        })
+        .then(html => {
+            document.open(); // Open a new document
+            document.write(html); // Write the HTML response to the document
+            document.close(); // Close the document stream
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert('Failed to save payments. Please try again.');
+        });
+    }
+    function removePaymentFromList(id){
+        const payment_html = document.getElementById(id)
+        payment_html.remove()
+        console.log("payment removed from list", id)
+    }
+
+    function openEditModalForPayment(db_payment_id, file_payment_id) {
+
+        const updateModal = document.getElementById('updateModal');
+        let payment = null
+        if(db_payment_id){
+            payment = items_json.find(i => i.id === db_payment_id);
+        }
+        if(file_payment_id){
+            const file_payment = file_payments_json.find(i => i.id === file_payment_id);
+            payment.payment_date = file_payment.payment_date
+            payment.amount = Math.abs(file_payment.amount)
+            if(file_payment.payment_method){
+                payment.payment_method = file_payment.payment_method
+            }
+            payment.payment_type = payment.payment_type ? payment.payment_type : file_payment.payment_type
+            console.log("db_payment.payment_type", payment.payment_type)
+            console.log("file_payment.payment_type", file_payment.payment_type)
+            payment.notes +=  `Tx Description: [${file_payment.notes}]`
+            payment.payment_status = 'Completed'
+            payment.bank = file_payment.bank
+        }
+
+        console.log("payment", payment)
+
+
+        if (payment) {
+            payment.status = 'Completed'
+            for (let [fieldName, fieldValue] of Object.entries(payment)) {
+                if(fieldName === "apartment_id"){
+                    fieldName = "apartment"
+                }
+                const inputFields = updateModal.querySelectorAll(`[name="${fieldName}"]`);
+                inputFields.forEach((inputField) => {
+                   
+                    if (inputField.tagName === 'SELECT') {
+                        let valueSet = false;
+                        for (const option of inputField.options) {
+                            if (option.value == fieldValue) {
+                                option.selected = true;
+                                valueSet = true;
+                            } else {
+                                option.selected = false;
+                            }
+                        }
+                        if (!valueSet && !fieldValue) {
+                            inputField.options[0].selected = true; 
+                        }
+                    
+                    } else if (inputField.tagName === 'INPUT' && inputField.type === 'radio') {
+                        
+                        if (!fieldValue && !inputField.value) {
+                            inputField.checked = true;
+                        } else if (String(inputField.value) === String(fieldValue)) {
+                            inputField.checked = true;
+                        } else {
+                            inputField.checked = false; // Uncheck other options that don't match
+                        }
+                    
+                    } else if (inputField.tagName === 'INPUT' && inputField.hasAttribute('datepicker')) {
+                        inputField.setAttribute('data-date', formatDate(fieldValue));
+                        inputField.value = formatDate(fieldValue);
+                    } else if (inputField.tagName === 'TEXTAREA') {
+                        inputField.innerHTML = fieldValue;
+                    } else if (inputField.tagName === 'INPUT' && inputField.type === 'checkbox') {
+                        inputField.checked = (fieldValue === true || fieldValue === '1');
+                    } else {
+                        inputField.value = fieldValue;
+                    }
+                })
+            }
+        }
+
+        updateModal.style.display = 'flex';
+    }
+</script>
+{% comment %} 
+const deleteIdInput = document.getElementById('deleteId');
         const editIdInput = document.getElementById('editId');
         const updateModal = document.getElementById('updateModal');
 
         const item = items_json.find(i => i.id === itemId);
-        deleteIdInput.value = itemId;
-        editIdInput.value = itemId;
+
 
         if (item) {
             for (let [fieldName, fieldValue] of Object.entries(item)) {
@@ -193,38 +349,5 @@
                 })
             }
 
-            const linksContainer = document.querySelector('#updateModal .related-links');
-            linksContainer.innerHTML = ''; 
-
-            item.links.forEach(link => {
-                const parts = link.name.split(':');
-                if (parts.length !== 2) return;
-
-                const linkContainer = document.createElement('div');
-                linkContainer.classList.add('flex', 'items-center', 'mb-2');
-
-                const boldText = document.createElement('span');
-                boldText.textContent = parts[0].trim() + ': ';
-                boldText.classList.add('font-bold', 'mr-1');
-
-                const linkElement = document.createElement('a');
-                linkElement.href = link.link;
-                linkElement.textContent = parts[1].trim();
-                linkElement.setAttribute('target', '_blank');
-                linkElement.classList.add('text-blue-500', 'hover:text-blue-700', 'mr-2');
-
-                const arrowSymbol = document.createElement('span');
-                arrowSymbol.innerHTML = '&rarr;';
-                arrowSymbol.classList.add('ml-2');
-
-                linkContainer.appendChild(boldText);
-                linkContainer.appendChild(linkElement);
-                linkElement.appendChild(arrowSymbol);
-
-                linksContainer.appendChild(linkContainer);
-            });
-        }
-
-        updateModal.style.display = 'flex';
-    }
-</script>    
+            
+        } {% endcomment %}

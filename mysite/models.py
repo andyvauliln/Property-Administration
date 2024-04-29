@@ -613,6 +613,14 @@ class Payment(models.Model):
     def delete(self, *args, **kwargs):
         if self.payment_status != "Completed":
             super(Payment, self).delete(*args, **kwargs)
+    
+    @property
+    def apartmentName(self):
+        if self.apartment:
+            return self.apartment.name
+        elif self.booking:
+            return self.booking.apartment.name
+        return ""
 
     @property
     def links(self):
@@ -697,7 +705,7 @@ class Cleaning(models.Model):
 
 def format_date(date):
     if date:
-        return date.strftime("%m-%d-%Y")
+        return date.strftime("%m/%d/%Y")
     return ""
 
 
