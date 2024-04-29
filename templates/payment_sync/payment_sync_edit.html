@@ -7,9 +7,12 @@
     const payment_methods_json ={{ data.payment_methods|safe }}
     const apartments_json = {{ data.apartments|safe }}
     const payment_types_json = {{ data.payment_types|safe }}
-    console.log('payment_methods', payment_methods_json)
-    console.log('apartments', apartments_json)
-    console.log('payment_types', payment_types_json)
+    const payment_methods_dictionary = Object.fromEntries(payment_methods_json.map(i => [i.id, i.name]));
+    const apartments_dictionary = Object.fromEntries(apartments_json.map(i => [i.id, i.name]));
+    const payment_types_dictionary = Object.fromEntries(payment_types_json.map(i => [i.id, i.name]));
+    console.log('payment_methods', payment_methods_dictionary)
+    console.log('apartments', apartments_dictionary)
+    console.log('payment_types', payment_types_dictionary)
     console.log("db_payments_json", items_json)
     console.log("file_payments_json", file_payments_json)
     const payments_for_save_to_db = []
@@ -154,6 +157,7 @@
     });
     function add_payment(){
         const formData = getAllFormData()
+        console.log(formData, 'formData')
         payments_for_save_to_db.push(formData)
         updateSavedPayments()
         removePaymentFromList(formData.id)
@@ -176,11 +180,11 @@
                         <div class="flex flex-grow p-2 flex-col border-r border-gray-300">
                             <div class="flex justify-between border-b mb-1 pb-1 border-gray-300">
                                 <div><span class="font-bold"> Notes: </span> ${payment.notes || "N/A"}</div>
-                                <div><span class="font-bold"> Payment Method Id: </span> ${payment.payment_method || "N/A"}</div>
-                                <div><span class="font-bold"> Bank Id: </span> ${payment.bank || "N/A"}</div>
+                                <div><span class="font-bold"> Payment Method Id: </span> ${ payment.payment_method ? payment_methods_dictionary[payment.payment_method] || 'N/A' : 'N/A'}</div>
+                                <div><span class="font-bold"> Bank Id: </span> ${ payment.bank ? payment_methods_dictionary[payment.bank] || 'N/A' : 'N/A'}</div>
                             </div>
                             <div class="flex justify-between">
-                                <div> <span class="font-bold">Payment Type Id:</span> ${payment.payment_type || "N/A"}</div>
+                                <div> <span class="font-bold">Payment Type Id:</span> ${payment.payment_type ? payment_types_dictionary[payment.payment_type] || 'N/A' : 'N/A'}</div>
                                 <div> <span class="font-bold">Status:</span> ${payment.payment_status || "N/A"}</div>
                             </div>
                         </div>

@@ -110,15 +110,14 @@ function searchForMatch(search_id) {
                                 ${ item.notes || "N/A" }
                             </div>
                                 <div class="flex justify-between">
-                                    <div> <span class="font-bold">Type:</span> ${item.payment_type || "N/A"}</div>
-                                    <div><span class="font-bold"> Method: </span> ${item.payment_method || "N/A"}</div>
-                                    <div><span class="font-bold"> Bank: </span> ${item.bank || "N/A"}</div>
+                                    <div> <span class="font-bold">Type:</span> ${item.payment_type ? payment_types_dictionary[item.payment_type] || 'N/A' : 'N/A'}</div>
+                                    <div><span class="font-bold"> Method: </span> ${ item.payment_method ? payment_methods_dictionary[item.payment_method] || 'N/A' : 'N/A'}</div>
+                                    <div><span class="font-bold"> Bank: </span> ${ item.bank ? payment_methods_dictionary[item.bank] || 'N/A' : 'N/A'}</div>
                                     <div> <span class="font-bold">Status:</span> ${item.payment_status || "N/A"}</div>
                                 </div>
                             </div>
                             <div class="w-[150px] flex-col flex-shrink-0 flex justify-center p-2 border-r border-gray-300">
-                                 ${ item.apartment_name || "N/A" }
-                                 ${item.apartment || "N/A"}
+                                 ${item.apartment_name || "N/A"}
                             </div>
                             <div class="w-[150px] flex-col flex-shrink-0 flex justify-center p-2">
                                 ${ item.amount}

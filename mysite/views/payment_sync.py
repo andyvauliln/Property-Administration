@@ -112,9 +112,11 @@ def preprocess_csv_line(line):
 
 def update_payments(request, payments_to_update):
     for payment_info in payments_to_update:
+        payment_id = None
         try:
             if payment_info['id'] and 'id_' not in payment_info['id']:
                 payment = Payment.objects.get(id=payment_info['id'])
+                payment_id = payment.id
                 if payment:
                     payment.amount = float(payment_info['amount'])
                     payment.payment_date = datetime.strptime(payment_info['payment_date'], '%m/%d/%Y').date()
@@ -132,18 +134,18 @@ def update_payments(request, payments_to_update):
             else:
                 payment = Payment.objects.create(
                     amount=float(payment_info['amount']),
-                    payment_date=payment_info['payment_date'],
-                    payment_type=payment_info['payment_type'],
+                    payment_date=datetime.strptime(payment_info['payment_date'], '%m/%d/%Y').date(),
+                    payment_type_id=payment_info['payment_type'],
                     notes=payment_info['notes'],
-                    payment_method_id=payment_info['payment_method'],
-                    bank_id=payment_info['bank'],
-                    apartment_id=payment_info['apartment'],
+                    payment_method_id=payment_info['payment_method'] or None,
+                    bank_id=payment_info['bank'] or None,
+                    apartment_id=payment_info['apartment'] or None,
                     # booking_id=payment_info['booking'],
                     payment_status=payment_info['payment_status'],
                 )
                 messages.success(request, f"Added new Payment: {payment.id}")
         except Exception as e:
-            messages.error(request, f"Failed to update/create payment: {payment.id} due to {str(e)}")
+            messages.error(request, f"Failed to {'update' if payment_id else 'create'}  payment: {payment_id or ''} due  {str(e)}")
 
 
 def get_payment_data(request, csv_file, payment_methods, apartments, payment_types):
