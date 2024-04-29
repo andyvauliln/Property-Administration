@@ -118,9 +118,9 @@ def replaceText(payment: Payment, document_id, docs_service):
         tenant_name = payment.booking.tenant.full_name
         address = f"{payment.booking.apartment.building_n} {payment.booking.apartment.city} {payment.booking.apartment.street}, {payment.booking.apartment.state}, {payment.booking.apartment.zip_index}"
         room_number = payment.booking.apartment.apartment_n
-        rent_period = f"{payment.booking.start_date.strftime('%Y-%m-%d')} - {payment.booking.end_date.strftime('%Y-%m-%d')}"
+        rent_period = f"{payment.booking.start_date.strftime('%m/%d/%Y')} - {payment.booking.end_date.strftime('%m/%d/%Y')}"
 
-    payment_date = payment.payment_date.strftime('%Y-%m-%d')
+    payment_date = payment.payment_date.strftime('%m/%d/%Y')
     total_price = payment.amount
     if payment.payment_method:
         payment_method = payment.payment_method.name

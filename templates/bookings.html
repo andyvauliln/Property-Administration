@@ -176,9 +176,6 @@
    
        const ownerPaymentDate = new Date(startDate);
        ownerPaymentDate.setDate(startDate.getDate() + 4);
-       console.log(start_date, "start_date")
-       console.log(holdDepositDate, "holdDepositDate" )
-       console.log(ownerPaymentDate, "ownerPaymentDate")
         
        addPaymentRow(modal, holdDepositDate, 0, 4);
        addPaymentRow(modal, startDate, 750, 3);
@@ -188,9 +185,6 @@
    function parseDate(inputDate) {
         // Parse the input date string in "MMMM D, YYYY" format
         const parsedDate = new Date(Date.parse(inputDate));
-        console.log(inputDate, "inputDate")
-        console.log(parsedDate, "parsedDate")
-
         // Get the month, day, and year components
         const month = (parsedDate.getMonth() + 1).toString().padStart(2, '0');
         const day = parsedDate.getDate().toString().padStart(2, '0');

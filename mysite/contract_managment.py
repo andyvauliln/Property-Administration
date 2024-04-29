@@ -97,11 +97,11 @@ def replaceText(booking, document_id, docs_service):
         "occupant": booking.tenant.full_name,
         "phone": booking.tenant.phone or "",
         "email": booking.tenant.email or "",
-        "start_date":  booking.start_date.strftime('%Y-%m-%d'),
-        "end_date":  booking.end_date.strftime('%Y-%m-%d'),
+        "start_date":  booking.start_date.strftime('%m/%d/%Y'),
+        "end_date":  booking.end_date.strftime('%m/%d/%Y'),
         "apartment_address": booking.apartment.address,
         "payment_terms": booking.payment_str,
-        "contract_date": timezone.now().strftime('%Y-%m-%d'),
+        "contract_date": timezone.now().strftime('%m/%d/%Y'),
     }
     print(booking.payment_str)
 

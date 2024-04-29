@@ -130,11 +130,8 @@
 
 
 <script>
-    {% comment %} console.log({{apartments_data_json|safe}}) {% endcomment %}
     function formatDate(inputDate) {
-        // Parse the input date string in "MMMM D, YYYY" format
         const parsedDate = new Date(Date.parse(inputDate));
-        console.log(parsedDate, "parsedDate")
     
         // Get the month, day, and year components
         const month = (parsedDate.getMonth() + 1).toString().padStart(2, '0');
