@@ -4,8 +4,14 @@
 <script>
     const items_json ={{ data.db_payments_json|safe }}
     const file_payments_json ={{ data.file_payments_json|safe }}
+    const payment_methods_json ={{ data.payment_methods|safe }}
+    const apartments_json = {{ data.apartments|safe }}
+    const payment_types_json = {{ data.payment_types|safe }}
+    console.log('payment_methods', payment_methods_json)
+    console.log('apartments', apartments_json)
+    console.log('payment_types', payment_types_json)
     console.log("db_payments_json", items_json)
-    console.log("file_payments_json", {{data.file_payments_json|safe}})
+    console.log("file_payments_json", file_payments_json)
     const payments_for_save_to_db = []
 </script>
 {% endif %}
@@ -84,15 +90,17 @@
 
 
 <script>
-
     function formatDate(dateString) {
         if (!dateString) {
             return "";
         }
-    
+
         const date = new Date(dateString);
-        const isoString = date.toISOString();
+        // Adjust for timezone offset to get the correct date
+        const localDate = new Date(date.getTime() - date.getTimezoneOffset() * 60000);
+        const isoString = localDate.toISOString();
         const [year, month, day] = isoString.substring(0, 10).split('-');
+
         return `${month}/${day}/${year}`;
     }
 
@@ -146,7 +154,6 @@
     });
     function add_payment(){
         const formData = getAllFormData()
-        console.log("formData", formData)
         payments_for_save_to_db.push(formData)
         updateSavedPayments()
         removePaymentFromList(formData.id)
@@ -186,7 +193,7 @@
                     </div>`;
         });
         html += `</div>`;
-        html += `<button onclick="saveAllPayments()" class="flex justify-end w-full bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded mt-4">Save All Payments</button>`;
+        html += `<button onclick="saveAllPayments()" class="flex justify-center w-full bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded mt-4">Save All Payments</button>`;
         payments_for_save_to_db_html.innerHTML = html;
     }
 
@@ -216,8 +223,14 @@
     }
     function removePaymentFromList(id){
         const payment_html = document.getElementById(id)
-        payment_html.remove()
-        console.log("payment removed from list", id)
+        if(payment_html){
+            payment_html.remove()
+            console.log("payment removed from list", id)
+        }
+        else {
+            console.log('No Payments to remove')
+        }
+       
     }
 
     function openEditModalForPayment(db_payment_id, file_payment_id) {
@@ -225,28 +238,36 @@
         const updateModal = document.getElementById('updateModal');
         let payment = null
         if(db_payment_id){
+           
             payment = items_json.find(i => i.id === db_payment_id);
+            console.log(payment, 'payment')
         }
         if(file_payment_id){
+            payment = payment || {}
+            
             const file_payment = file_payments_json.find(i => i.id === file_payment_id);
+            console.log(file_payment, 'file_payment')
+            payment.id = payment.id || file_payment.id
+            payment.apartment = payment.apartment || file_payment.apartment
             payment.payment_date = file_payment.payment_date
             payment.amount = Math.abs(file_payment.amount)
             if(file_payment.payment_method){
                 payment.payment_method = file_payment.payment_method
             }
             payment.payment_type = payment.payment_type ? payment.payment_type : file_payment.payment_type
-            console.log("db_payment.payment_type", payment.payment_type)
-            console.log("file_payment.payment_type", file_payment.payment_type)
-            payment.notes +=  `Tx Description: [${file_payment.notes}]`
+            payment.notes = payment.notes || '' +  `Tx Description: [${file_payment.notes}]`
             payment.payment_status = 'Completed'
             payment.bank = file_payment.bank
         }
+       
 
-        console.log("payment", payment)
+
 
 
         if (payment) {
             payment.status = 'Completed'
+            id_input = document.getElementById('editId')
+            id_input.value = payment.id
             for (let [fieldName, fieldValue] of Object.entries(payment)) {
                 if(fieldName === "apartment_id"){
                     fieldName = "apartment"
@@ -295,59 +316,3 @@
         updateModal.style.display = 'flex';
     }
 </script>
-{% comment %} 
-const deleteIdInput = document.getElementById('deleteId');
-        const editIdInput = document.getElementById('editId');
-        const updateModal = document.getElementById('updateModal');
-
-        const item = items_json.find(i => i.id === itemId);
-
-
-        if (item) {
-            for (let [fieldName, fieldValue] of Object.entries(item)) {
-                
-                if(fieldName === "apartment_id"){
-                    fieldName = "apartment"
-                }
-                const inputFields = updateModal.querySelectorAll(`[name="${fieldName}"]`);
-                inputFields.forEach((inputField) => {
-                   
-                    if (inputField.tagName === 'SELECT') {
-                        let valueSet = false;
-                        for (const option of inputField.options) {
-                            if (option.value == fieldValue) {
-                                option.selected = true;
-                                valueSet = true;
-                            } else {
-                                option.selected = false;
-                            }
-                        }
-                        if (!valueSet && !fieldValue) {
-                            inputField.options[0].selected = true; 
-                        }
-                    
-                    } else if (inputField.tagName === 'INPUT' && inputField.type === 'radio') {
-                        
-                        if (!fieldValue && !inputField.value) {
-                            inputField.checked = true;
-                        } else if (String(inputField.value) === String(fieldValue)) {
-                            inputField.checked = true;
-                        } else {
-                            inputField.checked = false; // Uncheck other options that don't match
-                        }
-                    
-                    } else if (inputField.tagName === 'INPUT' && inputField.hasAttribute('datepicker')) {
-                        inputField.setAttribute('data-date', formatDate(fieldValue));
-                        inputField.value = formatDate(fieldValue);
-                    } else if (inputField.tagName === 'TEXTAREA') {
-                        inputField.innerHTML = fieldValue;
-                    } else if (inputField.tagName === 'INPUT' && inputField.type === 'checkbox') {
-                        inputField.checked = (fieldValue === true || fieldValue === '1');
-                    } else {
-                        inputField.value = fieldValue;
-                    }
-                })
-            }
-
-            
-        } {% endcomment %}
