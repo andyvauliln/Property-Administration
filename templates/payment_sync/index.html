@@ -12,11 +12,11 @@
                 <div class="flex w-1/2">
                     <div class="flex mb-4">
                         <label for="amount_delta" class="mb-2 text-sm font-medium text-gray-900 dark:text-gray-300">Amount Delta:</label>
-                        <input type="number" id="amount_delta" value="{{ data.amount_delta|default_if_none:'100' }}" name="amount_delta" class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white" placeholder="Enter amount difference">
+                        <input type="number" id="amount_delta" value="{{ data.amount_delta }}" name="amount_delta" class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white" placeholder="Enter amount difference">
                     </div>
                     <div class="flex mb-4 ml-4">
                         <label for="date_delta" class="mb-2 text-sm font-medium text-gray-900 dark:text-gray-300">Date Delta (days):</label>
-                        <input type="number" id="date_delta" value="{{ data.date_delta|default_if_none:'4' }}" name="date_delta" class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5 dark:bg-gray-7000 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white" placeholder="Enter date difference in days">
+                        <input type="number" id="date_delta" value="{{ data.date_delta }}" name="date_delta" class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5 dark:bg-gray-7000 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white" placeholder="Enter date difference in days">
                     </div>
                 </div>
                 <div class="flex items-center justify-between ">
