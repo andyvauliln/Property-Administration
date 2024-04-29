@@ -28,8 +28,8 @@ def sync_payments(request):
                 if not csv_file.name.endswith('.csv'):
                     messages.error(request, 'File is not CSV type')
 
-                amount_delta = int(request.POST.get('amount_delta', '100'))
-                date_delta = int(request.POST.get('date_delta', 4))
+                amount_delta = int(request.POST.get('amount_delta') or '100')
+                date_delta = int(request.POST.get('date_delta') or 4)
                 print(amount_delta, date_delta)
                 
                 payment_methods = PaymentMethod.objects.all()
