@@ -269,7 +269,6 @@
             payment.payment_method = file_payment.payment_method ? file_payment.payment_method : null
             payment.payment_type = payment.payment_type ? payment.payment_type : file_payment.payment_type
             payment.notes = (payment.notes || '') + `[${file_payment.notes}]`
-            print(payment.notes, "notes")
             payment.payment_status = 'Completed'
             payment.bank = file_payment.bank
         }
