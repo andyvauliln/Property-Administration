@@ -302,7 +302,8 @@ def get_matches_db_to_file(file_payment, db_payments, amount_delta, date_delta):
         
         if payment_from_db.booking and payment_from_db.booking.tenant.full_name:
             tenant_name = payment_from_db.booking.tenant.full_name
-            if file_payment['notes'].lower().find(tenant_name.lower()) != -1:
+            name_parts = tenant_name.strip().split(" ")
+            if file_payment['notes'].lower().find(name_parts[0].lower()) != -1:
                 match_obj['tenant_match'] = 'Exact Match'
                 match_obj['tenant_name'] = tenant_name
                 match_obj['score'] += 3
