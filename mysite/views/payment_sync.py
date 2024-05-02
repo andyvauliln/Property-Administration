@@ -20,7 +20,6 @@ def sync_payments(request):
         
         if request.POST.get('payments_to_update'):
             payments_to_update = json.loads(request.POST.get('payments_to_update'))
-            print('payments_to_update', payments_to_update)
             update_payments(request, payments_to_update)
         else:
             if request.FILES.get('csv_file'):
@@ -44,7 +43,7 @@ def sync_payments(request):
                     messages.error(request, "Invalid date range for finding matches.")
                     possible_matches_db_to_file = []
                 else:
-                    db_payments = Payment.objects.filter(payment_date__range=(start_date - timedelta(days=date_delta), end_date + timedelta(days=date_delta)))
+                    db_payments = Payment.objects.filter(payment_date__range=(start_date - timedelta(days=10), end_date + timedelta(days=10)))
                     possible_matches_db_to_file = find_possible_matches_db_to_file(db_payments, file_payments, amount_delta, date_delta)
                     # possible_matches_file_to_db = find_possible_matches_file_to_db(db_payments, file_payments, amount_delta, date_delta)
 
@@ -92,7 +91,10 @@ def get_json(db_model):
         #     item['tenant_full_name'] = original_obj.tenant.full_name
         #     item['tenant_email'] = original_obj.tenant.email
         #     item['tenant_phone'] = original_obj.tenant.phone
-        # item['links'] = original_obj.links
+        if hasattr(original_obj, 'booking') and original_obj.booking:
+            item["tenant_name"] = original_obj.booking.tenant.full_name
+        else:
+            item["tenant_name"] = ""
         if hasattr(original_obj, 'apartmentName'):
             item['apartment_name'] = original_obj.apartmentName
 
@@ -297,6 +299,13 @@ def get_matches_db_to_file(file_payment, db_payments, amount_delta, date_delta):
            match_obj['db_payment'] = payment_from_db
            match_obj['id'] = 'Matched'
            match_obj['score'] += 3
+        
+        if payment_from_db.booking and payment_from_db.booking.tenant.full_name:
+            tenant_name = payment_from_db.booking.tenant.full_name
+            if file_payment['notes'].lower().find(tenant_name.lower()) != -1:
+                match_obj['tenant_match'] = 'Exact Match'
+                match_obj['tenant_name'] = tenant_name
+                match_obj['score'] += 3
         
         payment_diff = abs(float(payment_from_db.amount) - abs(float(file_payment['amount'])))        
         payment_date_datetime = datetime.combine(payment_from_db.payment_date, datetime.min.time())
