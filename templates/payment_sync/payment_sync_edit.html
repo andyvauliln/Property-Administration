@@ -15,7 +15,7 @@
     console.log('payment_types', payment_types_dictionary)
     console.log("db_payments_json", items_json)
     console.log("file_payments_json", file_payments_json)
-    const payments_for_save_to_db = []
+    let payments_for_save_to_db = []
 </script>
 {% endif %}
 
@@ -34,6 +34,7 @@
             <form id="edit_form"  method="POST" action="">
                 <input type="hidden" name="edit" value="true">
                 <input type="hidden" name="id" id="editId" value="">
+                <input type="hidden" name="fileId" id="fileId" value="">
                 <div class="grid gap-4 mb-4 sm:grid-cols-2">
                     {% for field_name, field_instance in data.model_fields %}
                         {% if field_instance.isEdit %}
@@ -93,6 +94,13 @@
 
 
 <script>
+    function removeSavedPayment(id){
+        console.log(id, 'id')
+        console.log(payments_for_save_to_db, 'payments_for_save_to_db1')
+        payments_for_save_to_db = payments_for_save_to_db.filter(i => i.id != id)
+        console.log(payments_for_save_to_db, 'payments_for_save_to_db2')
+        updateSavedPayments()
+    }
     function formatDate(dateString) {
         if (!dateString) {
             return "";
@@ -160,7 +168,8 @@
         console.log(formData, 'formData')
         payments_for_save_to_db.push(formData)
         updateSavedPayments()
-        removePaymentFromList(formData.id)
+        console.log(formData.fileId, 'formData.fileId')
+        removePaymentFromList(formData.fileId)
     }
     function updateSavedPayments(){
         const payments_for_save_to_db_html = document.getElementById('payments_for_save_container')
@@ -193,6 +202,9 @@
                         </div>
                         <div class="w-[150px] flex-shrink-0 flex justify-center p-2">
                             $${payment.amount}
+                        </div>
+                        <div class="w-[100] flex-shrink-0 flex justify-center p-2">
+                           <button onclick="removeSavedPayment(${payment.id})" class="bg-red-500 hover:bg-red-700 text-white font-bold py-2 px-4 rounded">Delete</button>
                         </div>
                     </div>`;
         });
@@ -228,7 +240,7 @@
     function removePaymentFromList(id){
         const payment_html = document.getElementById(id)
         if(payment_html){
-            payment_html.remove()
+            payment_html.remove();
             console.log("payment removed from list", id)
         }
         else {
@@ -244,14 +256,13 @@
         if(db_payment_id){
            
             payment = items_json.find(i => i.id === db_payment_id);
-            console.log(payment, 'payment')
         }
         if(file_payment_id){
             payment = payment || {}
             
             const file_payment = file_payments_json.find(i => i.id === file_payment_id);
-            console.log(file_payment, 'file_payment')
             payment.id = payment.id || file_payment.id
+            payment.file_id = file_payment.id
             payment.apartment = payment.apartment || file_payment.apartment
             payment.payment_date = file_payment.payment_date
             payment.amount = Math.abs(file_payment.amount)
@@ -263,13 +274,12 @@
         }
        
 
-
-
-
         if (payment) {
             payment.status = 'Completed'
             id_input = document.getElementById('editId')
+            file_id_input = document.getElementById('fileId')
             id_input.value = payment.id
+            file_id_input.value = payment.file_id
             for (let [fieldName, fieldValue] of Object.entries(payment)) {
                 if(fieldName === "apartment_id"){
                     fieldName = "apartment"

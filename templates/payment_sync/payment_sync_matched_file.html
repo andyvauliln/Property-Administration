@@ -25,12 +25,26 @@
             </div>
             {% if match_item.matches|length > 0 %}
                 <div  onclick="toggleMatches('toggle_{{ match_item.file_payment.id }}')" class="flex w-full justify-center border-t bg-gray-100 p-2 items-center text-black cursor-pointer border-b border-gray-300">
-                    DB Matches 
-                    <span class="bg-red-100 ml-2 text-red-800 text-xs font-medium me-2 px-2.5 py-0.5 rounded dark:bg-blue-900 dark:text-blue-300">{{match_item.matches|length}}</span>
-                </div> 
+                    <div class="flex w-full">DB Matches 
+                        <span class="bg-red-100 ml-2 text-red-800 text-xs font-medium me-2 px-2.5 py-0.5 rounded dark:bg-blue-900 dark:text-blue-300">{{match_item.matches|length}}</span>
+                    </div>
+                    <button onclick="this.parentElement.parentElement.remove()" class="flex text-right justify-end items-end self-end bg-red-500 hover:bg-red-700 text-white font-bold py-2 px-4 rounded">Delete</button>
+                    <button onclick="toggleMatches('toggle_{{ match_item.file_payment.id }}')" class="flex ml-2 bg-green-500 hover:bg-green-700 text-white font-bold py-2 px-4 rounded">Show</button>
+                </div>
+                
                 <ul  id="toggle_{{ match_item.file_payment.id }}" style="display:none;">
+                    <li>
+                        <div class="flex w-full border-t bg-gray-100 p-2 items-center text-black font-bold text-lg border-b border-gray-3000">
+                            <input class="w-[500px]" id="search_input_{{ match_item.file_payment.id }}" type="text" placeholder="Search by amount, apartment or tenant name"> 
+                            <button onclick="searchForMatch('{{ match_item.file_payment.id }}')" class="bg-blue-500 text-white font-bold py-2 px-4 rounded ml-2">Search</button>
+                            <button onclick="openEditModalForPayment(null, '{{ match_item.file_payment.id }}')" class="bg-green-500 text-white font-bold py-2 px-4 rounded ml-2">Create</button>
+                        </div>
+                        <ul id="search_results_{{ match_item.file_payment.id }}">
+        
+                        </ul> 
+                    </li> 
                     {% for match in match_item.matches %}
-                    <li onclick="openEditModalForPayment({{ match.db_payment.id}}, '{{match_item.file_payment.id}}' )"  class="cursor-pointer flex p-2 w-full justify-center items-center border-b border-gray-300  hover:bg-gray-100 {% if match.score >= 3 %}bg-green-100{% else %}bg-white-100{% endif %}">
+                    <li id="{{ match.db_payment.id }}" onclick="openEditModalForPayment({{ match.db_payment.id}}, '{{match_item.file_payment.id}}' )"  class="cursor-pointer flex p-2 w-full justify-center items-center border-b border-gray-300  hover:bg-gray-100 {% if match.score >= 3 %}bg-green-100{% else %}bg-white-100{% endif %}">
                             <div class="w-[90px] flex-col flex-shrink-0 p-2 border-r items-center justify-center border-gray-300">
                                 <div><span class="font-bold">DB:</span> {{ match.db_payment.id }}</div>
                                 <div class="{% if not match.id or match.id == 'No Match' %}text-red-500{% elif match.id == 'Exact Match' %}text-green-500{% else %}text-blue-500{% endif %}">{{ match.id|default:"No Match" }}</div>
@@ -49,6 +63,11 @@
                                     <div><span class="font-bold"> Bank: </span> {{ match.db_payment.bank|default:"N/A" }}</div>
                                     <div> <span class="font-bold">Status:</span> {{ match.db_payment.payment_status|default:"N/A" }}</div>
                                 </div>
+                                {% if match.db_payment.booking and match.db_payment.booking.tenant %}
+                                    <div class="mt-2">
+                                        <span class="font-bold">Tenant:</span> {{ match.db_payment.booking.tenant.full_name|default:"N/A" }} <span class="ml-2 {% if match.tenant_match == 'Exact Match' %}text-green-500{% else %}text-red-500{% endif %}">({{ match.tenant_match|default:"No Match" }})</span>
+                                    </div>
+                                {% endif%}
                             </div>
                             <div class="w-[150px] flex-col flex-shrink-0 flex justify-center p-2 border-r border-gray-300">
                                 <div><span class="font-bold">DB:</span> {{ match.db_payment.apartmentName|default:"N/A" }}</div>
@@ -66,7 +85,7 @@
                 </ul> 
             {% else %}
                 <div class="flex w-full border-t bg-gray-100 p-2 items-center text-black font-bold text-lg border-b border-gray-3000">
-                   <input class="w-[400px]" id="search_input_{{ match_item.file_payment.id }}" type="text" placeholder="Search by amount or apartment name"> 
+                   <input class="w-[500px]" id="search_input_{{ match_item.file_payment.id }}" type="text" placeholder="Search by amount, apartment or tenant name"> 
                    <button onclick="searchForMatch('{{ match_item.file_payment.id }}')" class="bg-blue-500 text-white font-bold py-2 px-4 rounded ml-2">Search</button>
                    <button onclick="openEditModalForPayment(null, '{{ match_item.file_payment.id }}')" class="bg-green-500 text-white font-bold py-2 px-4 rounded ml-2">Create</button>
                 </div>
@@ -80,6 +99,8 @@
 
 <script>
 function toggleMatches(id) {
+    window.event.stopPropagation();
+
     var content = document.getElementById(id);
     if (content.style.display === 'none') {
         content.style.display = 'block';
@@ -93,12 +114,12 @@ function searchForMatch(search_id) {
     var searchValue = searchInput.value;
     var items_to_add = []
     items_json.forEach(item => {
-       if (item.apartment_name == searchValue || Math.floor(item.amount) == searchValue) {
+       if (item.apartment_name == searchValue || Math.floor(item.amount) == searchValue || item.tenant_name.toLowerCase().includes(searchValue.toLowerCase())) {
         items_to_add.push(item)
        }
     });
     var items_to_add_html = items_to_add.map(item => {
-        return `<li onclick="openEditModalForPayment(${item.id}, '${search_id}')"  class="cursor-pointer flex p-2 w-full justify-center items-center border-b border-gray-300  hover:bg-gray-100">
+        return `<li id=${item.id} onclick="openEditModalForPayment(${item.id}, '${search_id}')"  class="cursor-pointer flex p-2 w-full justify-center items-center border-b border-gray-300  hover:bg-gray-100">
                             <div class="w-[90px] flex-col flex-shrink-0 p-2 border-r items-center justify-center border-gray-300">
                                 ${item.id}
                             </div>
@@ -108,13 +129,17 @@ function searchForMatch(search_id) {
                             <div class="flex flex-grow p-2 flex-col border-r border-gray-300">
                                <div class="text-left border-b border-gray-300"> <span class="font-bold">Notes:</span> 
                                 ${ item.notes || "N/A" }
-                            </div>
+                                </div>
                                 <div class="flex justify-between">
                                     <div> <span class="font-bold">Type:</span> ${item.payment_type ? payment_types_dictionary[item.payment_type] || 'N/A' : 'N/A'}</div>
                                     <div><span class="font-bold"> Method: </span> ${ item.payment_method ? payment_methods_dictionary[item.payment_method] || 'N/A' : 'N/A'}</div>
                                     <div><span class="font-bold"> Bank: </span> ${ item.bank ? payment_methods_dictionary[item.bank] || 'N/A' : 'N/A'}</div>
                                     <div> <span class="font-bold">Status:</span> ${item.payment_status || "N/A"}</div>
                                 </div>
+                                <div class="mt-2">
+                                    <span class="font-bold">Tenant:</span> ${ item.tenant_name || "N/A" }
+                                </div>
+                                
                             </div>
                             <div class="w-[150px] flex-col flex-shrink-0 flex justify-center p-2 border-r border-gray-300">
                                  ${item.apartment_name || "N/A"}
