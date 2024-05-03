@@ -298,7 +298,7 @@ def get_matches_db_to_file(file_payment, db_payments, amount_delta, date_delta):
         if payment_from_db.id == file_payment['id']:
            match_obj['db_payment'] = payment_from_db
            match_obj['id'] = 'Matched'
-           match_obj['score'] += 3
+           match_obj['score'] += 10
         
         if payment_from_db.booking and payment_from_db.booking.tenant.full_name:
             tenant_name = payment_from_db.booking.tenant.full_name
@@ -306,7 +306,7 @@ def get_matches_db_to_file(file_payment, db_payments, amount_delta, date_delta):
             if file_payment['notes'].lower().find(name_parts[0].lower()) != -1:
                 match_obj['tenant_match'] = 'Exact Match'
                 match_obj['tenant_name'] = tenant_name
-                match_obj['score'] += 3
+                match_obj['score'] += 5
         
         payment_diff = abs(float(payment_from_db.amount) - abs(float(file_payment['amount'])))        
         payment_date_datetime = datetime.combine(payment_from_db.payment_date, datetime.min.time())
@@ -329,5 +329,9 @@ def get_matches_db_to_file(file_payment, db_payments, amount_delta, date_delta):
             d = 1
         else:
             matches.append(match_obj)
+
+    # Sort matches by score in descending order
+    matches.sort(key=lambda x: x['score'], reverse=True)
+    return matches
 
     return matches
