@@ -165,10 +165,8 @@
     });
     function add_payment(){
         const formData = getAllFormData()
-        console.log(formData, 'formData')
         payments_for_save_to_db.push(formData)
         updateSavedPayments()
-        console.log(formData.fileId, 'formData.fileId')
         removePaymentFromList(formData.fileId)
     }
     function updateSavedPayments(){
@@ -198,7 +196,7 @@
                             </div>
                         </div>
                         <div class="w-[150px] flex-shrink-0 flex justify-center p-2 border-r border-gray-300">
-                            ${payment.apartment || "N/A"}
+                            ${payment.apartment ? apartments_dictionary[payment.apartment] || 'N/A' : 'N/A'}
                         </div>
                         <div class="w-[150px] flex-shrink-0 flex justify-center p-2">
                             $${payment.amount}
@@ -215,6 +213,7 @@
 
     function saveAllPayments() {
         const form = new FormData();
+        console.log(payments_for_save_to_db, "payments_for_save_to_db")
         form.append('payments_to_update', JSON.stringify(payments_for_save_to_db));
 
         fetch('/payments-sync/', {
@@ -249,17 +248,14 @@
        
     }
 
-    function openEditModalForPayment(db_payment_id, file_payment_id) {
-        const updateModal = document.getElementById('updateModal');
+    function merge2Payments(db_payment_id, file_payment_id){
         const payment = {}
         let db_payment = {};
         if(db_payment_id){
             db_payment = items_json.find(i => i.id === db_payment_id);
         }
         if(file_payment_id){
-            
             const file_payment = file_payments_json.find(i => i.id === file_payment_id);
-            console.log(file_payment.notes, 'file_payment notes')
             payment.id = db_payment.id || file_payment.id
             payment.file_id = file_payment.id
             payment.apartment = db_payment.apartment || file_payment.apartment
@@ -272,7 +268,13 @@
             payment.bank = file_payment.bank
           
         }
-        console.log(payment.notes, 'final notes')
+        return payment
+    }
+
+    function openEditModalForPayment(db_payment_id, file_payment_id) {
+        const updateModal = document.getElementById('updateModal');
+        payment = merge2Payments(db_payment_id, file_payment_id)
+       
        
 
         if (payment) {
@@ -337,4 +339,16 @@
 
         updateModal.style.display = 'flex';
     }
+
+    function autoMergePayment(db_payment_id, file_payment_id){
+       const payment = merge2Payments(db_payment_id, file_payment_id)
+       payment.id = payment.id + ""
+       console.log(payment.payment_date, 'before payment')
+       payment.payment_date = formatDate(payment.payment_date)
+       console.log(payment.date, 'after payment')
+       payments_for_save_to_db.push(payment)
+       updateSavedPayments()
+       removePaymentFromList(file_payment_id)
+    }
 </script>
+
