@@ -67,3 +67,10 @@ local psql start
 pg_ctl -D /usr/local/var/postgresql@14/ start
 
 lsof -ti tcp:8000 | xargs kill -9
+
+
+# Description bug
+# Notes matching and notes search
+# Move Button
+# Payment Method default
+# Confirmend control

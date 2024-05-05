@@ -5,7 +5,7 @@
 </div>
 <ul>
     {% for match_item in data.possible_matches_db_to_file %}
-        <li id="{{ match_item.file_payment.id }}" class="flex flex-col border w-full border-gray-200 ">
+        <li id="{{ match_item.file_payment.id }}" class="flex flex-col border w-full mt-10 shadow-lg shadow-gray-300 border-gray-200 ">
             <div class="flex p-2 w-full justify-center items-center border-gray-300">    
                     <div class="w-[90px] text-center flex-shrink-0 p-2 border-r items-center justify-center border-gray-300">
                     {{ match_item.file_payment.id }}
@@ -24,27 +24,9 @@
                     </div>
             </div>
             {% if match_item.matches|length > 0 %}
-                <div  class="flex w-full justify-center border-t bg-gray-100 p-2 items-center text-black  border-b border-gray-300">
-                    <div class="flex w-full">DB Matches 
-                        <span class="bg-red-100 ml-2 text-red-800 text-xs font-medium me-2 px-2.5 py-0.5 rounded dark:bg-blue-900 dark:text-blue-300">{{match_item.matches|length}}</span>
-                    </div>
-                    <button onclick="this.parentElement.parentElement.remove()" class="flex text-right justify-end items-end self-end bg-red-500 hover:bg-red-700 text-white font-bold py-2 px-4 rounded">Delete</button>
-                    <button onclick="toggleMatches('toggle_{{ match_item.file_payment.id }}')" class="flex ml-2 bg-green-500 hover:bg-green-700 text-white font-bold py-2 px-4 rounded">Show</button>
-                    <button onclick="openEditModalForPayment(null, '{{ match_item.file_payment.id }}')" class="bg-blue-500 text-white font-bold py-2 px-4 rounded ml-2">Create</button>
-                </div>
-                
-                <ul  id="toggle_{{ match_item.file_payment.id }}" style="display:none;">
-                    <li>
-                        <div class="flex w-full border-t bg-gray-100 p-2 items-center text-black font-bold text-lg border-b border-gray-3000">
-                            <input class="w-[600px]" id="search_input_{{ match_item.file_payment.id }}" type="text" placeholder="Search by amount, apartment, notes or tenant name"> 
-                            <button onclick="searchForMatch('{{ match_item.file_payment.id }}')" class="bg-blue-500 text-white font-bold py-2 px-4 rounded ml-2">Search</button>
-                        </div>
-                        <ul id="search_results_{{ match_item.file_payment.id }}">
-        
-                        </ul> 
-                    </li> 
-                    {% for match in match_item.matches %}
-                    <li id="{{ match.db_payment.id }}" onclick="openEditModalForPayment({{ match.db_payment.id}}, '{{match_item.file_payment.id}}' )"  class="cursor-pointer flex p-2 w-full justify-center items-center border-b border-gray-300  hover:bg-gray-100 {% if match.score >= 3 %}bg-green-100{% else %}bg-white-100{% endif %}">
+                {% with match=match_item.matches|first %}
+                    <div  class="cursor-pointer flex flex-col p-2 w-full justify-center items-center border-b border-t border-gray-300 {% if match.score >= 3 %}bg-green-100{% else %}bg-white-100{% endif %}">
+                        <div class="flex w-full hover:bg-gray-100" id="{{ match.db_payment.id }}" onclick="openEditModalForPayment({{ match.db_payment.id}}, '{{match_item.file_payment.id}}' )" >    
                             <div class="w-[90px] flex-col flex-shrink-0 p-2 border-r items-center justify-center border-gray-300">
                                 <div><span class="font-bold">DB:</span> {{ match.db_payment.id }}</div>
                                 <div class="{% if not match.id or match.id == 'No Match' %}text-red-500{% elif match.id == 'Exact Match' %}text-green-500{% else %}text-blue-500{% endif %}">{{ match.id|default:"No Match" }}</div>
@@ -56,7 +38,7 @@
                                 <div><span class="font-bold">F:</span> {{ match_item.file_payment.payment_date|date:"m/d/Y"}}</div>
                             </div>
                             <div class="flex flex-grow p-2 flex-col border-r border-gray-300">
-                               <div class="text-left border-b border-gray-300"> <span class="font-bold">Notes:</span> {{ match.db_payment.notes|default:"N/A" }}</div>
+                            <div class="text-left border-b border-gray-300"> <span class="font-bold">Notes:</span> {{ match.db_payment.notes|default:"N/A" }}</div>
                                 <div class="flex justify-between">
                                     <div> <span class="font-bold">Type:</span> {{ match.db_payment.payment_type|default:"N/A" }}</div>
                                     <div><span class="font-bold"> Method: </span> {{ match.db_payment.payment_method|default:"N/A" }}</div>
@@ -79,6 +61,74 @@
                                 <div class="{% if not match.amount or match.amount == 'No Match' %}text-red-500{% elif match.amount == 'Exact Match' %}text-green-500{% else %}text-blue-500{% endif %}">{{ match.amount|default:"No Match" }}</div>
                                 <div><span class="font-bold">F:</span> ${{ match_item.file_payment.amount|floatformat:0 }}</div>
                             </div>
+                        </div>
+                        <div class="flex w-full border-t border-gray-300 pt-2 justify-end">
+                        <button onclick="autoMergePayment({{ match.db_payment.id}}, '{{match_item.file_payment.id}}' )" class="bg-purple-500 hover:bg-purple-700 text-white w-[240px] font-bold py-2  rounded ml-2">Merge</button>
+                        </div>
+                    </div>
+                {% endwith %}
+            {% endif %}
+            {% if match_item.matches|length > 1 %}
+                <div  class="flex w-full justify-center border-t bg-gray-100 p-2 items-center text-black  border-b border-gray-3000">
+                    <div class="flex w-full">DB Matches 
+                        <span class="bg-red-100 ml-2 text-red-800 text-xs font-medium me-2 px-2.5 py-0.5 rounded dark:bg-blue-900 dark:text-blue-300">{{match_item.matches|length}}</span>
+                    </div>
+                    <button onclick="this.parentElement.parentElement.remove()" class="flex text-right justify-end items-end self-end bg-red-500 hover:bg-red-700 text-white font-bold py-2 px-2 rounded">Delete</button>
+                    <button onclick="toggleMatches('toggle_{{ match_item.file_payment.id }}'); this.textContent = this.textContent === 'Show' ? 'Hide' : 'Show';" class="flex ml-2 bg-green-500 hover:bg-green-700 text-white font-bold py-2 px-4 rounded">Show</button>
+                    <button onclick="openEditModalForPayment(null, '{{ match_item.file_payment.id }}')" class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded ml-2">Create</button>
+                </div>
+                
+                <ul  id="toggle_{{ match_item.file_payment.id }}" style="display:none;">
+                    <li>
+                        <div class="flex w-full border-t bg-gray-100 p-2 items-center text-black font-bold text-lg border-b border-gray-3000">
+                            <input class="w-[600px]" id="search_input_{{ match_item.file_payment.id }}" type="text" placeholder="Search by amount, apartment, notes or tenant name"> 
+                            <button onclick="searchForMatch('{{ match_item.file_payment.id }}')" class="bg-blue-500 text-white font-bold py-2 px-4 rounded ml-2">Search</button>
+                        </div>
+                        <ul id="search_results_{{ match_item.file_payment.id }}">
+        
+                        </ul> 
+                    </li> 
+                    {% for match in match_item.matches|slice:"1:" %}
+                    <li  class="cursor-pointer flex flex-col p-2 w-full justify-center items-center border-b border-gray-300   {% if match.score >= 3 %}bg-green-100{% else %}bg-white-100{% endif %}">
+                        <div class="flex w-full hover:bg-gray-100" id="{{ match.db_payment.id }}" onclick="openEditModalForPayment({{ match.db_payment.id}}, '{{match_item.file_payment.id}}' )" >    
+                            <div class="w-[90px] flex-col flex-shrink-0 p-2 border-r items-center justify-center border-gray-300">
+                                <div><span class="font-bold">DB:</span> {{ match.db_payment.id }}</div>
+                                <div class="{% if not match.id or match.id == 'No Match' %}text-red-500{% elif match.id == 'Exact Match' %}text-green-500{% else %}text-blue-500{% endif %}">{{ match.id|default:"No Match" }}</div>
+                                <div><span class="font-bold">F:</span> {{ match_item.file_payment.id|cut:"id_"}}</div>
+                            </div>
+                            <div class="w-[140px] flex-col flex-shrink-0 p-2 border-r border-gray-300">
+                                <div><span class="font-bold">DB:</span> {{ match.db_payment.payment_date|date:"m/d/Y" }}</div>
+                                <div class="{% if not match.payment_date or match.payment_date == 'No Match' %}text-red-500{% elif match.payment_date == 'Exact Match' %}text-green-500{% else %}text-blue-500{% endif %}">{{ match.payment_date|default:"No Match" }}</div>
+                                <div><span class="font-bold">F:</span> {{ match_item.file_payment.payment_date|date:"m/d/Y"}}</div>
+                            </div>
+                            <div class="flex flex-grow p-2 flex-col border-r border-gray-300">
+                            <div class="text-left border-b border-gray-300"> <span class="font-bold">Notes:</span> {{ match.db_payment.notes|default:"N/A" }}</div>
+                                <div class="flex justify-between">
+                                    <div> <span class="font-bold">Type:</span> {{ match.db_payment.payment_type|default:"N/A" }}</div>
+                                    <div><span class="font-bold"> Method: </span> {{ match.db_payment.payment_method|default:"N/A" }}</div>
+                                    <div><span class="font-bold"> Bank: </span> {{ match.db_payment.bank|default:"N/A" }}</div>
+                                    <div> <span class="font-bold">Status:</span> {{ match.db_payment.payment_status|default:"N/A" }}</div>
+                                </div>
+                                {% if match.db_payment.booking and match.db_payment.booking.tenant %}
+                                    <div class="mt-2">
+                                        <span class="font-bold">Tenant:</span> {{ match.db_payment.booking.tenant.full_name|default:"N/A" }} <span class="ml-2 {% if match.tenant_match == 'Exact Match' %}text-green-500{% else %}text-red-500{% endif %}">({{ match.tenant_match|default:"No Match" }})</span>
+                                    </div>
+                                {% endif%}
+                            </div>
+                            <div class="w-[150px] flex-col flex-shrink-0 flex justify-center p-2 border-r border-gray-300">
+                                <div><span class="font-bold">DB:</span> {{ match.db_payment.apartmentName|default:"N/A" }}</div>
+                                <div class="{% if not match.apartment or match.apartment == 'No Match' %}text-red-500{% elif match.apartment == 'Exact Match' %}text-green-500{% else %}text-blue-500{% endif %}">{{ match.apartment|default:"No Match" }}</div>
+                                <div><span class="font-bold">F:</span> {{ match_item.file_payment.apartment_name|default:"N/A"}}</div>
+                            </div>
+                            <div class="w-[150px] flex-col flex-shrink-0 flex justify-center p-2">
+                                <div><span class="font-bold">DB:</span> ${{ match.db_payment.amount|floatformat:0 }}</div>
+                                <div class="{% if not match.amount or match.amount == 'No Match' %}text-red-500{% elif match.amount == 'Exact Match' %}text-green-500{% else %}text-blue-500{% endif %}">{{ match.amount|default:"No Match" }}</div>
+                                <div><span class="font-bold">F:</span> ${{ match_item.file_payment.amount|floatformat:0 }}</div>
+                            </div>
+                        </div>
+                        <div class="flex w-full border-t justify-end border-gray-300 pt-2">
+                           <button onclick="autoMergePayment({{ match.db_payment.id}}, '{{match_item.file_payment.id}}' )" class="bg-purple-500 hover:bg-purple-700 text-white w-[200px] font-bold py-2 rounded ml-2">Merge</button>
+                        </div>
                     </li>
                    
                     {% endfor %}
@@ -109,51 +159,4 @@ function toggleMatches(id) {
     }
 }
 
-function searchForMatch(search_id) {
-    var searchInput = document.getElementById(`search_input_${search_id}`);
-    var searchValue = searchInput.value;
-    var items_to_add = []
-    items_json.forEach(item => {
-       if (item.apartment_name == searchValue || 
-            Math.floor(item.amount) == searchValue || 
-            item.tenant_name.toLowerCase().includes(searchValue.toLowerCase()) ||
-            (item.notes && item.notes.toLowerCase().includes(searchValue.toLowerCase()))
-        ) {
-        items_to_add.push(item)
-       }
-    });
-    var items_to_add_html = items_to_add.map(item => {
-        return `<li id=${item.id} onclick="openEditModalForPayment(${item.id}, '${search_id}')"  class="cursor-pointer flex p-2 w-full justify-center items-center border-b border-gray-300  hover:bg-gray-100">
-                            <div class="w-[90px] flex-col flex-shrink-0 p-2 border-r items-center justify-center border-gray-300">
-                                ${item.id}
-                            </div>
-                            <div class="w-[140px] flex-col flex-shrink-0 p-2 border-r border-gray-300">
-                                ${item.payment_date}
-                            </div>
-                            <div class="flex flex-grow p-2 flex-col border-r border-gray-300">
-                               <div class="text-left border-b border-gray-300"> <span class="font-bold">Notes:</span> 
-                                ${ item.notes || "N/A" }
-                                </div>
-                                <div class="flex justify-between">
-                                    <div> <span class="font-bold">Type:</span> ${item.payment_type ? payment_types_dictionary[item.payment_type] || 'N/A' : 'N/A'}</div>
-                                    <div><span class="font-bold"> Method: </span> ${ item.payment_method ? payment_methods_dictionary[item.payment_method] || 'N/A' : 'N/A'}</div>
-                                    <div><span class="font-bold"> Bank: </span> ${ item.bank ? payment_methods_dictionary[item.bank] || 'N/A' : 'N/A'}</div>
-                                    <div> <span class="font-bold">Status:</span> ${item.payment_status || "N/A"}</div>
-                                </div>
-                                <div class="mt-2">
-                                    <span class="font-bold">Tenant:</span> ${ item.tenant_name || "N/A" }
-                                </div>
-                                
-                            </div>
-                            <div class="w-[150px] flex-col flex-shrink-0 flex justify-center p-2 border-r border-gray-300">
-                                 ${item.apartment_name || "N/A"}
-                            </div>
-                            <div class="w-[150px] flex-col flex-shrink-0 flex justify-center p-2">
-                                ${ item.amount}
-                            </div>
-                    </li>`
-    })
-    var search_results_html = items_to_add.length > 0 ? items_to_add_html.join("") : "<div class='p-2 text-red-500 text-sm'>No matches found</div>"
-    document.getElementById(`search_results_${search_id}`).innerHTML = search_results_html
-}
 </script>
