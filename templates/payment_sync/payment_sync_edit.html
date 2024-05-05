@@ -250,28 +250,29 @@
     }
 
     function openEditModalForPayment(db_payment_id, file_payment_id) {
-
         const updateModal = document.getElementById('updateModal');
-        let payment = null
+        const payment = {}
+        let db_payment = {};
         if(db_payment_id){
-           
-            payment = items_json.find(i => i.id === db_payment_id);
+            db_payment = items_json.find(i => i.id === db_payment_id);
         }
         if(file_payment_id){
-            payment = payment || {}
             
             const file_payment = file_payments_json.find(i => i.id === file_payment_id);
-            payment.id = payment.id || file_payment.id
+            console.log(file_payment.notes, 'file_payment notes')
+            payment.id = db_payment.id || file_payment.id
             payment.file_id = file_payment.id
-            payment.apartment = payment.apartment || file_payment.apartment
+            payment.apartment = db_payment.apartment || file_payment.apartment
             payment.payment_date = file_payment.payment_date
             payment.amount = Math.abs(file_payment.amount)
-            payment.payment_method = file_payment.payment_method ? file_payment.payment_method : null
-            payment.payment_type = payment.payment_type ? payment.payment_type : file_payment.payment_type
-            payment.notes = (payment.notes || '') + `[${file_payment.notes}]`
+            payment.payment_method = file_payment.payment_method ? file_payment.payment_method : db_payment.payment_method ? db_payment.payment_method : null
+            payment.payment_type = db_payment.payment_type ? db_payment.payment_type : file_payment.payment_type
+            payment.notes = (db_payment.notes || '') + ` [${file_payment.notes}]`
             payment.payment_status = 'Completed'
             payment.bank = file_payment.bank
+          
         }
+        console.log(payment.notes, 'final notes')
        
 
         if (payment) {
@@ -284,10 +285,14 @@
                 if(fieldName === "apartment_id"){
                     fieldName = "apartment"
                 }
-                console.log(fieldName, fieldValue)
+               
+              
                 const inputFields = updateModal.querySelectorAll(`[name="${fieldName}"]`);
                 inputFields.forEach((inputField) => {
-                   
+                    if(fieldName === "notes"){
+                        console.log(fieldName, fieldValue, "notes in foreach")
+                        console.log(inputField.value, 'notes in inputField.value')
+                    }
                     if (inputField.tagName === 'SELECT') {
                         let valueSet = false;
                         for (const option of inputField.options) {
@@ -311,12 +316,16 @@
                         } else {
                             inputField.checked = false; // Uncheck other options that don't match
                         }
+                        
                     
                     } else if (inputField.tagName === 'INPUT' && inputField.hasAttribute('datepicker')) {
                         inputField.setAttribute('data-date', formatDate(fieldValue));
                         inputField.value = formatDate(fieldValue);
                     } else if (inputField.tagName === 'TEXTAREA') {
-                        inputField.innerHTML = fieldValue;
+                        console.log(inputField.value, 'notes before change texarea')
+                        inputField.value = "";
+                        inputField.value = fieldValue;
+                        console.log(inputField.value, 'notes after change texarea')
                     } else if (inputField.tagName === 'INPUT' && inputField.type === 'checkbox') {
                         inputField.checked = (fieldValue === true || fieldValue === '1');
                     } else {

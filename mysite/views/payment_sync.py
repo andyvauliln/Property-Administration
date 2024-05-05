@@ -14,7 +14,11 @@ from django.core import serializers
 
 @user_has_role('Admin')
 def sync_payments(request):
-    data = None
+    data = {
+        'amount_delta': 100,
+        'date_delta': 4,
+        'with_confirmed': True,
+    }
     payments_to_update = []
     if request.method == 'POST': 
         
@@ -29,7 +33,7 @@ def sync_payments(request):
 
                 amount_delta = int(request.POST.get('amount_delta') or '100')
                 date_delta = int(request.POST.get('date_delta') or 4)
-                print(amount_delta, date_delta)
+                with_confirmed = request.POST.get('with_confirmed') == 'True'
                 
                 payment_methods = PaymentMethod.objects.all()
                 apartments = Apartment.objects.all()
@@ -43,13 +47,17 @@ def sync_payments(request):
                     messages.error(request, "Invalid date range for finding matches.")
                     possible_matches_db_to_file = []
                 else:
-                    db_payments = Payment.objects.filter(payment_date__range=(start_date - timedelta(days=10), end_date + timedelta(days=10)))
+                    if with_confirmed:
+                        db_payments = Payment.objects.filter(payment_date__range=(start_date - timedelta(days=10), end_date + timedelta(days=10)))
+                    else:
+                        db_payments = Payment.objects.filter(payment_date__range=(start_date - timedelta(days=10), end_date + timedelta(days=10)), payment_status='Pending')
                     possible_matches_db_to_file = find_possible_matches_db_to_file(db_payments, file_payments, amount_delta, date_delta)
-                    # possible_matches_file_to_db = find_possible_matches_file_to_db(db_payments, file_payments, amount_delta, date_delta)
 
                 db_payments_json = get_json(db_payments)
                 file_payments_json = json.dumps(file_payments, default=str)
                 model_fields = get_model_fields(PaymentForm(request))
+
+                
 
                 data = {
                     'file_payments_json': file_payments_json,
@@ -60,16 +68,18 @@ def sync_payments(request):
                     'end_date': end_date,
                     'amount_delta': amount_delta,
                     'date_delta': date_delta,
+                    'with_confirmed': with_confirmed,
                     'possible_matches_db_to_file': possible_matches_db_to_file,
                     'payment_methods': get_json(payment_methods),
                     'apartments': get_json(apartments),
                     'payment_types': get_json(payment_types),
                     
                 }
-
+    #print(data)
+    print(data['amount_delta'], data['date_delta'], data['with_confirmed'])
     context = {
         'data': data,
-        'payments_to_update': payments_to_update
+        'payments_to_update': payments_to_update,
     }
 
     return render(request, 'payment_sync/index.html', context)
@@ -85,12 +95,6 @@ def get_json(db_model):
     items_list = [{'id': item['pk'], **item['fields']} for item in data_list]
 
     for item, original_obj in zip(items_list, db_model):
-        # if hasattr(original_obj, 'assigned_cleaner'):
-        #     item['assigned_cleaner'] = original_obj.assigned_cleaner.id if original_obj.assigned_cleaner else None
-        # if hasattr(original_obj, 'tenant'):
-        #     item['tenant_full_name'] = original_obj.tenant.full_name
-        #     item['tenant_email'] = original_obj.tenant.email
-        #     item['tenant_phone'] = original_obj.tenant.phone
         if hasattr(original_obj, 'booking') and original_obj.booking:
             item["tenant_name"] = original_obj.booking.tenant.full_name
         else:
@@ -235,16 +239,7 @@ def get_start_end_dates(request, payment_data):
     print('start_date and end_date for the period', start_date, end_date)
     return start_date, end_date
 
-def find_possible_matches_file_to_db(db_payments, file_payments, amount_delta, date_delta):
-    possible_matches = []
-    
-    for db_payment in db_payments:
-        matches = get_matches_file_to_db(db_payment, file_payments, amount_delta, date_delta)
-        possible_matches.append({'db_payment': db_payment, 'matches': matches})
-        
 
-    possible_matches.sort(key=lambda x: len(x['matches']), reverse=True)
-    return possible_matches
 
 def find_possible_matches_db_to_file(db_payments, file_payments, amount_delta, date_delta):
     possible_matches = []
@@ -258,37 +253,6 @@ def find_possible_matches_db_to_file(db_payments, file_payments, amount_delta, d
     return possible_matches
 
 
-def get_matches_file_to_db(db_payment, file_payments, amount_delta, date_delta):
-    matches = []
-   
-    for payment_from_file in file_payments:
-        match_obj = {}
-        if payment_from_file['id'] == db_payment.id:
-           match_obj['file_payment'] = payment_from_file
-           match_obj['id'] = 'Matched'
-        
-        payment_diff = abs(float(payment_from_file['amount']) - abs(float(db_payment.amount)))        
-        payment_date_datetime = datetime.combine(db_payment.payment_date, datetime.min.time())
-        date_diff = payment_from_file["payment_date"] - payment_date_datetime
-        
-        if payment_diff <= amount_delta and abs(date_diff.days) <= date_delta:
-            match_obj['file_payment'] = payment_from_file
-            match_obj['amount'] = 'Exact Match' if payment_diff == 0 else f'Match +-{int(payment_diff)}'
-            match_obj['payment_date'] = 'Exact Match' if payment_diff.days == 0 else f'Match +-{abs(payment_diff.days)}d'
-            
-
-        if db_payment.apartmentName and payment_from_file.get('apartment_name') == db_payment.apartmentName:
-            match_obj['file_payment'] = payment_from_file
-            match_obj['apartment'] = 'Exact Match'
-
-        if 'file_payment' not in match_obj:
-            #print("No Matches")
-            d = 1
-        else:
-            matches.append(match_obj)
-
-    return matches
-    
 
 def get_matches_db_to_file(file_payment, db_payments, amount_delta, date_delta):
     matches = []
@@ -322,6 +286,11 @@ def get_matches_db_to_file(file_payment, db_payments, amount_delta, date_delta):
             if payment_from_db.apartmentName and file_payment['apartment_name'] == payment_from_db.apartmentName:
                 match_obj['db_payment'] = payment_from_db
                 match_obj['apartment'] = 'Exact Match'
+                match_obj['score'] += 1
+            
+            if payment_from_db.notes and payment_from_db.notes.strip().find(file_payment['notes'].strip()) != -1:
+                match_obj['db_payment'] = payment_from_db
+                match_obj['notes'] = 'Exact Match'
                 match_obj['score'] += 1 if payment_diff == 0 else 0
 
         if 'db_payment' not in match_obj:
@@ -335,3 +304,48 @@ def get_matches_db_to_file(file_payment, db_payments, amount_delta, date_delta):
     return matches
 
     return matches
+
+
+
+# def find_possible_matches_file_to_db(db_payments, file_payments, amount_delta, date_delta):
+#     possible_matches = []
+    
+#     for db_payment in db_payments:
+#         matches = get_matches_file_to_db(db_payment, file_payments, amount_delta, date_delta)
+#         possible_matches.append({'db_payment': db_payment, 'matches': matches})
+        
+
+#     possible_matches.sort(key=lambda x: len(x['matches']), reverse=True)
+#     return possible_matches
+
+# def get_matches_file_to_db(db_payment, file_payments, amount_delta, date_delta):
+#     matches = []
+   
+#     for payment_from_file in file_payments:
+#         match_obj = {}
+#         if payment_from_file['id'] == db_payment.id:
+#            match_obj['file_payment'] = payment_from_file
+#            match_obj['id'] = 'Matched'
+        
+#         payment_diff = abs(float(payment_from_file['amount']) - abs(float(db_payment.amount)))        
+#         payment_date_datetime = datetime.combine(db_payment.payment_date, datetime.min.time())
+#         date_diff = payment_from_file["payment_date"] - payment_date_datetime
+        
+#         if payment_diff <= amount_delta and abs(date_diff.days) <= date_delta:
+#             match_obj['file_payment'] = payment_from_file
+#             match_obj['amount'] = 'Exact Match' if payment_diff == 0 else f'Match +-{int(payment_diff)}'
+#             match_obj['payment_date'] = 'Exact Match' if payment_diff.days == 0 else f'Match +-{abs(payment_diff.days)}d'
+            
+
+#         if db_payment.apartmentName and payment_from_file.get('apartment_name') == db_payment.apartmentName:
+#             match_obj['file_payment'] = payment_from_file
+#             match_obj['apartment'] = 'Exact Match'
+
+#         if 'file_payment' not in match_obj:
+#             #print("No Matches")
+#             d = 1
+#         else:
+#             matches.append(match_obj)
+
+#     return matches
+    
