@@ -24,20 +24,20 @@
                     </div>
             </div>
             {% if match_item.matches|length > 0 %}
-                <div  onclick="toggleMatches('toggle_{{ match_item.file_payment.id }}')" class="flex w-full justify-center border-t bg-gray-100 p-2 items-center text-black cursor-pointer border-b border-gray-300">
+                <div  class="flex w-full justify-center border-t bg-gray-100 p-2 items-center text-black  border-b border-gray-300">
                     <div class="flex w-full">DB Matches 
                         <span class="bg-red-100 ml-2 text-red-800 text-xs font-medium me-2 px-2.5 py-0.5 rounded dark:bg-blue-900 dark:text-blue-300">{{match_item.matches|length}}</span>
                     </div>
                     <button onclick="this.parentElement.parentElement.remove()" class="flex text-right justify-end items-end self-end bg-red-500 hover:bg-red-700 text-white font-bold py-2 px-4 rounded">Delete</button>
                     <button onclick="toggleMatches('toggle_{{ match_item.file_payment.id }}')" class="flex ml-2 bg-green-500 hover:bg-green-700 text-white font-bold py-2 px-4 rounded">Show</button>
+                    <button onclick="openEditModalForPayment(null, '{{ match_item.file_payment.id }}')" class="bg-blue-500 text-white font-bold py-2 px-4 rounded ml-2">Create</button>
                 </div>
                 
                 <ul  id="toggle_{{ match_item.file_payment.id }}" style="display:none;">
                     <li>
                         <div class="flex w-full border-t bg-gray-100 p-2 items-center text-black font-bold text-lg border-b border-gray-3000">
-                            <input class="w-[500px]" id="search_input_{{ match_item.file_payment.id }}" type="text" placeholder="Search by amount, apartment or tenant name"> 
+                            <input class="w-[600px]" id="search_input_{{ match_item.file_payment.id }}" type="text" placeholder="Search by amount, apartment, notes or tenant name"> 
                             <button onclick="searchForMatch('{{ match_item.file_payment.id }}')" class="bg-blue-500 text-white font-bold py-2 px-4 rounded ml-2">Search</button>
-                            <button onclick="openEditModalForPayment(null, '{{ match_item.file_payment.id }}')" class="bg-green-500 text-white font-bold py-2 px-4 rounded ml-2">Create</button>
                         </div>
                         <ul id="search_results_{{ match_item.file_payment.id }}">
         
@@ -85,7 +85,7 @@
                 </ul> 
             {% else %}
                 <div class="flex w-full border-t bg-gray-100 p-2 items-center text-black font-bold text-lg border-b border-gray-3000">
-                   <input class="w-[500px]" id="search_input_{{ match_item.file_payment.id }}" type="text" placeholder="Search by amount, apartment or tenant name"> 
+                   <input class="w-[600px]" id="search_input_{{ match_item.file_payment.id }}" type="text" placeholder="Search by amount, apartment or tenant name"> 
                    <button onclick="searchForMatch('{{ match_item.file_payment.id }}')" class="bg-blue-500 text-white font-bold py-2 px-4 rounded ml-2">Search</button>
                    <button onclick="openEditModalForPayment(null, '{{ match_item.file_payment.id }}')" class="bg-green-500 text-white font-bold py-2 px-4 rounded ml-2">Create</button>
                 </div>
@@ -114,7 +114,11 @@ function searchForMatch(search_id) {
     var searchValue = searchInput.value;
     var items_to_add = []
     items_json.forEach(item => {
-       if (item.apartment_name == searchValue || Math.floor(item.amount) == searchValue || item.tenant_name.toLowerCase().includes(searchValue.toLowerCase())) {
+       if (item.apartment_name == searchValue || 
+            Math.floor(item.amount) == searchValue || 
+            item.tenant_name.toLowerCase().includes(searchValue.toLowerCase()) ||
+            (item.notes && item.notes.toLowerCase().includes(searchValue.toLowerCase()))
+        ) {
         items_to_add.push(item)
        }
     });
