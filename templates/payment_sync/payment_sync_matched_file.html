@@ -81,8 +81,11 @@
                 <ul  id="toggle_{{ match_item.file_payment.id }}" style="display:none;">
                     <li>
                         <div class="flex w-full border-t bg-gray-100 p-2 items-center text-black font-bold text-lg border-b border-gray-3000">
-                            <input class="w-[600px]" id="search_input_{{ match_item.file_payment.id }}" type="text" placeholder="Search by amount, apartment, notes or tenant name"> 
-                            <button onclick="searchForMatch('{{ match_item.file_payment.id }}')" class="bg-blue-500 text-white font-bold py-2 px-4 rounded ml-2">Search</button>
+                            <input class="w-[400px]" id="search_input_{{ match_item.file_payment.id }}" type="text" placeholder="Search by amount, apartment, notes or tenant name"> 
+                            <button onclick="searchForMatch('{{ match_item.file_payment.id }}', 'amount')" class="bg-blue-500 text-white font-bold py-2 px-4 rounded ml-2">Search Amount</button>
+                            <button onclick="searchForMatch('{{ match_item.file_payment.id }}', 'apartment')" class="bg-blue-500 text-white font-bold py-2 px-4 rounded ml-2">Search Apartment</button>
+                            <button onclick="searchForMatch('{{ match_item.file_payment.id }}', 'tenant')" class="bg-blue-500 text-white font-bold py-2 px-4 rounded ml-2">Search Tenant</button>
+                            <button onclick="searchForMatch('{{ match_item.file_payment.id }}', 'notes')" class="bg-blue-500 text-white font-bold py-2 px-4 rounded ml-2">Search Notes</button>
                         </div>
                         <ul id="search_results_{{ match_item.file_payment.id }}">
         
@@ -135,8 +138,11 @@
                 </ul> 
             {% else %}
                 <div class="flex w-full border-t bg-gray-100 p-2 items-center text-black font-bold text-lg border-b border-gray-3000">
-                   <input class="w-[600px]" id="search_input_{{ match_item.file_payment.id }}" type="text" placeholder="Search by amount, apartment, notes or tenant name"> 
-                   <button onclick="searchForMatch('{{ match_item.file_payment.id }}')" class="bg-blue-500 text-white font-bold py-2 px-4 rounded ml-2">Search</button>
+                   <input class="w-[400px]" id="search_input_{{ match_item.file_payment.id }}" type="text" placeholder="Search value"> 
+                   <button onclick="searchForMatch('{{ match_item.file_payment.id }}', 'amount')" class="bg-blue-500 text-white font-bold py-2 px-4 rounded ml-2">Search Amount</button>
+                    <button onclick="searchForMatch('{{ match_item.file_payment.id }}', 'apartment')" class="bg-blue-500 text-white font-bold py-2 px-4 rounded ml-2">Search Apartment</button>
+                    <button onclick="searchForMatch('{{ match_item.file_payment.id }}', 'tenant')" class="bg-blue-500 text-white font-bold py-2 px-4 rounded ml-2">Search Tenant</button>
+                    <button onclick="searchForMatch('{{ match_item.file_payment.id }}', 'notes')" class="bg-blue-500 text-white font-bold py-2 px-4 rounded ml-2">Search Notes</button>
                    <button onclick="openEditModalForPayment(null, '{{ match_item.file_payment.id }}')" class="bg-green-500 text-white font-bold py-2 px-4 rounded ml-2">Create</button>
                 </div>
                 <ul id="search_results_{{ match_item.file_payment.id }}">
@@ -158,21 +164,23 @@ function toggleMatches(id) {
         content.style.display = 'none';
     }
 }
-function searchForMatch(search_id) {
+function searchForMatch(search_id, search_type) {
     var searchInput = document.getElementById(`search_input_${search_id}`);
     var searchValue = searchInput.value;
     var items_to_add = []
     items_json.forEach(item => {
-       if (item.apartment_name == searchValue || 
-            Math.floor(item.amount) == searchValue || 
-            item.tenant_name.toLowerCase().includes(searchValue.toLowerCase()) ||
-            (item.notes && item.notes.toLowerCase().includes(searchValue.toLowerCase()))
+       if (searchValue && search_type == 'amount' && Math.floor(item.amount) == searchValue || 
+            searchValue && search_type == 'apartment' && item.apartment_name == searchValue || 
+            searchValue && search_type == 'tenant' && item.tenant_name.toLowerCase().includes(searchValue.toLowerCase()) ||
+            searchValue && search_type == 'notes' && (item.notes && item.notes.toLowerCase().includes(searchValue.toLowerCase()))
         ) {
         items_to_add.push(item)
        }
     });
     var items_to_add_html = items_to_add.map(item => {
-        return `<li id=${item.id} onclick="openEditModalForPayment(${item.id}, '${search_id}')"  class="cursor-pointer flex p-2 w-full justify-center items-center border-b border-gray-300  hover:bg-gray-100">
+
+        return `<li   class="cursor-pointer flex flex-col p-2 w-full justify-center items-center border-b border-gray-300">
+                         <div  class="flex w-full hover:bg-gray-100" id=${item.id} onclick="openEditModalForPayment(${item.id}, '${search_id}')" >   
                             <div class="w-[90px] flex-col flex-shrink-0 p-2 border-r items-center justify-center border-gray-300">
                                 ${item.id}
                             </div>
@@ -200,6 +208,12 @@ function searchForMatch(search_id) {
                             <div class="w-[150px] flex-col flex-shrink-0 flex justify-center p-2">
                                 ${ item.amount}
                             </div>
+                            
+                        </div>
+
+                        <div class="flex w-full border-t border-gray-300 pt-2 justify-end">
+                            <button onclick="autoMergePayment(${item.id}, '${search_id}')" class="bg-purple-500 hover:bg-purple-700 text-white w-[240px] font-bold py-2  rounded ml-2">Merge</button>
+                        </div>
                     </li>`
     })
     var search_results_html = items_to_add.length > 0 ? items_to_add_html.join("") : "<div class='p-2 text-red-500 text-sm'>No matches found</div>"
