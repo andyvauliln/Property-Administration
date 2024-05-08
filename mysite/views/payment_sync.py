@@ -188,6 +188,8 @@ def get_payment_data(request, csv_file, payment_methods, apartments, payment_typ
             if payment_method.name in description:
                 payment_method_to_assign = payment_method
                 break
+        if 'DEPOSIT *MOBILE' in description:
+            payment_method_to_assign = payment_methods.filter(name="Check").first()
 
         for apartment in apartments:
             if apartment.name in description:

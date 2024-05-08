@@ -135,7 +135,7 @@
                 </ul> 
             {% else %}
                 <div class="flex w-full border-t bg-gray-100 p-2 items-center text-black font-bold text-lg border-b border-gray-3000">
-                   <input class="w-[600px]" id="search_input_{{ match_item.file_payment.id }}" type="text" placeholder="Search by amount, apartment or tenant name"> 
+                   <input class="w-[600px]" id="search_input_{{ match_item.file_payment.id }}" type="text" placeholder="Search by amount, apartment, notes or tenant name"> 
                    <button onclick="searchForMatch('{{ match_item.file_payment.id }}')" class="bg-blue-500 text-white font-bold py-2 px-4 rounded ml-2">Search</button>
                    <button onclick="openEditModalForPayment(null, '{{ match_item.file_payment.id }}')" class="bg-green-500 text-white font-bold py-2 px-4 rounded ml-2">Create</button>
                 </div>
@@ -158,5 +158,51 @@ function toggleMatches(id) {
         content.style.display = 'none';
     }
 }
-
+function searchForMatch(search_id) {
+    var searchInput = document.getElementById(`search_input_${search_id}`);
+    var searchValue = searchInput.value;
+    var items_to_add = []
+    items_json.forEach(item => {
+       if (item.apartment_name == searchValue || 
+            Math.floor(item.amount) == searchValue || 
+            item.tenant_name.toLowerCase().includes(searchValue.toLowerCase()) ||
+            (item.notes && item.notes.toLowerCase().includes(searchValue.toLowerCase()))
+        ) {
+        items_to_add.push(item)
+       }
+    });
+    var items_to_add_html = items_to_add.map(item => {
+        return `<li id=${item.id} onclick="openEditModalForPayment(${item.id}, '${search_id}')"  class="cursor-pointer flex p-2 w-full justify-center items-center border-b border-gray-300  hover:bg-gray-100">
+                            <div class="w-[90px] flex-col flex-shrink-0 p-2 border-r items-center justify-center border-gray-300">
+                                ${item.id}
+                            </div>
+                            <div class="w-[140px] flex-col flex-shrink-0 p-2 border-r border-gray-300">
+                                ${item.payment_date}
+                            </div>
+                            <div class="flex flex-grow p-2 flex-col border-r border-gray-300">
+                               <div class="text-left border-b border-gray-300"> <span class="font-bold">Notes:</span> 
+                                ${ item.notes || "N/A" }
+                                </div>
+                                <div class="flex justify-between">
+                                    <div> <span class="font-bold">Type:</span> ${item.payment_type ? payment_types_dictionary[item.payment_type] || 'N/A' : 'N/A'}</div>
+                                    <div><span class="font-bold"> Method: </span> ${ item.payment_method ? payment_methods_dictionary[item.payment_method] || 'N/A' : 'N/A'}</div>
+                                    <div><span class="font-bold"> Bank: </span> ${ item.bank ? payment_methods_dictionary[item.bank] || 'N/A' : 'N/A'}</div>
+                                    <div> <span class="font-bold">Status:</span> ${item.payment_status || "N/A"}</div>
+                                </div>
+                                <div class="mt-2">
+                                    <span class="font-bold">Tenant:</span> ${ item.tenant_name || "N/A" }
+                                </div>
+                                
+                            </div>
+                            <div class="w-[150px] flex-col flex-shrink-0 flex justify-center p-2 border-r border-gray-300">
+                                 ${item.apartment_name || "N/A"}
+                            </div>
+                            <div class="w-[150px] flex-col flex-shrink-0 flex justify-center p-2">
+                                ${ item.amount}
+                            </div>
+                    </li>`
+    })
+    var search_results_html = items_to_add.length > 0 ? items_to_add_html.join("") : "<div class='p-2 text-red-500 text-sm'>No matches found</div>"
+    document.getElementById(`search_results_${search_id}`).innerHTML = search_results_html
+}
 </script>
