@@ -543,6 +543,7 @@ class Payment(models.Model):
     PAYMENT_STATUS = [
         ('Pending', 'Pending'),
         ('Completed', 'Completed'),
+        ('Merged', 'Merged'),
     ]
     invoice_url = models.TextField(blank=True, null=True)
     payment_date = models.DateField(db_index=True)

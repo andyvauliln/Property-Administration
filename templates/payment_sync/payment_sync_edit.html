@@ -264,7 +264,7 @@
             payment.payment_method = file_payment.payment_method ? file_payment.payment_method : db_payment.payment_method ? db_payment.payment_method : null
             payment.payment_type = db_payment.payment_type ? db_payment.payment_type : file_payment.payment_type
             payment.notes = (db_payment.notes || '') + ` [${file_payment.notes}]`
-            payment.payment_status = 'Completed'
+            payment.payment_status = 'Merged'
             payment.bank = file_payment.bank
           
         }

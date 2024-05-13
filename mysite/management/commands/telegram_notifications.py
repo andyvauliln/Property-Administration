@@ -20,7 +20,7 @@ def my_cron_job():
     telegram_token = os.environ["TELEGRAM_TOKEN"]
 
     for notification in notifications:
-        if notification.payment and notification.payment.payment_status == "Completed":
+        if notification.payment and (notification.payment.payment_status == "Completed" or notification.payment.payment_status == "Merged"):
             continue
         else:
             message = f"Tomorrow events: {notification.notification_message}"
