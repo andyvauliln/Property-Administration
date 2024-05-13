@@ -122,6 +122,7 @@ var modelsData = {
             "payment_status": [
                 "Pending",
                 "Completed",
+                "Merged",
             ],
         },
         "relatedModels": {

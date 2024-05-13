@@ -54,9 +54,9 @@ def generate_weeks(month_start):
 
 def aggregate_data(payments):
     income = sum(payment.amount for payment in payments if payment.payment_type.type ==
-                 'In' and payment.payment_status == 'Completed')
+                 'In' and (payment.payment_status == 'Completed' or payment.payment_status == 'Merged'))
     outcome = sum(payment.amount for payment in payments if payment.payment_type.type ==
-                  'Out' and payment.payment_status == 'Completed')
+                  'Out' and (payment.payment_status == 'Completed' or payment.payment_status == 'Merged'))
     pending_income = sum(payment.amount for payment in payments if payment.payment_type.type ==
                          'In' and payment.payment_status == 'Pending')
     pending_outcome = sum(payment.amount for payment in payments if payment.payment_type.type ==
@@ -72,9 +72,9 @@ def aggregate_summary(payment_list):
     total_pending_outcome = Decimal('0.00')
 
     for payment in payment_list:
-        if payment.payment_type.type == 'In' and payment.payment_status == 'Completed':
+        if payment.payment_type.type == 'In' and (payment.payment_status == 'Completed' or payment.payment_status == 'Merged'):
             total_income += payment.amount
-        elif payment.payment_type.type == 'Out' and payment.payment_status == 'Completed':
+        elif payment.payment_type.type == 'Out' and (payment.payment_status == 'Completed' or payment.payment_status == 'Merged'):
             total_expense += payment.amount
         elif payment.payment_type.type == 'In' and payment.payment_status == 'Pending':
             total_pending_income += payment.amount
@@ -231,6 +231,7 @@ def get_payments_for_month(year, month):
         Case(
             When(payment_status="Pending", then=0),
             When(payment_status="Completed", then=1),
+            When(payment_status="Merged", then=1),
         ),
         'payment_date'
     )

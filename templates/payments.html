@@ -9,6 +9,7 @@
         <option value="">All Statuses</option>
         <option value="Pending" {% if current_payment_status == 'Pending' %}selected{% endif %}>Pending</option>
         <option value="Completed" {% if current_payment_status == 'Completed' %}selected{% endif %}>Completed</option>
+        <option value="Merged" {% if current_payment_status == 'Merged' %}selected{% endif %}>Merged</option>
     </select>
 </div>
 <script>
@@ -25,22 +26,19 @@
                 // Remove existing payment_status if it exists
                 searchInput.value = searchInput.value.replace(/(AND\s*)?payment_status=[^&]+(&)?/g, '');
                 
-                // Add the new payment_status. We use trim to remove any leading or trailing spaces.
                 searchInput.value = (searchInput.value + " AND payment_status=" + paymentStatus).trim();
             } else {
                 searchInput.value = "payment_status=" + paymentStatus;
             }
         } else {
-            // Handle the case when "All Statuses" is selected. Remove the payment_status filter.
             searchInput.value = searchInput.value.replace(/(AND\s*)?payment_status=[^&]+(&)?/g, '').trim();
         }
     }
     
       document.addEventListener('DOMContentLoaded', function() {
         const urlParams = new URLSearchParams(window.location.search);
-        const qValue = urlParams.get('q'); // This will give "payment_status=Pending"
+        const qValue = urlParams.get('q');
         
-        // Further split the qValue to get the actual payment_status
         const paymentStatus = qValue.split('=')[1];
     
         const paymentStatusDropdown = document.querySelector('[name="payment_status"]');
