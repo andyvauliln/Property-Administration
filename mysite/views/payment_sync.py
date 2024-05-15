@@ -48,7 +48,7 @@ def sync_payments(request):
                     possible_matches_db_to_file = []
                 else:
                     if with_confirmed:
-                        db_payments = Payment.objects.filter(payment_status__ne='Merged', payment_date__range=(start_date - timedelta(days=10), end_date + timedelta(days=10)))
+                        db_payments = Payment.objects.exclude(payment_status='Merged').filter(payment_date__range=(start_date - timedelta(days=10), end_date + timedelta(days=10)))
                     else:
                         db_payments = Payment.objects.filter(payment_date__range=(start_date - timedelta(days=10), end_date + timedelta(days=10)), payment_status='Pending')
                     possible_matches_db_to_file = find_possible_matches_db_to_file(db_payments, file_payments, amount_delta, date_delta)
