@@ -157,10 +157,10 @@
                                         {% endif %}
                                     </td>
                                     <td class="px-4 py-4">{% if payment.booking %}{{ payment.booking.tenant.full_name }}{% else %}{% endif %}</td>
-                                    {% if payment.payment_status == "Pending" or payment.payment_status == "Merged" %}
-                                        <td class="px-4 py-4"> <span class="bg-yellow-200 text-yellow-500 px-2 py-1 rounded-full">{{ payment.payment_status }}</span></td>
-                                    {% else %}
+                                    {% if payment.payment_status == "Completed" or payment.payment_status == "Merged" %}
                                         <td class="px-4 py-4"> <span class="bg-green-200 text-green-700 px-2 py-1 rounded-full">{{ payment.payment_status }}</span></td>
+                                    {% else %}
+                                        <td class="px-4 py-4"> <span class="bg-yellow-200 text-yellow-500 px-2 py-1 rounded-full">{{ payment.payment_status }}</span></td>
                                     {% endif %}
                                     <td class="px-4 py-4">
                                         {% if payment.booking %}
