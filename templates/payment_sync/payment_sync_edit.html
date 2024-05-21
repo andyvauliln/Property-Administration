@@ -342,9 +342,12 @@
 
     function autoMergePayment(db_payment_id, file_payment_id){
        const payment = merge2Payments(db_payment_id, file_payment_id)
+       const file_payment = file_payments_json.find(i => i.id === file_payment_id);
        payment.id = payment.id + ""
-       console.log(payment.payment_date, 'before payment')
        payment.payment_date = formatDate(payment.payment_date)
+       payment.file_date = payment.payment_date;
+       payment.file_amount = payment.amount;
+       payment.file_notes = file_payment.notes;
        console.log(payment.date, 'after payment')
        payments_for_save_to_db.push(payment)
        updateSavedPayments()
