@@ -48,9 +48,11 @@ def sync_payments(request):
                     possible_matches_db_to_file = []
                 else:
                     if with_confirmed:
-                        db_payments = Payment.objects.exclude(payment_status='Merged').filter(payment_date__range=(start_date - timedelta(days=10), end_date + timedelta(days=10)))
+                        db_payments = Payment.objects.filter(payment_date__range=(start_date - timedelta(days=10), end_date + timedelta(days=10)))
+                        db_payments, file_payments = remove_handled_payments(db_payments, file_payments)
                     else:
                         db_payments = Payment.objects.filter(payment_date__range=(start_date - timedelta(days=10), end_date + timedelta(days=10)), payment_status='Pending')
+                        db_payments, file_payments = remove_handled_payments(db_payments, file_payments)
                     possible_matches_db_to_file = find_possible_matches_db_to_file(db_payments, file_payments, amount_delta, date_delta)
 
                 db_payments_json = get_json(db_payments)
@@ -75,14 +77,25 @@ def sync_payments(request):
                     'payment_types': get_json(payment_types),
                     
                 }
-    #print(data)
-    print(data['amount_delta'], data['date_delta'], data['with_confirmed'])
     context = {
         'data': data,
         'payments_to_update': payments_to_update,
     }
 
     return render(request, 'payment_sync/index.html', context)
+
+#05/06/20244500Check 283
+def remove_handled_payments(db_payments, file_payments):
+    # Collect merged_payment_keys from db_payments with status "Merged" and ensure they are not None
+    db_payment_keys = {payment.merged_payment_key for payment in db_payments if payment.payment_status == "Merged" and payment.merged_payment_key is not None}
+    
+    # Filter out db_payments with status "Merged"
+    db_payments_cleaned = [payment for payment in db_payments if payment.payment_status != "Merged"]
+    
+    # Filter out file_payments where merged_payment_key matches any in db_payment_keys
+    file_payments_cleaned = [payment for payment in file_payments if payment['merged_payment_key'] not in db_payment_keys]
+    
+    return db_payments_cleaned, file_payments_cleaned
 
 def get_json(db_model):
     
@@ -131,8 +144,9 @@ def update_payments(request, payments_to_update):
                     payment.payment_method_id = payment_info['payment_method']
                     payment.bank_id = payment_info['bank']
                     payment.apartment_id = payment_info['apartment']
-                    # payment.booking_id = payment_info['booking']
                     payment.payment_status = payment_info['payment_status']
+                    payment.merged_payment_key = payment_info['file_date'] + str(payment_info['file_amount']) + payment_info['file_notes']
+                    print('payment.merged_payment_key', payment.merged_payment_key)
                     payment.save()
                     messages.success(request, f"Updated Payment: {payment.id}")
                 else:
@@ -221,11 +235,13 @@ def get_payment_data(request, csv_file, payment_methods, apartments, payment_typ
             'amount': abs(amount_float),
             'payment_method': payment_method_to_assign.id if payment_method_to_assign else None,
             'payment_method_name': payment_method_to_assign.name if payment_method_to_assign else None,
+            'merged_payment_key': datetime.strptime(date.strip(), '%m/%d/%Y').strftime('%m/%d/%Y').zfill(10) + str(int(abs(amount_float))) + description.strip(),
             'bank': ba_bank.id,
             'bank_name': ba_bank.name,
             'apartment': apartment_to_assign.id if apartment_to_assign else None,
             'apartment_name': apartment_to_assign.name if apartment_to_assign else None,
         })
+        #print("key",  datetime.strptime(date.strip(), '%m/%d/%Y').strftime('%m/%d/%Y') + str(int(abs(amount_float))) + description.strip())
     #print('retrieved payment_data from csv', payment_data)
     return payment_data
 
@@ -242,6 +258,8 @@ def get_start_end_dates(request, payment_data):
     return start_date, end_date
 
 
+#05/06/20244500Check 283
+#05/06/20244500Check 283
 
 def find_possible_matches_db_to_file(db_payments, file_payments, amount_delta, date_delta):
     possible_matches = []

@@ -560,6 +560,7 @@ class Payment(models.Model):
     bank = models.ForeignKey(PaymentMethod, blank=True, on_delete=models.SET_NULL, db_index=True,
                              related_name='bank_payments', limit_choices_to={'type': 'Bank'}, null=True)
     notes = models.TextField(blank=True, null=True)
+    merged_payment_key = models.TextField(blank=True, null=True)
     booking = models.ForeignKey(Booking, on_delete=models.CASCADE, db_index=True,
                                 related_name='payments', null=True, blank=True)
     apartment = models.ForeignKey(Apartment, on_delete=models.CASCADE, db_index=True,
