@@ -146,7 +146,6 @@ def update_payments(request, payments_to_update):
                     payment.apartment_id = payment_info['apartment']
                     payment.payment_status = payment_info['payment_status']
                     payment.merged_payment_key = payment_info['file_date'] + str(payment_info['file_amount']) + payment_info['file_notes']
-                    print('payment.merged_payment_key', payment.merged_payment_key)
                     payment.save()
                     messages.success(request, f"Updated Payment: {payment.id}")
                 else:
@@ -160,7 +159,7 @@ def update_payments(request, payments_to_update):
                     payment_method_id=payment_info['payment_method'] or None,
                     bank_id=payment_info['bank'] or None,
                     apartment_id=payment_info['apartment'] or None,
-                    # booking_id=payment_info['booking'],
+                    merged_payment_key=payment_info['file_date'] + str(payment_info['file_amount']) + payment_info['file_notes'],
                     payment_status=payment_info['payment_status'],
                 )
                 messages.success(request, f"Created new Payment: {payment.id}")
@@ -241,8 +240,6 @@ def get_payment_data(request, csv_file, payment_methods, apartments, payment_typ
             'apartment': apartment_to_assign.id if apartment_to_assign else None,
             'apartment_name': apartment_to_assign.name if apartment_to_assign else None,
         })
-        #print("key",  datetime.strptime(date.strip(), '%m/%d/%Y').strftime('%m/%d/%Y') + str(int(abs(amount_float))) + description.strip())
-    #print('retrieved payment_data from csv', payment_data)
     return payment_data
 
 
@@ -254,7 +251,6 @@ def get_start_end_dates(request, payment_data):
 
     start_date = payment_data[0]['payment_date']
     end_date = payment_data[-1]['payment_date']
-    print('start_date and end_date for the period', start_date, end_date)
     return start_date, end_date
 
 
