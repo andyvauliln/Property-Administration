@@ -95,10 +95,7 @@
 
 <script>
     function removeSavedPayment(id){
-        console.log(id, 'id')
-        console.log(payments_for_save_to_db, 'payments_for_save_to_db1')
         payments_for_save_to_db = payments_for_save_to_db.filter(i => i.id != id)
-        console.log(payments_for_save_to_db, 'payments_for_save_to_db2')
         updateSavedPayments()
     }
     function formatDate(dateString) {
@@ -165,7 +162,12 @@
     });
     function add_payment(){
         const formData = getAllFormData()
+        const file_payment = file_payments_json.find(i => i.id === formData.fileId)
+        formData.file_date = formData.payment_date;
+        formData.file_amount = formData.amount;
+        formData.file_notes = file_payment.notes;
         payments_for_save_to_db.push(formData)
+        console.log(formData, 'formData')
         updateSavedPayments()
         removePaymentFromList(formData.fileId)
     }
