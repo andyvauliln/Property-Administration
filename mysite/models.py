@@ -613,7 +613,7 @@ class Payment(models.Model):
             notification.save()
 
     def delete(self, *args, **kwargs):
-        if self.payment_status != "Completed":
+        if self.payment_status != "Completed" and self.payment_status != "Merged":
             super(Payment, self).delete(*args, **kwargs)
     
     @property
