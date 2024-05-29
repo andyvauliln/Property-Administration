@@ -19,7 +19,6 @@ BASE_PATH = os.environ["DOCUSIGN_API_URL"]
 DOCUSIGN_INTEGRATION_KEY = os.environ["DOCUSIGN_INTEGRATION_KEY"]
 DOCUSIGN_USER_ID = os.environ["DOCUSIGN_USER_ID"]
 DOCUSIGN_TEMPLATE_ID = os.environ["DOCUSIGN_TEMPLATE_ID"]
-DOCUSIGN_SIGN_CALLBACK_URL = os.environ["DOCUSIGN_SIGN_CALLBACK_URL"]
 DOCUSIGN_API_ACCOUNT_ID = os.environ["DOCUSIGN_API_ACCOUNT_ID"]
 
 
@@ -78,23 +77,6 @@ def create_contract_docusign(booking):
 def generate_contract_url(envelope_id):
     return f"https://apps-d.docusign.com/send/documents/details/{envelope_id}"
 
-def create_recipient_view(tenant, envelopes_api, envelope_id):
-    recipient_view_request = RecipientViewRequest(
-            authentication_method="none",
-            client_user_id=tenant.id,
-            recipient_id="1",
-            return_url=f"{DOCUSIGN_SIGN_CALLBACK_URL}{envelope_id}",
-            user_name=tenant.full_name,
-            email=tenant.email
-        )
-
-    recipient_result = envelopes_api.create_recipient_view(
-        account_id=DOCUSIGN_API_ACCOUNT_ID,
-        envelope_id=envelope_id,
-        recipient_view_request=recipient_view_request
-    )
-    print("Recipient View Created", recipient_result.url)
-    return recipient_result.url
 
 def send_sms(booking, message, recipient, count=0):
     account_sid = os.environ["TWILIO_ACCOUNT_SID"]
