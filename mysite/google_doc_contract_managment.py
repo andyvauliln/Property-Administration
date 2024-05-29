@@ -134,17 +134,6 @@ def send_sms(booking, message, recipient, count=0):
     manager_phone = os.environ["TWILIO_MANAGER_PHONE"]
 
     client = Client(account_sid, auth_token)
-    # db_message = Chat.objects.create(
-    #     booking=booking,
-    #     sender_phone=twilio_phone,
-    #     receiver_phone=recipient,
-    #     message=message,
-    #     context="",
-    #     sender_type="SYSTEM",
-    #     message_type="NO_NEED_ACTION",
-    #     message_status="SENDED",
-    # )
-    # db_message.save()
     try:
         twilio_message = client.messages.create(
             from_=twilio_phone,

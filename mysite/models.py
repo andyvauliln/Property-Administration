@@ -6,7 +6,7 @@ from django.contrib.auth.hashers import make_password
 from dateutil.relativedelta import relativedelta
 from datetime import datetime
 from datetime import datetime, date
-from mysite.contract_managment import create_contract
+from mysite.docusign_contract_menegment import create_contract
 import re
 
 
@@ -315,18 +315,19 @@ class Booking(models.Model):
         else:
             form_data = kwargs.pop('form_data', None)
             payments_data = kwargs.pop('payments_data', None)
-            if form_data and payments_data:
+            if form_data:
                 self.get_or_create_tenant(form_data)
                 super().save(*args, **kwargs)  # Save the booking instance first to get an ID
                 self.schedule_cleaning(form_data)
                 self.create_booking_notifications()
-                if form_data["send_contract"]:
-                    create_contract(self)
+                
             if payments_data:
                 self.create_payments(payments_data)
 
-            else:
-                super().save(*args, **kwargs)
+            super().save(*args, **kwargs)
+
+            if form_data["send_contract"]:
+                    create_contract(self)
 
     def deletePayments(self):
         payments_to_delete = Payment.objects.filter(
@@ -447,6 +448,20 @@ class Booking(models.Model):
     @property
     def payment_str(self):
         payments = self.payments.all()
+        payment_str = ""
+        for payment in payments:
+            formatted_date = payment.payment_date.strftime("%m/%d/%Y")
+            payment_str += f"{payment.payment_type}: ${payment.amount}, {formatted_date} \n"
+        return payment_str
+    
+    @property
+    def payment_str_for_contract(self):
+        payments = self.payments.filter(payment_type__name__in=["Damage Deposit", "Hold Deposit", "Damage Deposit Return", "Rent"])
+        payments_all = self.payments.all()
+        print(len(payments), "LENTH PAYMENTs")
+        print(len(payments_all), "LENTH PAYMENTs ALL")
+        for payment in payments_all:
+            print(payment.payment_type.name, "PAYMENT TYPE")
         payment_str = ""
         for payment in payments:
             formatted_date = payment.payment_date.strftime("%m/%d/%Y")

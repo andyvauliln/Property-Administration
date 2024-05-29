@@ -10,6 +10,7 @@ from docusign_esign import EnvelopesApi, EnvelopeDefinition, Document, Signer, C
 from docusign_esign import EnvelopesApi, EnvelopeDefinition, TemplateRole, Text, Tabs, EnvelopeEvent
 from docusign_esign import ApiClient, AuthenticationApi, RecipientViewRequest, EventNotification, RecipientEvent
 
+
 SCOPES = ["signature", "impersonation"]
 
 DOCUSIGN_AUTH_SERVER = os.environ["DOCUSIGN_AUTH_SERVER"]
@@ -23,26 +24,23 @@ DOCUSIGN_API_ACCOUNT_ID = os.environ["DOCUSIGN_API_ACCOUNT_ID"]
 
 
 def create_contract(booking):
-    print("\n********** Start Creating Contract **********\n")
-    envelope_api, envelope_id, contract_url = create_contract_docusign(booking)
-
-    booking.contract_url = contract_url
-    booking.update()
-    print(f"Contract was made link is {booking.contract_url}")
-    message = f"Hi, here you will find a link for your apartment rental reservation. Please, fill it out and sign. {booking.contract_url}"
+    print("\n********** Start Creating Contract **********\n") 
 
     if booking.tenant.email and booking.tenant.email != "not_availabale@gmail.com":
         print("Sending EMAIL")
-        process_docusign_email(booking, envelope_api, envelope_id)
+        contract_url = create_contract_docusign(booking)
+        booking.contract_url = contract_url
+        booking.update()
 
-    if booking.tenant.phone and booking.tenant.phone.startswith("+1"):
-        print("Sending SMS")
-        send_sms(booking, message, booking.tenant.phone)
+        if booking.tenant.phone and booking.tenant.phone.startswith("+1"):
+            print("Sending SMS")
+            message = f"Hi, it's Farid, I sent you a link to sign a contract. Please, fill it out and sign"
+            send_sms(booking, message, booking.tenant.phone)
 
-    if not (booking.tenant.email and booking.tenant.email != "not_availabale@gmail.com") and not (booking.tenant.phone and booking.tenant.phone.startswith("+1")):
+    else:
         print("Client wasn't notified about contract to sign")
         raise Exception(
-            "Client wasn't notified about contract to sign, please process manualy")
+            "Client wasn't notified about contract because of missing email, please add tenant email")
 
     return booking.contract_url
 
@@ -53,28 +51,32 @@ def create_contract_docusign(booking):
     api_client.set_oauth_host_name(DOCUSIGN_AUTH_SERVER)
     jwt_values = get_token(DOCUSIGN_PRIVATE_KEY, api_client)
     print("WE GOT ACCESS TOKEN", jwt_values)
+    api_client_with_token = create_api_client(BASE_PATH, jwt_values["access_token"])
 
-    api_client.host = BASE_PATH
-    api_client.set_default_header(header_name="Authorization", header_value=f"Bearer {jwt_values['access_token']}")
    
     tenant = booking.tenant
-
     envelope_definition = make_envelope(booking)
 
+    print("Tenant", tenant.id, tenant.email, tenant.full_name)
 
-    envelopes_api = EnvelopesApi(api_client)
+    envelopes_api = EnvelopesApi(api_client_with_token)
     envelope_result = envelopes_api.create_envelope(
         account_id=DOCUSIGN_API_ACCOUNT_ID,
         envelope_definition=envelope_definition
     )
-    print("Envelope Created !!!", envelope_result)
+    if envelope_result.status == "sent":
+        print("Email should have been sent by DocuSign.")
+        booking.contract_send_status = "Sent by Email"
+        booking.update()
+    else:
+        print(f"Envelope status is {envelope_result.status}, email might not be sent.")
 
-    contract_url = create_recipient_view(tenant, envelopes_api, envelope_result.envelope_id)
+    contract_url = generate_contract_url(envelope_result.envelope_id)
 
-    envelope_id = envelope_result.envelope_id
+    return contract_url
 
-    return envelopes_api, envelope_id, contract_url
-
+def generate_contract_url(envelope_id):
+    return f"https://apps-d.docusign.com/send/documents/details/{envelope_id}"
 
 def create_recipient_view(tenant, envelopes_api, envelope_id):
     recipient_view_request = RecipientViewRequest(
@@ -139,7 +141,6 @@ def make_envelope(booking):
         tenant = TemplateRole(
             email=tenant.email,
             name=tenant.full_name,
-            client_user_id=tenant.id,
             role_name="tenant",
             tabs=tabs
         )
@@ -148,7 +149,7 @@ def make_envelope(booking):
             email_subject='Hi, it is Farid, Please sign a renting agreement',
             template_id=DOCUSIGN_TEMPLATE_ID,
             template_roles=[tenant],
-            status='created',
+            status='sent',
         )
 
         print("Envelope Definition Created")
@@ -178,8 +179,13 @@ def process_docusign_email(booking, envelopes_api, envelope_id):
 def get_token(private_key, api_client):
 
     token_response = get_jwt_token(private_key, SCOPES, DOCUSIGN_AUTH_SERVER, DOCUSIGN_INTEGRATION_KEY,DOCUSIGN_USER_ID)
+    print("\nPRIVATE_KEY", private_key)
+    print("\nSCOPES", SCOPES)
+    print("\nDOCUSIGN_AUTH_SERVER", DOCUSIGN_AUTH_SERVER)
+    print("\nDOCUSIGN_INTEGRATION_KEY", DOCUSIGN_INTEGRATION_KEY)
+    print("\nDOCUSIGN_USER_ID", DOCUSIGN_USER_ID)
+    
     access_token = token_response.access_token
-    print("access_token", access_token)
 
     # Save API account ID
     user_info = api_client.get_user_info(access_token)
@@ -205,17 +211,7 @@ def get_jwt_token(private_key, scopes, auth_server, client_id, impersonated_user
     )
     return response
 
-def get_private_key(private_key_path):
 
-    private_key_file = path.abspath(private_key_path)
-
-    if path.isfile(private_key_file):
-        with open(private_key_file) as private_key_file:
-            private_key = private_key_file.read()
-    else:
-        private_key = private_key_path
-
-    return private_key
 
 def create_api_client(base_path, access_token):
     """Create api client and construct API headers"""
@@ -234,8 +230,9 @@ def getData(booking):
         {"tabLabel": "start_date", "value": booking.start_date.strftime('%m/%d/%Y')},
         {"tabLabel": "end_date", "value": booking.end_date.strftime('%m/%d/%Y')},
         {"tabLabel": "apartment_address", "value": booking.apartment.address},
-        {"tabLabel": "payment_terms", "value": booking.payment_str},
-        {"tabLabel": "contract_date", "value": timezone.now().strftime('%m/%d/%Y')}
+        {"tabLabel": "payment_terms", "value": booking.payment_str_for_contract},
+        {"tabLabel": "contract_date", "value": timezone.now().strftime('%m/%d/%Y')},
+        {"tabLabel": "agreement_number", "value": f"#A{booking.id}F"}
     ]
     # Convert to Text objects
     text_tabs = [Text(tab_label=item["tabLabel"], value=item["value"]) for item in text_fields]
@@ -254,3 +251,8 @@ def get_consent_url():
                   f"scope={url_scopes}&client_id={DS_JWT['ds_client_id']}&redirect_uri={redirect_uri}"
 
     return consent_url
+
+
+#https://apps-d.docusign.com/send/documents/details/8e7e7cb0-01e1-4943-a9ee-21dd430a98a4
+#https://apps-d.docusign.com/send/prepare/8e7e7cb0-01e1-4943-a9ee-21dd430a98a4/correct/
+
