@@ -143,7 +143,6 @@ def get_token(private_key, api_client):
     #         backend=default_backend()
     #     )
         
-    logger_common.debug("Private Key successfully loaded")
 
 
     try:
