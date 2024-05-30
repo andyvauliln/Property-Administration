@@ -254,9 +254,6 @@ def get_start_end_dates(request, payment_data):
     return start_date, end_date
 
 
-#05/06/20244500Check 283
-#05/06/20244500Check 283
-
 def find_possible_matches_db_to_file(db_payments, file_payments, amount_delta, date_delta):
     possible_matches = []
     
@@ -269,11 +266,19 @@ def find_possible_matches_db_to_file(db_payments, file_payments, amount_delta, d
     return possible_matches
 
 
+def is_payment_type_match(payment_from_db, file_payment):
+   if file_payment['payment_type_name'] == "Income":
+       return payment_from_db.payment_type.name in ["Income", "Rent", "Hold Deposit", "Damage Deposit" ]
+   elif file_payment['payment_type_name'] == "Expense":
+       return payment_from_db.payment_type.name in ["Expense", "Damage Deposit Return", ]
+
 
 def get_matches_db_to_file(file_payment, db_payments, amount_delta, date_delta):
     matches = []
    
     for payment_from_db in db_payments:
+        if not is_payment_type_match(payment_from_db, file_payment):
+            continue
         match_obj = {'score': 0}
         if payment_from_db.id == file_payment['id']:
            match_obj['db_payment'] = payment_from_db
