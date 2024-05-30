@@ -10,7 +10,6 @@ from docusign_esign import EnvelopesApi, EnvelopeDefinition, Document, Signer, C
 from docusign_esign import EnvelopesApi, EnvelopeDefinition, TemplateRole, Text, Tabs, EnvelopeEvent
 from docusign_esign import ApiClient, AuthenticationApi, RecipientViewRequest, EventNotification, RecipientEvent
 
-
 SCOPES = ["signature", "impersonation"]
 
 DOCUSIGN_AUTH_SERVER = os.environ["DOCUSIGN_AUTH_SERVER"]
@@ -23,21 +22,19 @@ DOCUSIGN_API_ACCOUNT_ID = os.environ["DOCUSIGN_API_ACCOUNT_ID"]
 
 
 def create_contract(booking):
-    print("\n********** Start Creating Contract **********\n") 
+
 
     if booking.tenant.email and booking.tenant.email != "not_availabale@gmail.com":
-        print("Sending EMAIL")
         contract_url = create_contract_docusign(booking)
         booking.contract_url = contract_url
         booking.update()
 
         if booking.tenant.phone and booking.tenant.phone.startswith("+1"):
-            print("Sending SMS")
-            message = f"Hi, it's Farid, I sent you a link to sign a contract. Please, fill it out and sign"
+            message = f"Hi, it's Farid, I sent you a link to sign a contract. on {booking.tenant.email} Please, fill it out and sign"
             send_sms(booking, message, booking.tenant.phone)
 
     else:
-        print("Client wasn't notified about contract to sign")
+
         raise Exception(
             "Client wasn't notified about contract because of missing email, please add tenant email")
 
@@ -49,14 +46,13 @@ def create_contract_docusign(booking):
     api_client.set_base_path(DOCUSIGN_AUTH_SERVER)
     api_client.set_oauth_host_name(DOCUSIGN_AUTH_SERVER)
     jwt_values = get_token(DOCUSIGN_PRIVATE_KEY, api_client)
-    print("WE GOT ACCESS TOKEN", jwt_values)
     api_client_with_token = create_api_client(BASE_PATH, jwt_values["access_token"])
 
    
     tenant = booking.tenant
     envelope_definition = make_envelope(booking)
 
-    print("Tenant", tenant.id, tenant.email, tenant.full_name)
+    # print("Tenant", tenant.id, tenant.email, tenant.full_name)
 
     envelopes_api = EnvelopesApi(api_client_with_token)
     envelope_result = envelopes_api.create_envelope(
@@ -64,7 +60,6 @@ def create_contract_docusign(booking):
         envelope_definition=envelope_definition
     )
     if envelope_result.status == "sent":
-        print("Email should have been sent by DocuSign.")
         booking.contract_send_status = "Sent by Email"
         booking.update()
     else:
@@ -126,7 +121,6 @@ def make_envelope(booking):
             role_name="tenant",
             tabs=tabs
         )
-
         envelope_definition = EnvelopeDefinition(
             email_subject='Hi, it is Farid, Please sign a renting agreement',
             template_id=DOCUSIGN_TEMPLATE_ID,
@@ -139,39 +133,29 @@ def make_envelope(booking):
         return envelope_definition
 
 
-def process_docusign_email(booking, envelopes_api, envelope_id):
-    try:
-        print("Sending Email")
-
-        envelope_update = EnvelopeDefinition(status="sent")
-
-        envelopes_api.update(DOCUSIGN_API_ACCOUNT_ID, envelope_id, envelope_update)
-        booking.contract_send_status = "Sent by Email"
-        booking.update()
-        print(f"Envelope {envelope_id} sent successfully.")
-    except ApiException as e:
-        print(f"Exception when calling EnvelopesApi->update: {e}")
-       
-        
-
-    except Exception as e:
-        print("An error occurred while sending the email:", e)
-
 
 def get_token(private_key, api_client):
 
-    token_response = get_jwt_token(private_key, SCOPES, DOCUSIGN_AUTH_SERVER, DOCUSIGN_INTEGRATION_KEY,DOCUSIGN_USER_ID)
-    print("\nPRIVATE_KEY", private_key)
-    print("\nSCOPES", SCOPES)
-    print("\nDOCUSIGN_AUTH_SERVER", DOCUSIGN_AUTH_SERVER)
-    print("\nDOCUSIGN_INTEGRATION_KEY", DOCUSIGN_INTEGRATION_KEY)
-    print("\nDOCUSIGN_USER_ID", DOCUSIGN_USER_ID)
+    private_key = private_key.replace("\\n", "\n")
+    # private_key_obj = serialization.load_pem_private_key(
+    #         private_key.encode(),
+    #         password=None,
+    #         backend=default_backend()
+    #     )
+        
+    logger_common.debug("Private Key successfully loaded")
+
+
+    try:
+        token_response = get_jwt_token(private_key, SCOPES, DOCUSIGN_AUTH_SERVER, DOCUSIGN_INTEGRATION_KEY,DOCUSIGN_USER_ID)
+    except Exception as e:
+        print(e)
+    
     
     access_token = token_response.access_token
 
     # Save API account ID
     user_info = api_client.get_user_info(access_token)
-    print(user_info, "user_info")
     accounts = user_info.get_accounts()
     api_account_id = accounts[0].account_id
     base_path = accounts[0].base_uri + "/restapi"
