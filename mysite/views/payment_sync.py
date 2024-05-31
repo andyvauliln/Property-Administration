@@ -80,6 +80,7 @@ def sync_payments(request):
     context = {
         'data': data,
         'payments_to_update': payments_to_update,
+        'title': "Payments Sync"
     }
 
     return render(request, 'payment_sync/index.html', context)

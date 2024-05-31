@@ -133,9 +133,7 @@
         const startDateInput = document.getElementById("start_date");
         const startDate = new Date(startDateInput.value);
     
-        var currentDate = new Date();
-        var holdDepositDate = new Date(currentDate);
-        holdDepositDate.setDate(currentDate.getDate() + 2);
+        var holdDepositDate = new Date();
     
         const ownerPaymentDate = new Date(startDate);
         ownerPaymentDate.setDate(startDate.getDate() + 4);
@@ -145,12 +143,10 @@
         addPaymentRow(modal, startDate, 0, 6);
         addPaymentRow(modal, ownerPaymentDate, 0, 2);
     }
-    function addPaymentRow(modal, defaultDate = "", defaultAmount = "", defaultPaymentType = "") {
+    function addPaymentRow(modal, defaultDate = new Date(), defaultAmount = 0, defaultPaymentType = 6) {
             console.log(defaultDate, "defaultDate")
             const paymentsContainer = document.getElementById('paymentsContainer-' + modal);
 
-            
-        
             const paymentRow = document.createElement('div');
             paymentRow.className = 'paymentRow flex flex-col gap-4 mb-4 items-start w-full';
         
