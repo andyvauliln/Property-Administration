@@ -169,10 +169,7 @@
        const startDateInput = document.getElementById("start_date-create");
        const startDate = new Date(startDateInput.value);
       
-   
-       var currentDate = new Date();
-       var holdDepositDate = new Date(currentDate);
-       holdDepositDate.setDate(currentDate.getDate() + 2);
+       var holdDepositDate = new Date();
    
        const ownerPaymentDate = new Date(startDate);
        ownerPaymentDate.setDate(startDate.getDate() + 4);
@@ -195,7 +192,7 @@
 
         return formattedDate;
     }
-    function addPaymentRow(modal, defaultDate = "", defaultAmount = "", defaultPaymentType = "") {
+    function addPaymentRow(modal, defaultDate = new Date(), defaultAmount = 0, defaultPaymentType = 6) {
     
             const paymentsContainer = document.getElementById('paymentsContainer-' + modal);
 
