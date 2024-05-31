@@ -234,7 +234,7 @@ def get_payment_data(request, csv_file, payment_methods, apartments, payment_typ
             'amount': abs(amount_float),
             'payment_method': payment_method_to_assign.id if payment_method_to_assign else None,
             'payment_method_name': payment_method_to_assign.name if payment_method_to_assign else None,
-            'merged_payment_key': datetime.strptime(date.strip(), '%m/%d/%Y').strftime('%m/%d/%Y').zfill(10) + str(int(abs(amount_float))) + description.strip(),
+            'merged_payment_key': datetime.strptime(date.strip(), '%m/%d/%Y').strftime('%m/%d/%Y').zfill(10) + str(abs(amount_float)) + description.strip(),
             'bank': ba_bank.id,
             'bank_name': ba_bank.name,
             'apartment': apartment_to_assign.id if apartment_to_assign else None,
@@ -299,7 +299,7 @@ def get_matches_db_to_file(file_payment, db_payments, amount_delta, date_delta):
         
         if payment_diff <= amount_delta and abs(date_diff.days) <= date_delta:
             match_obj['db_payment'] = payment_from_db
-            match_obj['amount'] = 'Exact Match' if payment_diff == 0 else f'Match +-{int(payment_diff)}'
+            match_obj['amount'] = 'Exact Match' if payment_diff < 1 else f'Match +-{str(payment_diff)}'
             match_obj['payment_date'] = 'Exact Match' if date_diff.days == 0 else f'Match +-{abs(date_diff.days)}d'
             match_obj['score'] += 1 if abs(date_diff.days) <= 1 else 0
             match_obj['score'] += 2 if payment_diff == 0 else 1
