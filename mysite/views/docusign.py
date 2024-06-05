@@ -5,7 +5,9 @@ from django.utils import timezone
 import requests
 from django.http import JsonResponse
 import logging
+import json
 from mysite.models import Booking
+from django.http import JsonResponse, HttpResponse
 
 
 
@@ -88,3 +90,93 @@ def docusign_callback(request):
     except Exception as e:
         print(e)
         return JsonResponse({'status': 'error', 'message': str(e)}, status=500)
+
+def get_adobe_sign_access_token():
+    client_id = os.environ["ADOBE_SIGN_CLIENT_ID"]
+    client_secret = os.environ["ADOBE_SIGN_CLIENT_SECRET"]
+    refresh_token = os.environ["ADOBE_SIGN_REFRESH_TOKEN"]
+
+    payload = {
+        "grant_type": "refresh_token",
+        "client_id": client_id,
+        "client_secret": client_secret,
+        "refresh_token": refresh_token
+    }
+
+    response = requests.post("https://api.na4.adobesign.com/oauth/v2/refresh", data=payload)
+    response_data = response.json()
+    print("response_data_get_token", response_data)
+
+    if response.status_code != 200:
+        raise Exception(f"Failed to get Adobe Sign access token: {response_data}")
+
+    return response_data["access_token"]
+
+
+def adobesign_callback(request):
+    # if request.method != 'POST':
+    #     return JsonResponse({'status': 'error', 'message': 'Invalid request method'}, status=405)
+    print(request, "request")
+    if request.method == 'GET':
+        # Handle verification of intent
+        # client_id = request.headers.get('X-AdobeSign-ClientId')
+        # if client_id == os.environ["ADOBE_SIGN_CLIENT_ID"]:
+        #     response = HttpResponse()
+        #     response['X-AdobeSign-ClientId'] = client_id
+        #     return response
+        # else:
+        #     return JsonResponse({'status': 'error', 'message': 'Invalid client ID'}, status=400)
+        response = HttpResponse()
+        response['X-AdobeSign-ClientId'] = os.environ["ADOBE_SIGN_CLIENT_ID"]
+        return response
+
+    elif request.method == 'POST':
+
+        try:
+            payload = json.loads(request.body)
+            print(payload, "payload")
+            agreement_id = payload.get('agreement', {}).get('id')
+            print(agreement_id, "agreement_id")
+            secret_key = payload.get('secret_key')
+            print(secret_key, "secret_key")
+
+            if not agreement_id:
+                return JsonResponse({'status': 'error', 'message': 'Agreement ID not found in the payload'}, status=400)
+
+            # Get Adobe Sign access token
+            token = get_adobe_sign_access_token()
+            headers = {
+                'Authorization': f'Bearer {token}',
+                'Content-Type': 'application/json'
+            }
+
+            # Fetch form data
+            account_id = os.environ["ADOBE_SIGN_CLIENT_ID"]
+            url = f"https://api.adobesign.com/api/rest/v6/agreements/{agreement_id}/formFields"
+            response = requests.get(url, headers=headers)
+            print(response, "response")
+            form_fields_response = response.json()
+
+            # Process and parse form fields
+            form_fields_items = form_fields_response.get('fields', [])
+
+            # Create a dictionary from form fields items
+            form_fields_dict = {item['name']: item.get('defaultValue', '') for item in form_fields_items}
+            print(form_fields_dict)
+            bookingid = int(form_fields_dict['agreement_number'][2:-1])
+            print(bookingid)
+            booking = Booking.objects.get(id=bookingid)
+            if booking:
+                booking.status = 'Waiting Payment'
+                booking.save()
+                tenant = booking.tenant
+                tenant.full_name = form_fields_dict['occupant']
+                tenant.email = form_fields_dict['email']
+                tenant.phone = form_fields_dict['phone']
+                tenant.save()
+                booking.save()
+
+            return JsonResponse({'status': 'success', 'formData': form_fields_dict})
+        except Exception as e:
+            print(e)
+            return JsonResponse({'status': 'error', 'message': str(e)}, status=500)

@@ -21,6 +21,7 @@ urlpatterns = [
     path('paymenttypes/', views.payment_types, name='paymenttypes'),
     path('notifications/', views.notifications, name='notifications'),
     path('docusign-callback/', views.docusign_callback, name='docusign_callback'),
+    path('adobesign-callback/', views.adobesign_callback, name='adobesign_callback'),
     path('payment-report/', views.paymentReport, name='paymentReport'),
     path('forward-message/', views.forward_message, name='forwardMessage'),
     path('forward-message2/', views.forward_message2, name='forwardMessage2'),
