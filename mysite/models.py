@@ -6,7 +6,7 @@ from django.contrib.auth.hashers import make_password
 from dateutil.relativedelta import relativedelta
 from datetime import datetime
 from datetime import datetime, date
-from mysite.adobesign_contract_menegment import create_contract
+from mysite.docuseal_contract_managment import create_contract
 import re
 
 

@@ -128,6 +128,7 @@ def send_agreement(agreement, access_token):
         # Check the status of the agreement
         status_url = f"{ADOBE_SIGN_AGREEMENTS_URL}/{agreement_id}"
         status_response = requests.get(status_url, headers=headers)
+        print("status_response", status_response)
         status_data = status_response.json()
         print("Agreement status data:", json.dumps(status_data, indent=4))
 
