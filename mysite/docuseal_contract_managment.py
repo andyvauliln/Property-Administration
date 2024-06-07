@@ -91,6 +91,7 @@ def prepare_data_for_agreement(booking):
                         },
                         {"name": "contract_date", "default_value": timezone.now().strftime('%m/%d/%Y'), "readonly": True},
                         {"name": "start_date", "default_value": booking.start_date.strftime('%m/%d/%Y'), "readonly": True},
+                        {"name": "start_date_1", "default_value": booking.start_date.strftime('%m/%d/%Y'), "readonly": True},
                         {"name": "end_date", "default_value": booking.end_date.strftime('%m/%d/%Y'), "readonly": True},
                         {"name": "apartment_address", "default_value": booking.apartment.address, "readonly": True},
                         {"name": "payment_terms", "default_value": booking.payment_str_for_contract, "readonly": True},
