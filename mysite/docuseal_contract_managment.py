@@ -57,29 +57,44 @@ def create_and_send_agreement(booking):
 
 def prepare_data_for_agreement(booking):
     data = {
-        "template_id": 116242,
+        "template_id": os.environ.get("DOCUSEAL_TEMPLATE_ID"),
         "send_email": True,
         "send_sms": True if booking.tenant.phone and booking.tenant.phone.startswith("+1") else False,
         "submitters": [
             {
-            "role": "tenant",
-            "metadata": {
-                        "booking_id":  f"#A{booking.id}F",
-                    },   
-            "phone": booking.tenant.phone or "", 
-            "email": booking.tenant.email or "",
-            "fields": [
-                    # {"name": "owner", "default_value": booking.apartment.owner.full_name, "readonly": True},
-                    
-                    {"name": "tenant", "default_value": "" if booking.tenant.full_name == "Not Availabale" or booking.tenant.full_name == "" else booking.tenant.full_name, "readonly": False},
-                    {"name": "phone", "default_value": booking.tenant.phone or "", "readonly": False},
-                    {"name": "email", "default_value": booking.tenant.email or "", "readonly": False},
-                    {"name": "start_date", "default_value": booking.start_date.strftime('%m/%d/%Y'), "readonly": True},
-                    {"name": "end_date", "default_value": booking.end_date.strftime('%m/%d/%Y'), "readonly": True},
-                    {"name": "apartment_address", "default_value": booking.apartment.address, "readonly": False},
-                    {"name": "payment_terms", "default_value": booking.payment_str_for_contract, "readonly": True},
-                    {"name": "contract_date", "default_value": timezone.now().strftime('%m/%d/%Y'), "readonly": True}
-                ]
+                "role": "tenant",
+                "metadata": {
+                            "booking_id":  f"#A{booking.id}F",
+                        },   
+                "phone": booking.tenant.phone or "", 
+                "email": booking.tenant.email or "",
+                "fields": [                        
+                        {"name": "tenant", "default_value": "" if booking.tenant.full_name == "Not Availabale" or booking.tenant.full_name == "" else booking.tenant.full_name, "readonly": False},
+                        {"name": "phone", "default_value": booking.tenant.phone or "", "readonly": False},
+                        {"name": "email", "default_value": booking.tenant.email or "", "readonly": False},
+                    ]
+            },
+            {
+                "role": "sender",  
+                "phone": os.environ.get("TWILIO_MANAGER_PHONE"), 
+                "email": os.environ.get("MANAGER_MAIL2"),
+                "fields": [
+                        {
+                            "name": 'sender_signature',
+                            "default_value": f'http://{os.environ.get("PGHOST")}/static/signature.png',
+                            "readonly": True
+                        },
+                        {
+                            "name": 'sender_name',
+                            "default_value": f'IT Products development and Marketing LLC',
+                            "readonly": True
+                        },
+                        {"name": "contract_date", "default_value": timezone.now().strftime('%m/%d/%Y'), "readonly": True},
+                        {"name": "start_date", "default_value": booking.start_date.strftime('%m/%d/%Y'), "readonly": True},
+                        {"name": "end_date", "default_value": booking.end_date.strftime('%m/%d/%Y'), "readonly": True},
+                        {"name": "apartment_address", "default_value": booking.apartment.address, "readonly": True},
+                        {"name": "payment_terms", "default_value": booking.payment_str_for_contract, "readonly": True},
+                    ]
             }
         ],
         
@@ -87,21 +102,3 @@ def prepare_data_for_agreement(booking):
     print("contract_data", data)
 
     return data
-
-
-
-
-
-# {'template_id': 116242, 
-#  'send_email': True, 
-#  'send_sms': '', 
-#  'submitters': [
-#      {'role': 'tenant', 'phone': '', 'email': 'andrei.vaulin.job@gmail.com', 
-#       'fields': [{'name': 'owner', 'default_value': 'Farid Gazizov'}, 
-#                  {'name': 'tenant', 'default_value': ''}, 
-#                  {'name': 'phone', 'default_value': ''}, 
-#                  {'name': 'email', 'default_value': 'andrei.vaulin.job@gmail.com'},
-#                    {'name': 'start_date', 'default_value': '06/06/2024'},
-#                      {'name': 'end_date', 'default_value': '06/06/2024'}, 
-#                      {'name': 'apartment_address', 'default_value': '456 Second St, City, Country 24, 424, denpasar, Kerobokan, 80013'}, {'name': 'payment_terms', 'default_value': 'Rent: $1.00, 06/06/2024 \nRent: $1.00, 06/06/2024 \n'}, {'name': 'contract_date', 'default_value': '06/06/2024'}]}], 'metadata': {'booking_id': '#A645F'}}
-
