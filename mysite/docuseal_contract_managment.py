@@ -72,18 +72,6 @@ def prepare_data_for_agreement(booking):
                         {"name": "tenant", "default_value": "" if booking.tenant.full_name == "Not Availabale" or booking.tenant.full_name == "" else booking.tenant.full_name, "readonly": False},
                         {"name": "phone", "default_value": booking.tenant.phone or "", "readonly": False},
                         {"name": "email", "default_value": booking.tenant.email or "", "readonly": False},
-                    ]
-            },
-            {
-                "role": "sender",  
-                "phone": os.environ.get("TWILIO_MANAGER_PHONE"), 
-                "email": os.environ.get("MANAGER_MAIL2"),
-                "fields": [
-                        {
-                            "name": 'sender_signature',
-                            "default_value": f'http://{os.environ.get("PGHOST")}/static/signature.png',
-                            "readonly": True
-                        },
                         {
                             "name": 'sender_name',
                             "default_value": f'IT Products development and Marketing LLC',
@@ -96,7 +84,20 @@ def prepare_data_for_agreement(booking):
                         {"name": "apartment_address", "default_value": booking.apartment.address, "readonly": True},
                         {"name": "payment_terms", "default_value": booking.payment_str_for_contract, "readonly": True},
                     ]
-            }
+            },
+            # {
+            #     "role": "sender",  
+            #     "phone": os.environ.get("TWILIO_MANAGER_PHONE"), 
+            #     "email": os.environ.get("MANAGER_MAIL2"),
+            #     "fields": [
+            #             {
+            #                 "name": 'sender_signature',
+            #                 "default_value": f'http://{os.environ.get("PGHOST")}/static/signature.png',
+            #                 "readonly": True
+            #             },
+                        
+            #         ]
+            # }
         ],
         
     }
