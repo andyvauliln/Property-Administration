@@ -73,7 +73,12 @@ def prepare_data_for_agreement(booking):
                         {"name": "phone", "default_value": booking.tenant.phone or "", "readonly": False},
                         {"name": "email", "default_value": booking.tenant.email or "", "readonly": False},
                         {
-                            "name": 'sender_name',
+                            "name": 'sender_name_1',
+                            "default_value": f'IT Products development and Marketing LLC',
+                            "readonly": True
+                        },
+                        {
+                            "name": 'sender_name_2',
                             "default_value": f'IT Products development and Marketing LLC',
                             "readonly": True
                         },
