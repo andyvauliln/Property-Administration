@@ -9,7 +9,8 @@ SUBMISSION_URL_API_BASE_URL = "https://api.docuseal.co/submissions"
 DOCUSEAL_API_KEY = os.environ.get("DOCUSEAL_API_KEY")
 
 
-def create_contract(booking):
+def create_contract(booking, template_id):
+    print("template_id", template_id)
     if booking.tenant.email and booking.tenant.email != "not_availabale@gmail.com" and "@example.com" not in booking.tenant.email:
         # Create and send agreement
         contract_url = create_and_send_agreement(booking)

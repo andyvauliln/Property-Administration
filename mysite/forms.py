@@ -404,8 +404,16 @@ class BookingForm(forms.ModelForm):
         choices=Booking.VISIT_PURPOSE, isColumn=False, order=6, isEdit=True, required=False, isCreate=True,
         ui_element="radio", _dropdown_options=lambda: get_dropdown_options("visit_purpose"))
 
-    send_contract = BooleanFieldEx(
-        required=False, isCreate=True, initial="false", isEdit=False, ui_element="radio", _dropdown_options=[{"value": "false", "label": "Don't Send"}, {"value": "true", "label": "Send"}], order=11)
+    send_contract = ChoiceFieldEx( choices=[
+        (118378, "Send Occupant Agreement"),
+        (120946, "Send Application Form"),
+    ],
+        required=False, isCreate=True, initial=None, isEdit=False, ui_element="radio", 
+        _dropdown_options=[
+            {"value": 118378, "label": "Send Occupant Agreement"},
+            {"value": 120946, "label": "Send Application Form"},
+            ],
+            order=11)
     is_rent_car = CustomBooleanField(
         required=False, initial="", isCreate=True, isEdit=True, ui_element="radio", _dropdown_options=lambda: get_dropdown_options("is_rent_car"), order=12)
     
