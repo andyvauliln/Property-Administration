@@ -4,6 +4,7 @@ from django.contrib.auth.forms import AuthenticationForm
 from mysite.models import Booking, User, Apartment, Payment, Cleaning, Notification, PaymentMethod, PaymenType
 from datetime import date
 import requests
+import uuid
 
 
 class CustomUserLoginForm(AuthenticationForm):
@@ -216,18 +217,22 @@ class CustomUserForm(forms.ModelForm):
                   'password', 'phone', 'role', "notes"]
 
     def clean(self):
+        
         cleaned_data = super().clean()
+        email = cleaned_data.get("email")
+        if email or cleaned_data.get("email") == "None":
+            cleaned_data["email"] = f"tenant_{uuid.uuid4()}@example.com"
         return cleaned_data
 
-    email = EmailFieldEx(isColumn=True, isEdit=True,
+    email = EmailFieldEx(isColumn=True,required=False, initial=f"tenant_{uuid.uuid4()}@example.com", isEdit=True,
                          isCreate=True, ui_element="input")
     password = CharFieldEx(max_length=128, required=False, isColumn=False,
                            isEdit=True, isCreate=True, ui_element="input")
-    full_name = CharFieldEx(max_length=255, isColumn=True,
+    full_name = CharFieldEx(max_length=255, required=False, isColumn=True,
                             isEdit=True, isCreate=True, ui_element="input")
     phone = CharFieldEx(max_length=15, required=False, isColumn=True,
                         isEdit=True, isCreate=True, ui_element="input")
-    role = CharFieldEx(max_length=14, isColumn=True, isEdit=True, isCreate=True,
+    role = CharFieldEx(max_length=14, isColumn=True, initial="Tenant", isEdit=True, isCreate=True,
                        ui_element="radio", _dropdown_options=lambda: get_dropdown_options("roles"))
     notes = CharFieldEx(required=False, initial="", isColumn=False,
                         isEdit=True, isCreate=True, ui_element="textarea")
@@ -348,7 +353,7 @@ class BookingForm(forms.ModelForm):
 
         return instance
 
-    tenant_email = EmailFieldEx(isEdit=True, initial="not_availabale@gmail.com", order=3, required=False,
+    tenant_email = EmailFieldEx(isEdit=True, initial=f"tenant_{uuid.uuid4()}@example.com", order=3, required=False,
                                 isCreate=True, ui_element="input")
     tenant_full_name = CharFieldEx(
         max_length=255, order=2, initial="Not Availabale", required=False, isEdit=True, isCreate=True, ui_element="input")

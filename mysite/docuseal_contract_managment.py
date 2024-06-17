@@ -10,7 +10,7 @@ DOCUSEAL_API_KEY = os.environ.get("DOCUSEAL_API_KEY")
 
 
 def create_contract(booking):
-    if booking.tenant.email and booking.tenant.email != "not_availabale@gmail.com":
+    if booking.tenant.email and booking.tenant.email != "not_availabale@gmail.com" and "@example.com" not in booking.tenant.email:
         # Create and send agreement
         contract_url = create_and_send_agreement(booking)
         if contract_url:
@@ -22,7 +22,7 @@ def create_contract(booking):
             booking.update()
             raise Exception("Contract wasn't sent by email")
     else:
-        raise Exception("Client wasn't notified about contract because of missing email, please add tenant email")
+        raise Exception("Client wasn't notified about contract because of missing email, please add correct tenant email")
 
     return booking.contract_url
 
@@ -75,19 +75,19 @@ def prepare_data_for_agreement(booking):
                         {
                             "name": 'sender_name_1',
                             "default_value": f'IT Products development and Marketing LLC',
-                            "readonly": True
+                            "readonly": False
                         },
                         {
                             "name": 'sender_name_2',
                             "default_value": f'IT Products development and Marketing LLC',
-                            "readonly": True
+                            "readonly": False
                         },
-                        {"name": "contract_date", "default_value": timezone.now().strftime('%m/%d/%Y'), "readonly": True},
-                        {"name": "start_date", "default_value": booking.start_date.strftime('%m/%d/%Y'), "readonly": True},
-                        {"name": "start_date_1", "default_value": booking.start_date.strftime('%m/%d/%Y'), "readonly": True},
-                        {"name": "end_date", "default_value": booking.end_date.strftime('%m/%d/%Y'), "readonly": True},
-                        {"name": "apartment_address", "default_value": booking.apartment.address, "readonly": True},
-                        {"name": "payment_terms", "default_value": booking.payment_str_for_contract, "readonly": True},
+                        {"name": "contract_date", "default_value": timezone.now().strftime('%d/%m/%Y'), "readonly": False},
+                        {"name": "start_date", "default_value": booking.start_date.strftime('%d/%m/%Y'), "readonly": False},
+                        {"name": "start_date_1", "default_value": booking.start_date.strftime('%d/%m/%Y'), "readonly": False},
+                        {"name": "end_date", "default_value": booking.end_date.strftime('%d/%m/%Y'), "readonly": False},
+                        {"name": "apartment_address", "default_value": booking.apartment.address, "readonly": False},
+                        {"name": "payment_terms", "default_value": booking.payment_str_for_contract, "readonly": False},
                     ]
             },
             # {

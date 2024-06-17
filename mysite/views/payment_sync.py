@@ -167,6 +167,8 @@ def update_payments(request, payments_to_update):
         except Exception as e:
             messages.error(request, f"Failed to {'update' if payment_id else 'create'}  payment: {payment_id or ''} due  {str(e)}")
 
+def remove_trailing_zeros_from_str(amount_float):
+    return ('%f' % abs(amount_float)).rstrip('0').rstrip('.')
 
 def get_payment_data(request, csv_file, payment_methods, apartments, payment_types):
     file_data = csv_file.read().decode("utf-8")
@@ -235,7 +237,7 @@ def get_payment_data(request, csv_file, payment_methods, apartments, payment_typ
             'amount': abs(amount_float),
             'payment_method': payment_method_to_assign.id if payment_method_to_assign else None,
             'payment_method_name': payment_method_to_assign.name if payment_method_to_assign else None,
-            'merged_payment_key': datetime.strptime(date.strip(), '%m/%d/%Y').strftime('%m/%d/%Y').zfill(10) + str(abs(amount_float)) + description.strip(),
+            'merged_payment_key': datetime.strptime(date.strip(), '%m/%d/%Y').strftime('%m/%d/%Y').zfill(10) + remove_trailing_zeros_from_str(amount_float) + description.strip(),
             'bank': ba_bank.id,
             'bank_name': ba_bank.name,
             'apartment': apartment_to_assign.id if apartment_to_assign else None,

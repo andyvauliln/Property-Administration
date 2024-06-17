@@ -27,7 +27,7 @@ def handle_post_request(request, model, form_class):
                         for error in errors:
                             messages.error(request, f"{field}: {error}")
             return redirect(request.path)
-        elif 'add' in request.POST:
+        elif 'add' in request.POST: 
             form = form_class(request.POST, request=request)
             if form.is_valid():
                 form.save()
