@@ -408,7 +408,7 @@ class BookingForm(forms.ModelForm):
         (118378, "Send Occupant Agreement"),
         (120946, "Send Application Form"),
     ],
-        required=False, isCreate=True, initial=None, isEdit=False, ui_element="radio", 
+        required=False, isEdit=True, isCreate=True, initial=None, ui_element="radio", 
         _dropdown_options=[
             {"value": 118378, "label": "Send Occupant Agreement"},
             {"value": 120946, "label": "Send Application Form"},

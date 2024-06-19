@@ -6,7 +6,7 @@ from django.contrib.auth.hashers import make_password
 from dateutil.relativedelta import relativedelta
 from datetime import datetime
 from datetime import datetime, date
-from mysite.docuseal_contract_managment import create_contract
+from mysite.docuseal_contract_managment import create_contract, delete_contract
 import re
 import uuid
 
@@ -219,14 +219,16 @@ class Booking(models.Model):
     ]
     VISIT_PURPOSE = [
         ('Tourism', 'Tourism'),
-        ('Work', 'Work'),
+        ('Work Travel', 'Work Travel'),
         ('Medical', 'Medical'),
-        ('Between Houses', 'Between Houses'),
-        ('Snow Bird', 'Snow Bird'),
+        ('House Repair', 'House Repair'),
+        ('Relocation', 'Relocation'),
         ('Other', 'Other'),
     ]
 
     contract_url = models.TextField(blank=True, null=True)
+    contract_id = models.TextField(blank=True, null=True)
+
     contract_send_status = models.TextField(
         blank=True, null=True, default="Not Sent")
     start_date = models.DateField(db_index=True)
@@ -328,8 +330,10 @@ class Booking(models.Model):
                 self.create_payments(payments_data)
 
             super().save(*args, **kwargs)
-            if form_data["send_contract"] and form_data["send_contract"] != 0 and form_data["send_contract"] != None and form_data["send_contract"] != "None":
-                    create_contract(self, template_id=form_data["send_contract"])
+        
+        # SEND CONTRACT
+        if form_data["send_contract"] and form_data["send_contract"] != 0 and form_data["send_contract"] != None and form_data["send_contract"] != "None":
+                create_contract(self, template_id=form_data["send_contract"])
 
     def deletePayments(self):
         payments_to_delete = Payment.objects.filter(
@@ -339,6 +343,13 @@ class Booking(models.Model):
 
         # Delete the filtered payments
         payments_to_delete.delete()
+
+    def delete(self, *args, **kwargs):
+
+        if self.contract_id != "" and self.contract_id != None:
+            delete_contract(self.contract_id)
+
+        super(Booking, self).delete(*args, **kwargs)
 
     def get_or_create_tenant(self, form_data):
         if form_data:
@@ -459,11 +470,6 @@ class Booking(models.Model):
     @property
     def payment_str_for_contract(self):
         payments = self.payments.filter(payment_type__name__in=["Damage Deposit", "Hold Deposit", "Damage Deposit Return", "Rent"])
-        payments_all = self.payments.all()
-        print(len(payments), "LENTH PAYMENTs")
-        print(len(payments_all), "LENTH PAYMENTs ALL")
-        for payment in payments_all:
-            print(payment.payment_type.name, "PAYMENT TYPE")
         payment_str = ""
         for payment in payments:
             formatted_date = payment.payment_date.strftime("%m/%d/%Y")
@@ -478,7 +484,7 @@ class Booking(models.Model):
             links_list.append({"name": f"Tenant: {self.tenant.full_name}",
                               "link": f"/users/?q=id={self.tenant.id}"})
         if self.contract_url:
-            links_list.append({"name": f"Contract: Open Contract ({self.contract_send_status})",
+            links_list.append({"name": f"Contract: Open Contract {self.contract_id} ({self.contract_send_status})",
                               "link": f"{self.contract_url}"})
 
         if self.apartment:

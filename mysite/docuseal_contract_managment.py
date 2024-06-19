@@ -13,52 +13,49 @@ def create_contract(booking, template_id):
     print("template_id", template_id)
     if booking.tenant.email and booking.tenant.email != "not_availabale@gmail.com" and "@example.com" not in booking.tenant.email:
         # Create and send agreement
-        contract_url = create_and_send_agreement(booking)
-        if contract_url:
-            booking.contract_url = contract_url
-            booking.contract_send_status = "Sent by Email"
-            booking.update()
-        else:
-            booking.contract_send_status = "Not Sent"
-            booking.update()
-            raise Exception("Contract wasn't sent by email")
+        create_and_send_agreement(booking, template_id)
     else:
         raise Exception("Client wasn't notified about contract because of missing email, please add correct tenant email")
 
     return booking.contract_url
 
-def create_and_send_agreement(booking):
+def create_and_send_agreement(booking, template_id):
     try:
         # Get Adobe Sign access token
         print("START CREATE AGREEMENT")
-        data = prepare_data_for_agreement(booking)
+        data = prepare_data_for_agreement(booking, template_id)
+        print("data", data)
 
         headers = {
             "X-Auth-Token": f"{DOCUSEAL_API_KEY}",
             "Content-Type": "application/json",
         }
-        print("headers", headers, SUBMISSION_URL_API_BASE_URL)
         response = requests.post(SUBMISSION_URL_API_BASE_URL, headers=headers, json=data)
-        print("response", response)
-        if response.status_code != 200:
-            print("Detailed response:", response.json())
 
         if response.status_code == 200:
             response_data = response.json()
             print("response_data", response_data)
-            print("response_data[0]", response_data[0]["embed_src"])
-            return response_data[0]["embed_src"]
+            booking.contract_id = response_data[0]["submission_id"]
+            booking.contract_url = response_data[0]["embed_src"]
+            booking.contract_send_status = "Sent by Email"
+            booking.update()
         else:
-            return None
+            print("Detailed response:", response.json())
+            booking.contract_send_status = "Not Sent"
+            booking.update()
+            raise Exception("Contract wasn't sent by email")
     except Exception as e:
         print(f"An error occurred: {e}")
-        return None
+        booking.contract_send_status = "Not Sent"
+        booking.update()
+        raise Exception("Contract wasn't sent by email")
+      
 
 
 
-def prepare_data_for_agreement(booking):
+def prepare_data_for_agreement(booking, template_id):
     data = {
-        "template_id": os.environ.get("DOCUSEAL_TEMPLATE_ID"),
+        "template_id": template_id,
         "send_email": True,
         "send_sms": True if booking.tenant.phone and booking.tenant.phone.startswith("+1") else False,
         "submitters": [
@@ -69,7 +66,19 @@ def prepare_data_for_agreement(booking):
                         },   
                 "phone": booking.tenant.phone or "", 
                 "email": booking.tenant.email or "",
-                "fields": [                        
+                "fields": get_fields(booking, template_id)
+            },
+        ],
+        
+    }
+    return data
+
+
+def get_fields(booking, template_id):
+    print("template_id", template_id, template_id == 120946)
+    
+    if template_id == "120946":
+        return [                        
                         {"name": "tenant", "default_value": "" if booking.tenant.full_name == "Not Availabale" or booking.tenant.full_name == "" else booking.tenant.full_name, "readonly": False},
                         {"name": "phone", "default_value": booking.tenant.phone or "", "readonly": False},
                         {"name": "email", "default_value": booking.tenant.email or "", "readonly": False},
@@ -79,34 +88,57 @@ def prepare_data_for_agreement(booking):
                             "readonly": False
                         },
                         {
-                            "name": 'sender_name_2',
-                            "default_value": f'IT Products development and Marketing LLC',
+                            "name": 'owner',
+                            "default_value": f'{booking.apartment.owner.full_name}',
                             "readonly": False
                         },
-                        {"name": "contract_date", "default_value": timezone.now().strftime('%d/%m/%Y'), "readonly": False},
+                        {
+                            "name": 'apartment_number',
+                            "default_value": f'{booking.apartment.apartment_n}',
+                            "readonly": False
+                        },
+                        {
+                            "name": 'building_number',
+                            "default_value": f'{booking.apartment.building_n}',
+                            "readonly": False
+                        },
                         {"name": "start_date", "default_value": booking.start_date.strftime('%d/%m/%Y'), "readonly": False},
-                        {"name": "start_date_1", "default_value": booking.start_date.strftime('%d/%m/%Y'), "readonly": False},
                         {"name": "end_date", "default_value": booking.end_date.strftime('%d/%m/%Y'), "readonly": False},
                         {"name": "apartment_address", "default_value": booking.apartment.address, "readonly": False},
                         {"name": "payment_terms", "default_value": booking.payment_str_for_contract, "readonly": False},
                     ]
-            },
-            # {
-            #     "role": "sender",  
-            #     "phone": os.environ.get("TWILIO_MANAGER_PHONE"), 
-            #     "email": os.environ.get("MANAGER_MAIL2"),
-            #     "fields": [
-            #             {
-            #                 "name": 'sender_signature',
-            #                 "default_value": f'http://{os.environ.get("PGHOST")}/static/signature.png',
-            #                 "readonly": True
-            #             },
-                        
-            #         ]
-            # }
-        ],
-        
-    }
-    print("contract_data", data)
+    elif template_id == "118378":
+        return [                        
+                        {"name": "tenant", "default_value": "" if booking.tenant.full_name == "Not Availabale" or booking.tenant.full_name == "" else booking.tenant.full_name, "readonly": False},
+                        {"name": "phone", "default_value": booking.tenant.phone or "", "readonly": False},
+                        {"name": "email", "default_value": booking.tenant.email or "", "readonly": False},
+                        {
+                            "name": 'sender_name',
+                            "default_value": f'IT Products development and Marketing LLC',
+                            "readonly": False
+                        },
+                        {"name": "start_date", "default_value": booking.start_date.strftime('%d/%m/%Y'), "readonly": False},
+                        {"name": "end_date", "default_value": booking.end_date.strftime('%d/%m/%Y'), "readonly": False},
+                        {"name": "apartment_address", "default_value": booking.apartment.address, "readonly": False},
+                        {"name": "payment_terms", "default_value": booking.payment_str_for_contract, "readonly": False},
+                    ]
+    else:
+        raise Exception("Template id is not supported")
 
-    return data
+
+def delete_contract(id):
+    headers = {
+        "X-Auth-Token": f"{DOCUSEAL_API_KEY}",
+        "Content-Type": "application/json",
+    }
+
+    response = requests.delete(f"{SUBMISSION_URL_API_BASE_URL}/{id}", headers=headers)
+    print("response", response)
+    if response.status_code != 200:
+        print("Detailed response:", response.json())
+
+    print(f"Contract with id {id} was deleted")
+
+def rectreate_contract(booking):
+    pass
+
