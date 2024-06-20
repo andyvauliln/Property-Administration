@@ -66,6 +66,17 @@ def prepare_data_for_agreement(booking, template_id):
                         },   
                 "phone": booking.tenant.phone or "", 
                 "email": booking.tenant.email or "",
+                "fields": [
+                    {"name": "tenant", "default_value": "" if booking.tenant.full_name == "Not Availabale" or booking.tenant.full_name == "" else booking.tenant.full_name, "readonly": False},
+                    {"name": "phone", "default_value": booking.tenant.phone or "", "readonly": False},
+                    {"name": "email", "default_value": booking.tenant.email or "", "readonly": False},
+                ]
+                
+            },
+            {
+                "role": "sender",
+                "phone": "", 
+                "email": "gfa779@hotmail.com",
                 "fields": get_fields(booking, template_id)
             },
         ],
@@ -77,51 +88,25 @@ def prepare_data_for_agreement(booking, template_id):
 def get_fields(booking, template_id):
     print("template_id", template_id, template_id == 120946)
     
-    if template_id == "120946":
+    if template_id == "120946": #application form
+        return [
+                    {"name": "start_date", "default_value": booking.start_date.strftime('%d/%m/%Y'), "readonly": False},
+                    {"name": "end_date", "default_value": booking.end_date.strftime('%d/%m/%Y'), "readonly": False},
+                    {"name": 'sender_name', "default_value": f'IT Products development and Marketing LLC',"readonly": False },
+                    {"name": 'owner', "default_value": f'{booking.apartment.owner.full_name}',"readonly": False},
+                    {"name": 'apartment_number',"default_value": f'{booking.apartment.apartment_n}',"readonly": False},
+                    {"name": 'building_number',"default_value": f'{booking.apartment.building_n}',"readonly": False},
+                    {"name": "payment_terms", "default_value": booking.payment_str_for_contract, "readonly": False},
+                    {"name": "apartment_address", "default_value": booking.apartment.address, "readonly": False},
+                ]
+    elif template_id == "118378": #occupancy agreement
         return [                        
-                        {"name": "tenant", "default_value": "" if booking.tenant.full_name == "Not Availabale" or booking.tenant.full_name == "" else booking.tenant.full_name, "readonly": False},
-                        {"name": "phone", "default_value": booking.tenant.phone or "", "readonly": False},
-                        {"name": "email", "default_value": booking.tenant.email or "", "readonly": False},
-                        {
-                            "name": 'sender_name_1',
-                            "default_value": f'IT Products development and Marketing LLC',
-                            "readonly": False
-                        },
-                        {
-                            "name": 'owner',
-                            "default_value": f'{booking.apartment.owner.full_name}',
-                            "readonly": False
-                        },
-                        {
-                            "name": 'apartment_number',
-                            "default_value": f'{booking.apartment.apartment_n}',
-                            "readonly": False
-                        },
-                        {
-                            "name": 'building_number',
-                            "default_value": f'{booking.apartment.building_n}',
-                            "readonly": False
-                        },
-                        {"name": "start_date", "default_value": booking.start_date.strftime('%d/%m/%Y'), "readonly": False},
-                        {"name": "end_date", "default_value": booking.end_date.strftime('%d/%m/%Y'), "readonly": False},
-                        {"name": "apartment_address", "default_value": booking.apartment.address, "readonly": False},
-                        {"name": "payment_terms", "default_value": booking.payment_str_for_contract, "readonly": False},
-                    ]
-    elif template_id == "118378":
-        return [                        
-                        {"name": "tenant", "default_value": "" if booking.tenant.full_name == "Not Availabale" or booking.tenant.full_name == "" else booking.tenant.full_name, "readonly": False},
-                        {"name": "phone", "default_value": booking.tenant.phone or "", "readonly": False},
-                        {"name": "email", "default_value": booking.tenant.email or "", "readonly": False},
-                        {
-                            "name": 'sender_name',
-                            "default_value": f'IT Products development and Marketing LLC',
-                            "readonly": False
-                        },
-                        {"name": "start_date", "default_value": booking.start_date.strftime('%d/%m/%Y'), "readonly": False},
-                        {"name": "end_date", "default_value": booking.end_date.strftime('%d/%m/%Y'), "readonly": False},
-                        {"name": "apartment_address", "default_value": booking.apartment.address, "readonly": False},
-                        {"name": "payment_terms", "default_value": booking.payment_str_for_contract, "readonly": False},
-                    ]
+                    {"name": 'sender_name',"default_value": f'IT Products development and Marketing LLC',"readonly": False},
+                    {"name": "start_date", "default_value": booking.start_date.strftime('%d/%m/%Y'), "readonly": False},
+                    {"name": "end_date", "default_value": booking.end_date.strftime('%d/%m/%Y'), "readonly": False},
+                    {"name": "apartment_address", "default_value": booking.apartment.address, "readonly": False},
+                    {"name": "payment_terms", "default_value": booking.payment_str_for_contract, "readonly": False},
+                ]
     else:
         raise Exception("Template id is not supported")
 

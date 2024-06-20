@@ -317,6 +317,9 @@ class Booking(models.Model):
                 ).update(date=self.end_date)
 
             super().save(*args, **kwargs)
+             # SEND CONTRACT
+            if form_data and form_data["send_contract"] and form_data["send_contract"] != 0 and form_data["send_contract"] != None and form_data["send_contract"] != "None":
+                create_contract(self, template_id=form_data["send_contract"])
         else:
             form_data = kwargs.pop('form_data', None)
             payments_data = kwargs.pop('payments_data', None)
@@ -330,10 +333,11 @@ class Booking(models.Model):
                 self.create_payments(payments_data)
 
             super().save(*args, **kwargs)
-        
-        # SEND CONTRACT
-        if form_data["send_contract"] and form_data["send_contract"] != 0 and form_data["send_contract"] != None and form_data["send_contract"] != "None":
+             # SEND CONTRACT
+            if form_data and form_data["send_contract"] and form_data["send_contract"] != 0 and form_data["send_contract"] != None and form_data["send_contract"] != "None":
                 create_contract(self, template_id=form_data["send_contract"])
+        
+       
 
     def deletePayments(self):
         payments_to_delete = Payment.objects.filter(
