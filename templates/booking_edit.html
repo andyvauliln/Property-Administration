@@ -143,6 +143,8 @@
         const deleteIdInput = document.getElementById('deleteId');
         const editIdInput = document.getElementById('editId');
         const updateModal = document.getElementById('updateModal');
+        const paymentContainer = document.getElementById("paymentsContainer-edit");
+        paymentContainer.innerHTML = '';
 
         const item = items_json.find(i => i.id === itemId);
         deleteIdInput.value = itemId;
@@ -225,6 +227,12 @@
                 linksContainer.appendChild(linkContainer);
             });
             createDocusealForm(item.contract_url)
+            if(item.payments){
+                console.log(item.payments, "item.payments")
+                item.payments.forEach(payment => {
+                    addPaymentRow("edit", payment.date, payment.amount, payment.payment_type, payment.status, payment.notes, payment.id)
+                })
+            }
         }
 
         updateModal.style.display = 'flex';

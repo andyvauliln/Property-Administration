@@ -7,6 +7,7 @@ from dateutil.relativedelta import relativedelta
 from datetime import datetime
 from datetime import datetime, date
 from mysite.docuseal_contract_managment import create_contract, delete_contract
+from itertools import zip_longest
 import re
 import uuid
 
@@ -384,20 +385,24 @@ class Booking(models.Model):
                 self.tenant = user
 
     def create_payments(self, payments_data):
+        print("CREATE PAYMENT")
         if payments_data:
             payment_dates = payments_data.get('payment_dates', [])
             amounts = payments_data.get('amounts', [])
             payment_types = payments_data.get('payment_types', [])
             payment_notes = payments_data.get('payment_notes', [])
             number_of_months = payments_data.get('number_of_months', [])
-
+            payment_ids = payments_data.get('payment_id', [])
+            payment_statuses = payments_data.get('payment_status', [])
+            print(payment_dates, amounts, payment_types, payment_notes, number_of_months, payment_ids, payment_statuses, "payment_dates")
             # Convert the dates to the expected format
             payment_dates = [convert_date_format(
                 date) for date in payment_dates]
 
-            for date, amount, p_type, p_notes, n_months in zip(payment_dates, amounts, payment_types, payment_notes, number_of_months):
-
-                self.create_payment(p_type, amount, date, p_notes, n_months)
+            for date, amount, p_type, p_notes, n_months, payment_id, payment_status in zip_longest(
+                payment_dates, amounts, payment_types, payment_notes, number_of_months, payment_ids, payment_statuses, fillvalue=None
+            ):
+                self.create_payment(p_type, amount, date, p_notes, n_months, payment_id, payment_status)
 
     def create_booking_notifications(self):
 
@@ -431,31 +436,46 @@ class Booking(models.Model):
             )
             notification.save()
 
-    def create_payment(self, payment_type_id, amount, payment_date, payment_notes, number_of_months):
+    def create_payment(self, payment_type_id, amount, payment_date, payment_notes, number_of_months, payment_id, payment_status):
         payment_type_instance = PaymenType.objects.get(pk=payment_type_id)
+        print("Create PAYMENT 2")
 
-        payment = Payment(
-            payment_type=payment_type_instance,
-            amount=amount,
-            booking=self,
-            notes=payment_notes,
-            payment_date=payment_date
-        )
-        payment.save(number_of_months=number_of_months)
-
-        if payment_type_instance.name == "Damage Deposit":
-            damage_deposit_return_type = PaymenType.objects.get(
-                name="Damage Deposit Return")
-            deposit_payment = Payment.objects.create(
-                payment_type=damage_deposit_return_type, amount=amount, booking=self, notes="Damage Deposit Return",
-                payment_date=self.end_date)
-
-            notification = Notification(
-                date=payment_date,
-                message="Payment",
-                payment=deposit_payment,
+        if payment_id:
+            if payment_id.endswith("_deleted"):
+                payment_id = payment_id[:-8]
+                payment = Payment.objects.get(pk=payment_id)
+                payment.delete()
+            else:
+                payment = Payment.objects.get(pk=payment_id)
+                payment.payment_type = payment_type_instance
+                payment.amount = amount
+                payment.notes = payment_notes
+                payment.payment_date = payment_date
+                payment.payment_status = payment_status
+                payment.save()
+        else:
+            payment = Payment(
+                payment_type=payment_type_instance,
+                amount=amount,
+                booking=self,
+                notes=payment_notes,
+                payment_date=payment_date
             )
-            notification.save()
+            payment.save(number_of_months=number_of_months)
+
+            if payment_type_instance.name == "Damage Deposit":
+                damage_deposit_return_type = PaymenType.objects.get(
+                    name="Damage Deposit Return")
+                deposit_payment = Payment.objects.create(
+                    payment_type=damage_deposit_return_type, amount=amount, booking=self, notes="Damage Deposit Return",
+                    payment_date=self.end_date)
+
+                notification = Notification(
+                    date=payment_date,
+                    message="Payment",
+                    payment=deposit_payment,
+                )
+                notification.save()
 
     @property
     def assigned_cleaner(self):
@@ -473,7 +493,7 @@ class Booking(models.Model):
     
     @property
     def payment_str_for_contract(self):
-        payments = self.payments.filter(payment_type__name__in=["Damage Deposit", "Hold Deposit", "Damage Deposit Return", "Rent"])
+        payments = self.payments.filter(payment_type__name__in=["Damage Deposit", "Hold Deposit", "Rent"])
         payment_str = ""
         for payment in payments:
             formatted_date = payment.payment_date.strftime("%m/%d/%Y")
@@ -610,7 +630,7 @@ class Payment(models.Model):
                 Notification.objects.filter(
                     payment=self).update(date=self.payment_date)
 
-        if number_of_months > 0:
+        if number_of_months and number_of_months > 0:
             self.create_payments(number_of_months)
         else:
             super().save(*args, **kwargs)

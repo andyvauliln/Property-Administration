@@ -33,7 +33,7 @@ def paymentReport(request):
     if start_date_str:
         start_date = datetime.strptime(start_date_str, '%m/%d/%Y')
     else:
-        start_date = datetime(datetime.now().year, 1, 1)
+        start_date = datetime(datetime.now().year, datetime.now().month, 1)
 
     if end_date_str:
         end_date = datetime.strptime(end_date_str, '%m/%d/%Y')

@@ -342,6 +342,8 @@ class BookingForm(forms.ModelForm):
             'amounts': [abs(float(amount)) for amount in self.request.POST.getlist('amount[]')],
             'payment_types': self.request.POST.getlist('payment_type[]'),
             'payment_notes': self.request.POST.getlist('payment_notes[]'),
+            'payment_status': self.request.POST.getlist('payment_status[]'),
+            'payment_id': self.request.POST.getlist('payment_id[]'),
             'number_of_months': [int(number_of_months) for number_of_months in self.request.POST.getlist('number_of_months[]')],
         }
 

@@ -76,6 +76,8 @@ def prepare_data_for_agreement(booking, template_id):
             {
                 "role": "sender",
                 "phone": "", 
+                "send_email": False,
+                "send_sms": False,
                 "email": "gfa779@hotmail.com",
                 "fields": get_fields(booking, template_id)
             },

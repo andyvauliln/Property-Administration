@@ -133,6 +133,8 @@
             const item = items_json.find(i => i.id === itemId);
             deleteIdInput.value = itemId;
             editIdInput.value = itemId;
+            const paymentContainer = document.getElementById("paymentsContainer-edit");
+            paymentContainer.innerHTML = '';
     
             if (item) {
                 for (const [fieldName, fieldValue] of Object.entries(item)) {
@@ -211,6 +213,11 @@
 
             if (item.contract_url){
                 createDocusealForm(item.contract_url)
+            }
+            if(item.payments){
+                item.payments.forEach(payment => {
+                    addPaymentRow("edit", payment.date, payment.amount, payment.payment_type, payment.status, payment.notes, payment.id)
+                })
             }
     
             updateModal.style.display = 'flex';

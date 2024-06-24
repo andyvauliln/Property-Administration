@@ -8,7 +8,7 @@ from datetime import date
 from django.db.models import F, ExpressionWrapper, DateField, Value
 from ..decorators import user_has_role
 from .utils import handle_post_request, MODEL_MAP, get_related_fields, parse_query, get_model_fields
-
+from .utils import DateEncoder
 
 @user_has_role('Admin')
 def users(request):
@@ -103,8 +103,22 @@ def generic_view(request, model_name, form_class, template_name, pages=30):
             item['tenant_phone'] = original_obj.tenant.phone
         item['links'] = original_obj.links
 
+         # Add related payments if the model is Booking
+        if hasattr(original_obj, 'payments'):
+            item['payments'] = [
+                {
+                    'id': payment.id,
+                    'amount': payment.amount,
+                    'date': payment.payment_date,
+                    'status': payment.payment_status,
+                    'notes': payment.notes,
+                    'payment_type': payment.payment_type.id
+                } for payment in original_obj.payments.all()
+            ]
+
+
     # Convert the list back to a JSON string for passing to the template
-    items_json = json.dumps(items_list)
+    items_json = json.dumps(items_list, cls=DateEncoder)    
 
     # Get fields from the model's metadata
     model_fields = get_model_fields(form)

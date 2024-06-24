@@ -150,6 +150,18 @@ def index(request):
             item['tenant_phone'] = original_obj.tenant.phone
         item['links'] = original_obj.links
 
+        if hasattr(original_obj, 'payments'):
+            item['payments'] = [
+                {
+                    'id': payment.id,
+                    'amount': payment.amount,
+                    'date': payment.payment_date,
+                    'status': payment.payment_status,
+                    'notes': payment.notes,
+                    'payment_type': payment.payment_type.id
+                } for payment in original_obj.payments.all()
+            ]
+
     items_json = json.dumps(bookings_data_list, cls=DateEncoder)
 
     model_fields = get_model_fields(BookingForm(request=request))
