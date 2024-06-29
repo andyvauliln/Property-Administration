@@ -10,6 +10,7 @@ from django.http import HttpResponseRedirect
 from django.urls import reverse
 from urllib.parse import urlencode
 import logging
+import calendar
 
 logger_common = logging.getLogger('mysite.common')
 
@@ -38,7 +39,8 @@ def paymentReport(request):
     if end_date_str:
         end_date = datetime.strptime(end_date_str, '%m/%d/%Y')
     else:
-        end_date = datetime(datetime.now().year, 12, 31)
+        last_day = calendar.monthrange(start_date.year, start_date.month)[1]
+        end_date = datetime(start_date.year, start_date.month, last_day)
 
     # Query for fetching apartments
     apartments = Apartment.objects.all().order_by(
