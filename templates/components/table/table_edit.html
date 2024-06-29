@@ -214,11 +214,14 @@
             if (item.contract_url){
                 createDocusealForm(item.contract_url)
             }
+            {% if title == "Dashboard" or title == "Bookings" %}
             if(item.payments){
+                console.log("items.payments", item.payments)
                 item.payments.forEach(payment => {
                     addPaymentRow("edit", payment.date, payment.amount, payment.payment_type, payment.status, payment.notes, payment.id)
                 })
             }
+            {% endif %}
     
             updateModal.style.display = 'flex';
         }
