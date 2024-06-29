@@ -92,8 +92,8 @@ def get_fields(booking, template_id):
     
     if template_id == "120946": #application form
         return [
-                    {"name": "start_date", "default_value": booking.start_date.strftime('%d/%m/%Y'), "readonly": False},
-                    {"name": "end_date", "default_value": booking.end_date.strftime('%d/%m/%Y'), "readonly": False},
+                    {"name": "start_date", "default_value": booking.start_date.strftime('%Y-%m-%d'), "readonly": False},
+                    {"name": "end_date", "default_value": booking.end_date.strftime('%Y-%m-%d'), "readonly": False},
                     {"name": 'sender_name', "default_value": f'IT Products development and Marketing LLC',"readonly": False },
                     {"name": 'owner', "default_value": f'{booking.apartment.owner.full_name}',"readonly": False},
                     {"name": 'apartment_number',"default_value": f'{booking.apartment.apartment_n}',"readonly": False},
@@ -104,8 +104,8 @@ def get_fields(booking, template_id):
     elif template_id == "118378": #occupancy agreement
         return [                        
                     {"name": 'sender_name',"default_value": f'IT Products development and Marketing LLC',"readonly": False},
-                    {"name": "start_date", "default_value": booking.start_date.strftime('%d/%m/%Y'), "readonly": False},
-                    {"name": "end_date", "default_value": booking.end_date.strftime('%d/%m/%Y'), "readonly": False},
+                    {"name": "start_date", "default_value": booking.start_date.strftime('%Y-%m-%d'), "readonly": False},
+                    {"name": "end_date", "default_value": booking.end_date.strftime('%Y-%m-%d'), "readonly": False},
                     {"name": "apartment_address", "default_value": booking.apartment.address, "readonly": False},
                     {"name": "payment_terms", "default_value": booking.payment_str_for_contract, "readonly": False},
                 ]
