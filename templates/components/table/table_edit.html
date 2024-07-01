@@ -214,7 +214,7 @@
             if (item.contract_url){
                 createDocusealForm(item.contract_url)
             }
-            {% if title == "Dashboard" or title == "Bookings" %}
+            {% if title == "Dashboard" or title == "Booking" %}
             if(item.payments){
                 console.log("items.payments", item.payments)
                 item.payments.forEach(payment => {

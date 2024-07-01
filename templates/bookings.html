@@ -3,7 +3,7 @@
 {% block content %}
 
 <script src="https://cdn.docuseal.co/js/form.js"></script>
-{% #table  model_fields=model_fields items_json=items_json  model="bookings" search_query=request.GET.q items=items %}
+{% #table  model_fields=model_fields items_json=items_json title=title model="bookings" search_query=request.GET.q items=items %}
 <div class="flex flex-col md:flex-row items-center justify-between space-y-3 md:space-y-0 md:space-x-4 p-4">
     <select onchange="updateSearchInput()" name="status" class="filter bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-primary-500 focus:border-primary-500 block w-1/5 p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white dark:focus:ring-primary-500 dark:focus:border-primary-500">
         <option value="">All Statuses</option>
