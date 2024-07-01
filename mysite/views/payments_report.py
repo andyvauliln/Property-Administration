@@ -46,7 +46,8 @@ def paymentReport(request):
     apartments = Apartment.objects.all().order_by(
         'name').values_list('name', flat=True)
     apartment_types = Apartment.TYPES
-    payment_types = PaymenType.objects.all().values_list('name', flat=True)
+    # payment_types = PaymenType.objects.all().values_list('name', flat=True)
+    payment_types = PaymenType.objects.all()
 
     payments_within_range = Payment.objects.filter(
         payment_date__range=[start_date, end_date]
@@ -82,7 +83,7 @@ def paymentReport(request):
 
     if payment_type_filter:
         payments_within_range = [payment for payment in payments_within_range
-                                 if payment.payment_type.name == payment_type_filter]
+                                 if payment.payment_type.id == int(payment_type_filter)]
 
     if payment_status_filter:
         payments_within_range = [payment for payment in payments_within_range
