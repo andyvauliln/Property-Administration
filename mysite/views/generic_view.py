@@ -9,6 +9,7 @@ from django.db.models import F, ExpressionWrapper, DateField, Value
 from ..decorators import user_has_role
 from .utils import handle_post_request, MODEL_MAP, get_related_fields, parse_query, get_model_fields
 from .utils import DateEncoder
+from datetime import datetime
 
 @user_has_role('Admin')
 def users(request):
@@ -44,6 +45,33 @@ def payment_types(request):
 def payments(request):
     return generic_view(request, 'payment', PaymentForm, 'payments.html')
 
+
+def format_dates(item):
+    for key, value in item.items():
+        if isinstance(value, str):
+            try:
+                # Try to parse the date string to a datetime object
+                parsed_date = datetime.fromisoformat(value)
+                item[key] = parsed_date.strftime('%B %d %Y')
+            except ValueError:
+                pass  # If parsing fails, leave the value as is
+        elif isinstance(value, list):
+            for sub_item in value:
+                if isinstance(sub_item, dict):
+                    format_dates(sub_item)
+        elif isinstance(value, dict):
+            format_dates(value)
+
+def serialize_field(value):
+    if isinstance(value, (datetime, date)):
+        return value.strftime('%B %d %Y')
+    elif hasattr(value, 'id'):
+        return value.id
+    elif isinstance(value, list):
+        return [serialize_field(v) for v in value]
+    elif isinstance(value, dict):
+        return {k: serialize_field(v) for k, v in value.items()}
+    return value
 
 def generic_view(request, model_name, form_class, template_name, pages=30):
     search_query = request.GET.get('q', '')
@@ -86,35 +114,34 @@ def generic_view(request, model_name, form_class, template_name, pages=30):
 
     paginator = Paginator(items, pages)
     items_on_page = paginator.get_page(page)
-    items_json_data = serializers.serialize('json', items_on_page)
+    items_list = []
+    for original_obj in items_on_page:
+        item = {field.name: serialize_field(getattr(original_obj, field.name)) for field in original_obj._meta.fields}
+        item['id'] = original_obj.id
+        item['links'] = serialize_field(original_obj.links)
 
-    # Convert the serialized data to a Python list of dictionaries
-    data_list = json.loads(items_json_data)
-
-    # Extract the 'fields' from each item in the list
-    items_list = [{'id': item['pk'], **item['fields']} for item in data_list]
-
-    for item, original_obj in zip(items_list, items_on_page):
         if hasattr(original_obj, 'assigned_cleaner'):
             item['assigned_cleaner'] = original_obj.assigned_cleaner.id if original_obj.assigned_cleaner else None
         if hasattr(original_obj, 'tenant'):
             item['tenant_full_name'] = original_obj.tenant.full_name
             item['tenant_email'] = original_obj.tenant.email
             item['tenant_phone'] = original_obj.tenant.phone
-        item['links'] = original_obj.links
 
-         # Add related payments if the model is Booking
+        # Add related payments if the model is Booking
         if hasattr(original_obj, 'payments'):
             item['payments'] = [
                 {
                     'id': payment.id,
                     'amount': payment.amount,
-                    'date': payment.payment_date,
+                    'date': payment.payment_date,  # Ensure date is in ISO format
                     'status': payment.payment_status,
                     'notes': payment.notes,
                     'payment_type': payment.payment_type.id
                 } for payment in original_obj.payments.all()
             ]
+
+        # Format all date fields in the item
+        items_list.append(item)
 
 
     # Convert the list back to a JSON string for passing to the template

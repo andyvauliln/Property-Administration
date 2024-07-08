@@ -130,19 +130,7 @@
 
 
 <script>
-    function formatDate(inputDate) {
-        const parsedDate = new Date(Date.parse(inputDate));
-    
-        // Get the month, day, and year components
-        const month = (parsedDate.getMonth() + 1).toString().padStart(2, '0');
-        const day = parsedDate.getDate().toString().padStart(2, '0');
-        const year = parsedDate.getFullYear();
-    
-        // Format the date as MM/DD/YYYY
-        const formattedDate = `${month}/${day}/${year}`;
-    
-        return formattedDate;
-    }
+
     function updateLinks() {
         var apartmentId = document.getElementById('apartment').value;
         var currentYear = {{current_year}};

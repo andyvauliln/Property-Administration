@@ -86,7 +86,7 @@ def format_nullable_date(date_string):
         return '-'
 
     try:
-        formatted_date = date_string.strftime('%b. %d, %Y')
+        formatted_date = date_string.strftime('%B %d %Y')
     except AttributeError:
         return '-'
 

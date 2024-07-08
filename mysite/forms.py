@@ -5,7 +5,8 @@ from mysite.models import Booking, User, Apartment, Payment, Cleaning, Notificat
 from datetime import date
 import requests
 import uuid
-
+from datetime import datetime
+from django.utils import timezone
 
 class CustomUserLoginForm(AuthenticationForm):
     username = forms.EmailField(
@@ -166,13 +167,64 @@ class IntegerFieldEx(CustomFieldMixin, forms.IntegerField):
 class DecimalFieldEx(CustomFieldMixin, forms.DecimalField):
     pass
 
-
 class DateFieldEx(CustomFieldMixin, forms.DateField):
-    pass
+    def __init__(self, *args, **kwargs):
+        self.display_format = '%B %d %Y'  # Display format: "Jun 24, 2023"
+        self.save_format = '%Y-%m-%d'  # Save format: "YYYY-MM-DD"
+        placeholder = kwargs.pop('placeholder', timezone.now().strftime(self.display_format))  # Default placeholder
+        kwargs['widget'] = forms.DateInput(
+            format=self.display_format,
+            attrs={'placeholder': placeholder}  # Set the placeholder
+        )
+        kwargs['input_formats'] = [self.display_format]
+        super().__init__(*args, **kwargs)
 
+    # def to_python(self, value):
+    #     # Convert the input value to a date object
+    #     date_obj = super().to_python(value)
+    #     if date_obj is not None:
+    #         # Convert the date object to the save format
+    #         return date_obj.strftime(self.save_format)
+    #     return value
 
+    def prepare_value(self, value):
+        # Convert the saved value to the display format
+        if isinstance(value, str):
+            try:
+                date_obj = datetime.strptime(value, self.save_format)
+                return date_obj.strftime(self.display_format)
+            except ValueError:
+                pass
+        return super().prepare_value(value)
 class DateTimeFieldEx(CustomFieldMixin, forms.DateTimeField):
-    pass
+    def __init__(self, *args, **kwargs):
+        self.display_format = '%B %d %Y'  # Display format: "Jun 24, 2023"
+        self.save_format = '%Y-%m-%d'  # Save format: "YYYY-MM-DD"
+        placeholder = kwargs.pop('placeholder', timezone.now().strftime(self.display_format))  # Default placeholder
+        kwargs['widget'] = forms.DateInput(
+            format=self.display_format,
+            attrs={'placeholder': placeholder}  # Set the placeholder
+        )
+        kwargs['input_formats'] = [self.display_format]
+        super().__init__(*args, **kwargs)
+
+    # def to_python(self, value):
+    #     # Convert the input value to a date object
+    #     date_obj = super().to_python(value)
+    #     if date_obj is not None:
+    #         # Convert the date object to the save format
+    #         return date_obj.strftime(self.save_format)
+    #     return value
+
+    def prepare_value(self, value):
+        # Convert the saved value to the display format
+        if isinstance(value, str):
+            try:
+                date_obj = datetime.strptime(value, self.save_format)
+                return date_obj.strftime(self.display_format)
+            except ValueError:
+                pass
+        return super().prepare_value(value)
 
 
 class EmailFieldEx(CustomFieldMixin, forms.EmailField):
@@ -249,36 +301,36 @@ class ApartmentForm(forms.ModelForm):
         action = kwargs.pop('action', 'create')
         super(ApartmentForm, self).__init__(*args, **kwargs)
 
-    name = CharFieldEx(isColumn=True, isEdit=True,
+    name = CharFieldEx(isColumn=True, isEdit=True, initial="",
                        isCreate=True, ui_element="input")
-    web_link = URLFieldEx(isColumn=False, required=False,
+    web_link = URLFieldEx(isColumn=False, initial="", required=False,
                           isEdit=True, isCreate=True, ui_element="input")
 
     # Address fields
-    building_n = CharFieldEx(isColumn=False, isEdit=True,
+    building_n = CharFieldEx(isColumn=False, isEdit=True, initial="",
                              isCreate=True, ui_element="input")
-    street = CharFieldEx(isColumn=False, isEdit=True,
+    street = CharFieldEx(isColumn=False, isEdit=True, initial="",
                          isCreate=True, ui_element="input")
     apartment_n = CharFieldEx(
-        isColumn=False, isEdit=True, isCreate=True, ui_element="input", required=False)
-    state = CharFieldEx(isColumn=False, isEdit=True,
+        isColumn=False, isEdit=True, isCreate=True, initial="", ui_element="input", required=False)
+    state = CharFieldEx(isColumn=False, isEdit=True, initial="",
                         isCreate=True, ui_element="input")
-    city = CharFieldEx(isColumn=False, isEdit=True,
+    city = CharFieldEx(isColumn=False, isEdit=True, initial="",
                        isCreate=True, ui_element="input")
-    zip_index = CharFieldEx(isColumn=False, isEdit=True,
+    zip_index = CharFieldEx(isColumn=False, isEdit=True, initial="",
                             isCreate=True, ui_element="input")
 
     bedrooms = IntegerFieldEx(
-        isColumn=False, isEdit=True, isCreate=True, ui_element="input")
+        isColumn=False, isEdit=True, isCreate=True, initial="", ui_element="input")
     bathrooms = IntegerFieldEx(
-        isColumn=False, isEdit=True, isCreate=True, ui_element="input")
+        isColumn=False, isEdit=True, isCreate=True, initial="", ui_element="input")
     apartment_type = ChoiceFieldEx(
         choices=Apartment.TYPES, isColumn=True, isEdit=True, isCreate=True, ui_element="dropdown",
         _dropdown_options=lambda: get_dropdown_options("apart_types"))
     status = ChoiceFieldEx(
         choices=Apartment.STATUS, required=False, isColumn=True, isEdit=True, isCreate=True, ui_element="dropdown",
         _dropdown_options=lambda: get_dropdown_options("apart_status"))
-    notes = CharFieldEx(isColumn=False, isEdit=True,
+    notes = CharFieldEx(isColumn=False, isEdit=True, initial="",
                         required=False, isCreate=True, ui_element="textarea")
     manager = ModelChoiceFieldEx(
         queryset=User.objects.all(),

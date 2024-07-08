@@ -51,7 +51,7 @@
                                         {% if field_instance.required %}<span class="text-red-600">*</span>{% endif %}
                                     </label>
                                     {% if field_instance.ui_element == "datepicker" %}
-                                        <input name="{{field_name}}" id="{{field_name}}" datepicker type="text" value="" class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white dark:focus:ring-blue-500 dark:focus:border-blue-500" placeholder="Select date">
+                                        <input name="{{field_name}}" id="{{field_name}}" datepicker datepicker-format="MM dd yyyy" type="text" value="" class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white dark:focus:ring-blue-500 dark:focus:border-blue-500" placeholder="Select date">
                                     {% elif field_instance.ui_element == "checkbox" %}
                                         <input checked id="{{field_name}}" type="checkbox" name="{{field_name}}" value="1" class="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 dark:focus:ring-blue-600 dark:ring-offset-gray-800 focus:ring-2 dark:bg-gray-700 dark:border-gray-600">
                                     {% elif field_instance.ui_element == "dropdown" %}
@@ -98,10 +98,11 @@
         payments_for_save_to_db = payments_for_save_to_db.filter(i => i.id != id)
         updateSavedPayments()
     }
-    function formatDate(dateString) {
+    {% comment %} function formatDate(dateString) {
         if (!dateString) {
             return "";
         }
+        return dateString;
 
         const date = new Date(dateString);
         // Adjust for timezone offset to get the correct date
@@ -110,7 +111,7 @@
         const [year, month, day] = isoString.substring(0, 10).split('-');
 
         return `${month}/${day}/${year}`;
-    }
+    } {% endcomment %}
 
     function getAllFormData() {
         const form = document.getElementById('edit_form');
@@ -350,7 +351,6 @@
        payment.file_date = payment.payment_date;
        payment.file_amount = payment.amount;
        payment.file_notes = file_payment.notes;
-       console.log(payment.date, 'after payment')
        payments_for_save_to_db.push(payment)
        updateSavedPayments()
        removePaymentFromList(file_payment_id)

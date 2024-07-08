@@ -18,11 +18,12 @@ def convert_date_format(value):
         return value
 
     try:
-        return datetime.strptime(value, '%m/%d/%Y').date()
+        return datetime.strptime(value, '%B %d %Y').date()
     except ValueError:
         pass
 
     raise ValueError(f"Invalid date format: {value}")
+
 
 
 def format_phone(phone):
@@ -487,7 +488,7 @@ class Booking(models.Model):
         payments = self.payments.all()
         payment_str = ""
         for payment in payments:
-            formatted_date = payment.payment_date.strftime("%m/%d/%Y")
+            formatted_date = payment.payment_date.strftime("%B %d %Y")
             payment_str += f"{payment.payment_type}: ${payment.amount}, {formatted_date} \n"
         return payment_str
     
@@ -496,7 +497,7 @@ class Booking(models.Model):
         payments = self.payments.filter(payment_type__name__in=["Damage Deposit", "Hold Deposit", "Rent"])
         payment_str = ""
         for payment in payments:
-            formatted_date = payment.payment_date.strftime("%m/%d/%Y")
+            formatted_date = payment.payment_date.strftime("%B %d %Y")
             payment_str += f"{payment.payment_type}: ${payment.amount}, {formatted_date} \n"
         return payment_str
 
@@ -528,7 +529,7 @@ class Booking(models.Model):
                     {"name": f"Owner: {owner.full_name}", "link": f"/users/?q=id={owner.id}"})
         payments = self.payments.all()
         for payment in payments:
-            formatted_date = payment.payment_date.strftime("%m/%d/%Y")
+            formatted_date = payment.payment_date.strftime("%B %d %Y")
             links_list.append({
                 "name":
                 f"Payment: {payment.payment_type} - {payment.amount}$ on {formatted_date} [{payment.payment_status}]",
@@ -539,7 +540,7 @@ class Booking(models.Model):
             cleaner = cleaning.cleaner
             if cleaner:
                 links_list.append(
-                    {"name": f"Cleaning: {cleaning.date.strftime('%m/%d/%Y')} [{cleaning.status}]",
+                    {"name": f"Cleaning: {cleaning.date.strftime('%B %d %Y')} [{cleaning.status}]",
                      "link": f"/cleanings/?q=id={cleaning.id}"})
                 links_list.append(
                     {"name": f"Cleaner: {cleaner.full_name}", "link": f"/users/?q=id={cleaner.id}"})
@@ -679,7 +680,7 @@ class Payment(models.Model):
         if self.booking:
             links_list.append({
                 "name":
-                f"Booking: Apartment {self.booking.apartment.name} from {self.booking.start_date.strftime('%m/%d/%Y')} to {self.booking.end_date.strftime('%m/%d/%Y')}",
+                f"Booking: Apartment {self.booking.apartment.name} from {self.booking.start_date.strftime('%B %d %Y')} to {self.booking.end_date.strftime('%B %d %Y')}",
                 "link": f"/bookings/?q=id={self.booking.id}"})
             links_list.append({
                 "name":
@@ -746,7 +747,7 @@ class Cleaning(models.Model):
         if self.booking:
             links_list.append({
                 "name":
-                f"Booking: Apartment {self.booking.apartment.name} from {self.booking.start_date.strftime('%m/%d/%Y')} to {self.booking.end_date.strftime('%m/%d/%Y')}",
+                f"Booking: Apartment {self.booking.apartment.name} from {self.booking.start_date.strftime('%B %d %Y')} to {self.booking.end_date.strftime('%B %d %Y')}",
                 "link": f"/bookings/?q=id={self.booking.id}"})
 
         return links_list
@@ -754,7 +755,7 @@ class Cleaning(models.Model):
 
 def format_date(date):
     if date:
-        return date.strftime("%m/%d/%Y")
+        return date.strftime("%B %d %Y")
     return ""
 
 

@@ -34,7 +34,7 @@
                                         {% if field_instance.required %}<span class="text-red-600">*</span>{% endif %}
                                     </label>
                                     {% if field_instance.ui_element == "datepicker" %}
-                                        <input name="{{field_name}}" id="{{field_name}}-create" datepicker type="text" value="{% if model != 'apartments' %}{% now 'm/d/Y' %}{% endif %}" class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white dark:focus:ring-blue-500 dark:focus:border-blue-500" placeholder="Select date">
+                                        <input name="{{field_name}}" id="{{field_name}}-create" datepicker datepicker-format="MM dd yyyy"  type="text" value="{% now "m d Y" %}" class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white dark:focus:ring-blue-500 dark:focus:border-blue-500" placeholder="Select date">
                                     {% elif field_instance.ui_element == "checkbox" %}
                                         <input checked id="{{field_name}}" id="{{ field_name }}" type="checkbox" name="{{field_name}}" value="1" class="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 dark:focus:ring-blue-600 dark:ring-offset-gray-800 focus:ring-2 dark:bg-gray-700 dark:border-gray-600">
                                     {% elif field_instance.ui_element == "dropdown" %}

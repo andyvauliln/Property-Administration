@@ -194,7 +194,7 @@ def parse_date(value):
         # If date_str is already a date object, return it as is
         return value
     # Define the possible date formats to check
-    date_formats = ['%m/%d/%Y']
+    date_formats = ['%B %d %Y']
 
     for date_format in date_formats:
         try:

@@ -32,12 +32,12 @@ def paymentReport(request):
 
     # Convert the date strings to datetime objects or set to the start and end of the current year
     if start_date_str:
-        start_date = datetime.strptime(start_date_str, '%m/%d/%Y')
+        start_date = datetime.strptime(start_date_str, '%B %d %Y')
     else:
         start_date = datetime(datetime.now().year, datetime.now().month, 1)
 
     if end_date_str:
-        end_date = datetime.strptime(end_date_str, '%m/%d/%Y')
+        end_date = datetime.strptime(end_date_str, '%B %d %Y')
     else:
         last_day = calendar.monthrange(start_date.year, start_date.month)[1]
         end_date = datetime(start_date.year, start_date.month, last_day)
@@ -146,8 +146,8 @@ def paymentReport(request):
             return HttpResponseRedirect(excel_link)
 
     context = {
-        'start_date': start_date.strftime('%m/%d/%Y'),
-        'end_date': end_date.strftime('%m/%d/%Y'),
+        'start_date': start_date.strftime('%B %d %Y'),
+        'end_date': end_date.strftime('%B %d %Y'),
         'summary': summary,
         'monthly_data': monthly_data,
         'apartments': apartments,
@@ -170,7 +170,7 @@ def generate_excel(summary, monthly_data, start_date, end_date):
         # Create a new spreadsheet
         spreadsheet_body = {
             'properties': {
-                'title': f"Payment Report: {start_date.strftime('%m/%d/%Y')} - {end_date.strftime('%m/%d/%Y')}"
+                'title': f"Payment Report: {start_date.strftime('%B %d %Y')} - {end_date.strftime('%B %d %Y')}"
             },
             'sheets': [{
                 'properties': {
