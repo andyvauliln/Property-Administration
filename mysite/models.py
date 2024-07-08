@@ -305,8 +305,8 @@ class Booking(models.Model):
 
                 Notification.objects.filter(
                     payment__booking=self,
-                     payment_type__name="Damage Deposit",
-                    payment_type__type="Out"
+                    payment__payment_type__name="Damage Deposit",
+                    payment__payment_type__type="Out"
                 ).update(date=self.end_date)
 
                 # Update Notifications for Cleanings related to this Booking
