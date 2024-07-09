@@ -64,6 +64,18 @@ def aggregate_data(payments):
 
     return income, outcome, pending_income, pending_outcome
 
+def aggregate_profit_by_category(payments: list[Payment]):
+    operational_in = sum(payment.amount for payment in payments if payment.payment_type.type ==
+                 'In' and payment.payment_type.category == 'Operating')
+    operational_out = sum(payment.amount for payment in payments if payment.payment_type.type ==
+                  'Out' and payment.payment_type.category == 'Operating')
+    none_operational_in = sum(payment.amount for payment in payments if payment.payment_type.type ==
+                         'In' and payment.payment_type.category == 'None Operating')
+    non_operational_out = sum(payment.amount for payment in payments if payment.payment_type.type ==
+                          'Out' and payment.payment_type.category == 'None Operating')
+
+    return operational_in, operational_out, none_operational_in, non_operational_out
+
 
 def aggregate_summary(payment_list):
     total_income = Decimal('0.00')
