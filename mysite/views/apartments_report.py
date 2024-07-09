@@ -70,6 +70,7 @@ def apartments_analytics(request):
     year_avg_income = 0
     year_avg_outcome = 0
     year_non_operating_out = 0
+    year_non_operating_in = 0
 
     num_apartments = len(selected_apartments)
 
@@ -94,7 +95,7 @@ def apartments_analytics(request):
         month_sure_profit = month_income - month_outcome
         month_pending_profit = month_pending_income - month_pending_outcome
 
-        operational_in, operational_out, none_operational_in, non_operational_out = aggregate_profit_by_category(
+        operational_in, operational_out, non_operational_in, non_operational_out = aggregate_profit_by_category(
             payments_for_month)
 
         target_apartments = selected_apartments.filter(
@@ -136,6 +137,7 @@ def apartments_analytics(request):
             'month_total_booked_days': total_booked_days,
             'month_total_days': total_days_in_month * num_apartments,
             'month_non_operating_out': non_operational_out,
+            'month_non_operating_in': non_operational_in,
         })
 
         year_income += month_income
@@ -149,6 +151,7 @@ def apartments_analytics(request):
         year_avg_income += month_avg_income
         year_avg_profit += month_avg_profit
         year_non_operating_out += non_operational_out
+        year_non_operating_in += non_operational_in
 
     apartments_data["apartments_month_data"] = apartments_month_data
     apartments_data["year_income"] = round(year_income)
@@ -157,6 +160,7 @@ def apartments_analytics(request):
     apartments_data["year_pending_outcome"] = round(year_pending_outcome)
     apartments_data["year_pending_profit"] = round(year_pending_profit)
     apartments_data["year_non_operating_out"] = round(year_non_operating_out)
+    apartments_data["year_non_operating_in"] = round(year_non_operating_in)
     apartments_data["year_sure_profit"] = round(year_sure_profit)
     apartments_data["year_avg_profit"] = round(year_avg_profit/12)
     apartments_data["year_avg_income"] = round(year_avg_income/12)
@@ -182,6 +186,7 @@ def apartments_analytics(request):
                 "year_avg_income": 0,
                 "year_avg_outcome": 0,
                 "year_non_operating_out": 0,
+                "year_non_operating_in": 0,
             }
 
             if apartment.start_date and apartment.start_date.date() >= end_date:
@@ -228,7 +233,7 @@ def apartments_analytics(request):
                 month_sure_profit = month_income - month_outcome
                 month_pending_profit = month_pending_income - month_pending_outcome
 
-                operational_in, operational_out, none_operational_in, non_operational_out = aggregate_profit_by_category(
+                operational_in, operational_out, non_operational_in, non_operational_out = aggregate_profit_by_category(
                     payments_for_month)
 
                 selected_apartment['month_data'].append({
@@ -243,6 +248,7 @@ def apartments_analytics(request):
                     'total_days_in_month': total_days_in_month,
                     'total_booked_days': total_booked_days,
                     'month_non_operating_out': non_operational_out,
+                    'month_non_operating_in': non_operational_in,
                 })
                 selected_apartment["year_income"] += month_income
                 selected_apartment["year_outcome"] += month_outcome
@@ -252,6 +258,7 @@ def apartments_analytics(request):
                 selected_apartment["year_sure_profit"] += month_sure_profit
                 selected_apartment["year_occupancy"] += month_occupancy
                 selected_apartment["year_non_operating_out"] += non_operational_out
+                selected_apartment["year_non_operating_in"] += non_operational_in
 
             selected_apartment["year_avg_profit"] = round(
                 (selected_apartment["year_sure_profit"] + selected_apartment["year_pending_profit"])/num_month)
