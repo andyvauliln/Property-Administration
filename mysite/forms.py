@@ -459,13 +459,13 @@ class BookingForm(forms.ModelForm):
         ui_element="radio", _dropdown_options=lambda: get_dropdown_options("visit_purpose"))
 
     send_contract = ChoiceFieldEx( choices=[
-        (118378, "Send Occupant Agreement"),
-        (120946, "Send Application Form"),
+        (118378, "Send OCCUPANCY AGREEMENT"),
+        (120946, "Send HOA PACKAGE"),
     ],
         required=False, isEdit=True, isCreate=True, initial=None, ui_element="radio", 
         _dropdown_options=[
-            {"value": 118378, "label": "Send Occupant Agreement"},
-            {"value": 120946, "label": "Send Application Form"},
+            {"value": 118378, "label": "Send OCCUPANCY AGREEMENT"},
+            {"value": 120946, "label": "Send HOA PACKAGE"},
             ],
             order=11)
     is_rent_car = CustomBooleanField(

@@ -172,7 +172,7 @@ class Apartment(models.Model):
 
     @property
     def address(self):
-        return f"{self.street} {self.building_n}, {self.apartment_n}, {self.state}, {self.city}, {self.zip_index}"
+        return f" {self.building_n} {self.street}, {self.apartment_n}, {self.state}, {self.city}, {self.zip_index}"
 
     @property
     def links(self):
