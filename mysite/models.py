@@ -6,11 +6,11 @@ from django.contrib.auth.hashers import make_password
 from dateutil.relativedelta import relativedelta
 from datetime import datetime
 from datetime import datetime, date
-from mysite.docuseal_contract_managment import create_contract, delete_contract
+from mysite.docuseal_contract_managment import create_contract, update_contract, delete_contract
 from itertools import zip_longest
 import re
 import uuid
-
+from decimal import Decimal
 
 def convert_date_format(value):
     if isinstance(value, date):
@@ -275,11 +275,12 @@ class Booking(models.Model):
             form_data = kwargs.pop('form_data', None)
             payments_data = kwargs.pop('payments_data', None)
             self.get_or_create_tenant(form_data)
-            self.create_payments(payments_data)
+            # self.create_payments(payments_data)
             orig = Booking.objects.get(pk=self.pk)
             # If start_date has changed
             if orig.start_date != self.start_date:
                 # Update the related Notification
+                contract_needs_update = True
                 Notification.objects.filter(
                     booking=self,
                     message="Start Booking"
@@ -287,7 +288,7 @@ class Booking(models.Model):
 
             # If end_date has changed
             if orig.end_date != self.end_date:
-                # delete existing payments
+                
                 if self.end_date < orig.end_date:
                     # delete all payments except return deposit
                     self.deletePayments()
@@ -318,8 +319,45 @@ class Booking(models.Model):
                     message="End Booking"
                 ).update(date=self.end_date)
 
+            # if payments_data:
+            #     existing_payments = Payment.objects.filter(booking=self)
+            #     existing_payment_ids = set(str(payment.id) for payment in existing_payments)
+            #     new_payment_ids = set(filter(None, payments_data.get('payment_id', [])))
+                
+            #     for payment_id in new_payment_ids:
+            #         if payment_id not in existing_payment_ids:
+            #             contract_needs_update = True
+            #             break
+
+            #     # Check for new or modified payments
+            #     for i, payment_id in enumerate(new_payment_ids):
+            #         payment_date = convert_date_format(payments_data['payment_dates'][i])
+            #         amount = payments_data['amounts'][i]
+            #         payment_type_id = payments_data['payment_types'][i]
+
+            #         if payment_id:  # Existing payment
+            #             existing_payment = next((p for p in existing_payments if str(p.id) == payment_id), None)
+            #             if existing_payment:
+            #                 if (existing_payment.payment_date != payment_date or
+            #                     existing_payment.amount != Decimal(amount) or
+            #                     existing_payment.payment_type_id != int(payment_type_id)):
+            #                     contract_needs_update = True
+            #                     break
+            #         else:  # New payment
+            #             contract_needs_update = True
+            #             break
+
+            # Create or update payments
+            self.create_payments(payments_data)
+
             super().save(*args, **kwargs)
-             # SEND CONTRACT
+
+            # Check for new or modified payments
+            
+            # Update Contract
+            if True:
+                update_contract(self)
+            # SEND CONTRACT
             if form_data and form_data["send_contract"] and form_data["send_contract"] != 0 and form_data["send_contract"] != None and form_data["send_contract"] != "None":
                 create_contract(self, template_id=form_data["send_contract"])
         else:
@@ -340,7 +378,6 @@ class Booking(models.Model):
                 create_contract(self, template_id=form_data["send_contract"])
         
        
-
     def deletePayments(self):
         payments_to_delete = Payment.objects.filter(
             booking=self,
@@ -494,7 +531,7 @@ class Booking(models.Model):
     
     @property
     def payment_str_for_contract(self):
-        payments = self.payments.filter(payment_type__name__in=["Damage Deposit", "Hold Deposit", "Rent"])
+        payments = self.payments.filter(payment_type__name__in=["Hold Deposit", "Rent", "Damage Deposit"], payment_type__type="In")
         payment_str = ""
         for payment in payments:
             formatted_date = payment.payment_date.strftime("%B %d %Y")
