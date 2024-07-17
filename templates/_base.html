@@ -291,20 +291,42 @@
       }
       function formatDate(date) {
         if (!date) return null;
-        
-        const d = new Date(date);
-        if (isNaN(d.getTime())) return null;
+        console.log("input date", date);
     
         const months = [
             "January", "February", "March", "April", "May", "June", 
             "July", "August", "September", "October", "November", "December"
         ];
-        
-        const month = months[d.getUTCMonth()];
-        const day = d.getUTCDate();
-        const year = d.getUTCFullYear();
-        
-        return `${month} ${day} ${year}`;
+    
+        let d;
+    
+        if (typeof date === 'string') {
+            // Check if the date is in "YYYY-MM-DD" format
+            if (/^\d{4}-\d{2}-\d{2}/.test(date)) {
+                const [year, month, day] = date.split('-').map(Number);
+                d = new Date(Date.UTC(year, month - 1, day));
+            } 
+            // Check if the date is in "Month DD YYYY" or "Mon. DD, YYYY" format
+            else {
+                const parts = date.replace(/,|\./g, '').split(' ');
+                if (parts.length === 3) {
+                    const monthIndex = months.findIndex(m => m.toLowerCase().startsWith(parts[0].toLowerCase()));
+                    const day = parseInt(parts[1], 10);
+                    const year = parseInt(parts[2], 10);
+                    if (monthIndex !== -1 && !isNaN(day) && !isNaN(year)) {
+                        d = new Date(Date.UTC(year, monthIndex, day));
+                    }
+                }
+            }
+        } else if (date instanceof Date) {
+            d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
+        }
+    
+        if (!d || isNaN(d.getTime())) return null;
+    
+        const formattedDate = `${months[d.getUTCMonth()]} ${d.getUTCDate()} ${d.getUTCFullYear()}`;
+        console.log("output date", formattedDate);
+        return formattedDate;
     }
     function addPaymentRow(modal, payment_date = new Date(), payment_amount = 0, payment_type = 6, paymentStatus = "Pending", notes = "", id = "") {
       const paymentsContainer = document.getElementById('paymentsContainer-' + modal);
