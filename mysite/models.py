@@ -355,7 +355,7 @@ class Booking(models.Model):
             # Check for new or modified payments
             
             # Update Contract
-            if True:
+            if self.contract_id:
                 update_contract(self)
             # SEND CONTRACT
             if form_data and form_data["send_contract"] and form_data["send_contract"] != 0 and form_data["send_contract"] != None and form_data["send_contract"] != "None":
@@ -664,9 +664,23 @@ class Payment(models.Model):
 
             # If payment_date has changed
             if orig.payment_date != self.payment_date:
-                # Update the related Notification
+                # print(self.payment_date, "self.payment_date")
+                # if isinstance(self.payment_date, tuple) and len(self.payment_date) > 0:
+                #     payment_date_obj = self.payment_date[0]
+                # else:
+                #     payment_date_obj = self.payment_date
+
+                # Ensure payment_date_obj is a date object or a string
+                if isinstance(self.payment_date, date):
+                    payment_date_str = self.payment_date.isoformat()
+                elif isinstance(self.payment_date, str):
+                    payment_date_str = self.payment_date
+                else:
+                    raise ValueError("Unsupported date format for self.payment_date")
+
+
                 Notification.objects.filter(
-                    payment=self).update(date=self.payment_date)
+                    payment=self).update(date=payment_date_str)
 
         if number_of_months and number_of_months > 0:
             self.create_payments(number_of_months)

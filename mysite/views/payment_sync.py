@@ -139,14 +139,14 @@ def update_payments(request, payments_to_update):
                 payment_id = payment.id
                 if payment:
                     payment.amount = float(payment_info['amount'])
-                    payment.payment_date = datetime.strptime(payment_info['payment_date'], '%m/%d/%Y').date()
+                    payment.payment_date = datetime.strptime(payment_info['payment_date'], '%B %d %Y').date()
                     payment.payment_type_id = payment_info['payment_type']
                     payment.notes = payment_info['notes']
                     payment.payment_method_id = payment_info['payment_method']
                     payment.bank_id = payment_info['bank']
                     payment.apartment_id = payment_info['apartment']
                     payment.payment_status = payment_info['payment_status']
-                    payment.merged_payment_key = payment_info['file_date'] + str(payment_info['file_amount']) + payment_info['file_notes']
+                    payment.merged_payment_key = parse_date(payment_info['file_date']) + str(payment_info['file_amount']) + payment_info['file_notes']
                     payment.save()
                     messages.success(request, f"Updated Payment: {payment.id}")
                 else:
@@ -154,13 +154,13 @@ def update_payments(request, payments_to_update):
             else:
                 payment = Payment.objects.create(
                     amount=float(payment_info['amount']),
-                    payment_date=datetime.strptime(payment_info['payment_date'], '%m/%d/%Y').date(),
+                    payment_date=datetime.strptime(payment_info['payment_date'], '%B %d %Y').date(),
                     payment_type_id=payment_info['payment_type'],
                     notes=payment_info['notes'],
                     payment_method_id=payment_info['payment_method'] or None,
                     bank_id=payment_info['bank'] or None,
                     apartment_id=payment_info['apartment'] or None,
-                    merged_payment_key=payment_info['file_date'] + str(payment_info['file_amount']) + payment_info['file_notes'],
+                    merged_payment_key = parse_date(payment_info['file_date']) + str(payment_info['file_amount']) + payment_info['file_notes'],
                     payment_status=payment_info['payment_status'],
                 )
                 messages.success(request, f"Created new Payment: {payment.id}")
@@ -256,6 +256,20 @@ def get_start_end_dates(request, payment_data):
     end_date = payment_data[-1]['payment_date']
     return start_date, end_date
 
+def parse_date(date_str):
+    # Try parsing with the format '2024-07-01 00:00:00'
+    try:
+        return datetime.strptime(date_str, '%Y-%m-%d %H:%M:%S').strftime('%m/%d/%Y')
+    except ValueError:
+        pass
+    
+    # Try parsing with the format 'July 24 2024'
+    try:
+        return datetime.strptime(date_str, '%B %d %Y').strftime('%m/%d/%Y')
+    except ValueError:
+        pass
+    
+    raise ValueError(f"Date format for '{date_str}' is not supported")
 
 def find_possible_matches_db_to_file(db_payments, file_payments, amount_delta, date_delta):
     possible_matches = []
