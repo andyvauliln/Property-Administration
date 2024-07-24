@@ -21,12 +21,12 @@ def booking_availability(request):
     current_apartment = request.GET.get('apartment', '')
     current_apartment_type = request.GET.get('apartment_type', '')
     booking_status = request.GET.get('booking_status', '')
-    start_date = request.GET.get('start_date', timezone.now().replace(day=1).strftime('%B %d %Y'))
-    end_date = request.GET.get('end_date', timezone.now().replace(month=12, day=31).strftime('%B %d %Y'))
-
-    # Convert string dates to datetime objects
-    start_date = datetime.strptime(start_date, '%B %d %Y')
-    end_date = datetime.strptime(end_date, '%B %d %Y')
+    
+    # Calculate start and end dates based on the page (year)
+    current_date = timezone.now().date()
+    page_offset = int(request.GET.get('page', 0))
+    start_date = (current_date.replace(day=1) + relativedelta(months=page_offset)).replace(day=1)
+    end_date = start_date + relativedelta(months=12, days=-1)
 
     # Prepare the Prefetch for booked_apartments
     booking_queryset = Booking.objects.filter(
@@ -61,16 +61,17 @@ def booking_availability(request):
     # Filter out apartments that are not available during the selected period
     availability_query = Q(start_date__lte=end_date) & (Q(end_date__isnull=True) | Q(end_date__gte=start_date))
     apartments = apartments.filter(availability_query)
+    
     # Prepare monthly data
     monthly_data = []
-    current_date = start_date
-    while current_date <= end_date:
-        days_in_month = monthrange(current_date.year, current_date.month)[1]
-        month_end = current_date.replace(day=days_in_month).date()
-        month_start = current_date.replace(day=1).date()
+    current_month = start_date
+    while current_month <= end_date:
+        days_in_month = monthrange(current_month.year, current_month.month)[1]
+        month_end = current_month.replace(day=days_in_month)
+        month_start = current_month
 
         month_data = {
-            'month_name': current_date.strftime('%B %Y'),
+            'month_name': current_month.strftime('%B %Y'),
             'apartments': [],
             'month_revenue': 0,
             'month_occupancy': 0,
@@ -94,7 +95,7 @@ def booking_availability(request):
 
             # Fill in the days data
             for day in range(1, days_in_month + 1):
-                date = current_date.replace(day=day).date()
+                date = current_month.replace(day=day)
                 booking = next((b for b in bookings if b.start_date <= date <= b.end_date), None)
                 if booking:
                     apartment_data['days'][day] = booking.status
@@ -129,7 +130,7 @@ def booking_availability(request):
         month_data['month_occupancy'] = (month_data['month_occupancy'] / total_days) * 100 if total_days > 0 else 0
 
         monthly_data.append(month_data)
-        current_date += relativedelta(months=1)
+        current_month += relativedelta(months=1)
 
     context = {
         'monthly_data': monthly_data,
@@ -140,6 +141,9 @@ def booking_availability(request):
         'current_booking_status': booking_status,
         'start_date': start_date.strftime('%B %d %Y'),
         'end_date': end_date.strftime('%B %d %Y'),
+        'prev_page': page_offset - 12,
+        'next_page': page_offset + 12,
+        'current_year': start_date.year,
     }
 
     return render(request, 'booking_availability.html', context)
