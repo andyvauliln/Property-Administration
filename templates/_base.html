@@ -116,6 +116,19 @@
             </a>
           </li>
           {% endif %}
+          {% if user_role in 'Admin,Manager' %}
+          <li>
+            <a href="/booking-availability/"
+              class="flex items-center p-2 text-base font-medium text-gray-900 rounded-lg dark:text-white hover:bg-gray-100 dark:hover:bg-gray-700 group {% if current_path == '/booking-availability/' %}bg-gray-100{% endif %}">
+              <svg class="w-6 h-6 text-gray-800 dark:text-white" aria-hidden="true" xmlns="http://www.w3.org/2000/svg"
+                fill="currentColor" viewBox="0 0 20 20">
+                <path
+                  d="m19.707 9.293-2-2-7-7a1 1 0 0 0-1.414 0l-7 7-2 2a1 1 0 0 0 1.414 1.414L2 10.414V18a2 2 0 0 0 2 2h3a1 1 0 0 0 1-1v-4a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v4a1 1 0 0 0 1 1h3a2 2 0 0 0 2-2v-7.586l.293.293a1 1 0 0 0 1.414-1.414Z" />
+              </svg>
+              <span class="ml-3">Booking Availability</span>
+            </a>
+          </li>
+          {% endif %}
           {% if user_role in 'Admin' %}
           <li>
             <a href="/apartment/"

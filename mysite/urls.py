@@ -28,5 +28,7 @@ urlpatterns = [
     path('forward-message2/', views.forward_message2, name='forwardMessage2'),
     path('generate-invoice/', views.generate_invoice, name='generateInvoice'),
     path('payments-sync/', views.sync_payments, name='sync_payments'),
+    path('booking-availability/', views.booking_availability, name='booking_availability'),
     # path('telegram_webhook/', views.forward_telegram, name='telegram_webhook'),
 ]
+

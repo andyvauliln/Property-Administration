@@ -174,6 +174,20 @@ class Apartment(models.Model):
     def address(self):
         return f" {self.building_n} {self.street}, {self.apartment_n}, {self.state}, {self.city}, {self.zip_index}"
 
+    
+    def payment_revenue(self, start_date, end_date):
+        if start_date and end_date:
+            payments = self.payments.filter(payment_date__gte=start_date, payment_date__lte=end_date)
+        else:
+            payments = self.payments.all()
+        revenue = 0
+        for payment in payments:
+            if payment.payment_type.type == "In":
+                revenue += payment.amount
+            else:
+                revenue -= payment.amount
+        return revenue
+    
     @property
     def links(self):
         links_list = []
@@ -528,6 +542,20 @@ class Booking(models.Model):
             formatted_date = payment.payment_date.strftime("%B %d %Y")
             payment_str += f"{payment.payment_type}: ${payment.amount}, {formatted_date} \n"
         return payment_str
+    
+
+    def payment_revenue(self, start_date, end_date):
+        if start_date and end_date:
+            payments = self.payments.filter(payment_date__gte=start_date, payment_date__lte=end_date)
+        else:
+            payments = self.payments.all()
+        revenue = 0
+        for payment in payments:
+            if payment.payment_type.type == "In":
+                revenue += payment.amount
+            else:
+                revenue -= payment.amount
+        return revenue
     
     @property
     def payment_str_for_contract(self):

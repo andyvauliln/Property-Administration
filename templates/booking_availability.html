@@ -1,0 +1,135 @@
+{% extends "_base.html" %}
+{% load slippers %}
+{% load custom_filters %}
+{% block content %}
+
+<section class="bg-gray-50 dark:bg-gray-900 p-3 sm:p-5 antialiased">
+    <div class="mx-auto max-w-screen-xl px-4 lg:px-12">
+        <div class="bg-white dark:bg-gray-800 relative shadow-md sm:rounded-lg overflow-hidden">
+            
+            <div class="flex items-center justify-between w-full p-2">
+                {% comment %} <select id="apartment" name="apartment" class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-primary-500 focus:border-primary-500 block w-full p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white dark:focus:ring-primary-500 dark:focus:border-primary-500">
+                    <option value="" {% if not current_apartment %}selected{% endif %}>All Apart Name</option>
+                    {% for apt in apartments %}
+                        <option value="{{ apt }}" {% if current_apartment == apt %}selected{% endif %}>{{ apt }}</option>
+                    {% endfor %}
+                </select> {% endcomment %}
+                <select name="apartment_type" class="ml-2 bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-primary-500 focus:border-primary-500 block w-full p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white dark:focus:ring-primary-500 dark:focus:border-primary-500">
+                    <option value="">All Apart Types</option>
+                    {% for type_value, type_name in apartment_types %}
+                        <option value="{{ type_value }}" {% if current_apartment_type == type_value %}selected{% endif %}>
+                            {{ type_name }}
+                        </option>
+                    {% endfor %}
+                </select>
+                <select name="booking_status" class="ml-2 bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-primary-500 focus:border-primary-500 block w-full p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white dark:focus:ring-primary-500 dark:focus:border-primary-500">
+                    <option value="">All Statuses</option>
+                    <option value="Confirmed" {% if current_booking_status == 'Confirmed' %}selected{% endif %}>Confirmed</option>
+                    <option value="Waiting Contract" {% if current_booking_status == 'Waiting Contract' %}selected{% endif %}>Waiting Contract</option>
+                    <option value="Waiting Payment" {% if current_booking_status == 'Waiting Payment' %}selected{% endif %}>Waiting Payment</option>
+                    <option value="Blocked" {% if current_booking_status == 'Blocked' %}selected{% endif %}>Blocked</option>
+                </select>
+                <input id="start_date" name="start_date" datepicker datepicker-format="MM dd yyyy" type="text" value="{{ start_date }}" class="ml-2 bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white dark:focus:ring-blue-500 dark:focus:border-blue-500" placeholder="Start Date">
+                <input id="end_date" name="end_date" datepicker datepicker-format="MM dd yyyy" type="text" value="{{ end_date }}" class="ml-2 bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white dark:focus:ring-blue-500 dark:focus:border-blue-500" placeholder="End Date">
+                <div class="flex w-full justify-center items-center mx-2">
+                    <button class="block w-full bg-blue-500 text-white p-2 rounded" onclick="getReport()">Get Report</button>
+                </div>  
+            </div>
+            <div class="flex items-center justify-between w-full p-2">
+                <div class="flex items-center space-x-4">
+                    <div class="flex items-center">
+                        <div class="w-4 h-4 bg-green-500 mr-2"></div>
+                        <span>Confirmed</span>
+                    </div>
+                    <div class="flex items-center">
+                        <div class="w-4 h-4 bg-yellow-500 mr-2"></div>
+                        <span>Pending</span>
+                    </div>
+                    <div class="flex items-center">
+                        <div class="w-4 h-4 bg-black mr-2"></div>
+                        <span>Blocked</span>
+                    </div>
+                    <div class="flex items-center">
+                        <div class="w-4 h-4 bg-white border border-gray-300 mr-2"></div>
+                        <span>Available</span>
+                    </div>
+                </div>
+            </div>
+                {% for month_data in monthly_data %}
+                    <!-- Monthly Report Header with Summaries -->
+                    <div class="p-4 flex items-center justify-between bg-zinc-200"> 
+                        <div class="flex items-center text-lg font-bold text-blue-500 underline">{{ month_data.month_name }}</div> 
+                        <div class="flex space-x-4">
+                            <div class="mr-4 text-blue-500"><span class="font-bold">Revenue:</span> ${{ month_data.month_revenue|default:0|format_number }}</div>
+                            <div class="text-yellow-500"><span class="font-bold">Occupancy:</span> {{ month_data.month_occupancy|default:0|format_number }}%</div> 
+                        </div>   
+                    </div>
+               
+                    <!-- Monthly Payments Table -->
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-sm text-left text-gray-500 dark:text-gray-400">
+                            <thead class="text-xs text-center text-gray-700 uppercase bg-gray-50 dark:bg-gray-700 dark:text-gray-400">
+                                <tr>    
+                                    <th scope="col" class="p-1 border-r border-gray-500 w-10">Name</th> 
+
+                                    {% for number in 1|range:month_data.days_in_month %}
+                                        <th scope="col" class="p-1 border-r border-gray-500 w-10">{{ number }}</th> 
+                                    {% endfor %}
+
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for apartment in month_data.apartments %}
+                                    <tr class="border-b dark:hover:bg-gray-800 cursor-pointer dark:border-gray-700" data-id="{{ apartment.id }}">
+                                        <td class="border-r border-gray-500 p-1 font-bold {% if apartment.apartment_type == 'In Ownership' %}text-purple-500{% elif apartment.apartment_type == '2' %}text-yellow-500{% elif apartment.apartment_type == '3' %}text-red-500{% else %}text-gray-500{% endif %}">{{ apartment.name|default:'' }}</td>
+                                        {% for number in 1|range:month_data.days_in_month %}
+                                            <td class="border-r border-gray-500 p-1 relative
+                                            {% if apartment.days|get_dic_item:forloop.counter == 'Confirmed' %} bg-green-500
+                                            {% elif apartment.days|get_dic_item:forloop.counter == 'Waiting Contract' %} bg-yellow-500
+                                            {% elif apartment.days|get_dic_item:forloop.counter == 'Waiting Payment' %} bg-yellow-500
+                                            {% elif apartment.days|get_dic_item:forloop.counter == 'Blocked' %}bg-black
+                                            {% else %} text-white
+                                            {% endif %}
+                                             group text-center">
+                                            <span class="text-blue-600 text-center  group-hover:opacity-100">{{ forloop.counter }}</span>
+                                        </td>
+                                    {% endfor %}
+                                    </tr>
+                                    {% empty %}
+                                        <tr>
+                                            <td colspan="8" class="text-center py-4">No data found</td>
+                                        </tr>
+                                    {% endfor %}
+                            </tbody>
+                            
+                        </table>
+                    </div>
+            {% endfor %}
+            
+        </div>
+    </div>
+</section>
+
+<script>
+    function getReport() {
+        const startDate = document.getElementById('start_date').value;
+        const endDate = document.getElementById('end_date').value;
+        const apartmentType = document.querySelector('[name="apartment_type"]').value;
+        const bookingStatus = document.querySelector('[name="booking_status"]').value;
+      
+        let url = '?';
+        if (startDate) url += `start_date=${startDate}&`;
+        if (endDate) url += `end_date=${endDate}&`;
+        if (apartmentType) url += `apartment_type=${apartmentType}&`;
+        if (bookingStatus) url += `booking_status=${bookingStatus}&`;
+
+        console.log(url);
+        location.href = url;
+      
+       
+      }
+    
+</script>
+  
+
+{% endblock content %}

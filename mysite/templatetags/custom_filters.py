@@ -22,6 +22,27 @@ def get_item(obj, key):
         value = getattr(obj, key, None)
         return value if value is not None else ""
 
+@register.filter(name='range')
+def filter_range(start, end):
+    return range(start, int(end) + 1)
+
+@register.filter
+def get_dic_item(dictionary, key):
+    # Try to get the value using the key as is (likely an integer)
+    result = dictionary.get(key)
+    
+    # If that doesn't work, try converting the key to a string
+    if result is None:
+        result = dictionary.get(str(key))
+    
+    # If that still doesn't work, try converting the key to an integer
+    if result is None:
+        try:
+            result = dictionary.get(int(key))
+        except ValueError:
+            pass
+    
+    return result
 
 @register.filter
 def get_custom_item(obj, attr_string):
