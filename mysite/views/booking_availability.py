@@ -21,7 +21,7 @@ def booking_availability(request):
     current_apartment = request.GET.get('apartment', '')
     current_apartment_type = request.GET.get('apartment_type', '')
     booking_status = request.GET.get('booking_status', '')
-    start_date = request.GET.get('start_date', timezone.now().replace(month=1, day=1).strftime('%B %d %Y'))
+    start_date = request.GET.get('start_date', timezone.now().replace(day=1).strftime('%B %d %Y'))
     end_date = request.GET.get('end_date', timezone.now().replace(month=12, day=31).strftime('%B %d %Y'))
 
     # Convert string dates to datetime objects
