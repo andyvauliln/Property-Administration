@@ -313,6 +313,7 @@ def get_matches_db_to_file(file_payment, db_payments, amount_delta, date_delta):
         payment_diff = abs(float(payment_from_db.amount) - abs(float(file_payment['amount'])))        
         payment_date_datetime = datetime.combine(payment_from_db.payment_date, datetime.min.time())
         date_diff = file_payment['payment_date'] - payment_date_datetime
+        payment_diff = round(abs(float(payment_from_db.amount) - abs(float(file_payment['amount']))))
         
         if payment_diff <= amount_delta and abs(date_diff.days) <= date_delta:
             match_obj['db_payment'] = payment_from_db

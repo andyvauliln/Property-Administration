@@ -22,11 +22,11 @@ def booking_availability(request):
     current_apartment_type = request.GET.get('apartment_type', '')
     booking_status = request.GET.get('booking_status', '')
     
-    # Calculate start and end dates based on the page (year)
+    # Calculate start and end dates based on the page (6 months)
     current_date = timezone.now().date()
     page_offset = int(request.GET.get('page', 0))
-    start_date = (current_date.replace(day=1) + relativedelta(months=page_offset)).replace(day=1)
-    end_date = start_date + relativedelta(months=12, days=-1)
+    start_date = (current_date.replace(day=1) + relativedelta(months=page_offset * 6)).replace(day=1)
+    end_date = start_date + relativedelta(months=6, days=-1)
 
     # Prepare the Prefetch for booked_apartments
     booking_queryset = Booking.objects.filter(
@@ -141,8 +141,8 @@ def booking_availability(request):
         'current_booking_status': booking_status,
         'start_date': start_date.strftime('%B %d %Y'),
         'end_date': end_date.strftime('%B %d %Y'),
-        'prev_page': page_offset - 12,
-        'next_page': page_offset + 12,
+        'prev_page': page_offset - 1,
+        'next_page': page_offset + 1,
         'current_year': start_date.year,
     }
 

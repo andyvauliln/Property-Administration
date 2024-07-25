@@ -9,7 +9,7 @@
     const payment_types_json = {{ data.payment_types|safe }}
     const payment_methods_dictionary = Object.fromEntries(payment_methods_json.map(i => [i.id, i.name]));
     const apartments_dictionary = Object.fromEntries(apartments_json.map(i => [i.id, i.name]));
-    const payment_types_dictionary = Object.fromEntries(payment_types_json.map(i => [i.id, i.name]));
+    const payment_types_dictionary = Object.fromEntries(payment_types_json.map(i => [i.id, i.name + ' - ' + i.type]));
     console.log('payment_methods', payment_methods_dictionary)
     console.log('apartments', apartments_dictionary)
     console.log('payment_types', payment_types_dictionary)
