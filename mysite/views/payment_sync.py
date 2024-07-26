@@ -223,9 +223,9 @@ def get_payment_data(request, csv_file, payment_methods, apartments, payment_typ
         if amount_float == 0:
             continue
         elif amount_float > 0:
-            payment_type = payment_types.filter(name="Income").first()
+            payment_type = payment_types.filter(name="Other", type="In").first()
         else:
-            payment_type = payment_types.filter(name="Expense").first()
+            payment_type = payment_types.filter(name="Other", type="Out").first()
 
         ba_bank = payment_methods.filter(name="BA").first()
         payment_data.append({
@@ -294,13 +294,13 @@ def get_matches_db_to_file(file_payment, db_payments, amount_delta, date_delta):
     matches = []
    
     for payment_from_db in db_payments:
-        if not is_payment_type_match(payment_from_db, file_payment):
-            continue
+        # if not is_payment_type_match(payment_from_db, file_payment):
+        #     continue
         match_obj = {'score': 0}
-        if payment_from_db.id == file_payment['id']:
-           match_obj['db_payment'] = payment_from_db
-           match_obj['id'] = 'Matched'
-           match_obj['score'] += 10
+        # if payment_from_db.id == file_payment['id']:
+        match_obj['db_payment'] = payment_from_db
+        match_obj['id'] = 'Matched'
+        match_obj['score'] += 10
         
         if payment_from_db.booking and payment_from_db.booking.tenant.full_name:
             tenant_name = payment_from_db.booking.tenant.full_name
