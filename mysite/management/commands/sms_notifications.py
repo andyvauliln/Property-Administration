@@ -198,26 +198,39 @@ def send_to_manager(message, booking, message_status="SENDED"):
     auth_token = os.environ["TWILIO_AUTH_TOKEN"]
     twilio_phone_number = os.environ["TWILIO_PHONE"]
     twilio_manager_number = os.environ["TWILIO_MANAGER_PHONE"]
+    twilio_manager_number2 = os.environ["TWILIO_MANAGER_PHONE2"]
 
     client = Client(account_sid, auth_token)
     try:
 
-        chat = create_notification(
+        chat1 = create_notification(
             twilio_phone_number, twilio_manager_number, booking, message, None, message_status)
+        chat2 = create_notification(
+            twilio_phone_number, twilio_manager_number2, booking, message, None, message_status)
 
-        message = client.messages.create(
+        message1 = client.messages.create(
             from_=twilio_phone_number,
             to=twilio_manager_number,
             body=message
         )
+        message2 = client.messages.create(
+            from_=twilio_phone_number,
+            to=twilio_manager_number2,
+            body=message
+        )
         print_info(
-            f'\nMessage Sent from Twilio: {twilio_phone_number} to Menadger: {twilio_manager_number} Status: {message.status} SID: {message.sid} \n {message} \n')
+            f'\nMessage Sent from Twilio: {twilio_phone_number} to Manager: {twilio_manager_number} Status: {message1.status} SID: {message1.sid} \n {message1} \n')
+        print_info(
+            f'\nMessage Sent from Twilio: {twilio_phone_number} to Manager: {twilio_manager_number2} Status: {message2.status} SID: {message2.sid} \n {message2} \n')
 
     except TwilioException as e:
         context = f'\nError sending SMS notification to manager \n Error: {str(e)} \n '
-        chat.message_status = "ERROR"
-        chat.context = context
-        chat.save()
+        chat1.message_status = "ERROR"
+        chat1.context = context
+        chat1.save()
+        chat2.message_status = "ERROR"
+        chat2.context = context
+        chat2.save()
         print_info(context)
 
 
