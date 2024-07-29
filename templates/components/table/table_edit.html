@@ -90,104 +90,6 @@
 
 <script>
 
-    function openModalForItemId(itemId) {
-        const item = items_json.find(i => i.id === itemId);
-        deleteIdInput.value = itemId;
-        editIdInput.value = itemId;
-        const paymentContainer = document.getElementById("paymentsContainer-edit");
-        paymentContainer.innerHTML = '';
-
-        if (item) {
-            for (const [fieldName, fieldValue] of Object.entries(item)) {
-
-                const inputFields = updateModal.querySelectorAll(`[name="${fieldName}"]`);
-                inputFields.forEach((inputField) => {
-                   
-                    if (inputField.tagName === 'SELECT') {
-                        let valueSet = false;
-                        for (const option of inputField.options) {
-                            if (option.value == fieldValue) {
-                                option.selected = true;
-                                valueSet = true;
-                            } else {
-                                option.selected = false;
-                            }
-                        }
-                        if (!valueSet && !fieldValue) {
-                            inputField.options[0].selected = true; 
-                        }
-                    
-                    } else if (inputField.tagName === 'INPUT' && inputField.type === 'radio') {
-                        
-                        if (!fieldValue && !inputField.value) {
-                            inputField.checked = true;
-                        } else if (String(inputField.value) === String(fieldValue)) {
-                            inputField.checked = true;
-                        } else {
-                            inputField.checked = false; // Uncheck other options that don't match
-                        }
-                    
-                    } else if (inputField.tagName === 'INPUT' && inputField.hasAttribute('datepicker')) {
-                        console.log(fieldValue, formatDate(fieldValue), "datepicker")
-                        inputField.setAttribute('data-date', formatDate(fieldValue));
-                        inputField.value = formatDate(fieldValue);
-                    } else if (inputField.tagName === 'TEXTAREA') {
-                        inputField.innerHTML = fieldValue;
-                    } else if (inputField.tagName === 'INPUT' && inputField.type === 'checkbox') {
-                        inputField.checked = (fieldValue === true || fieldValue === '1');
-                    } else {
-                        inputField.value = fieldValue;
-                    }
-                })
-            }
-
-            const linksContainer = document.querySelector('#updateModal .related-links');
-            linksContainer.innerHTML = ''; 
-
-            item.links.forEach(link => {
-                const parts = link.name.split(':');
-                if (parts.length !== 2) return;
-
-                const linkContainer = document.createElement('div');
-                linkContainer.classList.add('flex', 'items-center', 'mb-2');
-
-                const boldText = document.createElement('span');
-                boldText.textContent = parts[0].trim() + ': ';
-                boldText.classList.add('font-bold', 'mr-1');
-
-                const linkElement = document.createElement('a');
-                linkElement.href = link.link;
-                linkElement.textContent = parts[1].trim();
-                linkElement.setAttribute('target', '_blank');
-                linkElement.classList.add('text-blue-500', 'hover:text-blue-700', 'mr-2');
-
-                const arrowSymbol = document.createElement('span');
-                arrowSymbol.innerHTML = '&rarr;';
-                arrowSymbol.classList.add('ml-2');
-
-                linkContainer.appendChild(boldText);
-                linkContainer.appendChild(linkElement);
-                linkElement.appendChild(arrowSymbol);
-
-                linksContainer.appendChild(linkContainer);
-            });
-        }
-
-        if (item.contract_url){
-            createDocusealForm(item.contract_url)
-        }
-        {% if title == "Dashboard" or title == "Booking" %}
-        if(item.payments){
-            console.log("items.payments", item.payments)
-            item.payments.forEach(payment => {
-                addPaymentRow("edit", payment.date, payment.amount, payment.payment_type, payment.status, payment.notes, payment.id)
-            })
-        }
-        {% endif %}
-
-        updateModal.style.display = 'flex';
-    }
-
     document.addEventListener('DOMContentLoaded', function() {
         const rows = document.querySelectorAll('.{{ model|lower }}-row');
         const updateModal = document.getElementById('updateModal');
@@ -218,7 +120,103 @@
             });
         });
     
-        
+        function openModalForItemId(itemId) {
+            const item = items_json.find(i => i.id === itemId);
+            deleteIdInput.value = itemId;
+            editIdInput.value = itemId;
+            const paymentContainer = document.getElementById("paymentsContainer-edit");
+            paymentContainer.innerHTML = '';
+    
+            if (item) {
+                for (const [fieldName, fieldValue] of Object.entries(item)) {
+
+                    const inputFields = updateModal.querySelectorAll(`[name="${fieldName}"]`);
+                    inputFields.forEach((inputField) => {
+                       
+                        if (inputField.tagName === 'SELECT') {
+                            let valueSet = false;
+                            for (const option of inputField.options) {
+                                if (option.value == fieldValue) {
+                                    option.selected = true;
+                                    valueSet = true;
+                                } else {
+                                    option.selected = false;
+                                }
+                            }
+                            if (!valueSet && !fieldValue) {
+                                inputField.options[0].selected = true; 
+                            }
+                        
+                        } else if (inputField.tagName === 'INPUT' && inputField.type === 'radio') {
+                            
+                            if (!fieldValue && !inputField.value) {
+                                inputField.checked = true;
+                            } else if (String(inputField.value) === String(fieldValue)) {
+                                inputField.checked = true;
+                            } else {
+                                inputField.checked = false; // Uncheck other options that don't match
+                            }
+                        
+                        } else if (inputField.tagName === 'INPUT' && inputField.hasAttribute('datepicker')) {
+                            console.log(fieldValue, formatDate(fieldValue), "datepicker")
+                            inputField.setAttribute('data-date', formatDate(fieldValue));
+                            inputField.value = formatDate(fieldValue);
+                        } else if (inputField.tagName === 'TEXTAREA') {
+                            inputField.innerHTML = fieldValue;
+                        } else if (inputField.tagName === 'INPUT' && inputField.type === 'checkbox') {
+                            inputField.checked = (fieldValue === true || fieldValue === '1');
+                        } else {
+                            inputField.value = fieldValue;
+                        }
+                    })
+                }
+    
+                const linksContainer = document.querySelector('#updateModal .related-links');
+                linksContainer.innerHTML = ''; 
+    
+                item.links.forEach(link => {
+                    const parts = link.name.split(':');
+                    if (parts.length !== 2) return;
+    
+                    const linkContainer = document.createElement('div');
+                    linkContainer.classList.add('flex', 'items-center', 'mb-2');
+    
+                    const boldText = document.createElement('span');
+                    boldText.textContent = parts[0].trim() + ': ';
+                    boldText.classList.add('font-bold', 'mr-1');
+    
+                    const linkElement = document.createElement('a');
+                    linkElement.href = link.link;
+                    linkElement.textContent = parts[1].trim();
+                    linkElement.setAttribute('target', '_blank');
+                    linkElement.classList.add('text-blue-500', 'hover:text-blue-700', 'mr-2');
+    
+                    const arrowSymbol = document.createElement('span');
+                    arrowSymbol.innerHTML = '&rarr;';
+                    arrowSymbol.classList.add('ml-2');
+    
+                    linkContainer.appendChild(boldText);
+                    linkContainer.appendChild(linkElement);
+                    linkElement.appendChild(arrowSymbol);
+    
+                    linksContainer.appendChild(linkContainer);
+                });
+            }
+
+            if (item.contract_url){
+                createDocusealForm(item.contract_url)
+            }
+            {% if title == "Dashboard" or title == "Booking" %}
+            if(item.payments){
+                console.log("items.payments", item.payments)
+                item.payments.forEach(payment => {
+                    addPaymentRow("edit", payment.date, payment.amount, payment.payment_type, payment.status, payment.notes, payment.id)
+                })
+            }
+            {% endif %}
+    
+            updateModal.style.display = 'flex';
+        }
     
         const urlParams = new URLSearchParams(window.location.search);
         const qValue = urlParams.get('q');
