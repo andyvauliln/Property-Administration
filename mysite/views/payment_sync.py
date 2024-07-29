@@ -294,13 +294,13 @@ def get_matches_db_to_file(file_payment, db_payments, amount_delta, date_delta):
     matches = []
    
     for payment_from_db in db_payments:
-        # if not is_payment_type_match(payment_from_db, file_payment):
-        #     continue
+        if not is_payment_type_match(payment_from_db, file_payment):
+            continue
         match_obj = {'score': 0}
-        # if payment_from_db.id == file_payment['id']:
-        match_obj['db_payment'] = payment_from_db
-        match_obj['id'] = 'Matched'
-        match_obj['score'] += 10
+        if payment_from_db.id == file_payment['id']:
+            match_obj['db_payment'] = payment_from_db
+            match_obj['id'] = 'Matched'
+            match_obj['score'] += 10
         
         if payment_from_db.booking and payment_from_db.booking.tenant.full_name:
             tenant_name = payment_from_db.booking.tenant.full_name
@@ -333,8 +333,7 @@ def get_matches_db_to_file(file_payment, db_payments, amount_delta, date_delta):
                 match_obj['score'] += 1 if payment_diff == 0 else 0
 
         if 'db_payment' not in match_obj:
-            #print("No Matches")
-            d = 1
+            print("No Matches")
         else:
             matches.append(match_obj)
 
