@@ -29,7 +29,7 @@
             <a href="/apartment/?apartment.id={{ apartment_id }}&year={{ next_year }}"  id="nextYearLink"  class="text-blue-500 underline p-4 block text-2xl font-extrabold" style="height: fit-content;">
                 Next Year
             </a>
-            <select id="apartment" onchange="updateLinks()" name="apartment" class="bg-gray-50 border ml-6 border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-primary-500 focus:border-primary-500 block w-30 p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white dark:focus:ring-primary-500 dark:focus:border-primary-500">
+            <select id="apartment_select" onchange="updateLinks()" name="apartment" class="bg-gray-50 border ml-6 border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-primary-500 focus:border-primary-500 block w-30 p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white dark:focus:ring-primary-500 dark:focus:border-primary-500">
                 <option value="">None</option>
                 {% for apt in apartments %}
                     <option value="{{ apt.0 }}">{{ apt.1 }}</option>
@@ -132,7 +132,7 @@
 <script>
 
     function updateLinks() {
-        var apartmentId = document.getElementById('apartment').value;
+        var apartmentId = document.getElementById('apartment_select').value;
         var currentYear = {{current_year}};
         var prevYear = {{prev_year}};
         var nextYear = {{next_year}};
