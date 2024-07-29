@@ -25,7 +25,6 @@ urlpatterns = [
     path('docuseal-callback/', views.docuseal_callback, name='docuseal_callback'),
     path('payment-report/', views.paymentReport, name='paymentReport'),
     path('forward-message/', views.forward_message, name='forwardMessage'),
-    path('forward-message2/', views.forward_message2, name='forwardMessage2'),
     path('generate-invoice/', views.generate_invoice, name='generateInvoice'),
     path('payments-sync/', views.sync_payments, name='sync_payments'),
     path('booking-availability/', views.booking_availability, name='booking_availability'),

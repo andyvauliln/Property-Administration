@@ -21,14 +21,6 @@ def print_info(message):
     logger_sms.debug(message)
 
 
-@require_http_methods(["POST"])
-def forward_message2(request):
-    print_info("FORWARD MESSAGE FROM SECOND NUMBER!!!")
-    from_phone = request.POST.get('From', None)
-    print_info(from_phone)
-    print_info(request)
-    return HttpResponse("Success", status=200)
-
 
 @csrf_exempt
 @require_http_methods(["POST"])
