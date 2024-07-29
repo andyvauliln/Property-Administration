@@ -109,9 +109,9 @@ def booking_availability(request):
                     date_obj = date_obj.date() if isinstance(date_obj, datetime) else date_obj
                     
                     # Ensure 'apartment.end_date' is a datetime.date object
-                    end_date = apartment.end_date.date() if isinstance(apartment.end_date, datetime) else apartment.end_date
+                    apart_end_date = apartment.end_date.date() if isinstance(apartment.end_date, datetime) else apartment.end_date
                     
-                    if date_obj > end_date:
+                    if date_obj > apart_end_date:
                         apartment_data['days'][day] = 'Blocked'
                         month_data['blocked_days'] += 1
 
