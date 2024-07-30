@@ -223,9 +223,9 @@ def get_payment_data(request, csv_file, payment_methods, apartments, payment_typ
         if amount_float == 0:
             continue
         elif amount_float > 0:
-            payment_type = payment_types.filter(name="Other", type="In").first()
+            payment_type = payment_types.filter(name="Income").first()
         else:
-            payment_type = payment_types.filter(name="Other", type="Out").first()
+            payment_type = payment_types.filter(name="Expense").first()
 
         ba_bank = payment_methods.filter(name="BA").first()
         payment_data.append({
