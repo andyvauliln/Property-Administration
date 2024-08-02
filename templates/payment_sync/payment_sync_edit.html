@@ -2,7 +2,7 @@
 
 {% if data %}
 <script>
-    const items_json ={{ data.db_payments_json|safe }}
+    const db_payments_json ={{ data.db_payments_json|safe }}
     const file_payments_json ={{ data.file_payments_json|safe }}
     const payment_methods_json ={{ data.payment_methods|safe }}
     const apartments_json = {{ data.apartments|safe }}
@@ -13,7 +13,7 @@
     console.log('payment_methods', payment_methods_dictionary)
     console.log('apartments', apartments_dictionary)
     console.log('payment_types', payment_types_dictionary)
-    console.log("db_payments_json", items_json)
+    console.log("db_payments_json", db_payments_json)
     console.log("file_payments_json", file_payments_json)
     let payments_for_save_to_db = []
 </script>
@@ -35,6 +35,7 @@
                 <input type="hidden" name="edit" value="true">
                 <input type="hidden" name="id" id="editId" value="">
                 <input type="hidden" name="fileId" id="fileId" value="">
+                <input type="hidden" name="merged_payment_key" id="merged_payment_key" value="">
                 <div class="grid gap-4 mb-4 sm:grid-cols-2">
                     {% for field_name, field_instance in data.model_fields %}
                         {% if field_instance.isEdit %}
@@ -98,21 +99,6 @@
         payments_for_save_to_db = payments_for_save_to_db.filter(i => i.id != id)
         updateSavedPayments()
     }
-    {% comment %} function formatDate(dateString) {
-        if (!dateString) {
-            return "";
-        }
-        return dateString;
-
-        const date = new Date(dateString);
-        // Adjust for timezone offset to get the correct date
-        const localDate = new Date(date.getTime() - date.getTimezoneOffset() * 60000);
-        const isoString = localDate.toISOString();
-        const [year, month, day] = isoString.substring(0, 10).split('-');
-
-        return `${month}/${day}/${year}`;
-    } {% endcomment %}
-
     function getAllFormData() {
         const form = document.getElementById('edit_form');
         const formData = new FormData(form);
@@ -166,7 +152,9 @@
         const file_payment = file_payments_json.find(i => i.id === formData.fileId)
         formData.file_date = formData.payment_date;
         formData.file_amount = formData.amount;
-        formData.file_notes = file_payment.notes;
+        if(file_payment){
+            formData.file_notes = file_payment.notes;
+        }
         payments_for_save_to_db.push(formData)
         console.log(formData, 'formData')
         updateSavedPayments()
@@ -255,7 +243,7 @@
         const payment = {}
         let db_payment = {};
         if(db_payment_id){
-            db_payment = items_json.find(i => i.id === db_payment_id);
+            db_payment = db_payments_json.find(i => i.id === db_payment_id);
         }
         if(file_payment_id){
             const file_payment = file_payments_json.find(i => i.id === file_payment_id);
@@ -294,10 +282,6 @@
               
                 const inputFields = updateModal.querySelectorAll(`[name="${fieldName}"]`);
                 inputFields.forEach((inputField) => {
-                    if(fieldName === "notes"){
-                        console.log(fieldName, fieldValue, "notes in foreach")
-                        console.log(inputField.value, 'notes in inputField.value')
-                    }
                     if (inputField.tagName === 'SELECT') {
                         let valueSet = false;
                         for (const option of inputField.options) {
@@ -327,10 +311,8 @@
                         inputField.setAttribute('data-date', formatDate(fieldValue));
                         inputField.value = formatDate(fieldValue);
                     } else if (inputField.tagName === 'TEXTAREA') {
-                        console.log(inputField.value, 'notes before change texarea')
                         inputField.value = "";
                         inputField.value = fieldValue;
-                        console.log(inputField.value, 'notes after change texarea')
                     } else if (inputField.tagName === 'INPUT' && inputField.type === 'checkbox') {
                         inputField.checked = (fieldValue === true || fieldValue === '1');
                     } else {

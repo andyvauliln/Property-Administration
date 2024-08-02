@@ -93,8 +93,11 @@ def remove_handled_payments(db_payments, file_payments):
     # Filter out db_payments with status "Merged"
     db_payments_cleaned = [payment for payment in db_payments if payment.payment_status != "Merged"]
     
-    # Filter out file_payments where merged_payment_key matches any in db_payment_keys
-    file_payments_cleaned = [payment for payment in file_payments if payment['merged_payment_key'] not in db_payment_keys]
+    # Filter out file_payments where merged_payment_key matches or is a substring of any in db_payment_keys
+    file_payments_cleaned = [
+        payment for payment in file_payments 
+        if not any(db_key in payment['merged_payment_key'] for db_key in db_payment_keys)
+    ]
     
     return db_payments_cleaned, file_payments_cleaned
 
@@ -146,7 +149,7 @@ def update_payments(request, payments_to_update):
                     payment.bank_id = payment_info['bank']
                     payment.apartment_id = payment_info['apartment']
                     payment.payment_status = payment_info['payment_status']
-                    payment.merged_payment_key = parse_date(payment_info['file_date']) + str(payment_info['file_amount']) + payment_info['file_notes']
+                    payment.merged_payment_key = payment_info['merged_payment_key'] or (parse_date(payment_info['file_date']) + remove_trailing_zeros_from_str(payment_info['file_amount']) + payment_info['file_notes'])
                     payment.save()
                     messages.success(request, f"Updated Payment: {payment.id}")
                 else:
@@ -160,7 +163,7 @@ def update_payments(request, payments_to_update):
                     payment_method_id=payment_info['payment_method'] or None,
                     bank_id=payment_info['bank'] or None,
                     apartment_id=payment_info['apartment'] or None,
-                    merged_payment_key = parse_date(payment_info['file_date']) + str(payment_info['file_amount']) + payment_info['file_notes'],
+                    merged_payment_key = payment_info['merged_payment_key'] or (parse_date(payment_info['file_date']) + remove_trailing_zeros_from_str(payment_info['file_amount']) + payment_info['file_notes']),
                     payment_status=payment_info['payment_status'],
                 )
                 messages.success(request, f"Created new Payment: {payment.id}")
@@ -263,6 +266,12 @@ def parse_date(date_str):
     except ValueError:
         pass
     
+    # Try parsing with the format '2024-08-01'
+    try:
+        return datetime.strptime(date_str, '%Y-%m-%d').strftime('%m/%d/%Y')
+    except ValueError:
+        pass
+    
     # Try parsing with the format 'July 24 2024'
     try:
         return datetime.strptime(date_str, '%B %d %Y').strftime('%m/%d/%Y')
@@ -339,8 +348,6 @@ def get_matches_db_to_file(file_payment, db_payments, amount_delta, date_delta):
 
     # Sort matches by score in descending order
     matches.sort(key=lambda x: x['score'], reverse=True)
-    return matches
-
     return matches
 
 
