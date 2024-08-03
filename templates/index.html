@@ -10,8 +10,13 @@
 
   <section class="bg-white dark:bg-gray-900"> 
     <div class="pb-8 px-4 mx-auto max-w-screen-xl lg:pb-16 lg:px-6">
-        <div class="mx-auto max-w-screen-md mb-8 lg:mb-12 flex justify-center items-center">
-          <h2 class="text-4xl tracking-tight font-extrabold text-gray-900 dark:text-white mr-4">Calendars</h2>
+        <div class="mx-auto max-w-screen-md mb-8 lg:mb-12 flex justify-center items-center flex-col">
+            <h2 class="text-4xl tracking-tight font-extrabold text-gray-900 dark:text-white mr-4">Calendars</h2>
+            <div class="flex justify-center items-center space-x-2 w-full">
+                <input id="report_start_date" name="report_start_date" datepicker datepicker-format="MM dd yyyy" type="text" value="{{ report_start_date }}" class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white dark:focus:ring-blue-500 dark:focus:border-blue-500" placeholder="Start Date">
+                <input id="report_end_date" name="report_end_date" datepicker datepicker-format="MM dd yyyy" type="text" value="{{ report_end_date }}" class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white dark:focus:ring-blue-500 dark:focus:border-blue-500" placeholder="End Date">
+                <button onclick="getBookingReport()" class="w-full bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded">Get Booking Report</button>
+            </div>
         </div>
         <div class="flex justify-center items-center mb-6">
             <div class="flex items-center mr-2">
@@ -48,7 +53,7 @@
                         </a>
                     </div>
                     <div class="text-center flex justify-center text-gray-500">
-                        <strong class="text-green-500">Start Date: </strong> <span class="font-bold mx-2"> {{ apartment_data.apartment.start_date|format_nullable_date }} </span> - &nbsp;
+                        <strong class="text-green-500">Start Date: </strong> <span class="font-bold mx-2"> {{ apartment_data.apartment.report_start_date|format_nullable_date }} </span> - &nbsp;
                         <strong class="text-green-500">End Date: </strong> <span class="font-bold mx-2">{{ apartment_data.apartment.end_date|format_nullable_date }}</span>
                     </div>
                 </div>
@@ -81,6 +86,15 @@
 </section>
 
 <script>
+
+    function getBookingReport(){
+        const report_start_date = document.getElementById('report_start_date').value;
+        const report_end_date = document.getElementById('report_end_date').value;
+        const url = `/booking-report/?report_start_date=${report_start_date}&report_end_date=${report_end_date}`
+        console.log(url, "url")
+        window.location.href = url
+    }
+
     function formatNullableDate(dateString) {
         // Check if the dateString is null or undefined
         if (dateString === null || dateString === undefined) {

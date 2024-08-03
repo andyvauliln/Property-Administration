@@ -17,6 +17,8 @@ from .utils import generate_weeks, DateEncoder, handle_post_request, get_model_f
 def index(request):
 
     page = request.GET.get('page', 1)
+    report_start_date = request.GET.get('report_start_date', date(2022, 1, 1))
+    report_end_date = request.GET.get('report_end_date', date(date.today().year, 12, 31))
 
     if request.method == 'POST':
         handle_post_request(request, Booking, BookingForm)
@@ -177,6 +179,8 @@ def index(request):
         'bookings': bookings,
         'title': "Dashboard",
         'endpoint': "",
+        'report_start_date': report_start_date.strftime("%B %d %Y"),
+        'report_end_date': report_end_date.strftime("%B %d %Y"),
         # 'today_notifications': today_notifications,
         # 'next_week_notifications': next_week_notifications,
         # 'next_month_notifications': next_month_notifications,
