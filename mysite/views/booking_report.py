@@ -38,7 +38,7 @@ def booking_report(request):
                 return redirect(booking_report_url)
         return redirect(referer_url)
     except Exception as e:
-        print_info(f"Error: Generating Invoice Error, {str(e)}")
+        print_info(f"Error: Generating Booking Report Error, {str(e)}")
         return redirect(referer_url)
 
 
@@ -49,7 +49,7 @@ def generate_excel(bookings, start_date, end_date):
         # Create a new spreadsheet
         spreadsheet_body = {
             'properties': {
-                'title': f"Booking Report: {start_date.strftime('%B %d %Y')} - {end_date.strftime('%B %d %Y')}"
+                'title': f"Booking Report: {start_date} - {end_date}"
             },
             'sheets': [{
                 'properties': {
@@ -72,7 +72,7 @@ def generate_excel(bookings, start_date, end_date):
         excel_link = f'https://docs.google.com/spreadsheets/d/{spreadsheet_id}/edit'
         return excel_link
     except Exception as e:
-        print_info("ERROR: Error while generating Excel Report")
+        print_info("ERROR: Error while generating Excel Report", e)
         return ""
 
 
@@ -109,11 +109,11 @@ def prepare_data(bookings: Booking):
             "booking_id": booking.id,
             "apartment": booking.apartment.name, 
             "tenant": booking.tenant.full_name, 
-            "tenant_number": booking.tenant.tenants_n, 
+            "tenant_number": int(booking.tenants_n) if booking.tenants_n else 0, 
             "booking_days": (booking.end_date - booking.start_date).days, 
             "visit_purpose": booking.visit_purpose, 
             "is_car_rented": booking.is_rent_car,
-            "car_price": booking.car_price, 
+            "car_price": int(booking.car_price) if booking.car_price else 0, 
             "car_rent_days": booking.car_rent_days, 
             "car_model": booking.car_model,
             "animals" : booking.animals,
@@ -171,9 +171,14 @@ def prepare_data(bookings: Booking):
     
     # Calculate car model statistics
     sorted_car_models = sorted(car_models.items(), key=lambda x: x[1], reverse=True)
+    sorted_car_models = sorted(car_models.items(), key=lambda x: x[1], reverse=True)
     top_3_cars_model_name = [model[0] for model in sorted_car_models[:3]]
     top_3_cars_model_count = [model[1] for model in sorted_car_models[:3]]
-    top_3_cars_model_percent = [(count / total_cars_rent) * 100 for count in top_3_cars_model_count]
+    top_3_cars_model_percent = [int((count / total_cars_rent) * 100) for count in top_3_cars_model_count]
+
+    top_3_cars_models = ", ".join(
+        [f"{name}: {count} ({percent}%)" for name, count, percent in zip(top_3_cars_model_name, top_3_cars_model_count, top_3_cars_model_percent)]
+    )
     
     return {
         "data": data,
@@ -181,51 +186,49 @@ def prepare_data(bookings: Booking):
         'total_bookings': total_bookings,
         # Animals
         'total_animals': total_animals,
-        'total_animals_percent': (total_animals / total_bookings) * 100 if total_bookings else 0,
+        'total_animals_percent': int((total_animals / total_bookings) * 100) if total_bookings else 0,
         'total_animals_cats': total_animals_cats,
-        'total_animals_cats_percent': (total_animals_cats / total_animals) * 100 if total_animals else 0,
+        'total_animals_cats_percent': int((total_animals_cats / total_animals) * 100) if total_animals else 0,
         'total_animals_dogs': total_animals_dogs,
-        'total_animals_dogs_percent': (total_animals_dogs / total_animals) * 100 if total_animals else 0,
+        'total_animals_dogs_percent': int((total_animals_dogs / total_animals) * 100) if total_animals else 0,
         'total_animals_other': total_animals_other,
-        'total_animals_other_percent': (total_animals_other / total_animals) * 100 if total_animals else 0,
+        'total_animals_other_percent': int((total_animals_other / total_animals) * 100) if total_animals else 0,
         # Sources
         'total_sources': total_sources,
-        'total_sources_percent': (total_sources / total_bookings) * 100 if total_bookings else 0,
+        'total_sources_percent': int((total_sources / total_bookings) * 100) if total_bookings else 0,
         'total_sources_airbnb': total_sources_airbnb,
-        'total_sources_airbnb_percent': (total_sources_airbnb / total_sources) * 100 if total_sources else 0,
+        'total_sources_airbnb_percent': int((total_sources_airbnb / total_sources) * 100) if total_sources else 0,
         'total_sources_referal': total_sources_referal,
-        'total_sources_referal_percent': (total_sources_referal / total_sources) * 100 if total_sources else 0,
+        'total_sources_referal_percent': int((total_sources_referal / total_sources) * 100) if total_sources else 0,
         'total_sources_returning': total_sources_returning,
-        'total_sources_returning_percent': (total_sources_returning / total_sources) * 100 if total_sources else 0,
+        'total_sources_returning_percent': int((total_sources_returning / total_sources) * 100) if total_sources else 0,
         'total_sources_other': total_sources_other,
-        'total_sources_other_percent': (total_sources_other / total_sources) * 100 if total_sources else 0,
+        'total_sources_other_percent': int((total_sources_other / total_sources) * 100) if total_sources else 0,
         # Cars
         'total_cars_rent': total_cars_rent,
-        'total_cars_rent_percent': (total_cars_rent / total_bookings) * 100 if total_bookings else 0,
-        'top_3_cars_model_name': top_3_cars_model_name,
-        'top_3_cars_model_count': top_3_cars_model_count,
-        'top_3_cars_model_percent': top_3_cars_model_percent,
-        "min_car_rent_price": min(car_prices) if car_prices else 0,
-        "max_car_rent_price": max(car_prices) if car_prices else 0,
-        "avg_car_rent_price": sum(car_prices) / len(car_prices) if car_prices else 0,
-        "min_car_rent_days": min(car_rent_days) if car_rent_days else 0,
-        "max_car_rent_days": max(car_rent_days) if car_rent_days else 0,
-        "avg_car_rent_days": sum(car_rent_days) / len(car_rent_days) if car_rent_days else 0,
+        'total_cars_rent_percent': int((total_cars_rent / total_bookings) * 100) if total_bookings else 0,
+        'top_3_cars_models': top_3_cars_models,
+        "min_car_rent_price": int(min(car_prices)) if car_prices else 0,
+        "max_car_rent_price": int(max(car_prices)) if car_prices else 0,
+        "avg_car_rent_price": int(sum(car_prices) / len(car_prices)) if car_prices else 0,
+        "min_car_rent_days": int(min(car_rent_days)) if car_rent_days else 0,
+        "max_car_rent_days": int(max(car_rent_days)) if car_rent_days else 0,
+        "avg_car_rent_days": int(sum(car_rent_days) / len(car_rent_days)) if car_rent_days else 0,
         # Visit Purpose
         'total_visit_purpose': total_visit_purpose,
-        'total_visit_purpose_percent': (total_visit_purpose / total_bookings) * 100 if total_bookings else 0,
+        'total_visit_purpose_percent': int((total_visit_purpose / total_bookings) * 100) if total_bookings else 0,
         'total_visit_purpose_tourism': total_visit_purpose_tourism,
-        'total_visit_purpose_tourism_percent': (total_visit_purpose_tourism / total_visit_purpose) * 100 if total_visit_purpose else 0,
+        'total_visit_purpose_tourism_percent': int((total_visit_purpose_tourism / total_visit_purpose) * 100) if total_visit_purpose else 0,
         'total_visit_purpose_work': total_visit_purpose_work,
-        'total_visit_purpose_work_percent': (total_visit_purpose_work / total_visit_purpose) * 100 if total_visit_purpose else 0,
+        'total_visit_purpose_work_percent': int((total_visit_purpose_work / total_visit_purpose) * 100) if total_visit_purpose else 0,
         'total_visit_purpose_medical': total_visit_purpose_medical,
-        'total_visit_purpose_medical_percent': (total_visit_purpose_medical / total_visit_purpose) * 100 if total_visit_purpose else 0,
+        'total_visit_purpose_medical_percent': int((total_visit_purpose_medical / total_visit_purpose) * 100) if total_visit_purpose else 0,
         'total_visit_purpose_repair': total_visit_purpose_repair,
-        'total_visit_purpose_repair_percent': (total_visit_purpose_repair / total_visit_purpose) * 100 if total_visit_purpose else 0,
+        'total_visit_purpose_repair_percent': int((total_visit_purpose_repair / total_visit_purpose) * 100) if total_visit_purpose else 0,
         'total_visit_purpose_relocation': total_visit_purpose_relocation,
-        'total_visit_purpose_relocation_percent': (total_visit_purpose_relocation / total_visit_purpose) * 100 if total_visit_purpose else 0,
+        'total_visit_purpose_relocation_percent': int((total_visit_purpose_relocation / total_visit_purpose) * 100) if total_visit_purpose else 0,
         'total_visit_purpose_other': total_visit_purpose_other,
-        'total_visit_purpose_other_percent': (total_visit_purpose_other / total_visit_purpose) * 100 if total_visit_purpose else 0,
+        'total_visit_purpose_other_percent': int((total_visit_purpose_other / total_visit_purpose) * 100) if total_visit_purpose else 0,
     }
 
 
@@ -253,9 +256,7 @@ def insert_report_data(sheets_service, spreadsheet_id, data):
         ["Total Other Sources Percent", data['total_sources_other_percent']],
         ["Total Cars Rented", data['total_cars_rent']],
         ["Total Cars Rented Percent", data['total_cars_rent_percent']],
-        ["Top 3 Car Models", ", ".join(data['top_3_cars_model_name'])],
-        ["Top 3 Car Models Count", ", ".join(map(str, data['top_3_cars_model_count']))],
-        ["Top 3 Car Models Percent", ", ".join(map(str, data['top_3_cars_model_percent']))],
+        ["Top 3 Car Models", data['top_3_cars_models']],
         ["Min Car Rent Price", data['min_car_rent_price']],
         ["Max Car Rent Price", data['max_car_rent_price']],
         ["Avg Car Rent Price", data['avg_car_rent_price']],
@@ -306,7 +307,7 @@ def insert_report_data(sheets_service, spreadsheet_id, data):
         ])
 
     # Define the range where the data will be inserted
-    data_range = 'Sheet1!A1'
+    data_range = 'Booking Report!A1'
 
     # Update the spreadsheet with the report values
     sheets_service.values().update(
@@ -320,7 +321,7 @@ def get_google_sheets_service():
               'https://www.googleapis.com/auth/drive']
     SERVICE_ACCOUNT_FILE = 'google_tokens.json'
 
-    credentials = Credentials.from_service_account_file(
+    credentials = service_account.Credentials.from_service_account_file(
         SERVICE_ACCOUNT_FILE, scopes=SCOPES)
 
     sheets_service = build('sheets', 'v4', credentials=credentials)
