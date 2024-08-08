@@ -149,7 +149,12 @@ def update_payments(request, payments_to_update):
                     payment.bank_id = payment_info['bank']
                     payment.apartment_id = payment_info['apartment']
                     payment.payment_status = payment_info['payment_status']
-                    payment.merged_payment_key = payment_info['merged_payment_key'] or (parse_date(payment_info['file_date']) + remove_trailing_zeros_from_str(payment_info['file_amount']) + payment_info['file_notes'])
+                    merged_payment_key = payment_info.get('merged_payment_key') or (
+                        parse_date(payment_info.get('file_date', '')) + 
+                        remove_trailing_zeros_from_str(payment_info.get('file_amount', '')) + 
+                        payment_info.get('file_notes', '')
+                    )
+                    payment.merged_payment_key = merged_payment_key
                     payment.save()
                     messages.success(request, f"Updated Payment: {payment.id}")
                 else:
@@ -163,7 +168,11 @@ def update_payments(request, payments_to_update):
                     payment_method_id=payment_info['payment_method'] or None,
                     bank_id=payment_info['bank'] or None,
                     apartment_id=payment_info['apartment'] or None,
-                    merged_payment_key = payment_info['merged_payment_key'] or (parse_date(payment_info['file_date']) + remove_trailing_zeros_from_str(payment_info['file_amount']) + payment_info['file_notes']),
+                    merged_payment_key = payment_info.get('merged_payment_key') or (
+                        parse_date(payment_info.get('file_date', '')) + 
+                        remove_trailing_zeros_from_str(payment_info.get('file_amount', '')) + 
+                        payment_info.get('file_notes', '')
+                    ),
                     payment_status=payment_info['payment_status'],
                 )
                 messages.success(request, f"Created new Payment: {payment.id}")
