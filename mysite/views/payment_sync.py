@@ -179,7 +179,8 @@ def update_payments(request, payments_to_update):
         except Exception as e:
             messages.error(request, f"Failed to {'update' if payment_id else 'create'}  payment: {payment_id or ''} due  {str(e)}")
 
-def remove_trailing_zeros_from_str(amount_float):
+def remove_trailing_zeros_from_str(amount_str):
+    amount_float = float(amount_str)
     return ('%f' % abs(amount_float)).rstrip('0').rstrip('.')
 
 def get_payment_data(request, csv_file, payment_methods, apartments, payment_types):
