@@ -1,6 +1,6 @@
 
 from django.shortcuts import render
-from ..models import Apartment, Booking, Cleaning, Payment
+from ..models import Apartment, Booking, Cleaning, Payment, User
 import logging
 from mysite.forms import BookingForm
 from django.db.models import Q
@@ -181,6 +181,7 @@ def index(request):
         'endpoint': "",
         'report_start_date': report_start_date.strftime("%B %d %Y"),
         'report_end_date': report_end_date.strftime("%B %d %Y"),
+        'users_json': json.dumps(list(User.objects.all().values('id', 'full_name', 'email', 'phone')), cls=DateEncoder),
         # 'today_notifications': today_notifications,
         # 'next_week_notifications': next_week_notifications,
         # 'next_month_notifications': next_month_notifications,

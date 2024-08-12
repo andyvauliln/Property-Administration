@@ -122,7 +122,7 @@ def generic_view(request, model_name, form_class, template_name, pages=30):
 
         if hasattr(original_obj, 'assigned_cleaner'):
             item['assigned_cleaner'] = original_obj.assigned_cleaner.id if original_obj.assigned_cleaner else None
-        if hasattr(original_obj, 'tenant'):
+        if hasattr(original_obj, 'tenant') and original_obj.tenant is not None:
             item['tenant_full_name'] = original_obj.tenant.full_name
             item['tenant_email'] = original_obj.tenant.email
             item['tenant_phone'] = original_obj.tenant.phone

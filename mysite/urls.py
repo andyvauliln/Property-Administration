@@ -29,6 +29,7 @@ urlpatterns = [
     path('booking-report/', views.booking_report, name='booking_report'),
     path('payments-sync/', views.sync_payments, name='sync_payments'),
     path('booking-availability/', views.booking_availability, name='booking_availability'),
+    path('create-booking/', views.create_booking_by_link, name='create_booking_by_link'),
     # path('telegram_webhook/', views.forward_telegram, name='telegram_webhook'),
 ]
 

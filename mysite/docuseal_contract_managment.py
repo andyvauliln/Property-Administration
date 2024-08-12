@@ -10,20 +10,21 @@ DOCUSEAL_API_KEY = os.environ.get("DOCUSEAL_API_KEY")
 
 
 def create_contract(booking, template_id):
-    print("template_id", template_id)
     if booking.tenant.email and booking.tenant.email != "not_availabale@gmail.com" and "@example.com" not in booking.tenant.email:
         # Create and send agreement
-        create_and_send_agreement(booking, template_id)
+        create_and_send_agreement(booking, template_id, isSendSms=False)
+    elif booking.tenant.phone and booking.tenant.phone.startswith("+1"):
+        create_and_send_agreement(booking, template_id, isSendSms=True)
     else:
-        raise Exception("Client wasn't notified about contract because of missing email, please add correct tenant email")
+        raise Exception("Client wasn't notified about contract because of missing email or phone, please add correct tenant email or phone")
 
     return booking.contract_url
 
-def create_and_send_agreement(booking, template_id):
+def create_and_send_agreement(booking, template_id, isSendSms):
     try:
         # Get Adobe Sign access token
         print("START CREATE AGREEMENT")
-        data = prepare_data_for_agreement(booking, template_id)
+        data = prepare_data_for_agreement(booking, template_id, isSendSms)
         print("data", data)
 
         headers = {
@@ -53,11 +54,11 @@ def create_and_send_agreement(booking, template_id):
 
 
 
-def prepare_data_for_agreement(booking, template_id):
+def prepare_data_for_agreement(booking, template_id, isSendSms):
     data = {
         "template_id": template_id,
-        "send_email": True,
-        "send_sms": True if booking.tenant.phone and booking.tenant.phone.startswith("+1") else False,
+        "send_email": True if booking.tenant.email and booking.tenant.email != "not_availabale@gmail.com" and "@example.com" not in booking.tenant.email else False,
+        "send_sms": True if isSendSms and booking.tenant.phone and booking.tenant.phone.startswith("+1") else False,
         "submitters": [
             {
                 "role": "tenant",
@@ -92,7 +93,7 @@ def get_fields(booking, template_id):
         return [
                     {"name": "tenant", "default_value": "" if booking.tenant.full_name == "Not Availabale" or booking.tenant.full_name == "" else booking.tenant.full_name, "readonly": False},
                     {"name": "phone", "default_value": booking.tenant.phone or "", "readonly": False},
-                    {"name": "email", "default_value": booking.tenant.email or "", "readonly": False},
+                    {"name": "email", "default_value": booking.tenant.email if booking.tenant.email != "" or booking.tenant.email != "not_availabale@gmail.com" or booking.tenant.email != "@example.com" else "", "readonly": False},
                     {"name": "start_date", "default_value": booking.start_date.strftime('%B %d %Y'), "readonly": True},
                     {"name": "end_date", "default_value": booking.end_date.strftime('%%B %d %Y'), "readonly": True},
                     {"name": 'sender_name', "default_value": f'IT Products development and Marketing LLC',"readonly": True },
@@ -107,7 +108,7 @@ def get_fields(booking, template_id):
         return [           
                     {"name": "tenant", "default_value": "" if booking.tenant.full_name == "Not Availabale" or booking.tenant.full_name == "" else booking.tenant.full_name, "readonly": False},
                     {"name": "phone", "default_value": booking.tenant.phone or "", "readonly": False},
-                    {"name": "email", "default_value": booking.tenant.email or "", "readonly": False},             
+                    {"name": "email", "default_value": booking.tenant.email if booking.tenant.email != "" or booking.tenant.email != "not_availabale@gmail.com" or booking.tenant.email != "@example.com" else "", "readonly": False},
                     {"name": 'owner', "default_value": f'{booking.apartment.owner.full_name}',"readonly": True},
                     {"name": 'sender_name',"default_value": f'IT Products development and Marketing LLC',"readonly": True},
                     {"name": "start_date", "default_value": booking.start_date.strftime('%B %d %Y'), "readonly": True},

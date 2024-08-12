@@ -28,25 +28,16 @@ def convert_date_format(value):
 
 def format_phone(phone):
     if phone:
-        if phone.startswith(('+')):
-            cleaned_phone = re.sub(r'\D', '', phone)
-            cleaned_phone = "+" + cleaned_phone
-            return cleaned_phone
+        cleaned_phone = re.sub(r'\D', '', phone)
+        
+        if phone.startswith('+'):
+            return "+" + cleaned_phone
 
-        elif phone.startswith(('0')):
-            cleaned_phone = re.sub(r'\D', '', phone)
-            cleaned_phone = "+1" + cleaned_phone[1:]
-            return cleaned_phone
-
-        elif phone.startswith(('1')):
-            cleaned_phone = re.sub(r'\D', '', phone)
-            cleaned_phone = "+" + cleaned_phone
-            return cleaned_phone
+        elif phone.startswith('0'):
+            return "+1" + cleaned_phone[1:]
 
         else:
-            cleaned_phone = re.sub(r'\D', '', phone)
-            cleaned_phone = "+1" + cleaned_phone
-            return cleaned_phone
+            return "+" + cleaned_phone
     else:
         return ""
 
@@ -476,17 +467,32 @@ class Booking(models.Model):
         # Schedule a cleaning for the day after the booking ends
         cleaning_date = self.end_date
         assigned_cleaner = form_data.get('assigned_cleaner')
+        
         if assigned_cleaner:
-            cleaning = Cleaning(date=cleaning_date,
-                                booking=self, cleaner=assigned_cleaner)
-            cleaning.save()
+            # Check if assigned_cleaner is an ID (integer)
+            if isinstance(assigned_cleaner, int):
+                try:
+                    assigned_cleaner = User.objects.get(id=assigned_cleaner)
+                except User.DoesNotExist:
+                    assigned_cleaner = None
+            elif isinstance(assigned_cleaner, str) and assigned_cleaner.isdigit():
+                try:
+                    assigned_cleaner = User.objects.get(id=int(assigned_cleaner))
+                except User.DoesNotExist:
+                    assigned_cleaner = None
 
-            notification = Notification(
-                date=cleaning_date,
-                message="Cleaning",
-                cleaning=cleaning,
-            )
-            notification.save()
+            if assigned_cleaner and isinstance(assigned_cleaner, User):
+                cleaning = Cleaning(date=cleaning_date,
+                                    booking=self, cleaner=assigned_cleaner)
+                cleaning.save()
+
+                notification = Notification(
+                    date=cleaning_date,
+                    message="Cleaning",
+                    cleaning=cleaning,
+                )
+                notification.save()
+
 
     def create_payment(self, payment_type_id, amount, payment_date, payment_notes, number_of_months, payment_id, payment_status):
         payment_type_instance = PaymenType.objects.get(pk=payment_type_id)
@@ -517,7 +523,7 @@ class Booking(models.Model):
 
             if payment_type_instance.name == "Damage Deposit":
                 damage_deposit_return_type = PaymenType.objects.get(
-                    name="Damage Deposit Return")
+                    name__icontains="Damage Deposit", type="Out")
                 deposit_payment = Payment.objects.create(
                     payment_type=damage_deposit_return_type, amount=amount, booking=self, notes="Damage Deposit Return",
                     payment_date=self.end_date)

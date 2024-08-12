@@ -58,7 +58,7 @@
                                             {% endfor %}
                                         </div>
                                     {% else %}
-                                        <input type="text" name="{{ field_name }}" value="{{ field_instance.initial }}" class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-primary-600 focus:border-primary-600 block w-full p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white dark:focus:ring-primary-500 dark:focus:border-primary-500" placeholder="{{ field_name|split_underscore|title }}">
+                                        <input type="text" id="{{ field_name }}" name="{{ field_name }}" value="{{ field_instance.initial }}" class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-primary-600 focus:border-primary-600 block w-full p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white dark:focus:ring-primary-500 dark:focus:border-primary-500" placeholder="{{ field_name|split_underscore|title }}">
                                     {% endif %}
                                 </div>
                             {% endif %}
@@ -72,6 +72,28 @@
                     <button type="submit" class="text-white bg-primary-700 hover:bg-primary-800 focus:ring-4 focus:outline-none focus:ring-primary-300 font-medium rounded-lg text-sm px-5 py-2.5 text-center dark:bg-primary-600 dark:hover:bg-primary-700 dark:focus:ring-primary-500">Create</button>
                     <button type="button" onclick='addPaymentRow("create")' id="payment-button" class="text-white bg-primary-700 hover:bg-primary-800 focus:ring-4 focus:outline-none focus:ring-primary-300 font-medium rounded-lg text-sm px-5 py-2.5 text-center dark:bg-primary-600 dark:hover:bg-primary-700 dark:focus:ring-primary-500">Add Payment</button>
                     <button type="button" onclick='addDefaultPayments("create")' id="payment-button" class="text-white bg-primary-700 hover:bg-primary-800 focus:ring-4 focus:outline-none focus:ring-primary-300 font-medium rounded-lg text-sm px-5 py-2.5 text-center dark:bg-primary-600 dark:hover:bg-primary-700 dark:focus:ring-primary-500">Add Default Payments</button>
+                    <button id="user_selector_button" data-dropdown-toggle="users_selector" data-dropdown-placement="bottom" class="text-white justify-between bg-blue-700 hover:bg-blue-800 focus:ring-4 focus:outline-none focus:ring-blue-300 font-medium rounded-lg text-sm px-5 py-2.5 text-center inline-flex items-center dark:bg-blue-600 dark:hover:bg-blue-700 dark:focus:ring-blue-800" type="button">
+                        <div>Select User</div>
+                        <svg class="w-2.5 h-2.5 ms-3" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 10 6">
+                            <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m1 1 4 4 4-4"/>
+                        </svg>
+                    </button>
+                    <div id="users_selector" class="z-10 hidden bg-white rounded-lg shadow dark:bg-gray-700">
+                        <div class="p-3">
+                          <label for="users_search_input" class="sr-only">Search</label>
+                          <div class="relative">
+                            <div class="absolute inset-y-0 rtl:inset-r-0 start-0 flex items-center ps-3 pointer-events-none">
+                              <svg class="w-4 h-4 text-gray-500 dark:text-gray-400" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 20 20">
+                                <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m19 19-4-4m0-7A7 7 0 1 1 1 8a7 7 0 0 1 14 0Z"/>
+                              </svg>
+                            </div>
+                            <input type="text" id="users_search_input" class="block w-full p-2 ps-10 text-sm text-gray-900 border border-gray-300 rounded-lg bg-gray-50 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-600 dark:border-gray-500 dark:placeholder-gray-400 dark:text-white dark:focus:ring-blue-500 dark:focus:border-blue-500" placeholder="Search payments">
+                          </div>
+                        </div>
+                        <ul id="user_list" class="h-48 px-3 pb-3 overflow-y-auto text-sm text-gray-700 dark:text-gray-200" aria-labelledby="user_selector_button">
+                          <!-- Options will be populated by JavaScript -->
+                        </ul>
+                    </div>
                 </div>
             </form>
         </div>
@@ -80,8 +102,47 @@
 
 <script>
 
+    function filterUsers(users, searchValue) {
+        return users.filter(user => 
+            user.full_name && user.full_name.toLowerCase().includes(searchValue.toLowerCase()) || 
+            user.email && user.email.toLowerCase().includes(searchValue.toLowerCase()) || 
+            user.phone && user.phone.toLowerCase().includes(searchValue.toLowerCase())
+        );
+    }
+
+    function updateUsersList(users, listElement) {
+        listElement.innerHTML = users.map(user => `
+            <li>
+                <div class="flex items-center ps-2 rounded hover:bg-gray-100 dark:hover:bg-gray-600">
+                    <input id="user_${user.id}" type="checkbox" value="${user.id}" class="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 dark:focus:ring-blue-600 dark:ring-offset-gray-700 dark:focus:ring-offset-gray-700 focus:ring-2 dark:bg-gray-600 dark:border-gray-500" onchange='onUserCheckboxChange(${JSON.stringify(user)})'>
+                    <label for="user_${user.id}" class="w-full flex flex-col justify-between p-2 text-sm text-gray-900 rounded dark:text-gray-300">
+                        <div class="font-bold">${user.full_name}</div>
+                        <div class="font-bold">${user.email}</div>
+                        <div class="font-bold">${user.phone}</div>
+                    </label>
+                </div>
+            </li>
+        `).join('');
+    }
+
+    function onUserCheckboxChange(user) {
+       const user_name_input = document.getElementById("tenant_full_name");
+       user_name_input.value = user.full_name;
+       const user_email_input = document.getElementById("tenant_email");
+       user_email_input.value = user.email;
+       const user_phone_input = document.getElementById("tenant_phone");
+       user_phone_input.value = user.phone;
+    }
+
     document.addEventListener('DOMContentLoaded', function() {
         var currentUrl = window.location.href;
+        const usersSearchInput = document.getElementById('users_search_input');
+        const userList = document.getElementById('user_list');
+        usersSearchInput.addEventListener('input', function() {
+            const searchValue = usersSearchInput.value;
+            const filteredUsers = filterUsers(users_json, searchValue);
+            updateUsersList(filteredUsers, userList);
+        });
         document.getElementById("create_form").action = currentUrl;
 
         const createModal = document.getElementById('createModal');

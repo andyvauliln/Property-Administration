@@ -68,7 +68,10 @@
         const filePaymentsList = document.getElementById('file_payments_list');
         const dbPaymentsList = document.getElementById('db_payments_list');
         const mergeAllPaymentsButton = document.getElementById('mergeAllPayments');
-
+    
+        let selectedFilePayments = new Set();
+        let selectedDbPayments = new Set();
+    
         function filterPayments(payments, searchValue) {
             return payments.filter(payment => 
                 payment.amount.toString().includes(searchValue) || 
@@ -77,10 +80,9 @@
                 payment_types_dictionary[payment.payment_type].toLowerCase().includes(searchValue.toLowerCase())
             );
         }
-
-        function updatePaymentsList(payments, listElement) {
-            let html = ""
-            db_payments_list
+    
+        function updatePaymentsList(payments, listElement, selectedPayments) {
+            let html = "";
             if (listElement.id === "db_payments_list") {
                 html += `
                 <li>
@@ -91,12 +93,12 @@
                         </label>
                     </div>
                 </li>
-                `
+                `;
             }
             html += payments.map(payment => `
                 <li>
                     <div class="flex items-center ps-2 rounded hover:bg-gray-100 dark:hover:bg-gray-600">
-                        <input id="${listElement.id === 'file_payments_list' ? 'file_payment_' : 'db_payment_'}${payment.id}" type="checkbox" value="${payment.id}" class="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 dark:focus:ring-blue-600 dark:ring-offset-gray-700 dark:focus:ring-offset-gray-700 focus:ring-2 dark:bg-gray-600 dark:border-gray-500">
+                        <input id="${listElement.id === 'file_payments_list' ? 'file_payment_' : 'db_payment_'}${payment.id}" type="checkbox" value="${payment.id}" class="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 dark:focus:ring-blue-600 dark:ring-offset-gray-700 dark:focus:ring-offset-gray-700 focus:ring-2 dark:bg-gray-600 dark:border-gray-500" ${selectedPayments.has(String(payment.id)) ? 'checked' : ''}>
                         <label for="${listElement.id === 'file_payments_list' ? 'file_payment_' : 'db_payment_'}${payment.id}" class="w-full flex flex-col justify-between p-2 text-sm text-gray-900 rounded dark:text-gray-300">
                             <div class="flex w-full justify-between">
                                 <div class="font-bold">${formatDate(payment.payment_date)}</div>
@@ -113,40 +115,58 @@
             `).join('');
             listElement.innerHTML = html;
         }
-
+    
         fileSearchInput.addEventListener('input', function() {
             const searchValue = fileSearchInput.value;
             const filteredPayments = filterPayments(file_payments_json, searchValue);
-            updatePaymentsList(filteredPayments, filePaymentsList);
+            updatePaymentsList(filteredPayments, filePaymentsList, selectedFilePayments);
         });
-
+    
         dbSearchInput.addEventListener('input', function() {
             const searchValue = dbSearchInput.value;
             const filteredPayments = filterPayments(db_payments_json, searchValue);
-            updatePaymentsList(filteredPayments, dbPaymentsList);
+            updatePaymentsList(filteredPayments, dbPaymentsList, selectedDbPayments);
         });
-
+    
         // Initial population of the lists
-        console.log(file_payments_json, filePaymentsList, "file_payments_json");
-        console.log(db_payments_json, dbPaymentsList, "db_payments_json");
-        updatePaymentsList(file_payments_json, filePaymentsList);
-        updatePaymentsList(db_payments_json, dbPaymentsList, true);
-
-         // Merge Payments functionality
-         mergeAllPaymentsButton.addEventListener('click', function() {
-            const selectedFilePayments = Array.from(filePaymentsList.querySelectorAll('input[type="checkbox"]:checked')).map(checkbox => checkbox.value);
-            const selectedDbPayments = Array.from(dbPaymentsList.querySelectorAll('input[type="checkbox"]:checked')).map(checkbox => checkbox.value);
-
-            if (selectedFilePayments.length === 0 || selectedDbPayments.length === 0) {
+        updatePaymentsList(file_payments_json, filePaymentsList, selectedFilePayments);
+        updatePaymentsList(db_payments_json, dbPaymentsList, selectedDbPayments);
+    
+        // Merge Payments functionality
+        mergeAllPaymentsButton.addEventListener('click', function() {
+            const selectedFilePaymentsArray = Array.from(filePaymentsList.querySelectorAll('input[type="checkbox"]:checked')).map(checkbox => checkbox.value);
+            const selectedDbPaymentsArray = Array.from(dbPaymentsList.querySelectorAll('input[type="checkbox"]:checked')).map(checkbox => checkbox.value);
+    
+            if (selectedFilePaymentsArray.length === 0 || selectedDbPaymentsArray.length === 0) {
                 alert('Please select at least one payment from both lists to merge.');
                 return;
-            }
-            else if (selectedFilePayments.length > 1 && selectedDbPayments.length > 1) {
-                alert('It should be one filepayment and multiple dbpayments or one dbpayment and multiple filepayments');
+            } else if (selectedFilePaymentsArray.length > 1 && selectedDbPaymentsArray.length > 1) {
+                alert('It should be one file payment and multiple db payments or one db payment and multiple file payments');
                 return;
             }
-
-            mergePaymentsLists(selectedDbPayments, selectedFilePayments);           
+    
+            mergePaymentsLists(selectedDbPaymentsArray, selectedFilePaymentsArray);
+        });
+    
+        // Track selected payments
+        filePaymentsList.addEventListener('change', function(event) {
+            if (event.target.type === 'checkbox') {
+                if (event.target.checked) {
+                    selectedFilePayments.add(event.target.value);
+                } else {
+                    selectedFilePayments.delete(event.target.value);
+                }
+            }
+        });
+    
+        dbPaymentsList.addEventListener('change', function(event) {
+            if (event.target.type === 'checkbox') {
+                if (event.target.checked) {
+                    selectedDbPayments.add(event.target.value);
+                } else {
+                    selectedDbPayments.delete(event.target.value);
+                }
+            }
         });
     });
 
