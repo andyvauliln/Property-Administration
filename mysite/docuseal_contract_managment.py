@@ -95,7 +95,7 @@ def get_fields(booking, template_id):
                     {"name": "phone", "default_value": booking.tenant.phone or "", "readonly": False},
                     {"name": "email", "default_value": booking.tenant.email if booking.tenant.email != "" or booking.tenant.email != "not_availabale@gmail.com" or booking.tenant.email != "@example.com" else "", "readonly": False},
                     {"name": "start_date", "default_value": booking.start_date.strftime('%B %d %Y'), "readonly": True},
-                    {"name": "end_date", "default_value": booking.end_date.strftime('%%B %d %Y'), "readonly": True},
+                    {"name": "end_date", "default_value": booking.end_date.strftime('%B %d %Y'), "readonly": True},
                     {"name": 'sender_name', "default_value": f'IT Products development and Marketing LLC',"readonly": True },
                     {"name": 'owner', "default_value": f'{booking.apartment.owner.full_name}',"readonly": True},
                     {"name": 'apartment_number',"default_value": f'{booking.apartment.apartment_n}',"readonly": True},
