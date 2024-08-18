@@ -20,6 +20,8 @@ def print_info(message):
     print(message)
     logger_sms.debug(message)
 
+
+
 @csrf_exempt
 @require_http_methods(["POST"])
 def forward_message(request):
@@ -36,8 +38,6 @@ def forward_message(request):
     print_info(f"Manager Phone {manager_phone} \n")
     print_info(f"Manager Phone {manager_phone2} \n")
     print_info(f"Incoming Message {incoming_message} \n")
-
-    client = Client(os.environ["TWILIO_ACCOUNT_SID"], os.environ["TWILIO_AUTH_TOKEN"])
 
     if (from_phone == manager_phone or from_phone == manager_phone2):  # message came from Manager
         if is_phone_number(incoming_message):
@@ -65,11 +65,6 @@ def forward_message(request):
         booking = getBookingByPhone(from_phone)
 
         if booking:
-            conversation = create_conversation(client, "Booking Conversation")
-            add_participant(client, conversation.sid, "Chat", manager_phone)
-            add_participant(client, conversation.sid, "SMS", manager_phone2)
-            add_participant(client, conversation.sid, "SMS", from_phone)
-
             booking_info_message = f'''
                 From: {booking.tenant.full_name}({current_customer_phone})
                 Booking: {booking.start_date} - {booking.end_date}. [{booking.apartment.name}].
@@ -85,23 +80,6 @@ def forward_message(request):
             db_message2 = create_db_message(twilio_phone, manager_phone2, message, None, None, "USER")
             send_sms(message, manager_phone, db_message1)
             return send_sms(message, manager_phone2, db_message2)
-
-def create_conversation(client, friendly_name):
-    conversation = client.conversations.v1.conversations.create(friendly_name=friendly_name)
-    print_info(f"Created conversation with SID: {conversation.sid}")
-    return conversation
-
-def add_participant(client, conversation_sid, participant_type, phone_number):
-    if participant_type == "Chat":
-        client.conversations.v1.conversations(conversation_sid).participants.create(
-            identity=phone_number,
-            messaging_binding_projected_address=os.environ["TWILIO_PHONE"]
-        )
-    elif participant_type == "SMS":
-        client.conversations.v1.conversations(conversation_sid).participants.create(
-            messaging_binding_address=phone_number
-        )
-    print_info(f"Added {participant_type} participant with phone number: {phone_number}")
 
 
 def send_sms(message, recipient, db_message: Chat, count=0):
