@@ -100,15 +100,19 @@
                                     <tr class="border-b hover:bg-gray-100 hover:text-[12px] dark:hover:bg-gray-800 cursor-pointer dark:border-gray-700" data-id="{{ apartment.id }}">
                                         <td class="border-r border-gray-500 p-1 font-bold {% if apartment.apartment_type == 'In Ownership' %}text-purple-500{% elif apartment.apartment_type == '2' %}text-yellow-500{% elif apartment.apartment_type == '3' %}text-red-500{% else %}text-gray-500{% endif %}">{{ apartment.name|default:'' }}</td>
                                         {% for number in 1|range:month_data.days_in_month %}
-                                            <td class="border-r border-gray-500 p-1 relative
-                                            {% if apartment.days|get_dic_item:forloop.counter == 'Confirmed' %} bg-green-500
-                                            {% elif apartment.days|get_dic_item:forloop.counter == 'Waiting Contract' %} bg-yellow-500
-                                            {% elif apartment.days|get_dic_item:forloop.counter == 'Waiting Payment' %} bg-yellow-500
-                                            {% elif apartment.days|get_dic_item:forloop.counter == 'Blocked' %}bg-black
-                                            {% else %} text-white
+                                        <td class="border-r border-gray-500 p-1 relative
+                                            {% if apartment.days|get_dic_item:number|get_dic_item:'status' == 'Confirmed' %} bg-green-500
+                                            {% elif apartment.days|get_dic_item:number|get_dic_item:'status' == 'Waiting Contract' %} bg-yellow-500
+                                            {% elif apartment.days|get_dic_item:number|get_dic_item:'status' == 'Waiting Payment' %} bg-yellow-500
+                                            {% elif apartment.days|get_dic_item:number|get_dic_item:'status' == 'Blocked' %} bg-black
+                                            {% elif apartment.days|get_dic_item:number|get_dic_item:'status' == 'Past' %} bg-gray-300
+                                            {% else %} bg-white
                                             {% endif %}
-                                             text-center">
-                                            <span class="text-blue-600 text-center">{{ forloop.counter }}</span>
+                                            text-center">
+                                            <span class="text-blue-600 text-center">{{ number }}</span>
+                                            {% if apartment.days|get_dic_item:number|get_dic_item:'status' == 'Confirmed' %}
+                                                <div class="tooltip">{{ apartment.days|get_dic_item:number|get_dic_item:'tenant_name' }}</div>
+                                            {% endif %}
                                         </td>
                                     {% endfor %}
                                     </tr>

@@ -1,20 +1,12 @@
-
 from django.shortcuts import render
 from ..models import Apartment, Booking, Payment
-import logging
-from mysite.forms import BookingForm
 from django.db.models import Q
-import json
-from datetime import date, timedelta
-from collections import defaultdict
 from django.utils import timezone
 from dateutil.relativedelta import relativedelta
 from ..decorators import user_has_role
-from .utils import generate_weeks, DateEncoder, handle_post_request, get_model_fields
-from datetime import datetime, timedelta
+from datetime import timedelta
 from calendar import monthrange
-from django.db.models import Prefetch, Q
-
+from django.db.models import Prefetch
 
 @user_has_role('Admin', "Manager")
 def booking_availability(request):
@@ -85,35 +77,33 @@ def booking_availability(request):
                 'apartment_type': apartment.apartment_type,
                 'days': {},
                 'booked_days': 0,
-                
             }
 
             bookings = [b for b in apartment.all_relevant_bookings 
                 if b.start_date <= month_end and b.end_date >= month_start]
-    
+
             apartment_payments = [p for p in apartment.all_relevant_apartment_payments 
                           if month_start <= p.payment_date <= month_end]
 
             for day in range(1, days_in_month + 1):
                 date_obj = current_month.replace(day=day)
-                booking = next((b for b in bookings if b.start_date <= date_obj <= b.end_date), None)
-                if booking:
-                    apartment_data['days'][day] = booking.status
-                    if booking.status == 'Confirmed':
-                        apartment_data['booked_days'] += 1
-                        month_data['month_occupancy'] += 1
-                    if booking.status == 'Blocked':
+                if date_obj < current_date:
+                    apartment_data['days'][day] = {'status': 'Past'}
+                else:
+                    booking = next((b for b in bookings if b.start_date <= date_obj <= b.end_date), None)
+                    if booking:
+                        apartment_data['days'][day] = {'status': booking.status}
+                        if booking.status == 'Confirmed':
+                            apartment_data['days'][day]['tenant_name'] = booking.tenant.full_name  # Include tenant's name
+                            apartment_data['booked_days'] += 1
+                            month_data['month_occupancy'] += 1
+                        if booking.status == 'Blocked':
+                            month_data['blocked_days'] += 1
+                    elif apartment.end_date and date_obj > apartment.end_date.date():
+                        apartment_data['days'][day] = {'status': 'Blocked'}
                         month_data['blocked_days'] += 1
-                elif apartment.end_date:
-                    # Ensure 'date_obj' is a datetime.date object
-                    date_obj = date_obj.date() if isinstance(date_obj, datetime) else date_obj
-                    
-                    # Ensure 'apartment.end_date' is a datetime.date object
-                    apart_end_date = apartment.end_date.date() if isinstance(apartment.end_date, datetime) else apartment.end_date
-                    
-                    if date_obj > apart_end_date:
-                        apartment_data['days'][day] = 'Blocked'
-                        month_data['blocked_days'] += 1
+                    else:
+                        apartment_data['days'][day] = {'status': 'Available'}
 
             # Calculate revenue for this apartment in this month
             apartment_revenue = 0
@@ -154,6 +144,7 @@ def booking_availability(request):
         'prev_page': page_offset - 1,
         'next_page': page_offset + 1,
         'current_year': start_date.year,
+        'current_date': current_date
     }
 
     return render(request, 'booking_availability.html', context)

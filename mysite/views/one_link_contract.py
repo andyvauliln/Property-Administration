@@ -1,7 +1,7 @@
 
 from django.shortcuts import redirect
 from ..decorators import user_has_role
-from mysite.models import Booking, Payment, Apartment
+from mysite.models import Booking, Payment, Apartment, User
 import os
 from django.utils import timezone
 from google.oauth2 import service_account
@@ -11,23 +11,12 @@ from django.db.models import Sum
 from dateutil.relativedelta import relativedelta
 import uuid
 from datetime import datetime
-
-# link: https://property-managment/?
-# apartment=630-18&
-# hold_deposit=100&
-# damage_deposit=100&
-# rent_payment=200&
-# contract_type=1&
-# start_date=2024-05-01&
-# end_date=2024-05-05&
-# phone=1234567890
-# name=John Doe
-# link: https://property-managment/?apartment=630-18&hold_deposit=100&damage_deposit=100&rent_payment=200&contract_type=1&start_date=2024-05-01&end_date=2024-05-05&phone=1234567890&name=John Doe
 from django.http import JsonResponse
 
+#http://68.183.124.79/create-booking/?months=3&apartment=630-113&hold_deposit=100&damage_deposit=100&rent_payment=200&contract_type=1&start_date=2024-08-02&end_date=2024-08-09&phone=+15175681163&name=John%20Doe
 def create_booking_by_link(request):
     try:
-        apartment = request.GET.get('apartment', None)
+        apartment_name = request.GET.get('apartment', None)
         hold_deposit = request.GET.get('hold_deposit', None)
         damage_deposit = request.GET.get('damage_deposit', None)
         rent_payment = request.GET.get('rent_payment', None)
@@ -36,7 +25,27 @@ def create_booking_by_link(request):
         end_date = datetime.strptime(request.GET.get('end_date', None), '%Y-%m-%d').date() if request.GET.get('end_date', None) else None
         phone = request.GET.get('phone', None)
         name = request.GET.get('name', None)
-        apartment = Apartment.objects.get(name=apartment)
+        number_of_months = int(request.GET.get('months', 1))
+
+        try:
+            apartment = Apartment.objects.get(name=apartment_name)
+        except Apartment.DoesNotExist:
+            return JsonResponse({'error': f"Apartment with name '{apartment_name}' does not exist."}, status=400)
+        
+
+        # Check for existing tenant with the same phone number
+        existing_tenant = User.objects.filter(phone=phone).first()
+        tenant_email = existing_tenant.email if existing_tenant else f"tenant_{uuid.uuid4()}@example.com"
+
+        # Existing overlapping bookings check...
+        overlapping_bookings = Booking.objects.filter(
+            apartment=apartment,
+            start_date__lt=end_date,
+            end_date__gt=start_date
+        )
+        if overlapping_bookings.exists():
+            overlapping_booking = overlapping_bookings.first()
+            return JsonResponse({'error': f"The apartment is already booked from {overlapping_booking.start_date} to {overlapping_booking.end_date}."}, status=400)
 
         booking = Booking(
             apartment=apartment,
@@ -47,7 +56,7 @@ def create_booking_by_link(request):
         )
         form_data = {
             'send_contract':  "120946" if contract_type == 1 else "118378",
-            'tenant_email': f"tenant_{uuid.uuid4()}@example.com",
+            'tenant_email': tenant_email,
             'tenant_full_name': name,
             'tenant_phone': phone,
             'assigned_cleaner': 17,
@@ -59,7 +68,7 @@ def create_booking_by_link(request):
             'payment_notes': [],
             'payment_status': ["Pending", "Pending", "Pending"],
             'payment_id': [],
-            'number_of_months': [1, 1, 1],
+            'number_of_months': [number_of_months, 1, 1],
         }
 
         booking.save(form_data=form_data, payments_data=payments_data)
