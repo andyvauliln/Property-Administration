@@ -105,7 +105,7 @@
                                             {% elif apartment.days|get_dic_item:number|get_dic_item:'status' == 'Waiting Contract' %} bg-yellow-500
                                             {% elif apartment.days|get_dic_item:number|get_dic_item:'status' == 'Waiting Payment' %} bg-yellow-500
                                             {% elif apartment.days|get_dic_item:number|get_dic_item:'status' == 'Blocked' %} bg-black
-                                            {% elif apartment.days|get_dic_item:number|get_dic_item:'status' == 'Past' %} bg-gray-300
+                                            {% elif apartment.days|get_dic_item:number|get_dic_item:'status' == 'Available' and apartment.days|get_dic_item:number|get_dic_item:'past' %} bg-gray-300
                                             {% else %} bg-white
                                             {% endif %}
                                             text-center">
@@ -114,13 +114,13 @@
                                                 <div class="tooltip">{{ apartment.days|get_dic_item:number|get_dic_item:'tenant_name' }}</div>
                                             {% endif %}
                                         </td>
-                                    {% endfor %}
+                                        {% endfor %}
                                     </tr>
-                                    {% empty %}
-                                        <tr>
-                                            <td colspan="8" class="text-center py-4">No data found</td>
-                                        </tr>
-                                    {% endfor %}
+                                {% empty %}
+                                    <tr>
+                                        <td colspan="8" class="text-center py-4">No data found</td>
+                                    </tr>
+                                {% endfor %}
                             </tbody>
                             
                         </table>

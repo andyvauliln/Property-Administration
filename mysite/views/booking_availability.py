@@ -87,23 +87,22 @@ def booking_availability(request):
 
             for day in range(1, days_in_month + 1):
                 date_obj = current_month.replace(day=day)
-                if date_obj < current_date:
-                    apartment_data['days'][day] = {'status': 'Past'}
-                else:
-                    booking = next((b for b in bookings if b.start_date <= date_obj <= b.end_date), None)
-                    if booking:
-                        apartment_data['days'][day] = {'status': booking.status}
-                        if booking.status == 'Confirmed':
-                            apartment_data['days'][day]['tenant_name'] = booking.tenant.full_name  # Include tenant's name
-                            apartment_data['booked_days'] += 1
-                            month_data['month_occupancy'] += 1
-                        if booking.status == 'Blocked':
-                            month_data['blocked_days'] += 1
-                    elif apartment.end_date and date_obj > apartment.end_date.date():
-                        apartment_data['days'][day] = {'status': 'Blocked'}
+                booking = next((b for b in bookings if b.start_date <= date_obj <= b.end_date), None)
+                if booking:
+                    apartment_data['days'][day] = {'status': booking.status}
+                    if booking.status == 'Confirmed':
+                        apartment_data['days'][day]['tenant_name'] = booking.tenant.full_name
+                        apartment_data['booked_days'] += 1
+                        month_data['month_occupancy'] += 1
+                    if booking.status == 'Blocked':
                         month_data['blocked_days'] += 1
-                    else:
-                        apartment_data['days'][day] = {'status': 'Available'}
+                elif apartment.end_date and date_obj > apartment.end_date.date():
+                    apartment_data['days'][day] = {'status': 'Blocked'}
+                    month_data['blocked_days'] += 1
+                else:
+                    apartment_data['days'][day] = {'status': 'Available'}
+                    if date_obj < current_date:
+                        apartment_data['days'][day]['past'] = True
 
             # Calculate revenue for this apartment in this month
             apartment_revenue = 0
