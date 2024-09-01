@@ -96,6 +96,8 @@ def booking_availability(request):
                         month_data['month_occupancy'] += 1
                     if booking.status == 'Blocked':
                         month_data['blocked_days'] += 1
+                    if booking.status == 'Waiting Contract' or booking.status == 'Waiting Payment':
+                        apartment_data['days'][day]['tenant_name'] = booking.tenant.full_name
                 elif apartment.end_date and date_obj > apartment.end_date.date():
                     apartment_data['days'][day] = {'status': 'Blocked'}
                     month_data['blocked_days'] += 1

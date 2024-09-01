@@ -29,7 +29,8 @@
     padding: 5px 0;
     position: absolute;
     z-index: 1;
-    bottom: 125%;
+    top: 125%;
+    /* Changed from bottom: 125% to top: 125% */
     left: 50%;
     margin-left: -60px;
     opacity: 0;
@@ -39,13 +40,16 @@
 .tooltip::after {
     content: "";
     position: absolute;
-    top: 100%;
+    bottom: 100%;
+    /* Changed from top: 100% to bottom: 100% */
     left: 50%;
     margin-left: -5px;
     border-width: 5px;
     border-style: solid;
-    border-color: black transparent transparent transparent;
+    border-color: transparent transparent black transparent;
+    /* Changed border color order */
 }
+
 
 td:hover .tooltip {
     visibility: visible;

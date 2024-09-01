@@ -110,7 +110,7 @@
                                             {% endif %}
                                             text-center">
                                             <span class="text-blue-600 text-center">{{ number }}</span>
-                                            {% if apartment.days|get_dic_item:number|get_dic_item:'status' == 'Confirmed' %}
+                                            {% if apartment.days|get_dic_item:number|get_dic_item:'status' == 'Confirmed' or apartment.days|get_dic_item:number|get_dic_item:'status' == 'Waiting Contract' or apartment.days|get_dic_item:number|get_dic_item:'status' == 'Waiting Payment' %}
                                                 <div class="tooltip">{{ apartment.days|get_dic_item:number|get_dic_item:'tenant_name' }}</div>
                                             {% endif %}
                                         </td>
