@@ -29,6 +29,15 @@
                     <option value="Waiting Payment" {% if current_booking_status == 'Waiting Payment' %}selected{% endif %}>Waiting Payment</option>
                     <option value="Blocked" {% if current_booking_status == 'Blocked' %}selected{% endif %}>Blocked</option>
                 </select>
+                <select name="rooms" class="ml-2 bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-primary-500 focus:border-primary-500 block w-full p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white dark:focus:ring-primary-500 dark:focus:border-primary-500">
+                    <option value="" {% if not current_rooms %}selected{% endif %}>Any Rooms</option>
+                    <option value="1" {% if current_rooms == '1' %}selected{% endif %}>1</option>
+                    <option value="2" {% if current_rooms == '2' %}selected{% endif %}>2</option>
+                    <option value="3" {% if current_rooms == '3' %}selected{% endif %}>3</option>
+                    <option value="4" {% if current_rooms == '4' %}selected{% endif %}>4</option>
+                    <option value="5" {% if current_rooms == '5' %}selected{% endif %}>5</option>
+                    <option value="6" {% if current_rooms == '6' %}selected{% endif %}>6</option>
+                </select>
                 <input id="start_date" name="start_date" datepicker datepicker-format="MM dd yyyy" type="text" value="{{ start_date }}" class="ml-2 bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white dark:focus:ring-blue-500 dark:focus:border-blue-500" placeholder="Start Date">
                 <input id="end_date" name="end_date" datepicker datepicker-format="MM dd yyyy" type="text" value="{{ end_date }}" class="ml-2 bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white dark:focus:ring-blue-500 dark:focus:border-blue-500" placeholder="End Date">
                 <div class="flex w-full justify-center items-center mx-2">
@@ -101,15 +110,21 @@
                                         <td class="border-r border-gray-500 p-1 font-bold {% if apartment.apartment_type == 'In Ownership' %}text-purple-500{% elif apartment.apartment_type == '2' %}text-yellow-500{% elif apartment.apartment_type == '3' %}text-red-500{% else %}text-gray-500{% endif %}">{{ apartment.name|default:'' }}</td>
                                         {% for number in 1|range:month_data.days_in_month %}
                                         <td class="border-r border-gray-500 p-1 relative
-                                            {% if apartment.days|get_dic_item:number|get_dic_item:'status' == 'Confirmed' %} bg-green-500
-                                            {% elif apartment.days|get_dic_item:number|get_dic_item:'status' == 'Waiting Contract' %} bg-yellow-500
-                                            {% elif apartment.days|get_dic_item:number|get_dic_item:'status' == 'Waiting Payment' %} bg-yellow-500
-                                            {% elif apartment.days|get_dic_item:number|get_dic_item:'status' == 'Blocked' %} bg-black
-                                            {% elif apartment.days|get_dic_item:number|get_dic_item:'status' == 'Available' and apartment.days|get_dic_item:number|get_dic_item:'past' %} bg-gray-300
-                                            {% else %} bg-white
+                                            {% if apartment.days|get_dic_item:number|get_dic_item:'status' == 'Confirmed' %} bg-green-500 text-white
+                                            {% elif apartment.days|get_dic_item:number|get_dic_item:'status' == 'Waiting Contract' %} bg-yellow-500 text-white
+                                            {% elif apartment.days|get_dic_item:number|get_dic_item:'status' == 'Waiting Payment' %} bg-yellow-500 text-white
+                                            {% elif apartment.days|get_dic_item:number|get_dic_item:'status' == 'Blocked' %} bg-black text-white
+                                            {% elif apartment.days|get_dic_item:number|get_dic_item:'status' == 'Available' and apartment.days|get_dic_item:number|get_dic_item:'past' %} bg-gray-300 text-black
+                                            {% else %} bg-white text-black
                                             {% endif %}
-                                            text-center">
-                                            <span class="text-blue-600 text-center">{{ number }}</span>
+                                            {% if apartment.days|get_dic_item:number|get_dic_item:'is_start' and apartment.days|get_dic_item:number|get_dic_item:'is_end' %} booking-start-end
+                                            {% elif apartment.days|get_dic_item:number|get_dic_item:'is_start' %} booking-start
+                                            {% elif apartment.days|get_dic_item:number|get_dic_item:'is_end' %} booking-end
+                                            {% endif %}
+                                            
+                                            text-center"
+                                           >
+                                            {{ number }}
                                             {% if apartment.days|get_dic_item:number|get_dic_item:'status' == 'Confirmed' or apartment.days|get_dic_item:number|get_dic_item:'status' == 'Waiting Contract' or apartment.days|get_dic_item:number|get_dic_item:'status' == 'Waiting Payment' %}
                                                 <div class="tooltip">{{ apartment.days|get_dic_item:number|get_dic_item:'tenant_name' }}</div>
                                             {% endif %}
@@ -137,14 +152,14 @@
         const endDate = document.getElementById('end_date').value;
         const apartmentType = document.querySelector('[name="apartment_type"]').value;
         const bookingStatus = document.querySelector('[name="booking_status"]').value;
+        const rooms = document.querySelector('[name="rooms"]').value;
       
         let url = '?';
         if (startDate) url += `start_date=${startDate}&`;
         if (endDate) url += `end_date=${endDate}&`;
         if (apartmentType) url += `apartment_type=${apartmentType}&`;
         if (bookingStatus) url += `booking_status=${bookingStatus}&`;
-
-        console.log(url);
+        if (rooms) url += `rooms=${rooms}&`;
         location.href = url;
       
        

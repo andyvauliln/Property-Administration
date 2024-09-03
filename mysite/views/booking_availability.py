@@ -12,6 +12,7 @@ from django.db.models import Prefetch
 def booking_availability(request):
     current_apartment_type = request.GET.get('apartment_type', '')
     booking_status = request.GET.get('booking_status', '')
+    current_rooms = request.GET.get('rooms', None)
     
     # Calculate start and end dates based on the page (6 months)
     current_date = timezone.now().date()
@@ -35,6 +36,7 @@ def booking_availability(request):
 
     # Fetch apartments based on filters
     apartments = Apartment.objects.all()
+    
     apartments = apartments.prefetch_related(
         prefetch_bookings,
         Prefetch('payments',  # Apartment payments
@@ -48,6 +50,9 @@ def booking_availability(request):
 
     if current_apartment_type:
         apartments = apartments.filter(apartment_type=current_apartment_type)
+
+    if current_rooms:
+        apartments = apartments.filter(bedrooms=current_rooms)
 
     # Filter out apartments that are not available during the selected period
     availability_query = Q(start_date__lte=end_date) & (Q(end_date__isnull=True) | Q(end_date__gte=start_date))
@@ -89,7 +94,11 @@ def booking_availability(request):
                 date_obj = current_month.replace(day=day)
                 booking = next((b for b in bookings if b.start_date <= date_obj <= b.end_date), None)
                 if booking:
-                    apartment_data['days'][day] = {'status': booking.status}
+                    apartment_data['days'][day] = {
+                        'status': booking.status,
+                        'is_start': date_obj == booking.start_date,
+                        'is_end': date_obj == booking.end_date,
+                    }
                     if booking.status == 'Confirmed':
                         apartment_data['days'][day]['tenant_name'] = booking.tenant.full_name
                         apartment_data['booked_days'] += 1
@@ -145,7 +154,8 @@ def booking_availability(request):
         'prev_page': page_offset - 1,
         'next_page': page_offset + 1,
         'current_year': start_date.year,
-        'current_date': current_date
+        'current_date': current_date,
+        'current_rooms': current_rooms,
     }
 
     return render(request, 'booking_availability.html', context)

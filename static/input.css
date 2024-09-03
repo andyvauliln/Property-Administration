@@ -55,3 +55,18 @@ td:hover .tooltip {
     visibility: visible;
     opacity: 1;
 }
+
+.booking-start {
+    background: theme('colors.blue.500');
+    color: white !important;
+}
+
+.booking-end {
+    background: theme('colors.purple.500');
+    color: white !important;
+}
+
+.booking-start-end {
+    background: linear-gradient(to right, theme('colors.blue.500') 50%, theme('colors.purple.500') 50%);
+    color: white !important;
+}

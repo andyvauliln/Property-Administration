@@ -2746,6 +2746,21 @@ td:hover .tooltip {
   opacity: 1;
 }
 
+.booking-start {
+  background: #3F83F8;
+  color: white !important;
+}
+
+.booking-end {
+  background: #9061F9;
+  color: white !important;
+}
+
+.booking-start-end {
+  background: linear-gradient(to right, #3F83F8 50%, #9061F9 50%);
+  color: white !important;
+}
+
 .hover\:border-gray-300:hover {
   --tw-border-opacity: 1;
   border-color: rgb(209 213 219 / var(--tw-border-opacity));
