@@ -3,9 +3,10 @@
 {% load custom_filters %}
 {% block content %}
 
-<section class="bg-gray-50 dark:bg-gray-900 p-3 sm:p-5 antialiased">
-    <div class="mx-auto max-w-screen-xl px-4 lg:px-12">
-        <div class="bg-white dark:bg-gray-800 relative shadow-md sm:rounded-lg overflow-hidden">
+<section class="bg-gray-50 dark:bg-gray-900 p-3 sm:p-5 antialiased h-screen flex flex-col">
+    <div class="mx-auto max-w-screen-xl px-4 lg:px-12 flex-grow flex flex-col">
+        <div class="bg-white dark:bg-gray-800 relative shadow-md sm:rounded-lg overflow-hidden flex flex-col flex-grow">
+            
             
             <div class="flex items-center justify-between w-full p-2">
                 {% comment %} <select id="apartment" name="apartment" class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-primary-500 focus:border-primary-500 block w-full p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white dark:focus:ring-primary-500 dark:focus:border-primary-500">
@@ -81,6 +82,7 @@
                     </div>
                 </div>
             </div>
+            <div class="flex-grow overflow-auto">
                 {% for month_data in monthly_data %}
                     <!-- Monthly Report Header with Summaries -->
                     <div class="p-4 flex items-center justify-between bg-zinc-200"> 
@@ -92,7 +94,7 @@
                     </div>
                
                     <!-- Monthly Payments Table -->
-                    <div class="overflow-x-auto">
+
                         <table class="w-full text-[7px] text-left text-gray-500 dark:text-gray-400">
                             <thead class="text-center text-gray-700 uppercase bg-gray-50 dark:bg-gray-700 dark:text-gray-400">
                                 <tr>    
@@ -106,7 +108,7 @@
                             </thead>
                             <tbody>
                                 {% for apartment in month_data.apartments %}
-                                    <tr class="border-b hover:bg-gray-100 hover:text-[12px] dark:hover:bg-gray-800 cursor-pointer dark:border-gray-700" data-id="{{ apartment.id }}">
+                                    <tr class="border-b hover:bg-gray-100 dark:hover:bg-gray-800 cursor-pointer dark:border-gray-700" data-id="{{ apartment.id }}">
                                         <td class="border-r border-gray-500 p-1 font-bold {% if apartment.apartment_type == 'In Ownership' %}text-purple-500{% elif apartment.apartment_type == '2' %}text-yellow-500{% elif apartment.apartment_type == '3' %}text-red-500{% else %}text-gray-500{% endif %}">{{ apartment.name|default:'' }}</td>
                                         {% for number in 1|range:month_data.days_in_month %}
                                         <td class="border-r border-gray-500 p-1 relative
@@ -140,8 +142,9 @@
                             </tbody>
                             
                         </table>
-                    </div>
+
             {% endfor %}
+        </div>
             
         </div>
     </div>

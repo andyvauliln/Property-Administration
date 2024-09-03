@@ -2718,6 +2718,7 @@ input:checked + .toggle-bg {
   text-align: center;
   border-radius: 6px;
   padding: 5px 0;
+  font-size: 12px;
   position: absolute;
   z-index: 1;
   top: 125%;
@@ -2819,10 +2820,6 @@ td:hover .tooltip {
 .hover\:bg-white:hover {
   --tw-bg-opacity: 1;
   background-color: rgb(255 255 255 / var(--tw-bg-opacity));
-}
-
-.hover\:text-\[12px\]:hover {
-  font-size: 12px;
 }
 
 .hover\:text-blue-600:hover {
