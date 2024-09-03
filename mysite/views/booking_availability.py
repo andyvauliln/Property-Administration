@@ -92,28 +92,41 @@ def booking_availability(request):
 
             for day in range(1, days_in_month + 1):
                 date_obj = current_month.replace(day=day)
-                booking = next((b for b in bookings if b.start_date <= date_obj <= b.end_date), None)
-                if booking:
-                    apartment_data['days'][day] = {
-                        'status': booking.status,
-                        'is_start': date_obj == booking.start_date,
-                        'is_end': date_obj == booking.end_date,
-                    }
-                    if booking.status == 'Confirmed':
-                        apartment_data['days'][day]['tenant_name'] = booking.tenant.full_name
-                        apartment_data['booked_days'] += 1
-                        month_data['month_occupancy'] += 1
-                    if booking.status == 'Blocked':
-                        month_data['blocked_days'] += 1
-                    if booking.status == 'Waiting Contract' or booking.status == 'Waiting Payment':
-                        apartment_data['days'][day]['tenant_name'] = booking.tenant.full_name
+                day_bookings = [b for b in bookings if b.start_date <= date_obj <= b.end_date]
+                
+                apartment_data['days'][day] = {
+                    'status': 'Available',
+                    'is_start': False,
+                    'is_end': False,
+                    'tenant_names': []
+                }
+
+                if day_bookings:
+                    statuses = set(b.status for b in day_bookings)
+                    if 'Confirmed' in statuses:
+                        apartment_data['days'][day]['status'] = 'Confirmed'
+                    elif 'Waiting Contract' in statuses or 'Waiting Payment' in statuses:
+                        apartment_data['days'][day]['status'] = 'Pending'
+                    elif 'Blocked' in statuses:
+                        apartment_data['days'][day]['status'] = 'Blocked'
+
+                    apartment_data['days'][day]['is_start'] = any(date_obj == b.start_date for b in day_bookings)
+                    apartment_data['days'][day]['is_end'] = any(date_obj == b.end_date for b in day_bookings)
+
+                    for booking in day_bookings:
+                        if booking.status in ['Confirmed', 'Waiting Contract', 'Waiting Payment']:
+                            apartment_data['days'][day]['tenant_names'].append(booking.tenant.full_name)
+                            if booking.status == 'Confirmed':
+                                apartment_data['booked_days'] += 1
+                                month_data['month_occupancy'] += 1
+                        if booking.status == 'Blocked':
+                            month_data['blocked_days'] += 1
+
                 elif apartment.end_date and date_obj > apartment.end_date.date():
-                    apartment_data['days'][day] = {'status': 'Blocked'}
+                    apartment_data['days'][day]['status'] = 'Blocked'
                     month_data['blocked_days'] += 1
-                else:
-                    apartment_data['days'][day] = {'status': 'Available'}
-                    if date_obj < current_date:
-                        apartment_data['days'][day]['past'] = True
+                elif date_obj < current_date:
+                    apartment_data['days'][day]['past'] = True
 
             # Calculate revenue for this apartment in this month
             apartment_revenue = 0

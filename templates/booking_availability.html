@@ -111,8 +111,7 @@
                                         {% for number in 1|range:month_data.days_in_month %}
                                         <td class="border-r border-gray-500 p-1 relative
                                             {% if apartment.days|get_dic_item:number|get_dic_item:'status' == 'Confirmed' %} bg-green-500 text-white
-                                            {% elif apartment.days|get_dic_item:number|get_dic_item:'status' == 'Waiting Contract' %} bg-yellow-500 text-white
-                                            {% elif apartment.days|get_dic_item:number|get_dic_item:'status' == 'Waiting Payment' %} bg-yellow-500 text-white
+                                            {% elif apartment.days|get_dic_item:number|get_dic_item:'status' == 'Pending' %} bg-yellow-500 text-white
                                             {% elif apartment.days|get_dic_item:number|get_dic_item:'status' == 'Blocked' %} bg-black text-white
                                             {% elif apartment.days|get_dic_item:number|get_dic_item:'status' == 'Available' and apartment.days|get_dic_item:number|get_dic_item:'past' %} bg-gray-300 text-black
                                             {% else %} bg-white text-black
@@ -121,12 +120,14 @@
                                             {% elif apartment.days|get_dic_item:number|get_dic_item:'is_start' %} booking-start
                                             {% elif apartment.days|get_dic_item:number|get_dic_item:'is_end' %} booking-end
                                             {% endif %}
-                                            
-                                            text-center"
-                                           >
+                                            text-center">
                                             {{ number }}
-                                            {% if apartment.days|get_dic_item:number|get_dic_item:'status' == 'Confirmed' or apartment.days|get_dic_item:number|get_dic_item:'status' == 'Waiting Contract' or apartment.days|get_dic_item:number|get_dic_item:'status' == 'Waiting Payment' %}
-                                                <div class="tooltip">{{ apartment.days|get_dic_item:number|get_dic_item:'tenant_name' }}</div>
+                                            {% if apartment.days|get_dic_item:number|get_dic_item:'tenant_names' %}
+                                                <div class="tooltip">
+                                                    {% for tenant_name in apartment.days|get_dic_item:number|get_dic_item:'tenant_names' %}
+                                                        {{ tenant_name }}{% if not forloop.last %}, {% endif %}
+                                                    {% endfor %}
+                                                </div>
                                             {% endif %}
                                         </td>
                                         {% endfor %}
