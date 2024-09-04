@@ -301,7 +301,8 @@ class Booking(models.Model):
                 # Change date for return deposit to the self.end_date
                 Payment.objects.filter(
                     booking=self,
-                    payment_type__name="Damage Deposit Return"
+                    payment_type__name="Damage Deposit",
+                    payment_type__type="Out"
                 ).update(payment_date=self.end_date)
 
                 # Change cleaning date to the self.end_date
@@ -311,7 +312,8 @@ class Booking(models.Model):
 
                 Notification.objects.filter(
                     payment__booking=self,
-                    payment__payment_type__name="Damage Deposit Return"
+                    payment__payment_type__name="Damage Deposit",
+                    payment__payment_type__type="Out"
                 ).update(date=self.end_date)
 
                 # Update Notifications for Cleanings related to this Booking
@@ -387,7 +389,7 @@ class Booking(models.Model):
         payments_to_delete = Payment.objects.filter(
             booking=self,
             payment_date__gt=self.end_date,
-        ).exclude(payment_type__name="Damage Deposit Return")
+        ).exclude(payment_type__name="Damage Deposit", payment_type__type="Out")
 
         # Delete the filtered payments
         payments_to_delete.delete()
@@ -523,10 +525,15 @@ class Booking(models.Model):
 
             if payment_type_instance.name == "Damage Deposit":
                 damage_deposit_return_type = PaymenType.objects.get(
-                    name__icontains="Damage Deposit", type="Out")
-                deposit_payment = Payment.objects.create(
-                    payment_type=damage_deposit_return_type, amount=amount, booking=self, notes="Damage Deposit Return",
+                    name="Damage Deposit", type="Out")
+                if damage_deposit_return_type:
+                    deposit_payment = Payment.objects.create(
+                        payment_type=damage_deposit_return_type, amount=amount, booking=self, notes="Damage Deposit Return",
                     payment_date=self.end_date)
+                else:
+                    error_message = "Damage Deposit Return type not found"
+                    raise Exception(error_message)
+                    
 
                 notification = Notification(
                     date=payment_date,
@@ -641,13 +648,23 @@ class PaymentMethod(models.Model):
 
 class PaymenType(models.Model):
     def __str__(self):
-        return self.name
+        return f"{'+' if self.type == 'In' else '-'} {self.name} ({self.category})"
 
     TYPE = [
         ('In', 'In'),
         ('Out', 'Out'),
     ]
-    name = models.CharField(max_length=50, unique=True)
+    CATEGORY = [
+        ('Operating', 'Operating'),
+        ('None Operating', 'None Operating'),
+    ]
+    BALANCE_SHEET_NAME = [
+        ('Receivables', 'Receivables'),
+        ('Paybels', 'Paybels'),
+    ]
+    name = models.CharField(max_length=50)
+    category = models.CharField(max_length=50, db_index=True, null=True, blank=True, choices=CATEGORY)
+    balance_sheet_name = models.CharField(max_length=50, db_index=True, null=True, blank=True, choices=BALANCE_SHEET_NAME)
     type = models.CharField(max_length=32, db_index=True, choices=TYPE)
 
     created_at = models.DateTimeField(auto_now_add=True)
@@ -656,6 +673,12 @@ class PaymenType(models.Model):
     @property
     def links(self):
         return []
+    @property
+    def full_name(self):
+        return f"{self.name} ({self.category})"
+    @property
+    def full_name2(self):
+        return f"{self.name} ({self.category})-{self.type}"
 
 
 class Payment(models.Model):

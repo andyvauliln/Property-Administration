@@ -357,8 +357,8 @@
                     <div class="w-[150px] flex-shrink-0 flex p-2 border-r items-center justify-center border-gray-300">
                         {{ match_item.file_payment.apartment_name|default:"N/A" }}
                     </div>
-                    <div class="w-[150px] flex-shrink-0 flex p-2 items-center justify-center {% if match_item.file_payment.payment_type_name == 'Expense' %}text-red-500{% else %}text-green-500{% endif %}">
-                        {% if match_item.file_payment.payment_type_name == 'Expense' %}-{% endif %}${{ match_item.file_payment.amount|floatformat:0 }} 
+                    <div class="w-[150px] flex-shrink-0 flex p-2 items-center justify-center {% if match_item.file_payment.payment_type_name == 'Other (Out)' %}text-red-500{% else %}text-green-500{% endif %}">
+                        {% if match_item.file_payment.payment_type_name == 'Other (Out)' %}-{% endif %}${{ match_item.file_payment.amount|floatformat:0 }} 
                     </div>
             </div>
             {% if match_item.matches|length > 0 %}
@@ -399,8 +399,8 @@
                                     <span class="font-bold">DB:</span> {% if match.db_payment.payment_type.type == 'Out' %}-{% endif %}${{ match.db_payment.amount|floatformat:0 }}
                                 </div>
                                 <div class="items-center text-center justify-center {% if not match.amount or match.amount == 'No Match' %}text-red-500{% elif match.amount == 'Exact Match' %}text-green-500{% else %}text-blue-500{% endif %}">{{ match.amount|default:"No Match" }}</div>
-                                <div class="w-[150px] flex-shrink-0 flex p-2 items-center justify-center {% if match_item.file_payment.payment_type_name == 'Expense' %}text-red-500{% else %}text-green-500{% endif %}">
-                                    <span class="font-bold">F:</span> {% if match_item.file_payment.payment_type_name == 'Expense' %}-{% endif %}${{ match_item.file_payment.amount|floatformat:0 }} 
+                                <div class="w-[150px] flex-shrink-0 flex p-2 items-center justify-center {% if match_item.file_payment.payment_type_name == 'Other (Out)' %}text-red-500{% else %}text-green-500{% endif %}">
+                                    <span class="font-bold">F:</span> {% if match_item.file_payment.payment_type_name == 'Other (Out)' %}-{% endif %}${{ match_item.file_payment.amount|floatformat:0 }} 
                                 </div>
                             </div>
                         </div>
@@ -470,8 +470,8 @@
                                     <span class="font-bold">DB:</span> {% if match.db_payment.payment_type.type == 'Out' %}-{% endif %}${{ match.db_payment.amount|floatformat:0 }}
                                 </div>
                                 <div class="items-center text-center justify-center {% if not match.amount or match.amount == 'No Match' %}text-red-500{% elif match.amount == 'Exact Match' %}text-green-500{% else %}text-blue-500{% endif %}">{{ match.amount|default:"No Match" }}</div>
-                                <div class="w-[150px] flex-shrink-0 flex p-2 items-center justify-center {% if match_item.file_payment.payment_type_name == 'Expense' %}text-red-500{% else %}text-green-500{% endif %}">
-                                    <span class="font-bold">F:</span> {% if match_item.file_payment.payment_type_name == 'Expense' %}-{% endif %}${{ match_item.file_payment.amount|floatformat:0 }}
+                                <div class="w-[150px] flex-shrink-0 flex p-2 items-center justify-center {% if match_item.file_payment.payment_type_name == 'Other (Out)' %}text-red-500{% else %}text-green-500{% endif %}">
+                                    <span class="font-bold">F:</span> {% if match_item.file_payment.payment_type_name == 'Other (Out)' %}-{% endif %}${{ match_item.file_payment.amount|floatformat:0 }}
                                 </div>
                             </div>
                         </div>

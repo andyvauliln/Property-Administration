@@ -236,16 +236,16 @@ def get_payment_data(request, csv_file, payment_methods, apartments, payment_typ
         if amount_float == 0:
             continue
         elif amount_float > 0:
-            payment_type = payment_types.filter(name="Income").first()
+            payment_type = payment_types.filter(name="Other", type="In").first()
         else:
-            payment_type = payment_types.filter(name="Expense").first()
+            payment_type = payment_types.filter(name="Other", type="Out").first()
 
         ba_bank = payment_methods.filter(name="BA").first()
         payment_data.append({
             'id': extracted_id or f'id_{idx}',
             'payment_date': datetime.strptime(date.strip(), '%m/%d/%Y'),
             'payment_type': payment_type.id,
-            'payment_type_name': payment_type.name,
+            'payment_type_name': f'{payment_type.name} ({payment_type.type})',
             'notes': description.strip(),
             'amount': abs(amount_float),
             'payment_method': payment_method_to_assign.id if payment_method_to_assign else None,
@@ -304,9 +304,9 @@ def find_possible_matches_db_to_file(db_payments, file_payments, amount_delta, d
 
 def is_payment_type_match(payment_from_db, file_payment):
    if file_payment['payment_type_name'] == "Income":
-       return payment_from_db.payment_type.name in ["Income", "Rent", "Hold Deposit", "Damage Deposit" ]
+       return payment_from_db.payment_type.type == "In"
    elif file_payment['payment_type_name'] == "Expense":
-       return payment_from_db.payment_type.name in ["Expense", "Damage Deposit Return", ]
+       return payment_from_db.payment_type.type == "Out"
 
 
 def get_matches_db_to_file(file_payment, db_payments, amount_delta, date_delta):

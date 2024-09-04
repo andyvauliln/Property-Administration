@@ -6,9 +6,6 @@
 
   <section class="bg-white dark:bg-gray-900"> 
     <div class="pb-8 px-4 mx-auto max-w-screen-xl lg:pb-16 lg:px-6">
-        
-        
-      
         <div class="flex justify-start items-center py-5 ">
             <select  name="type" class="mr-5 filter bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-primary-500 focus:border-primary-500 block w-[200px] p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white dark:focus:ring-primary-500 dark:focus:border-primary-500">
                 <option value="">All Types</option>
@@ -68,10 +65,12 @@
                     <th scope="col" class="px-4 py-4 min-w-[100px] align-top">Pending Expense</th>               
                     <th scope="col" class="px-4 py-4 min-w-[100px] align-top">Pending Revenue</th>               
                     <th scope="col" class="px-4 py-4 min-w-[100px] align-top">Completed Profit</th>               
-                    <th scope="col" class="px-4 py-4 min-w-[100px] align-top">Pending Profit</th>               
+                    <th scope="col" class="px-4 py-4 min-w-[100px] align-top">Pending Profit</th>                             
+                    <th scope="col" class="px-4 py-4 min-w-[100px] align-top">None Oper Expense</th>
+                    <th scope="col" class="px-4 py-4 min-w-[100px] align-top">None Oper Revenue</th>
                     <th scope="col" class="px-4 py-4 min-w-[100px] align-top">AVG Profit</th>               
                     <th scope="col" class="px-4 py-4 min-w-[100px] align-top">AVG Revenue</th>               
-                    <th scope="col" class="px-4 py-4 min-w-[100px] align-top">AVG Expense</th>               
+                    <th scope="col" class="px-4 py-4 min-w-[100px] align-top">AVG Expense</th>                          
                     <th scope="col" class="px-4 py-4 min-w-[100px] align-top">Aprt #</th>               
                 </tr>
             </thead>
@@ -86,7 +85,9 @@
                         <td class="px-4 py-4 min-w-[100px]"> ${{data.month_pending_outcome|format_number}} </td>
                         <td class="px-4 py-4 min-w-[100px]"> ${{data.month_pending_income|format_number}} </td>
                         <td class="px-4 py-4 min-w-[100px]"> ${{data.month_sure_profit|format_number}} </td>
-                        <td class="px-4 py-4 min-w-[100px]"> ${{data.month_expectied_proift|format_number}} </td>
+                        <td class="px-4 py-4 min-w-[100px]"> ${{data.month_pending_proift|format_number}} </td>
+                        <td class="px-4 py-4 min-w-[100px]"> ${{data.month_non_operating_out|format_number}} </td>
+                        <td class="px-4 py-4 min-w-[100px]"> ${{data.month_non_operating_in|format_number}} </td>
                         <td class="px-4 py-4 min-w-[100px]"> ${{data.month_avg_profit|format_number}} </td>
                         <td class="px-4 py-4 min-w-[100px]"> ${{data.month_avg_income|format_number}} </td>
                         <td class="px-4 py-4 min-w-[100px]"> ${{data.month_avg_outcome|format_number}} </td>
@@ -108,7 +109,9 @@
                 <td class="px-4 py-4 min-w-[100px] font-extrabold"> ${{apartments_data.year_pending_outcome|format_number}} </td>
                 <td class="px-4 py-4 min-w-[100px] font-extrabold"> ${{apartments_data.year_pending_income|format_number}} </td>
                 <td class="px-4 py-4 min-w-[100px] font-extrabold"> ${{apartments_data.year_sure_profit|format_number}} </td>
-                <td class="px-4 py-4 min-w-[100px] font-extrabold"> ${{apartments_data.year_expectied_proift|format_number}} </td>
+                <td class="px-4 py-4 min-w-[100px] font-extrabold"> ${{apartments_data.year_pending_profit|format_number}} </td>
+                <td class="px-4 py-4 min-w-[100px] font-extrabold"> ${{apartments_data.year_non_operating_out|format_number}} </td>
+                <td class="px-4 py-4 min-w-[100px] font-extrabold"> ${{apartments_data.year_non_operating_in|format_number}} </td>
                 <td class="px-4 py-4 min-w-[100px] font-extrabold"> ${{apartments_data.year_avg_profit|format_number}} </td>
                 <td class="px-4 py-4 min-w-[100px] font-extrabold"> ${{apartments_data.year_avg_income|format_number}} </td>
                 <td class="px-4 py-4 min-w-[100px] font-extrabold"> ${{apartments_data.year_avg_outcome|format_number}} </td>
@@ -148,6 +151,8 @@
                         <th scope="col" class="px-4 py-4 min-w-[100px] align-top">Pending Revenue</th>
                         <th scope="col" class="px-4 py-4 min-w-[100px] align-top">Completed Profit</th>
                         <th scope="col" class="px-4 py-4 min-w-[100px] align-top">Pending Profit</th>
+                        <th scope="col" class="px-4 py-4 min-w-[100px] align-top">None Oper Expense</th>
+                        <th scope="col" class="px-4 py-4 min-w-[100px] align-top">Non Oper Revenue</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -160,7 +165,9 @@
                             <td class="px-4 py-4 min-w-[100px]">${{ data.month_pending_outcome|format_number }}</td>
                             <td class="px-4 py-4 min-w-[100px]">${{ data.month_pending_income|format_number }}</td>
                             <td class="px-4 py-4 min-w-[100px]">${{ data.month_sure_profit|format_number }}</td>
-                            <td class="px-4 py-4 min-w-[100px]">${{ data.month_total_profit|format_number }}</td>
+                            <td class="px-4 py-4 min-w-[100px]">${{ data.month_pending_profit|format_number }}</td>
+                            <td class="px-4 py-4 min-w-[100px]">${{ data.month_non_operating_out|format_number }}</td>
+                            <td class="px-4 py-4 min-w-[100px]">${{ data.month_non_operating_in|format_number }}</td>
                         </tr>
                     {% endfor %}
                     <tr class="border-b-2 border-t-2 w-full bg-gray-100">
@@ -171,7 +178,9 @@
                         <td class="px-4 py-4 min-w-[100px] font-extrabold">${{ apartment_data.year_pending_outcome|format_number }}</td>
                         <td class="px-4 py-4 min-w-[100px] font-extrabold">${{ apartment_data.year_pending_income|format_number }}</td>
                         <td class="px-4 py-4 min-w-[100px] font-extrabold">${{ apartment_data.year_sure_profit|format_number }}</td>
-                        <td class="px-4 py-4 min-w-[100px] font-extrabold">${{ apartment_data.year_total_profit|format_number }}</td>
+                        <td class="px-4 py-4 min-w-[100px] font-extrabold">${{ apartment_data.year_pending_profit|format_number }}</td>
+                        <td class="px-4 py-4 min-w-[100px] font-extrabold">${{ apartment_data.year_non_operating_out|format_number }}</td>
+                        <td class="px-4 py-4 min-w-[100px] font-extrabold">${{ apartment_data.year_non_operating_in|format_number }}</td>
                     </tr>
                 </tbody>
             </table>

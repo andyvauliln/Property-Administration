@@ -34,9 +34,9 @@
                     <div class="flex flex-col justify-between">
                         <select name="payment_type" class=" bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-primary-500 focus:border-primary-500 block w-full p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white dark:focus:ring-primary-500 dark:focus:border-primary-500">
                             <option value="" >All Payment Types</option>
-                            {% for type_name in payment_types %}
-                                <option value="{{ type_name }}" {% if current_payment_type == type_name %}selected{% endif %}>
-                                    {{ type_name }}
+                            {% for payment_type in payment_types %}
+                                <option value="{{ payment_type.id }}" {% if current_payment_type == payment_type.id %}selected{% endif %}>
+                                    {{ payment_type.full_name2 }}
                                 </option>
                             {% endfor %}
                         </select>
@@ -137,7 +137,7 @@
                                     </td>
                                     <td class="px-4 py-4 font-bold {{ payment.color_class|default:'text-gray-500' }}">
                                         {% if payment.payment_type %}
-                                            {{ payment.payment_type.name }}
+                                            {{ payment.payment_type.full_name }}
                                         {% else %}
                                             
                                         {% endif %}

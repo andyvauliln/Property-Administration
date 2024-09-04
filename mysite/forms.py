@@ -121,12 +121,16 @@ def get_dropdown_options(identifier, isData=False, request=None):
 
     elif identifier == 'payment_type_direction':
         return [{"value": x[0], "label": x[1]} for x in PaymenType.TYPE]
+    elif identifier == 'payment_type_balance_sheet':
+        return [{"value": x[0], "label": x[1]} for x in PaymenType.BALANCE_SHEET_NAME]
+    elif identifier == 'payment_type_category':
+        return [{"value": x[0], "label": x[1]} for x in PaymenType.CATEGORY]
 
     elif identifier == 'payment_type':
         items = PaymenType.objects.all()
         if isData:
             return items
-        return [{"value": item.id, "label": item.name} for item in items]
+        return [{"value": item.id, "label": item.full_name2} for item in items]
 
     elif identifier == 'payment_status':
         return [{"value": x[0], "label": x[1]} for x in Payment.PAYMENT_STATUS]
@@ -552,7 +556,7 @@ class PaymentForm(forms.ModelForm):
         order=7,
         isColumn=True, isEdit=True, isCreate=True, ui_element="radio",
         _dropdown_options=lambda: get_dropdown_options("payment_type"),
-        display_field=["payment_type.name"])
+        display_field=["payment_type.full_name2"])
     bank = ModelChoiceFieldEx(
         queryset=PaymentMethod.objects.all(),
         initial=6,
@@ -718,10 +722,14 @@ class PaymentMethodForm(forms.ModelForm):
 class PaymentTypeForm(forms.ModelForm):
     class Meta:
         model = PaymenType
-        fields = ['name', 'type']
+        fields = ['name', 'type', 'category', 'balance_sheet_name']
 
     name = CharFieldEx(max_length=32, initial="", isColumn=True,
                        isEdit=True, isCreate=True, ui_element="input")
+    balance_sheet_name = ChoiceFieldEx(choices=PaymenType.BALANCE_SHEET_NAME, required=False, initial="Receivables", isColumn=True, isEdit=True, isCreate=True,
+                         ui_element="dropdown", _dropdown_options=lambda: get_dropdown_options("payment_type_balance_sheet"))
+    category = ChoiceFieldEx(choices=PaymenType.CATEGORY, required=False, isColumn=True, initial="Operating", isEdit=True, isCreate=True,
+                         ui_element="dropdown", _dropdown_options=lambda: get_dropdown_options("payment_type_category"))
     type = ChoiceFieldEx(choices=PaymenType.TYPE, isColumn=True, isEdit=True, isCreate=True,
                          ui_element="dropdown", _dropdown_options=lambda: get_dropdown_options("payment_type_direction"))
 
