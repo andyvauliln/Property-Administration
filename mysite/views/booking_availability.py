@@ -7,6 +7,7 @@ from ..decorators import user_has_role
 from datetime import timedelta
 from calendar import monthrange
 from django.db.models import Prefetch
+import datetime
 
 @user_has_role('Admin', "Manager")
 def booking_availability(request):
@@ -26,7 +27,7 @@ def booking_availability(request):
         end_date__gte=start_date
     )
 
-    if booking_status:
+    if booking_status and booking_status != 'Available':
         booking_queryset = booking_queryset.filter(status=booking_status)
 
     booking_queryset = booking_queryset.prefetch_related('payments')
@@ -86,6 +87,15 @@ def booking_availability(request):
 
             bookings = [b for b in apartment.all_relevant_bookings 
                 if b.start_date <= month_end and b.end_date >= month_start]
+
+            # Skip this apartment for this month if booking_status is 'Available' and there are bookings
+            if booking_status == 'Available' and bookings:
+                continue
+             # Check if the apartment has ended
+            if booking_status == 'Available' and apartment.end_date:
+                apartment_end_date = apartment.end_date.date() if hasattr(apartment.end_date, 'date') else apartment.end_date
+                if apartment_end_date < month_end:
+                    continue
 
             apartment_payments = [p for p in apartment.all_relevant_apartment_payments 
                           if month_start <= p.payment_date <= month_end]

@@ -675,10 +675,13 @@ class PaymenType(models.Model):
         return []
     @property
     def full_name(self):
-        return f"{self.name} ({self.category})"
+        category_short = "Op" if self.category == "Operating" else "NOp"
+        return f"{self.name} ({category_short})"
+
     @property
     def full_name2(self):
-        return f"{self.name} ({self.category})-{self.type}"
+        category_short = "Op" if self.category == "Operating" else "NOp"
+        return f"{self.name} ({category_short})-{self.type}"
 
 
 class Payment(models.Model):
