@@ -89,7 +89,7 @@ def booking_availability(request):
                 if b.start_date <= month_end and b.end_date >= month_start]
 
             # Skip this apartment for this month if booking_status is 'Available' and there are bookings
-            if booking_status == 'Available' and bookings:
+            if booking_status == 'Available' and bookings and any(b.start_date <= month_end and b.end_date >= current_date for b in bookings):
                 continue
              # Check if the apartment has ended
             if booking_status == 'Available' and apartment.end_date:

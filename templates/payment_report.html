@@ -9,7 +9,7 @@
             
             <div class="flex items-start justify-between w-full">
                 <div class="grid grid-cols-3 gap-2 w-1/2 p-2">
-                    <div class="flex flex-col justify-between">
+                    <div class="flex flex-col space-y-2">
                         <select id="apartment" name="apartment" class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-primary-500 focus:border-primary-500 block w-full p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white dark:focus:ring-primary-500 dark:focus:border-primary-500">
                             <option value="" {% if not current_apartment %}selected{% endif %}>All Apart Name</option>
                             <option value="None_Booking"  {% if current_apartment == "None_Booking" %}selected{% endif %} >None Booking</option>
@@ -19,8 +19,13 @@
                             {% endfor %}
                         </select>
                         <input id="start_date" name="start_date" datepicker datepicker-format="MM dd yyyy" type="text" value="{{ start_date }}" class="mt-2 bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white dark:focus:ring-blue-500 dark:focus:border-blue-500" placeholder="Start Date">
+                        <select id="payment_category" name="payment_category" class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-primary-500 focus:border-primary-500 block w-full p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white dark:focus:ring-primary-500 dark:focus:border-primary-500">
+                            <option value="" {% if not current_payment_category %}selected{% endif %}>All Payment Category</option>
+                            <option value="Operating"  {% if current_payment_category == "Operating" %}selected{% endif %} >Operating</option>
+                            <option value="None Operating" {% if current_payment_category == "None Operating" %}selected{% endif %}>None Operating</option>
+                        </select>
                     </div>
-                    <div class="flex flex-col justify-between">
+                    <div class="flex flex-col space-y-2">
                         <select name="apartment_type" class=" bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-primary-500 focus:border-primary-500 block w-full p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white dark:focus:ring-primary-500 dark:focus:border-primary-500">
                             <option value="">All Apart Types</option>
                             {% for type_value, type_name in apartment_types %}
@@ -31,7 +36,7 @@
                         </select>
                         <input id="end_date" name="end_date" datepicker datepicker-format="MM dd yyyy" type="text" value="{{ end_date }}" class="mt-2 bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white dark:focus:ring-blue-500 dark:focus:border-blue-500" placeholder="End Date">
                     </div>
-                    <div class="flex flex-col justify-between">
+                    <div class="flex flex-col space-y-2">
                         <select name="payment_type" class=" bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-primary-500 focus:border-primary-500 block w-full p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white dark:focus:ring-primary-500 dark:focus:border-primary-500">
                             <option value="" >All Payment Types</option>
                             {% for payment_type in payment_types %}
@@ -55,7 +60,7 @@
                
             
                 <!-- Stats (shortened) -->
-                <div class="w-full flex items-center flex-col  mx-4 h-24">
+                <div class="w-1/2 flex items-center flex-col  mx-4 h-24">
                     
                     <div class="w-full flex items-center justify-between">
                         <div class="flex flex-col h-full justify-center">   
@@ -227,7 +232,7 @@
         const apartmentType = document.querySelector('[name="apartment_type"]').value;
         const paymentType = document.querySelector('[name="payment_type"]').value;
         const paymentStatus = document.querySelector('[name="payment_status"]').value;
-      
+        const paymentCategory = document.querySelector('[name="payment_category"]').value;
         let url = '?';
         if (startDate) url += `start_date=${startDate}&`;
         if (endDate) url += `end_date=${endDate}&`;
@@ -235,6 +240,7 @@
         if (apartmentType) url += `apartment_type=${apartmentType}&`;
         if (paymentType) url += `payment_type=${paymentType}&`;
         if (paymentStatus) url += `payment_status=${paymentStatus}&`;
+        if (paymentCategory) url += `payment_category=${paymentCategory}&`;
         if (isExcel){ 
             url += `isExcel=${isExcel}`;
             window.open(url, '_blank').focus();

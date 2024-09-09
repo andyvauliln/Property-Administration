@@ -28,6 +28,7 @@ def paymentReport(request):
     payment_type_filter = request.GET.get('payment_type', None)
     apartment_type_filter = request.GET.get('apartment_type', None)
     payment_status_filter = request.GET.get('payment_status', None)
+    payment_category_filter = request.GET.get('payment_category', None)
     isExcel = request.GET.get('isExcel', None)
 
     # Convert the date strings to datetime objects or set to the start and end of the current year
@@ -51,7 +52,14 @@ def paymentReport(request):
 
     payments_within_range = Payment.objects.filter(
         payment_date__range=[start_date, end_date]
-    ).select_related(
+    )
+
+    if payment_category_filter:
+        payments_within_range = payments_within_range.filter(
+            payment_type__category=payment_category_filter
+        )
+
+    payments_within_range = payments_within_range.select_related(
         'payment_type', 'payment_method', 'bank'
     ).order_by(
         'payment_date'
@@ -158,6 +166,7 @@ def paymentReport(request):
         'current_apartment_type': apartment_type_filter,
         'current_payment_status': payment_status_filter,
         'current_payment_type': payment_type_filter,
+        'current_payment_category': payment_category_filter,
         'title': "Payments Report",
     }
 

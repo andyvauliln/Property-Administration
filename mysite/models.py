@@ -648,7 +648,7 @@ class PaymentMethod(models.Model):
 
 class PaymenType(models.Model):
     def __str__(self):
-        return f"{'+' if self.type == 'In' else '-'} {self.name} ({self.category})"
+        return f"{'+' if self.type == 'In' else '-'} {self.name} ({'Op' if self.category == 'Operating' else 'NOp'})"
 
     TYPE = [
         ('In', 'In'),
