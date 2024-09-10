@@ -1,5 +1,5 @@
 from django.shortcuts import render
-from ..models import Apartment, Payment, PaymenType
+from ..models import Apartment, Payment, PaymenType, PaymentMethod
 from datetime import datetime
 import calendar
 from ..decorators import user_has_role
@@ -27,8 +27,10 @@ def paymentReport(request):
     end_date_str = request.GET.get('end_date', None)
     payment_type_filter = request.GET.get('payment_type', None)
     apartment_type_filter = request.GET.get('apartment_type', None)
+    payment_method_filter = request.GET.get('payment_method', None)
     payment_status_filter = request.GET.get('payment_status', None)
     payment_category_filter = request.GET.get('payment_category', None)
+    payment_direction_filter = request.GET.get('payment_direction', None)
     isExcel = request.GET.get('isExcel', None)
 
     # Convert the date strings to datetime objects or set to the start and end of the current year
@@ -49,10 +51,17 @@ def paymentReport(request):
     apartment_types = Apartment.TYPES
     # payment_types = PaymenType.objects.all().values_list('name', flat=True)
     payment_types = PaymenType.objects.all()
+    payment_methods = PaymentMethod.objects.all()
 
     payments_within_range = Payment.objects.filter(
         payment_date__range=[start_date, end_date]
     )
+
+    if payment_direction_filter:
+        if payment_direction_filter == "In":
+            payments_within_range = payments_within_range.filter(payment_type__type="In")
+        elif payment_direction_filter == "Out":
+            payments_within_range = payments_within_range.filter(payment_type__type="Out")
 
     if payment_category_filter:
         payments_within_range = payments_within_range.filter(
@@ -92,6 +101,9 @@ def paymentReport(request):
     if payment_type_filter:
         payments_within_range = [payment for payment in payments_within_range
                                  if payment.payment_type.id == int(payment_type_filter)]
+    if payment_method_filter:
+        payments_within_range = [payment for payment in payments_within_range
+                                 if payment.payment_method and payment.payment_method.id == int(payment_method_filter)]
 
     if payment_status_filter:
         payments_within_range = [payment for payment in payments_within_range
@@ -162,11 +174,14 @@ def paymentReport(request):
         'apartments': apartments,
         'apartment_types': apartment_types,
         'payment_types': payment_types,
+        'payment_methods': payment_methods,
         'current_apartment': apartment_filter,
         'current_apartment_type': apartment_type_filter,
+        'current_payment_method': int(payment_method_filter) if payment_method_filter else None,
         'current_payment_status': payment_status_filter,
         'current_payment_type': payment_type_filter,
         'current_payment_category': payment_category_filter,
+        'current_payment_direction': payment_direction_filter,
         'title': "Payments Report",
     }
 

@@ -35,6 +35,11 @@
                             {% endfor %}
                         </select>
                         <input id="end_date" name="end_date" datepicker datepicker-format="MM dd yyyy" type="text" value="{{ end_date }}" class="mt-2 bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white dark:focus:ring-blue-500 dark:focus:border-blue-500" placeholder="End Date">
+                        <select id="payment_direction" name="payment_direction" class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-primary-500 focus:border-primary-500 block w-full p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white dark:focus:ring-primary-500 dark:focus:border-primary-500">
+                            <option value="" {% if not current_payment_direction %}selected{% endif %}>All Payment Direction</option>
+                            <option value="In"  {% if current_payment_direction == "In" %}selected{% endif %} >In</option>
+                            <option value="Out" {% if current_payment_direction == "Out" %}selected{% endif %}>Out</option>
+                        </select>
                     </div>
                     <div class="flex flex-col space-y-2">
                         <select name="payment_type" class=" bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-primary-500 focus:border-primary-500 block w-full p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white dark:focus:ring-primary-500 dark:focus:border-primary-500">
@@ -51,7 +56,14 @@
                             <option value="Completed" {% if current_payment_status == 'Completed' %}selected{% endif %}>Completed</option>
                             <option value="Merged" {% if current_payment_status == 'Merged' %}selected{% endif %}>Merged</option>
                         </select>
-                        
+                        <select id="payment_method" name="payment_method" class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-primary-500 focus:border-primary-500 block w-full p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white dark:focus:ring-primary-500 dark:focus:border-primary-500">
+                            <option value="" {% if not current_payment_method %}selected{% endif %}>All Payment Method</option>
+                            {% for payment_method in payment_methods %}
+                                <option value="{{ payment_method.id }}" {% if current_payment_method == payment_method.id %}selected{% endif %}>
+                                    {{ payment_method.name }}
+                                </option>
+                            {% endfor %}
+                        </select>
 
                     </div>
                 </div>
@@ -231,16 +243,20 @@
         const apartment = document.getElementById('apartment').value;
         const apartmentType = document.querySelector('[name="apartment_type"]').value;
         const paymentType = document.querySelector('[name="payment_type"]').value;
+        const paymentMethod = document.querySelector('[name="payment_method"]').value;
         const paymentStatus = document.querySelector('[name="payment_status"]').value;
         const paymentCategory = document.querySelector('[name="payment_category"]').value;
+        const paymentDirection = document.querySelector('[name="payment_direction"]').value;
         let url = '?';
         if (startDate) url += `start_date=${startDate}&`;
         if (endDate) url += `end_date=${endDate}&`;
         if (apartment) url += `apartment=${apartment}&`;
         if (apartmentType) url += `apartment_type=${apartmentType}&`;
         if (paymentType) url += `payment_type=${paymentType}&`;
+        if (paymentMethod) url += `payment_method=${paymentMethod}&`;
         if (paymentStatus) url += `payment_status=${paymentStatus}&`;
         if (paymentCategory) url += `payment_category=${paymentCategory}&`;
+        if (paymentDirection) url += `payment_direction=${paymentDirection}&`;
         if (isExcel){ 
             url += `isExcel=${isExcel}`;
             window.open(url, '_blank').focus();

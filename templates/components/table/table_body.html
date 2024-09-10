@@ -17,6 +17,15 @@
                             {{ item|get_item:field_name }}
                         {% endif %}
                     </td>
+                    {% elif field_name == "amount" %}
+                        {% with payment_type=item|get_custom_item:"payment_type.full_name2"|default:"" %}
+                            {% if "-Out" in payment_type %}
+                                <td class="px-4 py-4 text-red-600">-{{ item|get_item:field_name }}</td>
+                            {% else %}
+                                <td class="px-4 text-green-600 py-4">+{{ item|get_item:field_name }}</td>
+                            {% endif %}
+                        {% endwith %}
+                    
                     {% elif field_instance.display_field %}
                     {% for display in field_instance.display_field %}
                         {% if display == "apartment.name" and "booking.apartment.name" in field_instance.display_field %}
