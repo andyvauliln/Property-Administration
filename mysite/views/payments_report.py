@@ -229,8 +229,8 @@ def insert_summary_data(sheets_service, spreadsheet_id, summary):
     summary_values = [
         ['Completed Revenue:', f"${summary['total_income']}"],
         ['Pending Revenue:', f"${summary['total_pending_income']}"],
-        ['Expense:', f"${summary['total_expense']}"],
-        ['Pending Expense:', f"${summary['total_pending_outcome']}"],
+        ['Expense:', f"-${summary['total_expense']}"],
+        ['Pending Expense:', f"-${summary['total_pending_outcome']}"],
         ['Profit:', f"${summary['total_profit']}"],
         ['Pending Profit:', f"${summary['total_pending_profit']}"]
     ]
@@ -254,8 +254,8 @@ def insert_monthly_data_report(sheets_service, spreadsheet_id, month_data):
         [f"{month_data['month_name']} Report"],
         ["Completed Revenue:", f"${month_data['income']}"],
         ["Pending Revenue:", f"${month_data['pending_income']}"],
-        ["Expense:", f"${month_data['outcome']}"],
-        ["Pending Expense:", f"${month_data['pending_outcome']}"],
+        ["Expense:", f"-${month_data['outcome']}"],
+        ["Pending Expense:", f"-${month_data['pending_outcome']}"],
         ["Profit:", f"${month_data['profit']}"],
         ["Pending Profit:", f"${month_data['pending_profit']}"],
         [],  # Empty row for spacing
@@ -264,12 +264,20 @@ def insert_monthly_data_report(sheets_service, spreadsheet_id, month_data):
     ]
     # Append payment details to summary values
     for payment in month_data['payments']:
+        amount = payment.amount
+        if payment.payment_type.type == "Out":
+            amount = -amount  # Make the amount negative for "Out" payments
+        
         month_summary_values.append([
-            str(
-                payment.payment_date), payment.notes, f"${payment.amount}", payment.payment_type.name,
-            payment.payment_method.name if payment.payment_method else '', payment.bank.name if payment.bank else '',
+            str(payment.payment_date), 
+            payment.notes, 
+            f"${amount:.2f}",  # Format amount with 2 decimal places
+            payment.payment_type.name,
+            payment.payment_method.name if payment.payment_method else '', 
+            payment.bank.name if payment.bank else '',
             payment.booking.apartment.name if payment.booking and payment.booking.apartment else '',
-            payment.booking.tenant.full_name if payment.booking else '', payment.payment_status
+            payment.booking.tenant.full_name if payment.booking else '', 
+            payment.payment_status
         ])
 
     # Insert data into the month sheet

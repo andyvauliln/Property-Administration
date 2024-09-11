@@ -576,7 +576,7 @@ class Booking(models.Model):
         payment_str = ""
         for payment in payments:
             formatted_date = payment.payment_date.strftime("%B %d %Y")
-            payment_str += f"{payment.payment_type}: ${payment.amount}, {formatted_date} \n"
+            payment_str += f"{payment.payment_type.name}: ${payment.amount}, {formatted_date} \n"
         return payment_str
 
     @property

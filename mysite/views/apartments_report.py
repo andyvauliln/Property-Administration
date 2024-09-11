@@ -76,8 +76,7 @@ def apartments_analytics(request):
 
     for i in range(12):
         month_date = start_date + relativedelta(months=i)
-        next_month_date = month_date + \
-            relativedelta(months=1) - relativedelta(days=1)
+        next_month_date = month_date + relativedelta(months=1) - timedelta(days=1)
 
         # Filter bookings and payments for the current month
         bookings_for_month = bookings.filter(
@@ -87,10 +86,35 @@ def apartments_analytics(request):
 
         month_income, month_outcome, month_pending_income, month_pending_outcome = aggregate_data(
             payments_for_month)
-        total_days_in_month = next_month_date.day
 
-        total_booked_days = calculate_total_booked_days(
-            bookings_for_month, month_date, next_month_date)
+        # Filter apartments available in this month
+        available_apartments = selected_apartments.filter(
+            Q(start_date__lte=next_month_date) &
+            (Q(end_date__gte=month_date) | Q(end_date__isnull=True))
+        ).exclude(name="Additional rental income")
+
+        total_available_days = 0
+        total_booked_days = 0
+
+        for apartment in available_apartments:
+            # Calculate available days for this apartment in this month
+            apt_start = max(apartment.start_date.date() if apartment.start_date else month_date, month_date)
+            apt_end = min(apartment.end_date.date() if apartment.end_date else date(9999, 12, 31), next_month_date)
+            available_days = (apt_end - apt_start).days + 1
+            total_available_days += available_days
+
+            # Calculate booked days for this apartment in this month
+            apartment_bookings = bookings_for_month.filter(apartment=apartment)
+            booked_days = calculate_unique_booked_days(apartment_bookings, month_date, next_month_date)
+            total_booked_days += booked_days
+
+        num_apartments = available_apartments.count()
+        total_days_in_month = (next_month_date - month_date).days + 1
+
+        if total_available_days > 0:
+            month_occupancy = round((total_booked_days / total_available_days) * 100)
+        else:
+            month_occupancy = 0
 
         month_sure_profit = month_income - month_outcome
         month_pending_profit = month_pending_income - month_pending_outcome
@@ -98,27 +122,18 @@ def apartments_analytics(request):
         operational_in, operational_out, non_operational_in, non_operational_out = aggregate_profit_by_category(
             payments_for_month)
 
-        target_apartments = selected_apartments.filter(
-            Q(start_date__lte=next_month_date) &
-            (Q(end_date__gte=month_date) | Q(end_date__isnull=True))
-        )
-
-        apartment_names = target_apartments.values_list(
-            'name', flat=True)
-        num_apartments = target_apartments.count()
+        apartment_names = list(available_apartments.values_list('name', flat=True))
 
         if num_apartments > 0:
             month_avg_income = round(month_income / num_apartments)
             month_avg_profit = round(
                 (month_income + month_pending_income - month_outcome - month_pending_outcome) / num_apartments)
             month_avg_outcome = round(month_outcome / num_apartments)
-            month_occupancy = round(
-                (total_booked_days / (total_days_in_month * num_apartments)) * 100)
         else:
-            month_occupancy = 0
             month_avg_income = 0
             month_avg_outcome = 0
             month_avg_profit = 0
+
 
         apartments_month_data.append({
             'date': month_date.strftime('%b'),
@@ -135,7 +150,7 @@ def apartments_analytics(request):
             'month_apartments_length': num_apartments,
             'apartment_names': apartment_names,
             'month_total_booked_days': total_booked_days,
-            'month_total_days': total_days_in_month * num_apartments,
+            'month_total_days': total_available_days,
             'month_non_operating_out': non_operational_out,
             'month_non_operating_in': non_operational_in,
         })
@@ -204,7 +219,6 @@ def apartments_analytics(request):
                 max_month = apartment.end_date.month
 
             num_month = max_month - min_month
-            print(num_month, "num_month")
 
             for i in range(12):
                 month_date = start_date + relativedelta(months=i)

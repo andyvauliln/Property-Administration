@@ -11,7 +11,6 @@ from django.db.models import Case, When
 from decimal import Decimal
 from django.core.serializers.json import DjangoJSONEncoder
 
-
 def handle_post_request(request, model, form_class):
     try:
         if 'edit' in request.POST:
@@ -279,10 +278,8 @@ def calculate_total_booked_days(bookings, month_start, month_end):
         booking_end = min(booking.end_date, month_end)
 
         # Calculate the number of days booked for this booking and store each date
-
         current_date = booking_start
         while current_date <= booking_end:
-
             if current_date not in booked_data_by_apartment[booking.apartment.name]["booked_dates"]:
                 booked_data_by_apartment[booking.apartment.name]["total_days"] += 1
                 totalnumber += 1
