@@ -7,6 +7,7 @@ import requests
 import uuid
 from datetime import datetime
 from django.utils import timezone
+from django.db.models import Case, When, Value, IntegerField
 
 class CustomUserLoginForm(AuthenticationForm):
     username = forms.EmailField(
@@ -127,7 +128,15 @@ def get_dropdown_options(identifier, isData=False, request=None):
         return [{"value": x[0], "label": x[1]} for x in PaymenType.CATEGORY]
 
     elif identifier == 'payment_type':
-        items = PaymenType.objects.all()
+        items = PaymenType.objects.annotate(
+            type_order=Case(
+                When(type='In', then=Value(1)),
+                When(type='Out', then=Value(2)),
+                default=Value(3),
+                output_field=IntegerField(),
+            )
+        ).order_by('type_order', 'name')
+        
         if isData:
             return items
         return [{"value": item.id, "label": item.full_name2} for item in items]

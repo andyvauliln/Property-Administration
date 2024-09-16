@@ -109,8 +109,12 @@
                             </thead>
                             <tbody>
                                 {% for apartment in month_data.apartments %}
-                                    <tr class="border-b hover:text-xl cursor-pointer dark:border-gray-700" data-id="{{ apartment.id }}">
-                                        <td class="border-r border-gray-500 p-1 font-bold {% if apartment.apartment_type == 'In Ownership' %}text-purple-500{% elif apartment.apartment_type == '2' %}text-yellow-500{% elif apartment.apartment_type == '3' %}text-red-500{% else %}text-gray-500{% endif %}">{{ apartment.name|default:'' }}</td>
+                                <tr class="border-b hover:text-xl cursor-pointer dark:border-gray-700" data-id="{{ apartment.id }}">
+                                        <td class="border-r border-gray-500 p-1 font-bold {% if apartment.apartment_type == 'In Ownership' %}text-purple-500{% elif apartment.apartment_type == '2' %}text-yellow-500{% elif apartment.apartment_type == '3' %}text-red-500{% else %}text-gray-500{% endif %}">
+                                            <a href="/apartments/?q=id={{ apartment.id }}" class="hover:underline hover:text-blue-500">
+                                                {{ apartment.name|default:'' }}
+                                            </a>
+                                        </td>
                                         {% for number in 1|range:month_data.days_in_month %}
                                         <td class="border-r border-gray-500 p-1 relative
                                             {% if apartment.days|get_dic_item:number|get_dic_item:'status' == 'Confirmed' %} bg-green-500 text-white
