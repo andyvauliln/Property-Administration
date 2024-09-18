@@ -56,7 +56,11 @@ def booking_availability(request):
         apartments = apartments.filter(bedrooms=current_rooms)
 
     # Filter out apartments that are not available during the selected period
-    availability_query = Q(start_date__lte=end_date) & (Q(end_date__isnull=True) | Q(end_date__gte=start_date))
+    availability_query = Q(
+        Q(start_date__isnull=True) | Q(start_date__lte=end_date)
+    ) & (
+        Q(end_date__isnull=True) | Q(end_date__gte=start_date)
+    )
     apartments = apartments.filter(availability_query)
     
     # Prepare monthly data
@@ -83,6 +87,8 @@ def booking_availability(request):
                 'apartment_type': apartment.apartment_type,
                 'days': {},
                 'booked_days': 0,
+                'start_date': apartment.start_date,
+                'end_date': apartment.end_date,
             }
 
             bookings = [b for b in apartment.all_relevant_bookings 
@@ -91,14 +97,15 @@ def booking_availability(request):
             # Skip this apartment for this month if booking_status is 'Available' and there are bookings
             if booking_status == 'Available' and bookings and any(b.start_date <= month_end and b.end_date >= current_date for b in bookings):
                 continue
-             # Check if the apartment has ended
+
+            # Check if the apartment has ended
             if booking_status == 'Available' and apartment.end_date:
                 apartment_end_date = apartment.end_date.date() if hasattr(apartment.end_date, 'date') else apartment.end_date
-                if apartment_end_date < month_end:
+                if apartment_end_date < month_start:
                     continue
 
             apartment_payments = [p for p in apartment.all_relevant_apartment_payments 
-                          if month_start <= p.payment_date <= month_end]
+                        if month_start <= p.payment_date <= month_end]
 
             for day in range(1, days_in_month + 1):
                 date_obj = current_month.replace(day=day)
@@ -111,7 +118,11 @@ def booking_availability(request):
                     'tenant_names': []
                 }
 
-                if day_bookings:
+                # Check if the apartment is available on this date
+                if apartment.start_date and date_obj < apartment.start_date.date():
+                    apartment_data['days'][day]['status'] = 'Blocked'
+                    month_data['blocked_days'] += 1
+                elif day_bookings:
                     statuses = set(b.status for b in day_bookings)
                     if 'Confirmed' in statuses:
                         apartment_data['days'][day]['status'] = 'Confirmed'
@@ -131,7 +142,6 @@ def booking_availability(request):
                                 month_data['month_occupancy'] += 1
                         if booking.status == 'Blocked':
                             month_data['blocked_days'] += 1
-
                 elif apartment.end_date and date_obj > apartment.end_date.date():
                     apartment_data['days'][day]['status'] = 'Blocked'
                     month_data['blocked_days'] += 1
@@ -149,7 +159,7 @@ def booking_availability(request):
 
             # Add apartment payments
             apartment_revenue += sum(p.amount if p.payment_type.type == "In" else -p.amount 
-                                     for p in apartment_payments)
+                                    for p in apartment_payments)
 
             month_data['month_revenue'] += apartment_revenue
             apartment_data['revenue'] = apartment_revenue
