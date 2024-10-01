@@ -78,6 +78,7 @@ def booking_availability(request):
             'month_occupancy': 0,
             'days_in_month': days_in_month,
             'blocked_days': 0,
+            'pending_days': 0,
         }
 
         for apartment in apartments:
@@ -127,9 +128,11 @@ def booking_availability(request):
                     if 'Confirmed' in statuses:
                         apartment_data['days'][day]['status'] = 'Confirmed'
                     elif 'Waiting Contract' in statuses or 'Waiting Payment' in statuses:
-                        apartment_data['days'][day]['status'] = 'Pending'
+                        apartment_data['days'][day]['status'] = 'Waiting'
                     elif 'Blocked' in statuses:
                         apartment_data['days'][day]['status'] = 'Blocked'
+                    elif 'Pending' in statuses:
+                        apartment_data['days'][day]['status'] = 'Pending'
 
                     apartment_data['days'][day]['is_start'] = any(date_obj == b.start_date for b in day_bookings)
                     apartment_data['days'][day]['is_end'] = any(date_obj == b.end_date for b in day_bookings)
@@ -142,6 +145,8 @@ def booking_availability(request):
                                 month_data['month_occupancy'] += 1
                         if booking.status == 'Blocked':
                             month_data['blocked_days'] += 1
+                        if booking.status == 'Pending':
+                            month_data['pending_days'] += 1
                 elif apartment.end_date and date_obj > apartment.end_date.date():
                     apartment_data['days'][day]['status'] = 'Blocked'
                     month_data['blocked_days'] += 1
