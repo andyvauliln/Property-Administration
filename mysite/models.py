@@ -396,7 +396,6 @@ class Booking(models.Model):
         payments_to_delete.delete()
 
     def delete(self, *args, **kwargs):
-
         if self.contract_id != "" and self.contract_id != None:
             delete_contract(self.contract_id)
 
@@ -931,22 +930,21 @@ class Notification(models.Model):
 class Chat(models.Model):
     SENDER_TYPE = [
         ('USER', 'USER'),
-        ('SYSTEM', 'SYSTEM'),
-        ('MANAGER', 'MANAGER'),
-        ('GPT_GESS', 'GPT_GESS'),
-        ('GPT_APPROVED', 'GPT_APPROVED'),
+        ('MANAGER1', 'MANAGER1'),
+        ('MANAGER2', 'MANAGER2'),
+        ('GPT BOT', 'GPT BOT'),
     ]
     MESSAGE_TYPE = [
         ('NO_NEED_ACTION', 'NO_NEED_ACTION'),
+        ('NEED_ACTION', 'NEED_ACTION'),
         ('DB', 'DB'),
         ('KNOWLEDGE_BASE', 'KNOWLEDGE_BASE'),
         ('NOTIFICATION', 'NOTIFICATION'),
+        ('CONTRACT', 'CONTRACT'),
     ]
     MESSAGE_STATUS = [
         ('ERROR', 'ERROR'),
         ('SENDED', 'SENDED'),
-        ('NEED_ANSWERE', 'NEED_ANSWERE'),
-        ('ANSWERED', 'ANSWERED'),
     ]
     sender_phone = models.CharField(max_length=20, blank=True, null=True)
     receiver_phone = models.CharField(max_length=20, blank=True, null=True)
@@ -961,3 +959,4 @@ class Chat(models.Model):
         max_length=32, db_index=True, choices=MESSAGE_TYPE, default='NO_NEED_ACTION', null=True, blank=True)
     message_status = models.CharField(
         max_length=32, db_index=True, choices=MESSAGE_STATUS, default='SENDED')
+

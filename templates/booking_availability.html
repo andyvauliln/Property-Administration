@@ -123,8 +123,8 @@
                                         {% for number in 1|range:month_data.days_in_month %}
                                         <td class="border-r border-gray-500 p-1 relative
                                             {% if apartment.days|get_dic_item:number|get_dic_item:'status' == 'Confirmed' %} bg-green-500 text-white
-                                            {% elif apartment.days|get_dic_item:number|get_dic_item:'status' == 'Pending' %} bg-yellow-500 text-white
-                                            {% elif apartment.days|get_dic_item:number|get_dic_item:'status' == 'Waiting' %} bg-yellow-300 text-white
+                                            {% elif apartment.days|get_dic_item:number|get_dic_item:'status' == 'Pending' %} bg-yellow-300 text-white
+                                            {% elif apartment.days|get_dic_item:number|get_dic_item:'status' == 'Waiting' %} bg-yellow-500 text-white
                                             {% elif apartment.days|get_dic_item:number|get_dic_item:'status' == 'Blocked' %} bg-black text-white
                                             {% elif apartment.days|get_dic_item:number|get_dic_item:'status' == 'Available' and apartment.days|get_dic_item:number|get_dic_item:'past' %} bg-gray-300 text-black
                                             {% else %} bg-white text-black

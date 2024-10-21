@@ -4,27 +4,41 @@ from twilio.rest import Client
 import os
 import requests
 import json
+import logging
+import time
+
 
 SUBMISSION_URL_API_BASE_URL = "https://api.docuseal.co/submissions"
 DOCUSEAL_API_KEY = os.environ.get("DOCUSEAL_API_KEY")
+
+logger_sms = logging.getLogger('mysite.sms_webhooks')
+account_sid = os.environ["TWILIO_ACCOUNT_SID"]
+auth_token = os.environ["TWILIO_AUTH_TOKEN"]
+manager_phone = os.environ["MANAGER_PHONE"]
+manager_phone2 = os.environ["MANAGER_PHONE2"]
+twilio_phone_secondary = os.environ["TWILIO_PHONE_SECONDARY"]
+
+client = Client(account_sid, auth_token)
+
+def print_info(message):
+    print(message)
+    logger_sms.debug(message)
 
 
 def create_contract(booking, template_id):
     if booking.tenant.email and booking.tenant.email != "not_availabale@gmail.com" and "@example.com" not in booking.tenant.email:
         # Create and send agreement
-        create_and_send_agreement(booking, template_id, isSendSms=False)
-    elif booking.tenant.phone and booking.tenant.phone.startswith("+1"):
-        create_and_send_agreement(booking, template_id, isSendSms=True)
+        create_and_send_agreement(booking, template_id)
     else:
         raise Exception("Client wasn't notified about contract because of missing email or phone, please add correct tenant email or phone")
 
     return booking.contract_url
 
-def create_and_send_agreement(booking, template_id, isSendSms):
+def create_and_send_agreement(booking, template_id):
     try:
         # Get Adobe Sign access token
         print("START CREATE AGREEMENT")
-        data = prepare_data_for_agreement(booking, template_id, isSendSms)
+        data = prepare_data_for_agreement(booking, template_id)
         print("data", data)
 
         headers = {
@@ -39,6 +53,8 @@ def create_and_send_agreement(booking, template_id, isSendSms):
             booking.contract_id = response_data[0]["submission_id"]
             booking.contract_url = response_data[0]["embed_src"]
             booking.contract_send_status = "Sent by Email"
+            if booking.tenant.phone and booking.tenant.phone.startswith("+1"):
+                sendContractToTwilio(booking, response_data[0]["embed_src"])
             booking.update()
         else:
             print("Detailed response:", response.json())
@@ -52,13 +68,96 @@ def create_and_send_agreement(booking, template_id, isSendSms):
         raise Exception("Contract wasn't sent by email")
       
 
+def sendContractToTwilio(booking, contract_url):
+    try:
+        conversation = client.conversations.v1.conversations.create(
+            friendly_name="Home-buying journey 2"
+        )
+        if conversation and conversation.sid:
+            print_info(f"Conversation created: {conversation.sid}")
+            add_participants(conversation.sid)
+            send_messsage(conversation,  "GPT BOT", f"Hi, {booking.tenant.full_name or 'dear guest'}, this is your contract for booking apartment {booking.apartment.name}. from {booking.start_date} to {booking.end_date}. Please sign it here: {contract_url}", twilio_phone_secondary, booking.tenant.phone)
+        else:
+            print_info("Conversation wasn't created")
+    except TwilioException as e:
+        print_info(f"Error sending contract message: {e}")
+        raise Exception(f"Error sending contract message: {e}")
+
+def send_messsage(conversation, author, message, sender_phone, receiver_phone):
+    try:
+        # Send message to the group chat in Twilio
+        twilio_message = client.conversations.v1.conversations(
+            conversation.sid
+        ).messages.create(
+            body=message,
+            author=author,
+        )
+        print_info(f"\nMessage sent: {twilio_message.sid}, \n Message: {twilio_message.body}")
+        if twilio_message and twilio_message.sid:
+            chat = create_db_message(conversation, twilio_message, sender_phone, receiver_phone, message, sender_type='GPT BOT', message_type='CONTRACT')
+            chat.save()
+        else:
+            chat = create_db_message(conversation, twilio_message, sender_phone, receiver_phone, message, sender_type='GPT BOT', message_type='CONTRACT', message_status="ERROR")
+            chat.save()
+            raise Exception("Message wasn't sent")
+
+    except TwilioException as e:
+        print_info(f"Error sending contact message: {e}")
+        raise Exception(f"Error sending welcome message: {e}")
 
 
-def prepare_data_for_agreement(booking, template_id, isSendSms):
+def create_db_message(conversation, twilio_message, sender_phone, receiver_phone, message, booking=None, context=None, sender_type='GPT BOT', message_type='NO_NEED_ACTION', message_status="SENDED"):
+    from .models import Chat  # Local import to avoid circular dependency
+    chat = Chat.objects.create(
+        twilio_conversation_sid=conversation.sid,
+        twilio_message_sid=twilio_message.sid,
+        booking=booking,
+        sender_phone=sender_phone,
+        receiver_phone=receiver_phone,
+        message=message,
+        context=context,
+        sender_type=sender_type,
+        message_type=message_type,
+        message_status=message_status,
+    )
+    chat.save()
+    print_info(
+        f"\n Message Saved to DB. Sender: {chat.sender_phone} Receiver: {chat.receiver_phone}. Message Status: {message_status}, Message Type: {message_type} Context: {context}  Sender Type: {sender_type} \n{message}\n")
+    return chat
+
+
+def add_participants(conversation_sid):
+    try:
+        # Add projected address on Twilio Secondary number with a name GPT Bot
+        participant = client.conversations.v1.conversations(
+            conversation_sid
+        ).participants.create(
+            identity="GPT BOT",
+            messaging_binding_projected_address=twilio_phone_secondary,
+        )
+        print_info(f"GPT Bot added: {participant.sid}")
+        time.sleep(2)
+        # Add manager 1
+        participant = client.conversations.v1.conversations(
+            conversation_sid
+        ).participants.create(messaging_binding_address=manager_phone)
+        time.sleep(2)
+        print_info(f"Manager 1 added: {participant.sid}")
+        # Add manager 2
+        participant = client.conversations.v1.conversations(
+            conversation_sid
+        ).participants.create(messaging_binding_address=manager_phone2)
+        print_info(f"Manager 2 added: {participant.sid}")
+        time.sleep(2)
+        # Send welcome message
+    except TwilioException as e:
+        print_info(f"Error adding participants: {e}")
+
+def prepare_data_for_agreement(booking, template_id):
     data = {
         "template_id": template_id,
         "send_email": True if booking.tenant.email and booking.tenant.email != "not_availabale@gmail.com" and "@example.com" not in booking.tenant.email else False,
-        "send_sms": True if isSendSms and booking.tenant.phone and booking.tenant.phone.startswith("+1") else False,
+        "send_sms": False,
         "submitters": [
             {
                 "role": "tenant",
@@ -119,6 +218,9 @@ def get_fields(booking, template_id):
                 ]
     else:
         raise Exception("Template id is not supported")
+
+
+
 
 
 def delete_contract(id):
@@ -191,4 +293,6 @@ def update_submitter(booking, submitter_id):
         
     else:
         print("Detailed error response:", response.json())
+
+
 

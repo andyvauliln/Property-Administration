@@ -11,40 +11,42 @@ class Command(BaseCommand):
         # Set environment variables
         account_sid = os.environ["TWILIO_ACCOUNT_SID"]
         auth_token = os.environ["TWILIO_AUTH_TOKEN"]
-        twilio_phone = os.environ["TWILIO_PHONE"]
-        manager_phone = os.environ["TWILIO_MANAGER_PHONE"]
+        # twilio_phone = os.environ["TWILIO_PHONE"]
+        manager_phone = os.environ["MANAGER_PHONE"]
+        second_manager_phone = os.environ["MANAGER_PHONE2"]
         twilio_phone_secondary = "+13153524379"
         farid_secondary = "+17282001917"
         farid_wife = "+15618438867"
+        farid = "+15614603904"
         client = Client(account_sid, auth_token)
 
-        # self.delete_conversation("CH206481d1aa2f4320bc3883897dac11e0")
-        # self.delete_conversation("CHa86aade3c19f4e84b18b6bb5675b04d7")
-        # time.sleep(30)
+        self.delete_conversation("CH695975b77dbd4d04b66ca2d1d134ba7a")
+        return
+        time.sleep(10)
         self.stdout.write(self.style.SUCCESS(f'Deleted conversations'))
-        time.sleep(30)
+        time.sleep(10)
         # Step 1: Create the Conversation
         conversation = client.conversations.v1.conversations.create(
             friendly_name="Home-buying journey 2"
         )
         conversation_sid = conversation.sid
         self.stdout.write(self.style.SUCCESS(f'Created conversation: {conversation_sid}'))
-        time.sleep(30)
+        time.sleep(10)
 
         # Step 2: Add the Real Estate Agent
         participant = client.conversations.v1.conversations(
             conversation_sid
         ).participants.create(
             identity="realEstateAgent",
-            messaging_binding_projected_address=twilio_phone,
+            messaging_binding_projected_address=twilio_phone_secondary,
         )
         self.stdout.write(self.style.SUCCESS(f'Added real estate agent: {participant.sid}'))
-        time.sleep(30)
+        time.sleep(10)
 
         # Step 3: Add the First Homebuyer
         participant = client.conversations.v1.conversations(
             conversation_sid
-        ).participants.create(messaging_binding_address=manager_phone)
+        ).participants.create(messaging_binding_address=farid)
         self.stdout.write(self.style.SUCCESS(f'Added first homebuyer: {participant.sid}'))
         time.sleep(30)
 
@@ -56,12 +58,12 @@ class Command(BaseCommand):
             author="realEstateAgent",
         )
         self.stdout.write(self.style.SUCCESS(f'Sent message: {message.sid}'))
-        time.sleep(30)
+        time.sleep(10)
 
         # Step 5: Add the Second Homebuyer
         participant = client.conversations.v1.conversations(
             conversation_sid
-        ).participants.create(messaging_binding_address=farid_secondary)
+        ).participants.create(messaging_binding_address=second_manager_phone)
         self.stdout.write(self.style.SUCCESS(f'Added second homebuyer: {participant.sid}'))
         time.sleep(30)
 
@@ -76,7 +78,7 @@ class Command(BaseCommand):
         time.sleep(30)
 
 
-         # Step 5: Add the Third Homebuyer
+        #Step 5: Add the Third Homebuyer
         participant = client.conversations.v1.conversations(
             conversation_sid
         ).participants.create(messaging_binding_address=farid_wife)
