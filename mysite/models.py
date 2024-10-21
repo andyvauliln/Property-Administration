@@ -946,6 +946,8 @@ class Chat(models.Model):
         ('ERROR', 'ERROR'),
         ('SENDED', 'SENDED'),
     ]
+    twilio_conversation_sid = models.CharField(max_length=100, blank=True, null=True)
+    twilio_message_sid = models.CharField(max_length=100, blank=True, null=True)
     sender_phone = models.CharField(max_length=20, blank=True, null=True)
     receiver_phone = models.CharField(max_length=20, blank=True, null=True)
     timestamp = models.DateTimeField(auto_now_add=True, db_index=True)

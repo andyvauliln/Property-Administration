@@ -15,11 +15,13 @@ import time
 
 logger_sms = logging.getLogger('mysite.sms_webhooks')
 # twilio_phone = os.environ["TWILIO_PHONE"]
+#http://68.183.124.79/conversation-webhook/
 account_sid = os.environ["TWILIO_ACCOUNT_SID"]
 auth_token = os.environ["TWILIO_AUTH_TOKEN"]
 manager_phone = os.environ["MANAGER_PHONE"]
 manager_phone2 = os.environ["MANAGER_PHONE2"]
 twilio_phone_secondary = os.environ["TWILIO_PHONE_SECONDARY"]
+farid_secondary = "+17282001917"
 client = Client(account_sid, auth_token)
 
 
@@ -43,21 +45,24 @@ def conversation_webhook(request):
             webhook_sid = data.get('WebhookSid', None)
             conversation_sid = data.get('ConversationSid')
             print_info(f"Data: {data}")
+            print_info(f"Body: {data.get('Body', None)}")
+            print_info(f"WebhookSid: {webhook_sid}")
             print_info(f"ConversationSid: {conversation_sid}")
             print_info(f"EventType: {event_type}")
 
-            if event_type == 'onMessageAdded' and webhook_sid:
-                is_all_participants_added = is_participants_added(conversation_sid)
-                if not is_all_participants_added:
-                    add_participants(conversation_sid)
-                return JsonResponse({'status': 'success'})
+            # if event_type == 'onMessageAdded' and webhook_sid:
+            #     is_all_participants_added = is_participants_added(conversation_sid)
+            #     if not is_all_participants_added:
+            #         add_participants(conversation_sid)
+            #     return JsonResponse({'status': 'success'})
+            return JsonResponse({'status': 'success'})
 
         return JsonResponse({'status': 'success'}, status=200)
     except Exception as e:
         print_info(f"Error in conversation_webhook: {e}")
         return JsonResponse({'status': 'error', 'message': str(e)}, status=500)
 
-#http://68.183.124.79/conversation-webhook/
+
 def is_participants_added(conversation_sid):
     # Assuming you have a way to interact with Twilio's API to get the number of participants
     try:

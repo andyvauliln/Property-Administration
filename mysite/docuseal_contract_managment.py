@@ -94,36 +94,37 @@ def send_messsage(conversation, author, message, sender_phone, receiver_phone):
         )
         print_info(f"\nMessage sent: {twilio_message.sid}, \n Message: {twilio_message.body}")
         if twilio_message and twilio_message.sid:
-            chat = create_db_message(conversation, twilio_message, sender_phone, receiver_phone, message, sender_type='GPT BOT', message_type='CONTRACT')
-            chat.save()
+            create_db_message(conversation, twilio_message, sender_phone, receiver_phone, message, sender_type='GPT BOT', message_type='CONTRACT')
         else:
-            chat = create_db_message(conversation, twilio_message, sender_phone, receiver_phone, message, sender_type='GPT BOT', message_type='CONTRACT', message_status="ERROR")
-            chat.save()
+            create_db_message(conversation, twilio_message, sender_phone, receiver_phone, message, sender_type='GPT BOT', message_type='CONTRACT', message_status="ERROR")
             raise Exception("Message wasn't sent")
 
     except TwilioException as e:
         print_info(f"Error sending contact message: {e}")
         raise Exception(f"Error sending welcome message: {e}")
 
-
 def create_db_message(conversation, twilio_message, sender_phone, receiver_phone, message, booking=None, context=None, sender_type='GPT BOT', message_type='NO_NEED_ACTION', message_status="SENDED"):
-    from .models import Chat  # Local import to avoid circular dependency
-    chat = Chat.objects.create(
-        twilio_conversation_sid=conversation.sid,
-        twilio_message_sid=twilio_message.sid,
-        booking=booking,
-        sender_phone=sender_phone,
-        receiver_phone=receiver_phone,
-        message=message,
-        context=context,
-        sender_type=sender_type,
-        message_type=message_type,
-        message_status=message_status,
-    )
-    chat.save()
-    print_info(
-        f"\n Message Saved to DB. Sender: {chat.sender_phone} Receiver: {chat.receiver_phone}. Message Status: {message_status}, Message Type: {message_type} Context: {context}  Sender Type: {sender_type} \n{message}\n")
-    return chat
+    try:
+        from .models import Chat  # Local import to avoid circular dependency
+        chat = Chat.objects.create(
+            twilio_conversation_sid=conversation.sid,
+            twilio_message_sid=twilio_message.sid,
+            booking=booking,
+            sender_phone=sender_phone,
+            receiver_phone=receiver_phone,
+            message=message,
+            context=context,
+            sender_type=sender_type,
+            message_type=message_type,
+            message_status=message_status,
+        )
+        chat.save()
+        print_info(
+            f"\n Message Saved to DB. Sender: {chat.sender_phone} Receiver: {chat.receiver_phone}. Message Status: {message_status}, Message Type: {message_type} Context: {context}  Sender Type: {sender_type} \n{message}\n")
+    except Exception as e:
+        print_info(f"Error creating DB message: {e}")
+        raise Exception(f"Error creating DB message: {e}")
+
 
 
 def add_participants(conversation_sid):
