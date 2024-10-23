@@ -6,7 +6,7 @@ from django.contrib.auth.hashers import make_password
 from dateutil.relativedelta import relativedelta
 from datetime import datetime
 from datetime import datetime, date
-from mysite.docuseal_contract_managment import create_contract, update_contract, delete_contract
+from mysite.docuseal_contract_managment import create_contract, sendWelcomeMessageToTwilio, update_contract, delete_contract
 from itertools import zip_longest
 import re
 import uuid
@@ -367,7 +367,10 @@ class Booking(models.Model):
                 update_contract(self)
             # SEND CONTRACT
             if form_data and form_data["send_contract"] and form_data["send_contract"] != 0 and form_data["send_contract"] != None and form_data["send_contract"] != "None":
-                create_contract(self, template_id=form_data["send_contract"])
+                create_contract(self, template_id=form_data["send_contract"], send_sms=form_data["create_chat"]
+                )
+            elif form_data and form_data["create_chat"]:
+                sendWelcomeMessageToTwilio(self)
         else:
             form_data = kwargs.pop('form_data', None)
             payments_data = kwargs.pop('payments_data', None)
@@ -383,7 +386,9 @@ class Booking(models.Model):
             super().save(*args, **kwargs)
              # SEND CONTRACT
             if form_data and form_data["send_contract"] and form_data["send_contract"] != 0 and form_data["send_contract"] != None and form_data["send_contract"] != "None":
-                create_contract(self, template_id=form_data["send_contract"])
+                create_contract(self, template_id=form_data["send_contract"], send_sms=form_data["create_chat"])
+            elif form_data and form_data["create_chat"]:
+                sendWelcomeMessageToTwilio(self)
         
        
     def deletePayments(self):

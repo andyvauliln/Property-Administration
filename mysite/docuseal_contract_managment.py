@@ -25,16 +25,16 @@ def print_info(message):
     logger_sms.debug(message)
 
 
-def create_contract(booking, template_id):
+def create_contract(booking, template_id, send_sms=False):
     if booking.tenant.email and booking.tenant.email != "not_availabale@gmail.com" and "@example.com" not in booking.tenant.email:
         # Create and send agreement
-        create_and_send_agreement(booking, template_id)
+        create_and_send_agreement(booking, template_id, send_sms)
     else:
         raise Exception("Client wasn't notified about contract because of missing email or phone, please add correct tenant email or phone")
 
     return booking.contract_url
 
-def create_and_send_agreement(booking, template_id):
+def create_and_send_agreement(booking, template_id, send_sms=False):
     try:
         # Get Adobe Sign access token
         print("START CREATE AGREEMENT")
@@ -53,7 +53,7 @@ def create_and_send_agreement(booking, template_id):
             booking.contract_id = response_data[0]["submission_id"]
             booking.contract_url = response_data[0]["embed_src"]
             booking.contract_send_status = "Sent by Email"
-            if booking.tenant.phone and booking.tenant.phone.startswith("+1"):
+            if send_sms and booking.tenant.phone and booking.tenant.phone.startswith("+1"):
                 sendContractToTwilio(booking, response_data[0]["embed_src"])
             booking.update()
         else:
@@ -71,14 +71,33 @@ def create_and_send_agreement(booking, template_id):
 def sendContractToTwilio(booking, contract_url):
     try:
         conversation = client.conversations.v1.conversations.create(
-            friendly_name="Home-buying journey 2"
+            friendly_name=f" {booking.tenant.full_name or 'Tenat'} Chat Apt: {booking.apartment.name}"
         )
         if conversation and conversation.sid:
             print_info(f"Conversation created: {conversation.sid}")
-            add_participants(conversation.sid)
+            add_participants(conversation.sid, booking.tenant.phone)
             send_messsage(conversation,  "GPT BOT", f"Hi, {booking.tenant.full_name or 'dear guest'}, this is your contract for booking apartment {booking.apartment.name}. from {booking.start_date} to {booking.end_date}. Please sign it here: {contract_url}", twilio_phone_secondary, booking.tenant.phone)
         else:
             print_info("Conversation wasn't created")
+    except TwilioException as e:
+        print_info(f"Error sending contract message: {e}")
+        raise Exception(f"Error sending contract message: {e}")
+
+def sendWelcomeMessageToTwilio(booking):
+    try:
+        if booking.tenant.phone and booking.tenant.phone.startswith("+1"):
+            conversation = client.conversations.v1.conversations.create(
+                friendly_name=f" {booking.tenant.full_name or 'Tenat'} Chat Apt: {booking.apartment.name}"
+            )
+            if conversation and conversation.sid:
+                print_info(f"Conversation created: {conversation.sid}")
+                add_participants(conversation.sid, booking.tenant.phone)
+                send_messsage(conversation,  "GPT BOT", f"Hi, {booking.tenant.full_name or 'dear guest'}, This chat for renting apartment {booking.apartment.name}. from {booking.start_date} to {booking.end_date}.", twilio_phone_secondary, booking.tenant.phone)
+            else:
+                print_info("Conversation wasn't created")
+        else:
+            print_info("Tenant phone is not valid")
+            raise Exception("Tenant phone is not valid")
     except TwilioException as e:
         print_info(f"Error sending contract message: {e}")
         raise Exception(f"Error sending contract message: {e}")
@@ -127,7 +146,7 @@ def create_db_message(conversation, twilio_message, sender_phone, receiver_phone
 
 
 
-def add_participants(conversation_sid):
+def add_participants(conversation_sid, tenant_phone):
     try:
         # Add projected address on Twilio Secondary number with a name GPT Bot
         participant = client.conversations.v1.conversations(
@@ -137,6 +156,11 @@ def add_participants(conversation_sid):
             messaging_binding_projected_address=twilio_phone_secondary,
         )
         print_info(f"GPT Bot added: {participant.sid}")
+        time.sleep(2)
+        # Add manager 1
+        participant = client.conversations.v1.conversations(
+            conversation_sid
+        ).participants.create(messaging_binding_address=tenant_phone)
         time.sleep(2)
         # Add manager 1
         participant = client.conversations.v1.conversations(

@@ -411,7 +411,8 @@ class BookingForm(forms.ModelForm):
             'payment_id': self.request.POST.getlist('payment_id[]'),
             'number_of_months': [int(number_of_months) for number_of_months in self.request.POST.getlist('number_of_months[]')],
         }
-
+        print(form_data["create_chat"], "create_chat1")
+        print(self.request.POST.get("create_chat"), "create_chat2")
         if form_data.get("status") == "Blocked" or form_data.get("status") == "Pending":
             instance.saveEmpty(form_data=form_data)
 
@@ -479,17 +480,25 @@ class BookingForm(forms.ModelForm):
         _dropdown_options=[
             {"value": 118378, "label": "Send OCCUPANCY AGREEMENT"},
             {"value": 120946, "label": "Send HOA PACKAGE"},
+        ],
+        order=11)
+    create_chat = ChoiceFieldEx( choices=[
+        (True, "Create Chat"),
+    ],
+        required=False, isEdit=True, isCreate=True, initial=None, ui_element="radio", 
+        _dropdown_options=[
+            {"value": True, "label": "Create Chat"},
             ],
-            order=11)
+            order=12)
     is_rent_car = CustomBooleanField(
-        required=False, initial="", isCreate=True, isEdit=True, ui_element="radio", _dropdown_options=lambda: get_dropdown_options("is_rent_car"), order=12)
+        required=False, initial="", isCreate=True, isEdit=True, ui_element="radio", _dropdown_options=lambda: get_dropdown_options("is_rent_car"), order=13)
     
     car_model = CharFieldEx(max_length=100, initial="", required=False,
-                            isCreate=True, isEdit=True, ui_element="input", order=13)
+                            isCreate=True, isEdit=True, ui_element="input", order=14)
     car_price = DecimalFieldEx(
-        max_digits=10, required=False, initial=0,  isCreate=True, isEdit=True, ui_element="input", order=14)
+        max_digits=10, required=False, initial=0,  isCreate=True, isEdit=True, ui_element="input", order=15)
     car_rent_days = IntegerFieldEx(
-        required=False,  isCreate=True, initial=0, isEdit=True, ui_element="input", order=15)
+        required=False,  isCreate=True, initial=0, isEdit=True, ui_element="input", order=16)
     
 
     def clean(self):

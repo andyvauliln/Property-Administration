@@ -20,7 +20,8 @@ class Command(BaseCommand):
         farid = "+15614603904"
         client = Client(account_sid, auth_token)
 
-        self.delete_conversation("CH695975b77dbd4d04b66ca2d1d134ba7a")
+        self.delete_conversation("CHcf22935e48934c5891d360b4f54b2f1a")
+
         return
         time.sleep(10)
         self.stdout.write(self.style.SUCCESS(f'Deleted conversations'))
