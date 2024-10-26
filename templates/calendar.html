@@ -69,6 +69,8 @@
                     data-payment-types="{{ day_data.payment_types|join:',' }}"
                     data-payment-amounts="{{ day_data.payment_amounts|join:',' }}"
                     data-payment-statuses="{{ day_data.payment_statuses|join:',' }}"
+                    data-notes="{{ day_data.notes|join:',' }}"
+                    data-payment-notes="{{ day_data.payment_notes|join:',' }}"
                     >
                     {{ day_data.day|date:"d" }}
                     

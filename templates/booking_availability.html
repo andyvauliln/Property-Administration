@@ -121,25 +121,32 @@
                                             </a>
                                         </td>
                                         {% for number in 1|range:month_data.days_in_month %}
-                                        <td class="border-r border-gray-500 p-1 relative
-                                            {% if apartment.days|get_dic_item:number|get_dic_item:'status' == 'Confirmed' %} bg-green-500 text-white
-                                            {% elif apartment.days|get_dic_item:number|get_dic_item:'status' == 'Pending' %} bg-yellow-300 text-white
-                                            {% elif apartment.days|get_dic_item:number|get_dic_item:'status' == 'Waiting' %} bg-yellow-500 text-white
-                                            {% elif apartment.days|get_dic_item:number|get_dic_item:'status' == 'Blocked' %} bg-black text-white
-                                            {% elif apartment.days|get_dic_item:number|get_dic_item:'status' == 'Available' and apartment.days|get_dic_item:number|get_dic_item:'past' %} bg-gray-300 text-black
-                                            {% else %} bg-white text-black
-                                            {% endif %}
-                                            {% if apartment.days|get_dic_item:number|get_dic_item:'is_start' and apartment.days|get_dic_item:number|get_dic_item:'is_end' %} booking-start-end
-                                            {% elif apartment.days|get_dic_item:number|get_dic_item:'is_start' %} booking-start
-                                            {% elif apartment.days|get_dic_item:number|get_dic_item:'is_end' %} booking-end
-                                            {% endif %}
-                                            text-center">
-                                            {{ number }}
-                                            {% if apartment.days|get_dic_item:number|get_dic_item:'tenant_names' %}
-                                                <div class="tooltip">
-                                                    {% for tenant_name in apartment.days|get_dic_item:number|get_dic_item:'tenant_names' %}
-                                                        {{ tenant_name }}{% if not forloop.last %}, {% endif %}
-                                                    {% endfor %}
+                                        <td 
+                                            data-day="{{ apartment.days|get_dic_item:number|get_dic_item:'day' }}"
+                                            data-tenant-names="{{ apartment.days|get_dic_item:number|get_dic_item:'tenant_names'|join:', ' }}"
+                                            data-notes="{{ apartment.days|get_dic_item:number|get_dic_item:'notes'|join:', ' }}"
+                                            data-booking-data="{{ apartment.days|get_dic_item:number|get_dic_item:'booking_data'|join:', ' }}"
+                                            class="day border-r border-gray-500 relative p-0
+                                                {% if apartment.days|get_dic_item:number|get_dic_item:'status' == 'Confirmed' %} bg-green-500 text-white
+                                                {% elif apartment.days|get_dic_item:number|get_dic_item:'status' == 'Pending' %} bg-yellow-300 text-white
+                                                {% elif apartment.days|get_dic_item:number|get_dic_item:'status' == 'Waiting' %} bg-yellow-500 text-white
+                                                {% elif apartment.days|get_dic_item:number|get_dic_item:'status' == 'Blocked' %} bg-black text-white
+                                                {% elif apartment.days|get_dic_item:number|get_dic_item:'status' == 'Available' and apartment.days|get_dic_item:number|get_dic_item:'past' %} bg-gray-300 text-black
+                                                {% else %} bg-white text-black
+                                                {% endif %}
+                                                {% if apartment.days|get_dic_item:number|get_dic_item:'is_start' and apartment.days|get_dic_item:number|get_dic_item:'is_end' %} booking-start-end
+                                                {% elif apartment.days|get_dic_item:number|get_dic_item:'is_start' %} booking-start
+                                                {% elif apartment.days|get_dic_item:number|get_dic_item:'is_end' %} booking-end
+                                                {% endif %}
+                                                text-center">
+                                            {% if apartment.days|get_dic_item:number|get_dic_item:'booking_ids' %}
+                                                <a href="/bookings/?q=id={{ apartment.days|get_dic_item:number|get_dic_item:'booking_ids'|first }}" target="_blank"
+                                                   class="block w-full h-full p-1">
+                                                    {{ number }}
+                                                </a>
+                                            {% else %}
+                                                <div class="p-1">
+                                                    {{ number }}
                                                 </div>
                                             {% endif %}
                                         </td>
@@ -161,7 +168,9 @@
     </div>
 </section>
 
+
 <script>
+    
     function getReport() {
         const startDate = document.getElementById('start_date').value;
         const endDate = document.getElementById('end_date').value;
@@ -183,4 +192,119 @@
 </script>
   
 
+<!-- Tooltip HTML -->
+<div id="dynamic-popover" class="hidden fixed z-10 w-[375px] max-w-[90%] text-sm text-gray-500 bg-white border border-gray-200 rounded-lg shadow-sm dark:text-gray-400 dark:border-gray-600 dark:bg-gray-800">
+    <div class="px-3 py-2 bg-gray-100 border-b border-gray-200 rounded-t-lg dark:border-gray-600 dark:bg-gray-700 flex justify-between items-center">
+        <h3 class="font-semibold text-gray-900 dark:text-white" id="popover-title"></h3>
+        <button id="close-popover" class="text-gray-600 hover:text-gray-800 dark:text-gray-300 dark:hover:text-white">
+            &times;
+        </button>
+    </div>
+    <div class="px-3 py-2" id="popover-content">
+        <!-- Content will be dynamically added here -->
+    </div>
+</div>
+
+<script>
+    // Select all the day cells in the calendar
+    const days = document.querySelectorAll('td.day');
+    const popover = document.getElementById('dynamic-popover');
+    const popoverTitle = document.getElementById('popover-title');
+    const popoverContent = document.getElementById('popover-content');
+
+    days.forEach(function(day) {
+        day.addEventListener('mouseenter', function(event) {
+            // Retrieve data from data attributes
+            const date = day.dataset.day;
+
+            const tenantNames = day.dataset.tenantNames ? day.dataset.tenantNames.split(', ') : [];
+            const notes = day.dataset.notes ? day.dataset.notes.split(', ') : [];
+            const bookingData = day.dataset.bookingData ? day.dataset.bookingData.split(', ') : [];
+
+            // Set the title of the popover with the date
+            popoverTitle.textContent = date;
+
+            // Prepare the content for the popover
+            let content = '';
+
+            if (bookingData.length > 0 && bookingData[0]) {
+                content += `<strong>Booking Data:</strong><ul class="list-disc pl-5">`;
+                bookingData.forEach((data) => {
+                    content += `<li>${data}</li>`;
+                });
+                content += `</ul><br>`;
+            }
+
+        
+
+            // Update the popover content
+            popoverContent.innerHTML = content || 'No events for this day';
+
+            // Display the popover off-screen to get accurate dimensions
+            popover.style.left = '-9999px';
+            popover.style.top = '-9999px';
+            popover.classList.remove('hidden');
+
+            // Get tooltip dimensions
+            const tooltipWidth = popover.offsetWidth;
+            const tooltipHeight = popover.offsetHeight;
+
+            // Get window dimensions
+            const windowWidth = window.innerWidth;
+            const windowHeight = window.innerHeight;
+
+            // Calculate desired position
+            let leftPos, topPos;
+
+            // Check if there is enough space to the right of the cursor
+            if (event.clientX + tooltipWidth + 15 < windowWidth) {
+                // Position tooltip to the right of the cursor
+                leftPos = event.clientX + 15;
+            } else {
+                // Position tooltip to the left of the cursor
+                leftPos = event.clientX - tooltipWidth - 15;
+            }
+
+            // Prevent tooltip from going off the left edge
+            if (leftPos < 0) {
+                leftPos = 0;
+            }
+
+            // Calculate vertical position to center the tooltip relative to the cursor
+            topPos = event.clientY - tooltipHeight / 2;
+
+            // Prevent tooltip from going off the top or bottom of the viewport
+            if (topPos + tooltipHeight > windowHeight) {
+                topPos = windowHeight - tooltipHeight - 10;
+            }
+            if (topPos < 0) {
+                topPos = 10;
+            }
+
+            // Position the popover
+            popover.style.left = `${leftPos}px`;
+            popover.style.top = `${topPos}px`;
+        });
+
+        // Hide the popover when the mouse leaves the day cell
+        day.addEventListener('mouseleave', function(event) {
+            popover.classList.add('hidden');
+        });
+    });
+</script>
+
 {% endblock content %}
+
+
+
+
+
+
+
+
+
+
+
+
+
+

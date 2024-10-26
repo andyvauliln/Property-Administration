@@ -110,15 +110,19 @@ def booking_availability(request):
 
             for day in range(1, days_in_month + 1):
                 date_obj = current_month.replace(day=day)
-                day_bookings = [b for b in bookings if b.start_date <= date_obj <= b.end_date]
-                
                 apartment_data['days'][day] = {
                     'status': 'Available',
                     'is_start': False,
                     'is_end': False,
-                    'tenant_names': []
+                    'tenant_names': [],  # List of tenant names
+                    'day': date_obj.strftime('%B %d %Y'),  # Date in 'Month Day Year' format
+                    'notes': [],  # List of notes
+                    'booking_data': [],  # List of booking data strings
+                    'booking_ids': [],  # List of booking IDs
                 }
 
+                day_bookings = [b for b in bookings if b.start_date <= date_obj <= b.end_date]
+                
                 # Check if the apartment is available on this date
                 if apartment.start_date and date_obj < apartment.start_date.date():
                     apartment_data['days'][day]['status'] = 'Blocked'
@@ -139,7 +143,8 @@ def booking_availability(request):
 
                     for booking in day_bookings:
                         if booking.status in ['Confirmed', 'Waiting Contract', 'Waiting Payment']:
-                            apartment_data['days'][day]['tenant_names'].append(booking.tenant.full_name)
+                            if booking.tenant and booking.tenant.full_name:
+                                apartment_data['days'][day]['tenant_names'].append(booking.tenant.full_name)
                             if booking.status == 'Confirmed':
                                 apartment_data['booked_days'] += 1
                                 month_data['month_occupancy'] += 1
@@ -147,6 +152,16 @@ def booking_availability(request):
                             month_data['blocked_days'] += 1
                         if booking.status == 'Pending':
                             month_data['pending_days'] += 1
+
+                        # Add notes and booking data
+                        apartment_data['days'][day]['notes'].append(booking.notes)
+                        booking_data_entry = f"{booking.start_date.strftime('%B %d %Y')} - {booking.end_date.strftime('%B %d %Y')}\n [{booking.tenant.full_name if booking.tenant else ''}] [{booking.status}] \n {booking.notes} \n"
+                        
+                        booking_data_entry += f"\nPayments: {booking.payment_str} \n "
+                        apartment_data['days'][day]['booking_data'].append(booking_data_entry)
+
+                        # Add the booking ID to booking_ids
+                        apartment_data['days'][day]['booking_ids'].append(booking.id)
                 elif apartment.end_date and date_obj > apartment.end_date.date():
                     apartment_data['days'][day]['status'] = 'Blocked'
                     month_data['blocked_days'] += 1

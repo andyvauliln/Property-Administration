@@ -140,6 +140,8 @@ def apartment(request):
                     'payment_types': [payment.payment_type for payment in payments_for_day],
                     'payment_amounts': [payment.amount for payment in payments_for_day],
                     'payment_statuses': [payment.payment_status for payment in payments_for_day],
+                    'payment_notes': [payment.notes for payment in payments_for_day],
+                    'notes': [booking.notes for booking in bookings_for_day],
                 }
                 week_data.append(day_data)
                 # Calculate occupancy for the day

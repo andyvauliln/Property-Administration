@@ -213,7 +213,8 @@
                 const paymentTypes = day.dataset.paymentTypes.split(',');
                 const paymentAmounts = day.dataset.paymentAmounts.split(',');
                 const paymentStatuses = day.dataset.paymentStatuses.split(',');
-    
+                const notes = day.dataset.notes.split(',');
+                const paymentNotes = day.dataset.paymentNotes.split(',');
                 // Set the title of the popover with the date
                 popoverTitle.textContent = date;
     
@@ -241,6 +242,14 @@
                     if (paymentId) {
                         content += `<strong>Payment:</strong>  <a class='text-blue-500 underline' href="/payments/?q=id=${paymentId}">${paymentTypes[index]} ${paymentAmounts[index]} [${paymentStatuses[index]}]</a><br>`;
                     }
+                });
+                notes.forEach((note, index) => {
+                    
+                    content += `<strong>Booking Notes:</strong>  ${note || 'No note'}<br>`;
+                });
+                paymentNotes.forEach((note, index) => {
+                    
+                    content += `<strong>Payment Notes:</strong>  ${note || 'No note'}<br>`;
                 });
     
                 // Update the popover content
