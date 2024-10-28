@@ -213,6 +213,7 @@ class Booking(models.Model):
         ('Waiting Payment', 'Waiting Payment'),
         ('Blocked', 'Blocked'),
         ('Pending', 'Pending'),
+        ('Problem Booking', 'Problem Booking'),
     ]
     ANIMALS = [
         ('Cat', 'Cat'),

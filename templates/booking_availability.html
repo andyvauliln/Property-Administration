@@ -29,6 +29,7 @@
                     <option value="Waiting Contract" {% if current_booking_status == 'Waiting Contract' %}selected{% endif %}>Waiting Contract</option>
                     <option value="Waiting Payment" {% if current_booking_status == 'Waiting Payment' %}selected{% endif %}>Waiting Payment</option>
                     <option value="Blocked" {% if current_booking_status == 'Blocked' %}selected{% endif %}>Blocked</option>
+                    <option value="Problem Booking" {% if current_booking_status == 'Problem Booking' %}selected{% endif %}>Problem Booking</option>
                     <option value="Pending" {% if current_booking_status == 'Pending' %}selected{% endif %}>Pending</option>
                     <option value="Available" {% if current_booking_status == 'Available' %}selected{% endif %}>Available</option>
                 </select>
@@ -77,6 +78,10 @@
                     <div class="flex items-center">
                         <div class="w-4 h-4 bg-yellow-300 mr-2"></div>
                         <span>Pending</span>
+                    </div>
+                    <div class="flex items-center">
+                        <div class="w-4 h-4 bg-red-500 mr-2"></div>
+                        <span>Problem Booking</span>
                     </div>
                     <div class="flex items-center">
                         <div class="w-4 h-4 bg-black mr-2"></div>
@@ -131,6 +136,7 @@
                                                 {% elif apartment.days|get_dic_item:number|get_dic_item:'status' == 'Pending' %} bg-yellow-300 text-white
                                                 {% elif apartment.days|get_dic_item:number|get_dic_item:'status' == 'Waiting' %} bg-yellow-500 text-white
                                                 {% elif apartment.days|get_dic_item:number|get_dic_item:'status' == 'Blocked' %} bg-black text-white
+                                                {% elif apartment.days|get_dic_item:number|get_dic_item:'status' == 'Problem Booking' %} bg-red-500 text-white
                                                 {% elif apartment.days|get_dic_item:number|get_dic_item:'status' == 'Available' and apartment.days|get_dic_item:number|get_dic_item:'past' %} bg-gray-300 text-black
                                                 {% else %} bg-white text-black
                                                 {% endif %}
@@ -228,11 +234,14 @@
             let content = '';
 
             if (bookingData.length > 0 && bookingData[0]) {
-                content += `<strong>Booking Data:</strong><ul class="list-disc pl-5">`;
+                content += `<strong>Booking Data:</strong><div class="pl-5">`;
                 bookingData.forEach((data) => {
-                    content += `<li>${data}</li>`;
+                    const rows = data.split('\n');
+                    rows.forEach((row) => {
+                        content += `<div>${row}</div>`;
+                    });
                 });
-                content += `</ul><br>`;
+                content += `</div>`;
             }
 
         

@@ -76,7 +76,7 @@ class Command(BaseCommand):
         elif event_type == 'move_in':
             # Get bookings for move_in (The day before booking start)
             return Booking.objects.exclude(
-                status__in=['Blocked', 'Pending']
+                status__in=['Blocked', 'Pending', 'Problem Booking']
             ).filter(
                 start_date=now.date() + timedelta(days=1)
             )
@@ -90,7 +90,7 @@ class Command(BaseCommand):
             )
         elif event_type == 'extension':
             return Booking.objects.exclude(
-                status__in=['Blocked', 'Pending']
+                status__in=['Blocked', 'Pending', 'Problem Booking']
             ).filter(
                 models.Q(end_date__gt=F('start_date') + timedelta(days=25), end_date=now.date() + timedelta(weeks=1)) |
                 models.Q(end_date__lte=F('start_date') + timedelta(days=25),
@@ -101,7 +101,7 @@ class Command(BaseCommand):
         elif event_type == 'move_out':
             # Get bookings for move_out (The day before booking end date)
             return Booking.objects.exclude(
-                status__in=['Blocked', 'Pending']
+                status__in=['Blocked', 'Pending', 'Problem Booking']
             ).filter(
                 end_date=now.date() + timedelta(days=1)
             )
@@ -109,7 +109,7 @@ class Command(BaseCommand):
         elif event_type == 'safe_travel':
             # Get bookings for safe_travel (Next day after booking end date)
             return Booking.objects.exclude(
-                status__in=['Blocked', 'Pending']
+                status__in=['Blocked', 'Pending', 'Problem Booking']
             ).filter(
                 end_date=now.date() - timedelta(days=1)
             )

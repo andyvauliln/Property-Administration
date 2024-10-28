@@ -40,6 +40,8 @@
                         bg-black font-extrabold
                     {% elif 'Pending' in day_data.booking_statuses %} 
                         bg-yellow-300 font-extrabold
+                    {% elif 'Problem Booking' in day_data.booking_statuses %} 
+                        bg-red-500 font-extrabold
                     {% elif 'Waiting Payment' in day_data.booking_statuses or 'Waiting Contract' in day_data.booking_statuses %}
                         text-yellow-500 border border-yellow-500 font-extrabold
                     {% elif day_data.booking_ids %}

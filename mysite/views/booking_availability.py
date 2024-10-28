@@ -79,6 +79,7 @@ def booking_availability(request):
             'days_in_month': days_in_month,
             'blocked_days': 0,
             'pending_days': 0,
+            'problem_booking_days': 0,
         }
 
         for apartment in apartments:
@@ -137,6 +138,9 @@ def booking_availability(request):
                         apartment_data['days'][day]['status'] = 'Blocked'
                     elif 'Pending' in statuses:
                         apartment_data['days'][day]['status'] = 'Pending'
+                    elif 'Problem Booking' in statuses:
+                        apartment_data['days'][day]['status'] = 'Problem Booking'
+                        month_data['problem_booking_days'] += 1
 
                     apartment_data['days'][day]['is_start'] = any(date_obj == b.start_date for b in day_bookings)
                     apartment_data['days'][day]['is_end'] = any(date_obj == b.end_date for b in day_bookings)
@@ -152,12 +156,27 @@ def booking_availability(request):
                             month_data['blocked_days'] += 1
                         if booking.status == 'Pending':
                             month_data['pending_days'] += 1
+                        if booking.status == 'Problem Booking':
+                            month_data['problem_booking_days'] += 1
 
                         # Add notes and booking data
                         apartment_data['days'][day]['notes'].append(booking.notes)
-                        booking_data_entry = f"{booking.start_date.strftime('%B %d %Y')} - {booking.end_date.strftime('%B %d %Y')}\n [{booking.tenant.full_name if booking.tenant else ''}] [{booking.status}] \n {booking.notes} \n"
+                        booking_data_entry = f"{booking.start_date.strftime('%B %d %Y')} - {booking.end_date.strftime('%B %d %Y')} \n [{booking.tenant.full_name if booking.tenant else ''}] [{booking.status}] \n {booking.notes} \n"
                         
-                        booking_data_entry += f"\nPayments: {booking.payment_str} \n "
+                        current_period_payments = [
+                            p for p in booking.payments.all()
+                            if date_obj.replace(day=1) <= p.payment_date <= date_obj.replace(
+                                day=monthrange(date_obj.year, date_obj.month)[1]
+                            )
+                        ]
+
+                        payment_str = ""
+                        for payment in current_period_payments:
+                            formatted_date = payment.payment_date.strftime("%B %d %Y")
+                            payment_str += f" \n  {payment.payment_type}, [ {formatted_date} ], ${payment.amount}"
+
+                        payment_str = payment_str if current_period_payments else "No payments this month"
+                        booking_data_entry += f"Payments: \n{payment_str}"
                         apartment_data['days'][day]['booking_data'].append(booking_data_entry)
 
                         # Add the booking ID to booking_ids

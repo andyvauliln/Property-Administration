@@ -13,6 +13,8 @@
                             <span class="bg-green-200 text-green-700 px-2 py-1 rounded-full">{{ item|get_item:field_name }}</span>
                         {% elif item|get_item:field_name in "Blocked" %}
                             <span class="bg-red-200 text-red-700 px-2 py-1 rounded-full">{{ item|get_item:field_name }}</span>
+                        {% elif item|get_item:field_name in "Problem Booking" %}
+                            <span class="bg-red-200 text-red-500 px-2 py-1 rounded-full">{{ item|get_item:field_name }}</span>
                         {% else %}
                             {{ item|get_item:field_name }}
                         {% endif %}

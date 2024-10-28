@@ -411,9 +411,7 @@ class BookingForm(forms.ModelForm):
             'payment_id': self.request.POST.getlist('payment_id[]'),
             'number_of_months': [int(number_of_months) for number_of_months in self.request.POST.getlist('number_of_months[]')],
         }
-        print(form_data["create_chat"], "create_chat1")
-        print(self.request.POST.get("create_chat"), "create_chat2")
-        if form_data.get("status") == "Blocked" or form_data.get("status") == "Pending":
+        if form_data.get("status") == "Blocked" or form_data.get("status") == "Pending" or form_data.get("status") == "Problem Booking":
             instance.saveEmpty(form_data=form_data)
 
         elif form_data:
@@ -518,6 +516,10 @@ class BookingForm(forms.ModelForm):
         if status == "Pending":
             cleaned_data["tenant_email"] = "pending@gmail.com"
             cleaned_data["tenant_full_name"] = "Pending"
+
+        if status == "Problem Booking":
+            cleaned_data["tenant_email"] = "problem_booking@gmail.com"
+            cleaned_data["tenant_full_name"] = "Problem Booking"
 
         start_date = cleaned_data.get('start_date')
         end_date = cleaned_data.get('end_date')
