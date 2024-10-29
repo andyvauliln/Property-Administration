@@ -7,12 +7,12 @@
 <div class="flex flex-col md:flex-row items-center justify-between space-y-3 md:space-y-0 md:space-x-4 p-4">
     <select onchange="updateSearchInput()" name="status" class="filter bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-primary-500 focus:border-primary-500 block w-1/5 p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white dark:focus:ring-primary-500 dark:focus:border-primary-500">
         <option value="">All Statuses</option>
-        <option value="Waiting Contract" {% if current_status == 'Waiting Contract' %}selected{% endif %}>Waiting Contract</option>
-        <option value="Waiting Payment" {% if current_status == 'Waiting Payment' %}selected{% endif %}>Waiting Payment</option>
-        <option value="Confirmed" {% if current_status == 'Confirmed' %}selected{% endif %}>Confirmed</option>
-        <option value="Blocked" {% if current_status == 'Blocked' %}selected{% endif %}>Blocked</option>
-        <option value="Pending" {% if current_status == 'Pending' %}selected{% endif %}>Pending</option>
-        <option value="Problem Booking" {% if current_status == 'Problem Booking' %}selected{% endif %}>Problem Booking</option>
+        <option class="text-yellow-500" value="Waiting Contract" {% if current_status == 'Waiting Contract' %}selected{% endif %}>Waiting Contract</option>
+        <option class="text-orange-500" value="Waiting Payment" {% if current_status == 'Waiting Payment' %}selected{% endif %}>Waiting Payment</option>
+        <option class="text-green-500" value="Confirmed" {% if current_status == 'Confirmed' %}selected{% endif %}>Confirmed</option>
+        <option class="text-black" value="Blocked" {% if current_status == 'Blocked' %}selected{% endif %}>Blocked</option>
+        <option class="text-green-300" value="Pending" {% if current_status == 'Pending' %}selected{% endif %}>Pending</option>
+        <option class="text-red-500" value="Problem Booking" {% if current_status == 'Problem Booking' %}selected{% endif %}>Problem Booking</option>
     </select>
     <select onchange="updateSearchInput()" name="apartment.id" class="filter bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-primary-500 focus:border-primary-500 block w-1/5 p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white dark:focus:ring-primary-500 dark:focus:border-primary-500">
         <option value="">All Apartments</option>

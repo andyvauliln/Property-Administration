@@ -54,6 +54,25 @@ td:hover .tooltip {
     opacity: 1;
 } */
 
+label[textContent="Confirmed"] {
+    color: green !important;
+}
+label[textContent="Waiting Contract"] {
+    color: yellow !important;
+}
+label[textContent="Waiting Payment"] {
+    color: orange !important;
+}
+label[textContent="Blocked"] {
+    color: black !important;
+}
+label[textContent="Pending"] {
+    color: lightgreen !important;
+}
+label[textContent="Problem Booking"] {
+    color: red !important;
+}
+
 .booking-start {
     background: theme('colors.blue.500');
     color: white !important;

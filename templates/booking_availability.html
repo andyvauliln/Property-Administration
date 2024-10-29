@@ -25,12 +25,12 @@
                 </select>
                 <select name="booking_status" class="ml-2 bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-primary-500 focus:border-primary-500 block w-full p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white dark:focus:ring-primary-500 dark:focus:border-primary-500">
                     <option value="">All Statuses</option>
-                    <option value="Confirmed" {% if current_booking_status == 'Confirmed' %}selected{% endif %}>Confirmed</option>
-                    <option value="Waiting Contract" {% if current_booking_status == 'Waiting Contract' %}selected{% endif %}>Waiting Contract</option>
-                    <option value="Waiting Payment" {% if current_booking_status == 'Waiting Payment' %}selected{% endif %}>Waiting Payment</option>
-                    <option value="Blocked" {% if current_booking_status == 'Blocked' %}selected{% endif %}>Blocked</option>
-                    <option value="Problem Booking" {% if current_booking_status == 'Problem Booking' %}selected{% endif %}>Problem Booking</option>
-                    <option value="Pending" {% if current_booking_status == 'Pending' %}selected{% endif %}>Pending</option>
+                    <option class="text-green-600" value="Confirmed" {% if current_booking_status == 'Confirmed' %}selected{% endif %}>Confirmed</option>
+                    <option class="text-yellow-500" value="Waiting Contract" {% if current_booking_status == 'Waiting Contract' %}selected{% endif %}>Waiting Contract</option>
+                    <option class="text-orange-500" value="Waiting Payment" {% if current_booking_status == 'Waiting Payment' %}selected{% endif %}>Waiting Payment</option>
+                    <option class="text-black" value="Blocked" {% if current_booking_status == 'Blocked' %}selected{% endif %}>Blocked</option>
+                    <option class="text-red-500" value="Problem Booking" {% if current_booking_status == 'Problem Booking' %}selected{% endif %}>Problem Booking</option>
+                    <option class="text-green-300" value="Pending" {% if current_booking_status == 'Pending' %}selected{% endif %}>Pending</option>
                     <option value="Available" {% if current_booking_status == 'Available' %}selected{% endif %}>Available</option>
                 </select>
                 <select name="rooms" class="ml-2 bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-primary-500 focus:border-primary-500 block w-full p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white dark:focus:ring-primary-500 dark:focus:border-primary-500">
@@ -48,7 +48,7 @@
                     <button class="block w-full bg-blue-500 text-white p-2 rounded" onclick="getReport()">Get Report</button>
                 </div>  
             </div>
-            <div class="flex items-center justify-between w-full p-2">
+            <div class="flex items-center justify-between flex-col w-full p-2">
                 <div class="flex items-center justify-center space-x-4">
                     <a href="/booking-availability/?page={{ prev_page }}" class="flex items-center text-black p-4 rounded-l">
                         <svg class="w-4 h-4 text-blue-500  dark:text-white mr-2" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 8 14">
@@ -68,15 +68,19 @@
                 </div>
                 <div class="flex items-center space-x-4">
                     <div class="flex items-center">
-                        <div class="w-4 h-4 bg-green-500 mr-2"></div>
+                        <div class="w-4 h-4 bg-green-600 mr-2"></div>
                         <span>Confirmed</span>
                     </div>
                     <div class="flex items-center">
                         <div class="w-4 h-4 bg-yellow-500 mr-2"></div>
-                        <span>Waiting Contract/Payment</span>
+                        <span>Waiting Contract</span>
                     </div>
                     <div class="flex items-center">
-                        <div class="w-4 h-4 bg-yellow-300 mr-2"></div>
+                        <div class="w-4 h-4 bg-orange-400 mr-2"></div>
+                        <span>Waiting Payment</span>
+                    </div>
+                    <div class="flex items-center">
+                        <div class="w-4 h-4 bg-green-300 mr-2"></div>
                         <span>Pending</span>
                     </div>
                     <div class="flex items-center">
@@ -133,8 +137,9 @@
                                             data-booking-data="{{ apartment.days|get_dic_item:number|get_dic_item:'booking_data'|join:', ' }}"
                                             class="day border-r border-gray-500 relative p-0
                                                 {% if apartment.days|get_dic_item:number|get_dic_item:'status' == 'Confirmed' %} bg-green-500 text-white
-                                                {% elif apartment.days|get_dic_item:number|get_dic_item:'status' == 'Pending' %} bg-yellow-300 text-white
-                                                {% elif apartment.days|get_dic_item:number|get_dic_item:'status' == 'Waiting' %} bg-yellow-500 text-white
+                                                {% elif apartment.days|get_dic_item:number|get_dic_item:'status' == 'Pending' %} bg-green-300 text-white
+                                                {% elif apartment.days|get_dic_item:number|get_dic_item:'status' == 'Waiting Payment' %} bg-orange-400 text-white
+                                                {% elif apartment.days|get_dic_item:number|get_dic_item:'status' == 'Waiting Contract' %} bg-yellow-500 text-white
                                                 {% elif apartment.days|get_dic_item:number|get_dic_item:'status' == 'Blocked' %} bg-black text-white
                                                 {% elif apartment.days|get_dic_item:number|get_dic_item:'status' == 'Problem Booking' %} bg-red-500 text-white
                                                 {% elif apartment.days|get_dic_item:number|get_dic_item:'status' == 'Available' and apartment.days|get_dic_item:number|get_dic_item:'past' %} bg-gray-300 text-black

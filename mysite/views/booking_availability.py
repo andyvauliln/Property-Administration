@@ -132,8 +132,10 @@ def booking_availability(request):
                     statuses = set(b.status for b in day_bookings)
                     if 'Confirmed' in statuses:
                         apartment_data['days'][day]['status'] = 'Confirmed'
-                    elif 'Waiting Contract' in statuses or 'Waiting Payment' in statuses:
-                        apartment_data['days'][day]['status'] = 'Waiting'
+                    elif 'Waiting Contract' in statuses:
+                        apartment_data['days'][day]['status'] = 'Waiting Contract'
+                    elif 'Waiting Payment' in statuses:
+                        apartment_data['days'][day]['status'] = 'Waiting Payment'
                     elif 'Blocked' in statuses:
                         apartment_data['days'][day]['status'] = 'Blocked'
                     elif 'Pending' in statuses:

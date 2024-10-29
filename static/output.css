@@ -451,19 +451,9 @@ video {
   transform: rotate(45deg);
 }
 
-[data-tooltip-style^='light'] + .\!tooltip > .tooltip-arrow:before {
-  border-style: solid !important;
-  border-color: #e5e7eb !important;
-}
-
 [data-tooltip-style^='light'] + .tooltip > .tooltip-arrow:before {
   border-style: solid;
   border-color: #e5e7eb;
-}
-
-[data-tooltip-style^='light'] + .\!tooltip[data-popper-placement^='top'] > .tooltip-arrow:before {
-  border-bottom-width: 1px !important;
-  border-right-width: 1px !important;
 }
 
 [data-tooltip-style^='light'] + .tooltip[data-popper-placement^='top'] > .tooltip-arrow:before {
@@ -471,19 +461,9 @@ video {
   border-right-width: 1px;
 }
 
-[data-tooltip-style^='light'] + .\!tooltip[data-popper-placement^='right'] > .tooltip-arrow:before {
-  border-bottom-width: 1px !important;
-  border-left-width: 1px !important;
-}
-
 [data-tooltip-style^='light'] + .tooltip[data-popper-placement^='right'] > .tooltip-arrow:before {
   border-bottom-width: 1px;
   border-left-width: 1px;
-}
-
-[data-tooltip-style^='light'] + .\!tooltip[data-popper-placement^='bottom'] > .tooltip-arrow:before {
-  border-top-width: 1px !important;
-  border-left-width: 1px !important;
 }
 
 [data-tooltip-style^='light'] + .tooltip[data-popper-placement^='bottom'] > .tooltip-arrow:before {
@@ -491,50 +471,25 @@ video {
   border-left-width: 1px;
 }
 
-[data-tooltip-style^='light'] + .\!tooltip[data-popper-placement^='left'] > .tooltip-arrow:before {
-  border-top-width: 1px !important;
-  border-right-width: 1px !important;
-}
-
 [data-tooltip-style^='light'] + .tooltip[data-popper-placement^='left'] > .tooltip-arrow:before {
   border-top-width: 1px;
   border-right-width: 1px;
-}
-
-.\!tooltip[data-popper-placement^='top'] > .tooltip-arrow {
-  bottom: -4px !important;
 }
 
 .tooltip[data-popper-placement^='top'] > .tooltip-arrow {
   bottom: -4px;
 }
 
-.\!tooltip[data-popper-placement^='bottom'] > .tooltip-arrow {
-  top: -4px !important;
-}
-
 .tooltip[data-popper-placement^='bottom'] > .tooltip-arrow {
   top: -4px;
-}
-
-.\!tooltip[data-popper-placement^='left'] > .tooltip-arrow {
-  right: -4px !important;
 }
 
 .tooltip[data-popper-placement^='left'] > .tooltip-arrow {
   right: -4px;
 }
 
-.\!tooltip[data-popper-placement^='right'] > .tooltip-arrow {
-  left: -4px !important;
-}
-
 .tooltip[data-popper-placement^='right'] > .tooltip-arrow {
   left: -4px;
-}
-
-.\!tooltip.invisible > .tooltip-arrow:before {
-  visibility: hidden !important;
 }
 
 .tooltip.invisible > .tooltip-arrow:before {
@@ -1160,18 +1115,6 @@ input:checked + .toggle-bg {
   top: 0.625rem;
 }
 
-.left-full {
-  left: 100%;
-}
-
-.right-full {
-  right: 100%;
-}
-
-.top-1\/2 {
-  top: 50%;
-}
-
 .z-10 {
   z-index: 10;
 }
@@ -1636,6 +1579,10 @@ input:checked + .toggle-bg {
   max-width: 42rem;
 }
 
+.max-w-\[90\%\] {
+  max-width: 90%;
+}
+
 .max-w-lg {
   max-width: 32rem;
 }
@@ -1650,18 +1597,6 @@ input:checked + .toggle-bg {
 
 .max-w-screen-xl {
   max-width: 1280px;
-}
-
-.max-w-xs {
-  max-width: 20rem;
-}
-
-.max-w-\[300px\] {
-  max-width: 300px;
-}
-
-.max-w-\[90\%\] {
-  max-width: 90%;
 }
 
 .flex-1 {
@@ -1702,11 +1637,6 @@ input:checked + .toggle-bg {
 
 .translate-y-full {
   --tw-translate-y: 100%;
-  transform: translate(var(--tw-translate-x), var(--tw-translate-y)) rotate(var(--tw-rotate)) skewX(var(--tw-skew-x)) skewY(var(--tw-skew-y)) scaleX(var(--tw-scale-x)) scaleY(var(--tw-scale-y));
-}
-
-.-translate-y-1\/2 {
-  --tw-translate-y: -50%;
   transform: translate(var(--tw-translate-x), var(--tw-translate-y)) rotate(var(--tw-rotate)) skewX(var(--tw-skew-x)) skewY(var(--tw-skew-y)) scaleX(var(--tw-scale-x)) scaleY(var(--tw-scale-y));
 }
 
@@ -2044,6 +1974,11 @@ input:checked + .toggle-bg {
   border-color: rgb(194 120 3 / var(--tw-border-opacity));
 }
 
+.border-orange-500 {
+  --tw-border-opacity: 1;
+  border-color: rgb(255 90 31 / var(--tw-border-opacity));
+}
+
 .bg-black {
   --tw-bg-opacity: 1;
   background-color: rgb(0 0 0 / var(--tw-bg-opacity));
@@ -2182,9 +2117,29 @@ input:checked + .toggle-bg {
   background-color: rgb(228 228 231 / var(--tw-bg-opacity));
 }
 
-.bg-gray-700 {
+.bg-green-300 {
   --tw-bg-opacity: 1;
-  background-color: rgb(55 65 81 / var(--tw-bg-opacity));
+  background-color: rgb(132 225 188 / var(--tw-bg-opacity));
+}
+
+.bg-orange-200 {
+  --tw-bg-opacity: 1;
+  background-color: rgb(252 217 189 / var(--tw-bg-opacity));
+}
+
+.bg-green-600 {
+  --tw-bg-opacity: 1;
+  background-color: rgb(5 122 85 / var(--tw-bg-opacity));
+}
+
+.bg-orange-400 {
+  --tw-bg-opacity: 1;
+  background-color: rgb(255 138 76 / var(--tw-bg-opacity));
+}
+
+.bg-yellow-400 {
+  --tw-bg-opacity: 1;
+  background-color: rgb(227 160 8 / var(--tw-bg-opacity));
 }
 
 .bg-opacity-50 {
@@ -2193,6 +2148,10 @@ input:checked + .toggle-bg {
 
 .bg-opacity-75 {
   --tw-bg-opacity: 0.75;
+}
+
+.p-0 {
+  padding: 0px;
 }
 
 .p-1 {
@@ -2229,10 +2188,6 @@ input:checked + .toggle-bg {
 
 .p-8 {
   padding: 2rem;
-}
-
-.p-0 {
-  padding: 0px;
 }
 
 .px-1 {
@@ -2680,6 +2635,21 @@ input:checked + .toggle-bg {
   color: rgb(161 161 170 / var(--tw-text-opacity));
 }
 
+.text-green-300 {
+  --tw-text-opacity: 1;
+  color: rgb(132 225 188 / var(--tw-text-opacity));
+}
+
+.text-orange-500 {
+  --tw-text-opacity: 1;
+  color: rgb(255 90 31 / var(--tw-text-opacity));
+}
+
+.text-green-400 {
+  --tw-text-opacity: 1;
+  color: rgb(49 196 141 / var(--tw-text-opacity));
+}
+
 .underline {
   text-decoration-line: underline;
 }
@@ -2777,10 +2747,6 @@ input:checked + .toggle-bg {
   transition-duration: 150ms;
 }
 
-.duration-200 {
-  transition-duration: 200ms;
-}
-
 .ease-out {
   transition-timing-function: cubic-bezier(0, 0, 0.2, 1);
 }
@@ -2836,6 +2802,30 @@ td:hover .tooltip {
     visibility: visible;
     opacity: 1;
 } */
+
+label[textContent="Confirmed"] {
+  color: green !important;
+}
+
+label[textContent="Waiting Contract"] {
+  color: yellow !important;
+}
+
+label[textContent="Waiting Payment"] {
+  color: orange !important;
+}
+
+label[textContent="Blocked"] {
+  color: black !important;
+}
+
+label[textContent="Pending"] {
+  color: lightgreen !important;
+}
+
+label[textContent="Problem Booking"] {
+  color: red !important;
+}
 
 .booking-start {
   background: #3F83F8;
@@ -3055,14 +3045,6 @@ td:hover .tooltip {
 .focus\:ring-red-300:focus {
   --tw-ring-opacity: 1;
   --tw-ring-color: rgb(248 180 180 / var(--tw-ring-opacity));
-}
-
-.group:hover .group-hover\:block {
-  display: block;
-}
-
-.group:hover .group-hover\:opacity-100 {
-  opacity: 1;
 }
 
 :is(.dark .dark\:border-blue-500) {

@@ -7,28 +7,33 @@
             {% if field_instance.isColumn %}
                 {% if "status" in field_name %}
                     <td class="px-4 py-4">
-                        {% if item|get_item:field_name in "Pending,Scheduled,Waiting Contract,Waiting Payment" %}
+                        {% if item|get_item:field_name == "Waiting Contract" %}
                             <span class="bg-yellow-200 text-yellow-500 px-2 py-1 rounded-full">{{ item|get_item:field_name }}</span>
-                        {% elif item|get_item:field_name in "Confirmed,Signed,Completed,Done,Merged" %}
+                        {% elif item|get_item:field_name == "Waiting Payment" %}
+                            <span class="bg-orange-200 text-orange-500 px-2 py-1 rounded-full">{{ item|get_item:field_name }}</span>
+                        {% elif item|get_item:field_name == "Confirmed" or item|get_item:field_name == "Available" %}
                             <span class="bg-green-200 text-green-700 px-2 py-1 rounded-full">{{ item|get_item:field_name }}</span>
-                        {% elif item|get_item:field_name in "Blocked" %}
-                            <span class="bg-red-200 text-red-700 px-2 py-1 rounded-full">{{ item|get_item:field_name }}</span>
-                        {% elif item|get_item:field_name in "Problem Booking" %}
+                        {% elif item|get_item:field_name == "Blocked" %}
+                            <span class="bg-black text-white px-2 py-1 rounded-full">{{ item|get_item:field_name }}</span>
+                        {% elif item|get_item:field_name == "Pending" %}
+                            <span class="bg-green-200 text-green-400 px-2 py-1 rounded-full">{{ item|get_item:field_name }}</span>
+                        {% elif item|get_item:field_name == "Problem Booking" or item|get_item:field_name == "Unavailable" %}
                             <span class="bg-red-200 text-red-500 px-2 py-1 rounded-full">{{ item|get_item:field_name }}</span>
+                        {% elif item|get_item:field_name in "Signed,Completed,Done,Merged,Scheduled" %}
+                            <span class="bg-green-500 text-gray-700 px-2 py-1 rounded-full">{{ item|get_item:field_name }}</span>
                         {% else %}
-                            {{ item|get_item:field_name }}
+                            <span class="bg-gray-200 text-gray-700 px-2 py-1 rounded-full">{{ item|get_item:field_name }}</span>
                         {% endif %}
                     </td>
-                    {% elif field_name == "amount" %}
-                        {% with payment_type=item|get_custom_item:"payment_type.full_name2"|default:"" %}
-                            {% if "-Out" in payment_type %}
-                                <td class="px-4 py-4 text-red-600">-{{ item|get_item:field_name }}</td>
-                            {% else %}
-                                <td class="px-4 text-green-600 py-4">+{{ item|get_item:field_name }}</td>
-                            {% endif %}
-                        {% endwith %}
-                    
-                    {% elif field_instance.display_field %}
+                {% elif field_name == "amount" %}
+                    {% with payment_type=item|get_custom_item:"payment_type.full_name2"|default:"" %}
+                        {% if "-Out" in payment_type %}
+                            <td class="px-4 py-4 text-red-600">-{{ item|get_item:field_name }}</td>
+                        {% else %}
+                            <td class="px-4 text-green-600 py-4">+{{ item|get_item:field_name }}</td>
+                        {% endif %}
+                    {% endwith %}
+                {% elif field_instance.display_field %}
                     {% for display in field_instance.display_field %}
                         {% if display == "apartment.name" and "booking.apartment.name" in field_instance.display_field %}
                             {# Do nothing for now as you haven't specified any logic for this condition #}
@@ -49,12 +54,12 @@
                 {% endif %}
             {% endif %}
         {% endfor %}
-        </tr>
+    </tr>
     {% empty %}
-        <tr>
-            <td colspan="{{ model_fields|length }}" class="text-center py-4">No data found</td>
-        </tr>
- {% endfor %}
+    <tr>
+        <td colspan="{{ model_fields|length }}" class="text-center py-4">No data found</td>
+    </tr>
+    {% endfor %}
 </tbody>
 
 
