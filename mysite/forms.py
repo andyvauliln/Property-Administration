@@ -535,7 +535,6 @@ class BookingForm(forms.ModelForm):
             start_date__lt=end_date,
             end_date__gt=start_date
         )
-
         if self.instance.id:
             overlapping_bookings = overlapping_bookings.exclude(
                 id=self.instance.id)
@@ -544,6 +543,11 @@ class BookingForm(forms.ModelForm):
             overlapping_booking = overlapping_bookings.first()
             raise forms.ValidationError(
                 f"The apartment is already booked from {overlapping_booking.start_date} to {overlapping_booking.end_date}."
+            )
+
+        if start_date and end_date and start_date > end_date:
+            raise forms.ValidationError(
+                "The start date cannot be later than the end date."
             )
 
         return cleaned_data

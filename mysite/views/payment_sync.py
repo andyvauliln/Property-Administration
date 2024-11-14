@@ -303,9 +303,9 @@ def find_possible_matches_db_to_file(db_payments, file_payments, amount_delta, d
 
 
 def is_payment_type_match(payment_from_db, file_payment):
-   if file_payment['payment_type_name'] == "Income":
+   if file_payment['payment_type_name'] == "Other (In)":
        return payment_from_db.payment_type.type == "In"
-   elif file_payment['payment_type_name'] == "Expense":
+   elif file_payment['payment_type_name'] == "Other (Out)":
        return payment_from_db.payment_type.type == "Out"
 
 
