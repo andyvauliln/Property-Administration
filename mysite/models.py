@@ -153,6 +153,7 @@ class Apartment(models.Model):
     notes = models.TextField(blank=True, null=True)
     start_date = models.DateTimeField(blank=True, null=True, db_index=True)
     end_date = models.DateTimeField(blank=True, null=True, db_index=True)
+    keywords = models.TextField(blank=True, null=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -254,6 +255,8 @@ class Booking(models.Model):
                                   related_name='booked_apartments', null=True)
     notes = models.TextField(blank=True, null=True)
     other_tenants = models.TextField(blank=True, null=True)
+
+    keywords = models.TextField(blank=True, null=True)
 
     tenant = models.ForeignKey(
         User, on_delete=models.SET_NULL, db_index=True, related_name='bookings', null=True, blank=True)
@@ -582,7 +585,7 @@ class Booking(models.Model):
         payment_str = ""
         for payment in payments:
             formatted_date = payment.payment_date.strftime("%B %d %Y")
-            payment_str += f"{payment.payment_type.name}: ${payment.amount}, {formatted_date} \n"
+            payment_str += f"{payment.payment_type.name}: ${payment.amount}, {formatted_date} {payment.tenant_notes.strip() if payment.tenant_notes else ''} \n"
         return payment_str
 
     @property
@@ -672,6 +675,7 @@ class PaymenType(models.Model):
     category = models.CharField(max_length=50, db_index=True, null=True, blank=True, choices=CATEGORY)
     balance_sheet_name = models.CharField(max_length=50, db_index=True, null=True, blank=True, choices=BALANCE_SHEET_NAME)
     type = models.CharField(max_length=32, db_index=True, choices=TYPE)
+    keywords = models.TextField(blank=True, null=True)
 
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -711,6 +715,8 @@ class Payment(models.Model):
     bank = models.ForeignKey(PaymentMethod, blank=True, on_delete=models.SET_NULL, db_index=True,
                              related_name='bank_payments', limit_choices_to={'type': 'Bank'}, null=True)
     notes = models.TextField(blank=True, null=True)
+    tenant_notes = models.TextField(blank=True, null=True)
+    keywords = models.TextField(blank=True, null=True)
     merged_payment_key = models.TextField(blank=True, null=True)
     booking = models.ForeignKey(Booking, on_delete=models.CASCADE, db_index=True,
                                 related_name='payments', null=True, blank=True)

@@ -306,7 +306,7 @@ class CustomUserForm(forms.ModelForm):
 class ApartmentForm(forms.ModelForm):
     class Meta:
         model = Apartment
-        fields = ['name', 'apartment_type', 'status', 'notes', 'web_link', 'building_n', 'street', 'apartment_n',
+        fields = ['name', 'apartment_type', 'keywords', 'status', 'notes', 'web_link', 'building_n', 'street', 'apartment_n',
                   'state', 'start_date', 'end_date', 'city', 'zip_index', 'bedrooms', 'bathrooms', 'manager', 'owner',]
 
     def __init__(self, *args, **kwargs):
@@ -345,6 +345,8 @@ class ApartmentForm(forms.ModelForm):
         _dropdown_options=lambda: get_dropdown_options("apart_status"))
     notes = CharFieldEx(isColumn=False, isEdit=True, initial="",
                         required=False, isCreate=True, ui_element="textarea")
+    keywords = CharFieldEx(isColumn=False, isEdit=True, initial="",
+                        required=False, isCreate=True, ui_element="textarea")
     manager = ModelChoiceFieldEx(
         queryset=User.objects.all(),
         isColumn=True, isEdit=True, required=False, isCreate=True, ui_element="dropdown",
@@ -375,7 +377,7 @@ class BookingForm(forms.ModelForm):
     class Meta:
         model = Booking
         fields = [
-            'tenant_email', 'tenant_full_name', 'tenant_phone', 'assigned_cleaner',
+            'tenant_email', 'tenant_full_name', 'tenant_phone', 'keywords', 'assigned_cleaner',
             'status', 'start_date', 'end_date', 'notes', 'tenant', 'apartment', 'source', 'tenants_n',
             'payment_type', 'payment_date', 'amount', "animals", "visit_purpose",  "other_tenants",  'is_rent_car',
             'car_model', 'car_price', 'car_rent_days',
@@ -451,6 +453,8 @@ class BookingForm(forms.ModelForm):
         display_field=["apartment.name"]
     )
     notes = CharFieldEx(isColumn=False, order=10, isEdit=True,
+                        isCreate=True, ui_element="textarea", initial="", required=False)
+    keywords = CharFieldEx(isColumn=False, order=11, isEdit=True,
                         isCreate=True, ui_element="textarea", initial="", required=False)
     other_tenants = CharFieldEx(
         isColumn=False, isEdit=True, initial="", order=9, isCreate=True, ui_element="textarea", required=False)
@@ -556,7 +560,7 @@ class BookingForm(forms.ModelForm):
 class PaymentForm(forms.ModelForm):
     class Meta:
         model = Payment
-        fields = ['payment_date', 'payment_method', 'bank', 'payment_status',
+        fields = ['payment_date', 'payment_method', 'bank', 'keywords', 'payment_status', 'tenant_notes', 'keywords',
                   'amount', "number_of_months", 'payment_type', 'notes', 'booking', "apartment"]
 
     def __init__(self, *args, **kwargs):
@@ -592,6 +596,10 @@ class PaymentForm(forms.ModelForm):
         isColumn=False, isEdit=True, isCreate=True, required=False, ui_element="radio",
         _dropdown_options=lambda: get_dropdown_options("banks"))
     notes = CharFieldEx(isColumn=True, required=False, order=9, initial="",
+                        isEdit=True, isCreate=True, ui_element="textarea")
+    tenant_notes = CharFieldEx(isColumn=False, required=False, order=10, initial="",
+                        isEdit=True, isCreate=True, ui_element="textarea")
+    keywords = CharFieldEx(isColumn=False, required=False, order=11, initial="",
                         isEdit=True, isCreate=True, ui_element="textarea")
     booking = ModelChoiceFieldEx(
         queryset=Booking.objects.all(),
@@ -750,7 +758,7 @@ class PaymentMethodForm(forms.ModelForm):
 class PaymentTypeForm(forms.ModelForm):
     class Meta:
         model = PaymenType
-        fields = ['name', 'type', 'category', 'balance_sheet_name']
+        fields = ['name', 'type', 'category', 'keywords', 'balance_sheet_name']
 
     name = CharFieldEx(max_length=32, initial="", isColumn=True,
                        isEdit=True, isCreate=True, ui_element="input")
@@ -760,6 +768,8 @@ class PaymentTypeForm(forms.ModelForm):
                          ui_element="dropdown", _dropdown_options=lambda: get_dropdown_options("payment_type_category"))
     type = ChoiceFieldEx(choices=PaymenType.TYPE, isColumn=True, isEdit=True, isCreate=True,
                          ui_element="dropdown", _dropdown_options=lambda: get_dropdown_options("payment_type_direction"))
+    keywords = CharFieldEx(isColumn=False, initial="", isEdit=True,
+                        required=False, isCreate=True, ui_element="textarea")
 
     def __init__(self, *args, **kwargs):
         self.request = kwargs.pop('request', None)

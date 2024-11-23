@@ -320,14 +320,35 @@ def get_matches_db_to_file(file_payment, db_payments, amount_delta, date_delta):
             match_obj['db_payment'] = payment_from_db
             match_obj['id'] = 'Matched'
             match_obj['score'] += 10
-        
-        if payment_from_db.booking and payment_from_db.booking.tenant.full_name:
-            tenant_name = payment_from_db.booking.tenant.full_name
-            name_parts = tenant_name.strip().split(" ")
-            if file_payment['notes'].lower().find(name_parts[0].lower()) != -1:
-                match_obj['tenant_match'] = 'Exact Match'
-                match_obj['tenant_name'] = tenant_name
+            continue
+
+        keywords_array = payment_from_db.keywords.split(",") if payment_from_db.keywords else []
+        if payment_from_db.apartment and payment_from_db.apartment.keywords and len(payment_from_db.apartment.keywords.strip()) > 0:
+            apartment_keywords_array = payment_from_db.apartment.keywords.split(",") if payment_from_db.apartment.keywords else []
+            keywords_array.extend(apartment_keywords_array)
+        if payment_from_db.booking:
+            booking_keywords_array = payment_from_db.booking.keywords.split(",") if payment_from_db.booking.keywords else []
+            keywords_array.extend(booking_keywords_array)
+            if payment_from_db.booking.apartment:
+                apartment_keywords_array = payment_from_db.booking.apartment.keywords.split(",") if payment_from_db.booking.apartment.keywords else []
+                keywords_array.extend(apartment_keywords_array)
+            if payment_from_db.booking.tenant:
+                keywords_array.extend(payment_from_db.booking.tenant.full_name.split(" "))
+                if payment_from_db.booking.tenant.email:
+                    keywords_array.append(payment_from_db.booking.tenant.email)
+                if payment_from_db.booking.tenant.phone:
+                    keywords_array.append(payment_from_db.booking.tenant.phone)
+            if payment_from_db.payment_type and payment_from_db.payment_type.keywords:
+                keywords_array.extend(payment_from_db.payment_type.keywords.split(",") if payment_from_db.payment_type.keywords else [])
+
+        match_obj['keywords'] = ""
+        for keyword in keywords_array:
+            if file_payment['notes'].lower().find(keyword.lower()) != -1:
+                
+                match_obj["db_payment"] = payment_from_db
+                match_obj['keywords'] += f'{keyword},'
                 match_obj['score'] += 5
+        
         
         payment_diff = abs(float(payment_from_db.amount) - abs(float(file_payment['amount'])))        
         payment_date_datetime = datetime.combine(payment_from_db.payment_date, datetime.min.time())

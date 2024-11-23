@@ -377,6 +377,7 @@
                             </div>
                             <div class="flex flex-grow p-2 flex-col border-r border-gray-300">
                             <div class="text-left border-b border-gray-300"> <span class="font-bold">Notes:</span> {{ match.db_payment.notes|default:"N/A" }}</div>
+                            <div class="text-left border-b border-gray-300"> <span class="font-bold">Matched Keywords:</span> {{ match.keywords|default:"N/A" }}</div>
                                 <div class="flex justify-between">
                                     <div> <span class="font-bold">Type:</span> {{ match.db_payment.payment_type|default:"N/A" }}</div>
                                     <div><span class="font-bold"> Method: </span> {{ match.db_payment.payment_method|default:"N/A" }}</div>
