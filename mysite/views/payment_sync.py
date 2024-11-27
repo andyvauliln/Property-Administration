@@ -322,24 +322,24 @@ def get_matches_db_to_file(file_payment, db_payments, amount_delta, date_delta):
             match_obj['score'] += 10
             continue
 
-        keywords_array = payment_from_db.keywords.split(",") if payment_from_db.keywords else []
+        keywords_array = [keyword.strip() for keyword in payment_from_db.keywords.split(",")] if payment_from_db.keywords else []
         if payment_from_db.apartment and payment_from_db.apartment.keywords and len(payment_from_db.apartment.keywords.strip()) > 0:
-            apartment_keywords_array = payment_from_db.apartment.keywords.split(",") if payment_from_db.apartment.keywords else []
+            apartment_keywords_array = [keyword.strip() for keyword in payment_from_db.apartment.keywords.split(",")] if payment_from_db.apartment.keywords else []
             keywords_array.extend(apartment_keywords_array)
         if payment_from_db.booking:
-            booking_keywords_array = payment_from_db.booking.keywords.split(",") if payment_from_db.booking.keywords else []
+            booking_keywords_array = [keyword.strip() for keyword in payment_from_db.booking.keywords.split(",")] if payment_from_db.booking.keywords else []
             keywords_array.extend(booking_keywords_array)
             if payment_from_db.booking.apartment:
-                apartment_keywords_array = payment_from_db.booking.apartment.keywords.split(",") if payment_from_db.booking.apartment.keywords else []
+                apartment_keywords_array = [keyword.strip() for keyword in payment_from_db.booking.apartment.keywords.split(",")] if payment_from_db.booking.apartment.keywords else []
                 keywords_array.extend(apartment_keywords_array)
             if payment_from_db.booking.tenant:
-                keywords_array.extend(payment_from_db.booking.tenant.full_name.split(" "))
+                keywords_array.extend([keyword.strip() for keyword in payment_from_db.booking.tenant.full_name.split(" ")])
                 if payment_from_db.booking.tenant.email:
-                    keywords_array.append(payment_from_db.booking.tenant.email)
+                    keywords_array.append(payment_from_db.booking.tenant.email.strip())
                 if payment_from_db.booking.tenant.phone:
-                    keywords_array.append(payment_from_db.booking.tenant.phone)
+                    keywords_array.append(payment_from_db.booking.tenant.phone.strip())
             if payment_from_db.payment_type and payment_from_db.payment_type.keywords:
-                keywords_array.extend(payment_from_db.payment_type.keywords.split(",") if payment_from_db.payment_type.keywords else [])
+                keywords_array.extend([keyword.strip() for keyword in payment_from_db.payment_type.keywords.split(",")] if payment_from_db.payment_type.keywords else [])
 
         match_obj['keywords'] = ""
         for keyword in keywords_array:
