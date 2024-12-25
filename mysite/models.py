@@ -974,3 +974,22 @@ class Chat(models.Model):
     message_status = models.CharField(
         max_length=32, db_index=True, choices=MESSAGE_STATUS, default='SENDED')
 
+
+# Models
+class HandymanCalendar(models.Model):
+    tenant_name = models.CharField(max_length=255)
+    tenant_phone = models.CharField(max_length=20)
+    apartment_name = models.CharField(max_length=255)
+    # apartment = models.ForeignKey(Apartment, on_delete=models.SET_NULL, db_index=True,
+    #                             related_name='handmade_calendar', null=True, blank=True)
+    date = models.DateField()
+    start_time = models.TimeField()
+    end_time = models.TimeField()
+    notes = models.TextField()
+
+    def save(self, *args, **kwargs):
+        print(self.start_time, "self.start_time")
+        super().save(*args, **kwargs)
+
+    def __str__(self):
+        return f"{self.apartment_name} - {self.date} {self.time}"

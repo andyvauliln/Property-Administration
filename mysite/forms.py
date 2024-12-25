@@ -1,7 +1,7 @@
 # mysite/forms.py
 from django import forms
 from django.contrib.auth.forms import AuthenticationForm
-from mysite.models import Booking, User, Apartment, Payment, Cleaning, Notification, PaymentMethod, PaymenType
+from mysite.models import Booking, User, Apartment, Payment, Cleaning, Notification, PaymentMethod, PaymenType, HandymanCalendar
 from datetime import date
 import requests
 import uuid
@@ -182,33 +182,31 @@ class DecimalFieldEx(CustomFieldMixin, forms.DecimalField):
 
 class DateFieldEx(CustomFieldMixin, forms.DateField):
     def __init__(self, *args, **kwargs):
-        self.display_format = '%B %d %Y'  # Display format: "Jun 24, 2023"
+        self.display_format = '%B %d %Y'  # Display format: "December 02 2024"
         self.save_format = '%Y-%m-%d'  # Save format: "YYYY-MM-DD"
-        placeholder = kwargs.pop('placeholder', timezone.now().strftime(self.display_format))  # Default placeholder
+        self.input_formats = ['%B %d %Y', '%b. %d, %Y', '%Y-%m-%d']  # Add the new format
+        placeholder = kwargs.pop('placeholder', timezone.now().strftime(self.display_format))
         kwargs['widget'] = forms.DateInput(
             format=self.display_format,
-            attrs={'placeholder': placeholder}  # Set the placeholder
+            attrs={'placeholder': placeholder}
         )
-        kwargs['input_formats'] = [self.display_format]
+        kwargs['input_formats'] = self.input_formats  # Set the input formats
         super().__init__(*args, **kwargs)
 
-    # def to_python(self, value):
-    #     # Convert the input value to a date object
-    #     date_obj = super().to_python(value)
-    #     if date_obj is not None:
-    #         # Convert the date object to the save format
-    #         return date_obj.strftime(self.save_format)
-    #     return value
-
     def prepare_value(self, value):
-        # Convert the saved value to the display format
         if isinstance(value, str):
             try:
-                date_obj = datetime.strptime(value, self.save_format)
-                return date_obj.strftime(self.display_format)
+                # Try parsing with multiple formats
+                for date_format in self.input_formats:
+                    try:
+                        date_obj = datetime.strptime(value, date_format)
+                        return date_obj.strftime(self.display_format)
+                    except ValueError:
+                        continue
             except ValueError:
                 pass
         return super().prepare_value(value)
+
 class DateTimeFieldEx(CustomFieldMixin, forms.DateTimeField):
     def __init__(self, *args, **kwargs):
         self.display_format = '%B %d %Y'  # Display format: "Jun 24, 2023"
@@ -775,3 +773,147 @@ class PaymentTypeForm(forms.ModelForm):
         self.request = kwargs.pop('request', None)
         action = kwargs.pop('action', 'create')
         super(PaymentTypeForm, self).__init__(*args, **kwargs)
+
+
+class HandymanCalendarForm(forms.ModelForm):
+    class Meta:
+        model = HandymanCalendar
+        fields = ['tenant_name', 'tenant_phone', 'apartment_name', 'date', 'start_time', 'end_time', 'notes']
+
+    def __init__(self, *args, **kwargs):
+        self.request = kwargs.pop('request', None)
+        self.action = kwargs.pop('action', None)
+        super(HandymanCalendarForm, self).__init__(*args, **kwargs)
+
+    tenant_name = CharFieldEx(
+        max_length=255, 
+        isColumn=True,
+        isEdit=True,
+        isCreate=True,
+        ui_element="input",
+        required=True,
+        order=1  # First field
+    )
+    
+    tenant_phone = CharFieldEx(
+        max_length=20,
+        isColumn=True,
+        isEdit=True,
+        isCreate=True,
+        ui_element="input",
+        required=True,
+        order=2  # Second field
+    )
+    
+    apartment_name = CharFieldEx(
+        max_length=255,
+        isColumn=True,
+        isEdit=True,
+        isCreate=True,
+        ui_element="input",
+        required=True,
+        order=3  # Third field
+    )
+    
+    date = DateFieldEx(
+        isColumn=True,
+        isEdit=True,
+        isCreate=True,
+        ui_element="datepicker",
+        required=True,
+        order=4  # Fourth field
+    )
+    
+    start_time = forms.TimeField(
+        widget=forms.TimeInput(
+            attrs={
+                'type': 'time',
+                'order': 5  # Fifth field
+            },
+            format='%H:%M'
+        ),
+        input_formats=['%H:%M'],
+        required=True
+    )
+
+    end_time = forms.TimeField(
+        widget=forms.TimeInput(
+            attrs={
+                'type': 'time',
+                'order': 6  # Sixth field
+            },
+            format='%H:%M'
+        ),
+        input_formats=['%H:%M'],
+        required=True
+    )
+    
+    notes = CharFieldEx(
+        isColumn=False,
+        isEdit=True,
+        isCreate=True,
+        ui_element="textarea",
+        required=False,
+        order=7  # Last field
+    )
+
+    def clean(self):
+        cleaned_data = super().clean()
+        date = cleaned_data.get('date')
+        start_time = cleaned_data.get('start_time')
+        end_time = cleaned_data.get('end_time')
+        apartment_name = cleaned_data.get('apartment_name')
+        tenant_name = cleaned_data.get('tenant_name')
+        tenant_phone = cleaned_data.get('tenant_phone')
+
+        # Check if required fields are set
+        required_fields = {
+            'apartment_name': apartment_name,
+            'tenant_name': tenant_name,
+            'tenant_phone': tenant_phone,
+            'date': date,
+            'start_time': start_time,
+            'end_time': end_time
+        }
+
+        missing_fields = [field for field, value in required_fields.items() if not value]
+        if missing_fields:
+            raise forms.ValidationError(
+                f"The following fields are required: {', '.join(missing_fields)}"
+            )
+
+        # Check if date is in the past
+        if date and date < timezone.now().date():
+            raise forms.ValidationError(
+                "Cannot create appointments for past dates"
+            )
+
+        # Check if end time is after start time
+        if start_time and end_time and start_time >= end_time:
+            raise forms.ValidationError(
+                "End time must be after start time"
+            )
+
+        if apartment_name and date:
+            # Check for existing appointments at the same date/time
+            existing_appointments = HandymanCalendar.objects.filter(
+                apartment_name=apartment_name,
+                date=date
+            ).exclude(
+                # Exclude appointments that end before this one starts or start after this one ends
+                end_time__lte=start_time
+            ).exclude(
+                start_time__gte=end_time
+            )
+            
+            if self.instance.id:
+                existing_appointments = existing_appointments.exclude(id=self.instance.id)
+                
+            if existing_appointments.exists():
+                raise forms.ValidationError(
+                    f"There is already an appointment scheduled for {apartment_name} on {date} during this time period"
+                )
+
+        return cleaned_data
+
+

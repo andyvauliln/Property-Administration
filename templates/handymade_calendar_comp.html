@@ -1,0 +1,36 @@
+{% load custom_filters %}
+<div class="w-full max-w-lg p-6 mx-auto bg-white rounded-2xl shadow-xl flex flex-col">
+    <div class="flex justify-between pb-2 flex-col border-b">
+        <div class="uppercase text-sm font-semibold text-gray-600">{{ month|date:"F Y" }}</div>
+    </div>
+
+    {% with days_of_week="sun mon tue wed thu fri sat" %}
+    <div class="flex justify-between font-medium uppercase text-xs pt-4 pb-2">
+        {% for day in days_of_week.split %}
+            <div class="px-3 border rounded-sm w-10 h-5 flex items-center justify-center border-blue-500 text-blue-500 shadow-md">{{ day }}</div>
+        {% endfor %}
+    </div>
+    {% endwith %}
+    {% for week in weeks %}
+        <div class="flex justify-between">
+        {% for day_data in week %}
+            {% if day_data.day.month == month.month %}
+                <div class="relative day px-1 mb-1 w-10 flex justify-center items-center cursor-pointer rounded-sm hover:bg-gray-100
+                    {% if day_data.events %} 
+                        bg-green-300 font-extrabold
+                    {% endif %}" 
+                    data-date="{{ day_data.day|date:"Y-m-d" }}"
+                    data-has-bookings="{{ day_data.events|yesno:'true,false' }}"
+                    onclick="openModalForDay('{{ day_data.day|date:"Y-m-d" }}')"
+                    >
+                    {{ day_data.day|date:"d" }}
+                    
+                </div>
+            {% else %}
+                <span class="day-empty px-1 text-gray-400 w-10 flex justify-center items-center"></span>
+            {% endif %}
+        {% endfor %}
+        </div>
+    {% endfor %}
+</div>
+
