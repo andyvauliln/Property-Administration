@@ -116,7 +116,7 @@
                         title="Save">
                         <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
-                                d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h12a2 2 0 002-2v-12a2 2 0 00-2-2h-2M8 5a2 2 0 002 2h4a2 2 0 002-2M8 5a2 2 0 012-2h4a2 2 0 012 2m-6 8v6m4-6v6" />
+                                d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h12a2 2 0 002-2v-12a2 2 0 00-2-2h-2M8 5a2 2 0 002 2h4a2 2 0 002-2M8 5a2 2 0 012-2h4a2 2 0 012 2m-6 8v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
                         </svg>
                     </button>
                     ${booking ? `
@@ -139,15 +139,101 @@
         document.getElementById('bookingsModal').classList.add('hidden');
     }
 
+    function showValidationErrors(errors) {
+        const container = document.getElementById('validationMessages');
+        const messagesList = document.getElementById('validationMessagesList');
+        messagesList.innerHTML = '';
+        
+        if (Array.isArray(errors)) {
+            errors.forEach(error => {
+                const errorItem = document.createElement('div');
+                errorItem.className = 'mt-1';
+                errorItem.textContent = `• ${error}`;
+                messagesList.appendChild(errorItem);
+            });
+        } else {
+            const errorItem = document.createElement('div');
+            errorItem.className = 'mt-1';
+            errorItem.textContent = `• ${errors}`;
+            messagesList.appendChild(errorItem);
+        }
+        
+        container.classList.remove('hidden');
+    }
+
+    function clearValidationErrors() {
+        const container = document.getElementById('validationMessages');
+        container.classList.add('hidden');
+        const messagesList = document.getElementById('validationMessagesList');
+        messagesList.innerHTML = '';
+    }
 
     async function handleSubmitBooking(event) {
         event.preventDefault();
+        clearValidationErrors();
+        
         const form = event.target;
         const formData = new FormData(form);
+        const errors = [];
         
+        // Validate required fields
+        const required_fields = {
+            'apartment_name': formData.get('apartment_name'),
+            'tenant_name': formData.get('tenant_name'),
+            'tenant_phone': formData.get('tenant_phone'),
+            'start_time': formData.get('start_time'),
+            'end_time': formData.get('end_time')
+        };
+
+        const missing_fields = Object.entries(required_fields)
+            .filter(([_, value]) => !value)
+            .map(([field, _]) => field.replace('_', ' '));
+
+        if (missing_fields.length > 0) {
+            errors.push(`The following fields are required: ${missing_fields.join(', ')}`);
+        }
+
         // Get the raw date value
         const rawDate = document.getElementById('modalDate').getAttribute('data-date');
         formData.set('date', rawDate);
+
+        // Check if date is in the past
+        const selectedDate = new Date(rawDate);
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        
+        if (selectedDate < today) {
+            errors.push("Cannot create appointments for past dates");
+        }
+
+        // Check if end time is after start time
+        const startTime = formData.get('start_time');
+        const endTime = formData.get('end_time');
+        
+        if (startTime >= endTime) {
+            errors.push("End time must be after start time");
+        }
+
+        // Check for overlapping appointments
+        const existingBookings = getBookingsForDate(rawDate);
+        const currentBookingId = formData.get('id');
+        const hasOverlap = existingBookings.some(booking => {
+            if (booking.id === currentBookingId) return false;
+            
+            return !(
+                booking.end_time <= startTime ||
+                booking.start_time >= endTime
+            ) && booking.apartment_name === formData.get('apartment_name');
+        });
+
+        if (hasOverlap) {
+            errors.push(`There is already an appointment scheduled for ${formData.get('apartment_name')} on ${rawDate} during this time period`);
+        }
+
+        if (errors.length > 0) {
+            showValidationErrors(errors);
+            return;
+        }
         
         try {
             const response = await fetch('/handyman_calendar/', {
@@ -159,11 +245,11 @@
                 window.location.reload();
             } else {
                 const data = await response.json();
-                alert(data.error || 'Failed to process booking');
+                showValidationErrors(data.error || 'Failed to process booking');
             }
         } catch (error) {
             console.error('Error:', error);
-            alert('Failed to process booking');
+            showValidationErrors('Failed to process booking');
         }
     }
 
@@ -309,6 +395,36 @@
             
             <div id="bookingsList" class="mb-4">
                 <!-- Bookings form will be inserted here -->
+            </div>
+
+            <div class="flex justify-between items-center mb-4">
+                <div id="modalDate"></div>
+                <button onclick="closeModal()" class="text-gray-500 hover:text-gray-700">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                </button>
+            </div>
+
+            <div id="bookingsList" class="mb-4">
+                <!-- Bookings form will be inserted here -->
+            </div>
+
+            <!-- Add this new validation messages container -->
+            <div id="validationMessages" class="hidden mt-4 p-4 rounded-md border border-red-200 bg-red-50">
+                <div class="flex">
+                    <div class="flex-shrink-0">
+                        <svg class="h-5 w-5 text-red-400" viewBox="0 0 20 20" fill="currentColor">
+                            <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd"/>
+                        </svg>
+                    </div>
+                    <div class="ml-3">
+                        <h3 class="text-sm font-medium text-red-800">There were validation errors:</h3>
+                        <div class="mt-2 text-sm text-red-700" id="validationMessagesList">
+                            <!-- Validation messages will be inserted here -->
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
     </div>

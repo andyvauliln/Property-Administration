@@ -18,6 +18,9 @@
                 <div class="relative day px-1 mb-1 w-10 flex justify-center items-center cursor-pointer rounded-sm hover:bg-gray-100
                     {% if day_data.events %} 
                         bg-green-300 font-extrabold
+                    {% endif %}
+                    {% if day_data.day|date:'Y-m-d' < today|date:'Y-m-d' %}
+                        text-gray-400
                     {% endif %}" 
                     data-date="{{ day_data.day|date:"Y-m-d" }}"
                     data-has-bookings="{{ day_data.events|yesno:'true,false' }}"

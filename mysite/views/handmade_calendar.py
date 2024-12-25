@@ -110,6 +110,7 @@ def handyman_calendar(request):
         'bookings_json': bookings_json,
         'title': "Handyman Calendar",
         'endpoint': "/handyman_calendar",
+        'today': date.today(),
     }
 
     return render(request, 'handyman_calendar.html', context)
