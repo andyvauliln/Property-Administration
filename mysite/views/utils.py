@@ -302,6 +302,27 @@ def get_model_fields(form):
     # Sort fields by the 'order' attribute
     sorted_fields = sorted(fields, key=lambda item: item[1].order)
     return sorted_fields
+    # Convert field instances to serializable dictionaries
+    serializable_fields = []
+    for field_name, field_instance in sorted_fields:
+        field_data = {
+            'name': field_name,
+            'label': field_instance.label or field_name.replace('_', ' ').title(),
+            'type': field_instance.__class__.__name__,
+            'required': field_instance.required,
+            'order': field_instance.order,
+        }
+        
+        # Add choices if the field has them
+        if hasattr(field_instance, 'choices') and field_instance.choices:
+            field_data['choices'] = [
+                {'value': choice[0], 'label': choice[1]} 
+                for choice in field_instance.choices
+            ]
+            
+        serializable_fields.append(field_data)
+    
+    return serializable_fields
 
 
 def assign_color_classes(payments, in_colors, out_colors):

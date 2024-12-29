@@ -992,4 +992,58 @@ class HandymanCalendar(models.Model):
         super().save(*args, **kwargs)
 
     def __str__(self):
-        return f"{self.apartment_name} - {self.date} {self.time}"
+        return f"{self.apartment_name} - {self.date} {self.start_time} - {self.end_time}"
+
+
+class ApartmentParking(models.Model):
+    STATUS = [
+        ('Available', 'Available'),
+        ('Unavailable', 'Unavailable'),
+        ('Booked', 'Booked'),
+    ]
+    parking_number = models.IntegerField(blank=True, null=True)
+    notes = models.CharField(max_length=255, blank=True, null=True)
+    status = models.CharField(max_length=255, blank=True, null=True, choices=STATUS)
+    
+    # Add relationships
+    apartment = models.ForeignKey(
+        Apartment, 
+        on_delete=models.CASCADE,
+        related_name='parking_spots',
+        null=True
+    )
+    booking = models.ForeignKey(
+        Booking,
+        on_delete=models.SET_NULL,
+        related_name='parking_spots',
+        null=True,
+        blank=True
+    )
+
+    def __str__(self):
+        parking_str = f" {self.parking_number}" if self.parking_number is not None else "No parking"
+        notes_str = f" ({self.notes})" if self.notes else ""
+        apartment_name = f" - {self.apartment.name}" if self.apartment else ""
+        booking_info = f" (Booked)" if self.booking else ""
+        return f"{parking_str}{notes_str}{apartment_name}{booking_info}"
+
+    def save(self, *args, **kwargs):
+        # Convert parking to integer if it's a string number
+        if isinstance(self.parking_number, str) and self.parking_number.isdigit():
+            self.parking_number = int(self.parking_number)
+        super().save(*args, **kwargs)
+
+    @property
+    def links(self):
+        links_list = []
+        if self.apartment:
+            links_list.append({
+                "name": f"Apartment: {self.apartment.name}",
+                "link": f"/apartments/?q=id={self.apartment.id}"
+            })
+        if self.booking:
+            links_list.append({
+                "name": f"Booking: {self.booking.tenant.full_name} ({self.booking.start_date} - {self.booking.end_date})",
+                "link": f"/bookings/?q=id={self.booking.id}"
+            })
+        return links_list

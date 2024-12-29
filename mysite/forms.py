@@ -1,7 +1,7 @@
 # mysite/forms.py
 from django import forms
 from django.contrib.auth.forms import AuthenticationForm
-from mysite.models import Booking, User, Apartment, Payment, Cleaning, Notification, PaymentMethod, PaymenType, HandymanCalendar
+from mysite.models import Booking, User, Apartment, Payment, Cleaning, Notification, PaymentMethod, PaymenType, HandymanCalendar, ApartmentParking
 from datetime import date
 import requests
 import uuid
@@ -912,6 +912,110 @@ class HandymanCalendarForm(forms.ModelForm):
             if existing_appointments.exists():
                 raise forms.ValidationError(
                     f"There is already an appointment scheduled for {apartment_name} on {date} during this time period"
+                )
+
+        return cleaned_data
+
+
+class ApartmentParkingForm(forms.ModelForm):
+    class Meta:
+        model = ApartmentParking
+        fields = ['parking_number', 'notes', 'status', 'apartment', 'booking']
+
+    def __init__(self, *args, **kwargs):
+        self.request = kwargs.pop('request', None)
+        action = kwargs.pop('action', 'create')
+        super(ApartmentParkingForm, self).__init__(*args, **kwargs)
+
+    parking_number = IntegerFieldEx(
+        isColumn=True,
+        isEdit=True,
+        isCreate=True,
+        required=True,
+        ui_element="input",
+        order=1
+    )
+
+    notes = CharFieldEx(
+        max_length=255,
+        isColumn=True,
+        isEdit=True,
+        isCreate=True,
+        required=False,
+        ui_element="textarea",
+        order=3
+    )
+
+    status = ChoiceFieldEx(
+        choices=ApartmentParking.STATUS,
+        isColumn=True,
+        isEdit=True,
+        isCreate=True,
+        required=False,
+        initial='Available',
+        ui_element="dropdown",
+        _dropdown_options=lambda: [{"value": x[0], "label": x[1]} for x in ApartmentParking.STATUS],
+        order=2
+    )
+
+    apartment = ModelChoiceFieldEx(
+        queryset=Apartment.objects.all().order_by('name'),
+        isColumn=True,
+        isEdit=True,
+        isCreate=True,
+        ui_element="dropdown",
+        _dropdown_options=lambda: get_dropdown_options("apartments"),
+        display_field=["apartment.name"],
+        order=4
+    )
+
+    booking = ModelChoiceFieldEx(
+        queryset=Booking.objects.all(),
+        isColumn=True,
+        isEdit=True,
+        isCreate=True,
+        required=False,
+        ui_element="dropdown",
+        _dropdown_options=lambda: get_dropdown_options("bookings"),
+        display_field=["booking.tenant.full_name", "booking.start_date", "booking.end_date"],
+        order=5
+    )
+
+    def clean(self):
+        cleaned_data = super().clean()
+        parking_number = cleaned_data.get('parking_number')
+        apartment = cleaned_data.get('apartment')
+        booking = cleaned_data.get('booking')
+        status = cleaned_data.get('status', "Available")
+        if not status:
+            cleaned_data['status'] = "Available"
+
+        # Convert string parking number to integer if possible
+        if isinstance(parking_number, str) and parking_number.isdigit():
+            cleaned_data['parking_number'] = int(parking_number)
+
+        # If booking is assigned, status should be 'Booked'
+        if booking and status != 'Booked':
+            cleaned_data['status'] = 'Booked'
+        
+        # If status is 'Booked' but no booking is assigned, raise error
+        if status == 'Booked' and not booking:
+            raise forms.ValidationError(
+                "A booking must be assigned when status is 'Booked'"
+            )
+
+        # Check for duplicate parking numbers within the same apartment
+        if parking_number and apartment:
+            existing_parking = ApartmentParking.objects.filter(
+                apartment=apartment,
+                parking_number=parking_number
+            )
+            if self.instance.id:
+                existing_parking = existing_parking.exclude(id=self.instance.id)
+            
+            if existing_parking.exists():
+                raise forms.ValidationError(
+                    f"Parking number {parking_number} already exists for this apartment"
                 )
 
         return cleaned_data
