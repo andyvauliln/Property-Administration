@@ -64,9 +64,9 @@ def prepare_form_fields(request):
 def parking_calendar(request):
     status = request.GET.get('status',None)
     if status:
-        parking_data = ApartmentParking.objects.filter(status=status)
+        parking_data = ApartmentParking.get_filtered_parking(status=status)
     else:
-        parking_data = ApartmentParking.objects.all()
+        parking_data = ApartmentParking.get_all_parking()
 
     if request.method == 'POST':
         handle_post_request(request, ApartmentParking, ApartmentParkingForm)

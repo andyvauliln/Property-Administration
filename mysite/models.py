@@ -281,9 +281,11 @@ class Booking(models.Model):
         super().save(*args, **kwargs)
 
     def save(self, *args, **kwargs):
+        parking_number = kwargs.pop('parking_number', None)
         if self.pk:  # If primary key exists, it's an update
             form_data = kwargs.pop('form_data', None)
             payments_data = kwargs.pop('payments_data', None)
+            
             self.get_or_create_tenant(form_data)
             # self.create_payments(payments_data)
             orig = Booking.objects.get(pk=self.pk)
@@ -394,6 +396,11 @@ class Booking(models.Model):
             elif form_data and form_data["create_chat"]:
                 sendWelcomeMessageToTwilio(self)
         
+        if parking_number:
+            apartment_parking = ApartmentParking.objects.get(id=parking_number)
+            apartment_parking.booking = self
+            apartment_parking.status = "Booked"
+            apartment_parking.save()
        
     def deletePayments(self):
         payments_to_delete = Payment.objects.filter(
@@ -1022,16 +1029,68 @@ class ApartmentParking(models.Model):
 
     def __str__(self):
         parking_str = f" {self.parking_number}" if self.parking_number is not None else "No parking"
-        notes_str = f" ({self.notes})" if self.notes else ""
-        apartment_name = f" - {self.apartment.name}" if self.apartment else ""
-        booking_info = f" (Booked)" if self.booking else ""
-        return f"{parking_str}{notes_str}{apartment_name}{booking_info}"
+        apartment_name = f"{self.apartment.name}" if self.apartment else ""
+        booking_info = f"({self.status})"
+        return f"{apartment_name} {parking_str}{booking_info}"
 
     def save(self, *args, **kwargs):
         # Convert parking to integer if it's a string number
         if isinstance(self.parking_number, str) and self.parking_number.isdigit():
             self.parking_number = int(self.parking_number)
         super().save(*args, **kwargs)
+
+    @classmethod
+    def update_parking_statuses(cls):
+        """
+        Updates all parking spot statuses based on booking dates.
+        If a booking has ended, sets the spot to Available and removes the booking reference.
+        """
+        from datetime import date
+        today = date.today()
+        
+        # Get all parking spots with bookings
+        parking_spots = cls.objects.filter(booking__isnull=False)
+        
+        for spot in parking_spots:
+            if spot.booking and spot.booking.end_date < today:
+                # Booking has ended, update the parking spot
+                spot.status = 'Available'
+                spot.booking = None
+                spot.save()
+
+    @classmethod
+    def get_all_parking(cls):
+        """
+        Get all parking spots after updating expired bookings
+        """
+        from datetime import date
+        today = date.today()
+        
+        # Update statuses for expired bookings
+        expired_spots = cls.objects.filter(
+            booking__isnull=False,
+            booking__end_date__lt=today
+        )
+        expired_spots.update(status='Available', booking=None)
+        
+        return cls.objects.all()
+
+    @classmethod
+    def get_filtered_parking(cls, status):
+        """
+        Get parking spots filtered by status after updating expired bookings
+        """
+        from datetime import date
+        today = date.today()
+        
+        # Update statuses for expired bookings
+        expired_spots = cls.objects.filter(
+            booking__isnull=False,
+            booking__end_date__lt=today
+        )
+        expired_spots.update(status='Available', booking=None)
+        
+        return cls.objects.filter(status=status)
 
     @property
     def links(self):

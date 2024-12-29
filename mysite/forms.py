@@ -60,6 +60,11 @@ def get_dropdown_options(identifier, isData=False, request=None):
         if isData:
             return items
         return [{"value": item.id, "label": item.full_name} for item in items]
+    elif identifier == 'parking_numbers':
+        items = ApartmentParking.get_all_parking()
+        if isData:
+            return items
+        return [{"value": item.id, "label": str(item)} for item in items]
 
     elif identifier == 'roles':
         return [{"value": x[0], "label": x[1]} for x in User.ROLES]
@@ -378,7 +383,7 @@ class BookingForm(forms.ModelForm):
             'tenant_email', 'tenant_full_name', 'tenant_phone', 'keywords', 'assigned_cleaner',
             'status', 'start_date', 'end_date', 'notes', 'tenant', 'apartment', 'source', 'tenants_n',
             'payment_type', 'payment_date', 'amount', "animals", "visit_purpose",  "other_tenants",  'is_rent_car',
-            'car_model', 'car_price', 'car_rent_days',
+            'car_model', 'car_price', 'car_rent_days', 'parking_number',
         ]
 
     def __init__(self, *args, **kwargs):
@@ -411,11 +416,12 @@ class BookingForm(forms.ModelForm):
             'payment_id': self.request.POST.getlist('payment_id[]'),
             'number_of_months': [int(number_of_months) for number_of_months in self.request.POST.getlist('number_of_months[]')],
         }
+        parking_number = form_data.get("parking_number", None)
         if form_data.get("status") == "Blocked" or form_data.get("status") == "Pending" or form_data.get("status") == "Problem Booking":
             instance.saveEmpty(form_data=form_data)
 
         elif form_data:
-            instance.save(form_data=form_data, payments_data=payments_data)
+            instance.save(form_data=form_data, payments_data=payments_data, parking_number=parking_number)
 
         return instance
 
@@ -500,7 +506,10 @@ class BookingForm(forms.ModelForm):
     car_rent_days = IntegerFieldEx(
         required=False,  isCreate=True, initial=0, isEdit=True, ui_element="input", order=16)
     
-
+    parking_number = IntegerFieldEx(
+        required=False, isColumn=False, isCreate=True, initial=None, isEdit=False, ui_element="dropdown", order=17,
+        _dropdown_options=lambda: get_dropdown_options("parking_numbers"))
+    
     def clean(self):
         cleaned_data = super().clean()
         status = cleaned_data.get('status')
