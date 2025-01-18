@@ -3,14 +3,20 @@ from rest_framework.response import Response
 from rest_framework.renderers import JSONRenderer
 from rest_framework import status
 from ..models import Apartment, Booking
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, date
+from django.db.models import Q
 
 class ApartmentBookingDates(APIView):
     renderer_classes = [JSONRenderer]  # This ensures JSON response
     
     def get(self, request):
-        # Get all apartments
-        apartments = Apartment.objects.all()
+        today = date.today()
+        # Get available apartments that either have no end_date or haven't ended yet
+        apartments = Apartment.objects.filter(
+            status='Available'
+        ).filter(
+            Q(end_date__isnull=True) | Q(end_date__gte=today)
+        )
         
         # Prepare response data
         response_data = {
