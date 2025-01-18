@@ -14,3 +14,4 @@ from .booking_availability import booking_availability
 from .one_link_contract import create_booking_by_link
 from .handmade_calendar import handyman_calendar
 from .parking_calendar import parking_calendar
+from .booking_api import ApartmentBookingDates
