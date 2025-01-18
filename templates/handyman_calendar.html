@@ -20,19 +20,40 @@
 
 
 <script>
+    // Initialize localStorage for bookings if not exists
+    if (!localStorage.getItem('myBookings')) {
+        localStorage.setItem('myBookings', JSON.stringify([]));
+    }
 
     console.log('Raw bookings_json:', {{ bookings_json|safe }});
     const bookingsByDate = JSON.parse('{{ bookings_json|safe }}');
-    console.log(bookingsByDate, "bookingsByDate")
+    console.log(bookingsByDate, "bookingsByDate");
     
+    // Parse the apartments list
+    const apartmentsList = JSON.parse('{{ apartments_json|safe }}');
+    console.log('Available apartments:', apartmentsList);
+
     function getBookingsForDate(dateStr) {
         return bookingsByDate[dateStr] || [];
     }
 
+    function isMyBooking(bookingId) {
+        const myBookings = JSON.parse(localStorage.getItem('myBookings') || '[]');
+        return myBookings.includes(bookingId);
+    }
+
+    function addMyBooking(bookingId) {
+        const myBookings = JSON.parse(localStorage.getItem('myBookings') || '[]');
+        if (!myBookings.includes(bookingId)) {
+            myBookings.push(bookingId);
+            localStorage.setItem('myBookings', JSON.stringify(myBookings));
+        }
+    }
 
     function openModalForDay(day) {
+        clearValidationErrors();
         const bookings = getBookingsForDate(day);
-        console.log(bookings, "bookings for day")
+        console.log(bookings, "bookings for day");
         const modal = document.getElementById('bookingsModal');
         const modalDate = document.getElementById('modalDate');
         const bookingsList = document.getElementById('bookingsList');
@@ -55,16 +76,15 @@
         formContainer.onsubmit = handleSubmitBooking;
         formContainer.className = 'space-y-4';
         
+        // Add new booking form at the top
         formContainer.appendChild(createBookingRow());
+
         // Add existing bookings
         if (bookings && bookings.length > 0) {
             bookings.forEach(booking => {
                 formContainer.appendChild(createBookingRow(booking));
             });
         }
-        
-        // Add one empty row for new booking
-       
         
         bookingsList.appendChild(formContainer);
         modal.classList.remove('hidden');
@@ -75,7 +95,23 @@
         rowDiv.className = 'flex flex-col space-y-2 p-2 border rounded hover:bg-gray-50';
         
         const isNewRow = !booking;
+        const isMyBookingRow = booking ? isMyBooking(booking.id) : true;
         const inputClass = 'px-2 py-1 border rounded w-full focus:border-blue-500 focus:ring-1 focus:ring-blue-500';
+        
+        // For other people's bookings, show limited information
+        if (booking && !isMyBookingRow) {
+            rowDiv.innerHTML = `
+                <div class="flex flex-col space-y-2">
+                    <div class="flex justify-between items-center">
+                        <div class="text-gray-700">
+                            <span class="font-medium">Booked:</span> ${booking.start_time} - ${booking.end_time}
+                        </div>
+                    </div>
+                </div>
+            `;
+            return rowDiv;
+        }
+
         rowDiv.innerHTML = `
             <form onsubmit="handleSubmitBooking(event)" action="/handyman_calendar/" class="flex flex-col space-y-2 w-full" 
                 name="${isNewRow ? 'add' : 'edit'}">
@@ -98,7 +134,7 @@
                             <input type="tel" name="tenant_phone" 
                                 placeholder="Phone" 
                                 value="${booking?.tenant_phone || ''}" 
-                                class="${inputClass} md:w-[150px] w-full">
+                                class="${inputClass} md:w-[200px] w-full">
                                 
                             <div class="flex space-x-2">
                                 <input type="time" name="start_time" 
@@ -127,7 +163,7 @@
                                     d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h12a2 2 0 002-2v-12a2 2 0 00-2-2h-2M8 5a2 2 0 002 2h4a2 2 0 002-2M8 5a2 2 0 012-2h4a2 2 0 012 2m-6 8v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
                             </svg>
                         </button>
-                        ${booking ? `
+                        ${booking && isMyBookingRow ? `
                             <button type="button" onclick="handleDeleteBooking(${booking.id})" 
                                 class="p-2 rounded-full hover:bg-red-100 text-red-600"
                                 title="Delete">
@@ -146,6 +182,7 @@
 
     function closeModal() {
         document.getElementById('bookingsModal').classList.add('hidden');
+        clearValidationErrors();
     }
 
     function showValidationErrors(errors) {
@@ -202,6 +239,23 @@
             errors.push(`The following fields are required: ${missing_fields.join(', ')}`);
         }
 
+        // Validate apartment name exists in the list
+        const apartmentName = formData.get('apartment_name');
+        if (apartmentName) {
+            if (!apartmentsList.includes(apartmentName)) {
+                // Find similar apartment names (containing the input)
+                const suggestions = apartmentsList.filter(apt => 
+                    apt.toLowerCase().includes(apartmentName.toLowerCase())
+                );
+                
+                if (suggestions.length > 0) {
+                    errors.push(`Did you mean: ${suggestions.join(', ')}?`);
+                } else {
+                    errors.push("This apartment number doesn't exist. Please ask the manager for the correct apartment number.");
+                }
+            }
+        }
+
         // Get the raw date value
         const rawDate = document.getElementById('modalDate').getAttribute('data-date');
         formData.set('date', rawDate);
@@ -251,6 +305,14 @@
             });
 
             if (response.ok) {
+                const data = await response.json();
+                console.log(data, "data");
+                if (data.id) {
+                    addMyBooking(data.id);
+                }
+                clearValidationErrors();
+                form.reset();
+                closeModal();
                 window.location.reload();
             } else {
                 const data = await response.json();
@@ -263,6 +325,11 @@
     }
 
     async function handleDeleteBooking(bookingId) {
+        if (!isMyBooking(bookingId)) {
+            showValidationErrors("You can only delete your own bookings");
+            return;
+        }
+
         if (confirm('Are you sure you want to delete this booking?')) {
             const formData = new FormData();
             formData.set('delete', 'true');
@@ -275,14 +342,16 @@
                 });
 
                 if (response.ok) {
+                    clearValidationErrors();
+                    closeModal();
                     window.location.reload();
                 } else {
                     const data = await response.json();
-                    alert(data.error || 'Failed to delete booking');
+                    showValidationErrors(data.error || 'Failed to delete booking');
                 }
             } catch (error) {
                 console.error('Error:', error);
-                alert('Failed to delete booking');
+                showValidationErrors('Failed to delete booking');
             }
         }
     }
@@ -343,12 +412,16 @@
             year: 'numeric'
         });
 
-        // Generate content - simplified to show just "Booked: StartTime - EndTime"
-        content.innerHTML = bookings.map(booking => `
-            <div class="py-1">
-                <div class="text-gray-700">Booked: ${booking.start_time} - ${booking.end_time}</div>
-            </div>
-        `).join('');
+        // Generate content - show only apartment and time for non-owned bookings
+        content.innerHTML = bookings.map(booking => {
+            return `
+                <div class="py-1">
+                    <div class="text-gray-700">
+                        Booked: ${booking.start_time} - ${booking.end_time}
+                    </div>
+                </div>
+            `;
+        }).join('');
 
         // Position popover
         popover.style.left = `${event.pageX + 10}px`;

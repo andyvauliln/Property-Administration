@@ -3485,6 +3485,10 @@ label[textContent="Problem Booking"] {
     width: 150px;
   }
 
+  .md\:w-\[200px\] {
+    width: 200px;
+  }
+
   .md\:flex-1 {
     flex: 1 1 0%;
   }

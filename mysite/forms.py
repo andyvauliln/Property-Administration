@@ -317,6 +317,16 @@ class ApartmentForm(forms.ModelForm):
         action = kwargs.pop('action', 'create')
         super(ApartmentForm, self).__init__(*args, **kwargs)
 
+    def clean_name(self):
+        name = self.cleaned_data.get('name')
+        if name:
+            existing_apartment = Apartment.objects.filter(name=name)
+            if self.instance.id:
+                existing_apartment = existing_apartment.exclude(id=self.instance.id)
+            if existing_apartment.exists():
+                raise forms.ValidationError(f"An apartment with the name '{name}' already exists.")
+        return name
+
     name = CharFieldEx(isColumn=True, isEdit=True, initial="",
                        isCreate=True, ui_element="input")
     web_link = URLFieldEx(isColumn=False, initial="", required=False,

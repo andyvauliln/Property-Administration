@@ -9,18 +9,52 @@ from collections import defaultdict
 from django.utils import timezone
 from dateutil.relativedelta import relativedelta
 from ..decorators import user_has_role
-from .utils import generate_weeks, DateEncoder, handle_post_request, get_model_fields
+from .utils import generate_weeks, DateEncoder, get_model_fields
 from mysite.forms import HandymanCalendarForm
 from django.http import JsonResponse
 from django.views.decorators.http import require_http_methods
+from django.shortcuts import redirect
+from django.db.models import Q
+from django.contrib import messages
 
+def handle_post_request(request, model, form_class):
+    try:
+        if 'edit' in request.POST:
+            item_id = request.POST['id']
+            if item_id:
+                instance = model.objects.get(id=item_id)
+                form = form_class(request.POST, instance=instance,
+                                  request=request, action='edit')
+                if form.is_valid():
+                    saved_instance = form.save()
+                    return JsonResponse({'id': saved_instance.id, 'success': True})
+                else:
+                    return JsonResponse({'error': form.errors}, status=400)
+        elif 'add' in request.POST: 
+            form = form_class(request.POST, request=request)
+            if form.is_valid():
+                saved_instance = form.save()
+                return JsonResponse({'id': saved_instance.id, 'success': True})
+            else:
+                return JsonResponse({'error': form.errors}, status=400)
+        elif 'delete' in request.POST:
+            instance = model.objects.get(id=request.POST['id'])
+            instance.delete()
+            return JsonResponse({'success': True})
+    except Exception as e:
+        return JsonResponse({'error': str(e)}, status=500)
 
 def handyman_calendar(request):
-
     page = request.GET.get('page', 1)
 
     if request.method == 'POST':
-        handle_post_request(request, HandymanCalendar, HandymanCalendarForm)
+        # For anonymous users, we'll only store the booking ID in the response
+        response = handle_post_request(request, HandymanCalendar, HandymanCalendarForm)
+        if isinstance(response, JsonResponse) and response.status_code == 200:
+            data = json.loads(response.content)
+            if 'id' in data:
+                return JsonResponse({'id': data['id'], 'success': True})
+        return response
 
     try:
         page = int(page)
@@ -29,8 +63,7 @@ def handyman_calendar(request):
 
     prev_page = page - 1
     next_page = page + 1
-    start_month = (date.today() + relativedelta(months=9 *
-                   (page - 1))).replace(day=1)
+    start_month = (date.today() + relativedelta(months=9 * (page - 1))).replace(day=1)
     months = [start_month + relativedelta(months=i) for i in range(9)]
     end_date = months[-1] + relativedelta(months=1) - timedelta(days=1)
 
@@ -48,29 +81,33 @@ def handyman_calendar(request):
     for booking in handyman_bookings:
         event_data[booking.date].append(booking)
         
-        # Debug print the date format
-        print("Original date:", booking.date)
-        print("Date isoformat:", booking.date.isoformat())
-        
         # Make sure we're using YYYY-MM-DD format for the date key
         date_key = booking.date.strftime('%Y-%m-%d')
         
-        # Add booking data to JSON structure
-        bookings_by_date[date_key].append({
+        # For other users' bookings, only include minimal information
+        booking_data = {
             'id': booking.id,
-            'tenant_name': booking.tenant_name,
-            'apartment_name': booking.apartment_name,
             'start_time': booking.start_time.strftime('%H:%M'),
             'end_time': booking.end_time.strftime('%H:%M'),
-            'notes': booking.notes,
+            'date': date_key,
+            'tenant_name': booking.tenant_name,
             'tenant_phone': booking.tenant_phone,
-            'date': date_key  # Use the same formatted date
-        })
+            'notes': booking.notes,
+            'apartment_name': booking.apartment_name,
+        }
+        
+        
+        bookings_by_date[date_key].append(booking_data)
 
     # Convert defaultdict to regular dict for JSON serialization
     bookings_json = json.dumps(dict(bookings_by_date), default=str)
-    print("Final bookings_json:", bookings_json)  # Debug the final JSON
-
+    apartments = Apartment.objects.filter(
+            status='Available'
+        ).filter(
+            Q(end_date__isnull=True) | Q(end_date__gte=date.today())
+        )
+    apartments_list = list(apartments.values_list('name', flat=True))
+    apartments_json = json.dumps(apartments_list)
     calendar_data = {}
     
     for month in months:
@@ -87,12 +124,9 @@ def handyman_calendar(request):
                     'day': day,
                     'events': [{
                         'id': booking.id,
-                        'tenant_name': booking.tenant_name,
-                        'apartment_name': booking.apartment_name,
                         'start_time': booking.start_time,
                         'end_time': booking.end_time,
-                        'notes': booking.notes,
-                        'phone': booking.tenant_phone
+                        'apartment_name': booking.apartment_name,
                     } for booking in bookings_for_day]
                 }
                 week_data.append(day_data)
@@ -102,6 +136,7 @@ def handyman_calendar(request):
     context = {
         'calendar_data': calendar_data,
         'current_date': timezone.now(),
+
         'months': months,
         'model_fields': model_fields,
         'prev_page': prev_page,
@@ -110,6 +145,7 @@ def handyman_calendar(request):
         'bookings_json': bookings_json,
         'title': "Handyman Calendar",
         'endpoint': "/handyman_calendar",
+        'apartments_json': apartments_json, 
         'today': date.today(),
     }
 
