@@ -1,0 +1,241 @@
+<!-- templates/_base.html -->
+
+{% load compress %}
+{% load static %}
+
+<!DOCTYPE html>
+<html lang="en">
+
+<head class="h-[100vh]">
+  <meta charset="UTF-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{{title}}</title>
+
+  {% compress css %}
+  <link rel="stylesheet" href="{% static '/output.css' %}">
+  {% endcompress %}
+
+</head>
+
+<body id="calendar-container" class="h-[100vh] overflow-auto">
+  <div class="antialiased bg-gray-50 dark:bg-gray-900">
+    <main class="p-4 h-[100vh] pt-20">
+      <div class="container mx-auto mt-4 relative">
+        {% if messages %}
+        <section class="bg-gray-50 dark:bg-gray-900 p-3 sm:p-5 antialiased">
+          <div class="mx-auto max-w-screen-xl px-4 lg:px-12">
+
+            <div class="mt-4">
+              {% for message in messages %}
+              <div
+                class="{% if message.tags %} {% if 'error' in message.tags %}bg-red-500 text-white{% else %}bg-green-500 text-white{% endif %} {% endif %} p-4 mb-2 rounded shadow-md relative">
+                {{ message }}
+                <button class="absolute top-2 right-2 text-white" onclick="hideMessage(this)">
+                  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"
+                    class="h-5 w-5">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"></path>
+                  </svg>
+                </button>
+              </div>
+              {% endfor %}
+            </div>
+          </div>
+        </section>
+        {% endif %}
+        {% block content %}
+        {% endblock content %}
+      </div>
+    </main>
+
+
+
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/flowbite/1.8.1/flowbite.min.js"></script>
+    {% comment %} <script src="https://cdnjs.cloudflare.com/ajax/libs/flowbite/1.8.1/datepicker.turbo.min.js"></script> {% endcomment %}
+    <script src="/static/models.js"></script>
+    <script src="/static/datapicker.js"></script>
+    <script>
+      function hideMessage(buttonElement) {
+        buttonElement.parentElement.style.display = 'none';
+      }
+      function formatDate(date) {
+        if (!date) return null;
+        console.log("input date", date);
+    
+        const months = [
+            "January", "February", "March", "April", "May", "June", 
+            "July", "August", "September", "October", "November", "December"
+        ];
+    
+        let d;
+    
+        if (typeof date === 'string') {
+            // Check if the date is in "YYYY-MM-DD" or "YYYY-MM-DD HH:MM:SS" format
+            if (/^\d{4}-\d{2}-\d{2}( \d{2}:\d{2}:\d{2})?$/.test(date)) {
+                const [datePart] = date.split(' ');
+                const [year, month, day] = datePart.split('-').map(Number);
+                d = new Date(Date.UTC(year, month - 1, day));
+            } 
+            // Check if the date is in "Month DD YYYY" or "Mon. DD, YYYY" format
+            else {
+                const parts = date.replace(/,|\./g, '').split(' ');
+                if (parts.length === 3) {
+                    const monthIndex = months.findIndex(m => m.toLowerCase().startsWith(parts[0].toLowerCase()));
+                    const day = parseInt(parts[1], 10);
+                    const year = parseInt(parts[2], 10);
+                    if (monthIndex !== -1 && !isNaN(day) && !isNaN(year)) {
+                        d = new Date(Date.UTC(year, monthIndex, day));
+                    }
+                }
+            }
+        } else if (date instanceof Date) {
+            d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
+        }
+    
+        if (!d || isNaN(d.getTime())) return null;
+    
+        const formattedDate = `${months[d.getUTCMonth()]} ${d.getUTCDate()} ${d.getUTCFullYear()}`;
+        console.log("output date", formattedDate);
+        return formattedDate;
+    }
+    function addPaymentRow(modal, payment_date = new Date(), payment_amount = 0, payment_type = 6, paymentStatus = "Pending", notes = "", id = "") {
+      const paymentsContainer = document.getElementById('paymentsContainer-' + modal);
+
+      const paymentRow = document.createElement('div');
+      paymentRow.className = 'paymentRow flex flex-wrap flex-col gap-4 mb-4 items-start w-full';
+  
+      // This is the flex container row for the 3 inputs
+      const inputRow = document.createElement('div');
+      inputRow.className = 'flex gap-4 w-full';
+
+      const paymentIdInput = document.createElement('input');
+      paymentIdInput.setAttribute('name', 'payment_id[]');
+      paymentIdInput.setAttribute('type', 'hidden');
+      paymentIdInput.setAttribute('value', id);
+  
+     
+
+
+      const paymentDateInput = document.createElement('input');
+      paymentDateInput.setAttribute('name', 'payment_date[]');
+      paymentDateInput.setAttribute('type', 'text');
+      paymentDateInput.setAttribute('placeholder', 'Select date');
+      paymentDateInput.setAttribute('datepicker', '');
+      paymentDateInput.setAttribute('datepicker-format', 'MM dd yyyy');
+      paymentDateInput.className = 'w-[calc(25%+20px)] bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-primary-500 focus:border-primary-500 block p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white dark:focus:ring-primary-500 dark:focus:border-primary-500 datepicker-input';
+      paymentDateInput.setAttribute('value', formatDate(payment_date));
+
+      new Flowbite.default.Datepicker(paymentDateInput, {});
+
+      const amountInput = document.createElement('input');
+      amountInput.setAttribute('name', 'amount[]');
+      amountInput.setAttribute('type', 'text');
+      amountInput.setAttribute('placeholder', 'Amount');
+      amountInput.className = 'w-[calc(25%-20px)] bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-primary-500 focus:border-primary-500 block p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white dark:focus:ring-primary-500 dark:focus:border-primary-500';
+      amountInput.value = payment_amount;
+
+    
+  
+      const paymentTypeSelect = document.createElement('select');
+      paymentTypeSelect.setAttribute('name', 'payment_type[]');
+      paymentTypeSelect.className = 'w-[25%] bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-primary-500 focus:border-primary-500 block p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white dark:focus:ring-primary-500 dark:focus:border-primary-500';
+     
+
+      // Dynamically generate options based on paymentTypes
+      paymentTypes.forEach(type => {
+          const option = document.createElement('option');
+          option.setAttribute('value', type.value);
+          option.textContent = type.label;
+          if (type.value == payment_type) {
+              option.selected = true;
+          }
+          paymentTypeSelect.appendChild(option);
+          
+      });
+
+      const deleteButton = document.createElement('button');
+      deleteButton.className = 'text-red-600 hover:text-red-800 focus:outline-none';
+      deleteButton.setAttribute('type', 'button');
+      deleteButton.innerHTML = `<svg class="text-gray-400 dark:text-gray-500 w-8 h-8 mx-auto" aria-hidden="true" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg">
+                  <path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clip-rule="evenodd"></path>
+              </svg>`;
+  
+      // Add an event listener to remove the payment row when the delete button is clicked
+      deleteButton.addEventListener('click', function() {
+          if (id) {
+              paymentIdInput.value = id + "_deleted";
+              paymentRow.style.display = 'none';
+          } else {
+              paymentsContainer.removeChild(paymentRow);
+          }
+      });
+  
+  
+      // Append the 3 inputs to the input row
+      inputRow.appendChild(paymentDateInput);
+      inputRow.appendChild(amountInput);
+
+      // number of months
+      const number_of_months = document.createElement('input');
+      number_of_months.setAttribute('name', 'number_of_months[]');
+      number_of_months.setAttribute('type',  id ? 'hidden' : 'text');
+      number_of_months.setAttribute('value', '1');
+      number_of_months.setAttribute('placeholder', 'Number of months');
+      number_of_months.className = 'w-[25%] bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-primary-500 focus:border-primary-500 block p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white dark:focus:ring-primary-500 dark:focus:border-primary-500';
+      inputRow.appendChild(number_of_months);
+
+       // payment status
+       const paymentStatusSelect = document.createElement('select');
+       paymentStatusSelect.setAttribute('name', 'payment_status[]');
+       paymentStatusSelect.className = 'w-[25%] bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-primary-500 focus:border-primary-500 block p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white dark:focus:ring-primary-500 dark:focus:border-primary-500';
+       
+       if (!id) {
+           paymentStatusSelect.style.display = 'none'; // Hide the element using CSS
+       }
+       
+       // Dynamically generate options based on paymentTypes
+       [{value: "Completed", label: "Completed"}, {value: "Pending", label: "Pending"}].forEach(type => {
+           const option = document.createElement('option');
+           option.setAttribute('value', type.value);
+           option.textContent = type.label;
+           if (type.value == paymentStatus ) {
+               option.selected = true;
+           }
+           paymentStatusSelect.appendChild(option);
+       });
+
+      inputRow.appendChild(paymentStatusSelect);
+      inputRow.appendChild(paymentIdInput);
+      inputRow.appendChild(paymentTypeSelect);
+      inputRow.appendChild(deleteButton);
+  
+      // Append the input row, textarea, and delete button to the payment row
+      paymentRow.appendChild(inputRow);
+  
+      const payments_notes = document.createElement('textarea');
+      payments_notes.setAttribute('name', 'payment_notes[]');
+      payments_notes.setAttribute('rows', '2');
+      payments_notes.setAttribute('placeholder', 'Payment notes');
+      payments_notes.className = 'w-full bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-primary-500 focus:border-primary-500 block p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white dark:focus:ring-primary-500 dark:focus:border-primary-500';
+      
+      // Set the text content of the textarea
+      payments_notes.textContent = notes; 
+      paymentRow.appendChild(payments_notes);
+  
+  
+      // Append the payment row to the payments container
+      paymentsContainer.appendChild(paymentRow);
+}
+function createDocusealForm(url){
+  if(url){
+      var container = document.getElementById("contract-form");
+      var docusealForm = document.createElement("docuseal-form");
+      docusealForm.setAttribute("data-src", url);
+      container.appendChild(docusealForm);
+  }
+}
+    </script>
+</body>
+
+</html>

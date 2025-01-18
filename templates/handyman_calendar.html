@@ -1,4 +1,4 @@
-{% extends "_base.html" %}
+{% extends "_base_no_sidebar.html" %}
 {% load slippers %}
 {% load custom_filters %}
 {% block content %}
@@ -6,7 +6,7 @@
   <section class="bg-white dark:bg-gray-900"> 
     <div class="pb-8 px-4 mx-auto max-w-screen-xl lg:pb-16 lg:px-6">
         <div class="mx-auto max-w-screen-md mb-8 lg:mb-12 flex justify-center items-center flex-col">
-            <h2 class="text-4xl tracking-tight font-extrabold text-gray-900 dark:text-white mr-4">Handyman Calendar</h2>
+            <h2 class="mt-4 text-4xl tracking-tight font-extrabold text-gray-900 dark:text-white mr-4">Handyman Calendar</h2>
         </div>
    
         <div class="flex-1 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -72,62 +72,71 @@
 
     function createBookingRow(booking = null) {
         const rowDiv = document.createElement('div');
-        rowDiv.className = 'flex items-center space-x-4 p-2 border rounded hover:bg-gray-50';
+        rowDiv.className = 'flex flex-col space-y-2 p-2 border rounded hover:bg-gray-50';
         
         const isNewRow = !booking;
         const inputClass = 'px-2 py-1 border rounded w-full focus:border-blue-500 focus:ring-1 focus:ring-blue-500';
         rowDiv.innerHTML = `
-            <form onsubmit="handleSubmitBooking(event)" action="/handyman_calendar/" class="flex items-center space-x-4 w-full" 
+            <form onsubmit="handleSubmitBooking(event)" action="/handyman_calendar/" class="flex flex-col space-y-2 w-full" 
                 name="${isNewRow ? 'add' : 'edit'}">
                 <input type="hidden" name="${isNewRow ? 'add' : 'edit'}" value="true">
                 <input type="hidden" name="date" value="${booking?.date || ''}">
                 <input type="hidden" name="id" value="${booking?.id || ''}">
-                <input type="text" name="apartment_name" 
-                    placeholder="Apartment" 
-                    value="${booking?.apartment_name || ''}" 
-                    class="${inputClass}" style="width: 150px;">
+                <div class="flex flex-col md:flex-row md:space-x-4 space-y-2 md:space-y-0">
+                    <div class="flex-grow space-y-2">
+                        <div class="flex flex-col md:flex-row space-y-2 md:space-y-0 md:space-x-4">
+                            <input type="text" name="apartment_name" 
+                                placeholder="Apartment" 
+                                value="${booking?.apartment_name || ''}" 
+                                class="${inputClass} md:w-[150px] w-full">
+                                
+                            <input type="text" name="tenant_name" 
+                                placeholder="Tenant Name" 
+                                value="${booking?.tenant_name || ''}" 
+                                class="${inputClass} md:flex-1 w-full">
+                                
+                            <input type="tel" name="tenant_phone" 
+                                placeholder="Phone" 
+                                value="${booking?.tenant_phone || ''}" 
+                                class="${inputClass} md:w-[150px] w-full">
+                                
+                            <div class="flex space-x-2">
+                                <input type="time" name="start_time" 
+                                    value="${booking?.start_time || ''}" 
+                                    class="${inputClass} w-full md:w-[100px]">
+                                    
+                                <input type="time" name="end_time" 
+                                    value="${booking?.end_time || ''}" 
+                                    class="${inputClass} w-full md:w-[100px]">
+                            </div>
+                        </div>
+                        <div class="w-full">
+                            <input type="text" name="notes" 
+                                placeholder="Notes" 
+                                value="${booking?.notes || ''}" 
+                                class="${inputClass}">
+                        </div>
+                    </div>
                     
-                <input type="text" name="tenant_name" 
-                    placeholder="Tenant Name" 
-                    value="${booking?.tenant_name || ''}" 
-                    class="${inputClass}" style="width: 200px;">
-                    
-                <input type="tel" name="tenant_phone" 
-                    placeholder="Phone" 
-                    value="${booking?.tenant_phone || ''}" 
-                    class="${inputClass}" style="width: 180px;">
-                    
-                <input type="time" name="start_time" 
-                    value="${booking?.start_time || ''}" 
-                    class="${inputClass}" style="width: 100px;">
-                    
-                <input type="time" name="end_time" 
-                    value="${booking?.end_time || ''}" 
-                    class="${inputClass}" style="width: 100px;">
-                    
-                <input type="text" name="notes" 
-                    placeholder="Notes" 
-                    value="${booking?.notes || ''}" 
-                    class="${inputClass}" style="flex-grow: 1;">
-                    
-                <div class="flex space-x-2">
-                    <button type="submit" 
-                        class="p-2 rounded-full hover:bg-blue-100 text-blue-600" 
-                        title="Save">
-                        <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
-                                d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h12a2 2 0 002-2v-12a2 2 0 00-2-2h-2M8 5a2 2 0 002 2h4a2 2 0 002-2M8 5a2 2 0 012-2h4a2 2 0 012 2m-6 8v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                        </svg>
-                    </button>
-                    ${booking ? `
-                        <button type="button" onclick="handleDeleteBooking(${booking.id})" 
-                            class="p-2 rounded-full hover:bg-red-100 text-red-600"
-                            title="Delete">
+                    <div class="flex md:flex-col justify-end md:justify-center space-x-2 md:space-x-0 md:space-y-2">
+                        <button type="submit" 
+                            class="p-2 rounded-full hover:bg-blue-100 text-blue-600" 
+                            title="Save">
                             <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
+                                    d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h12a2 2 0 002-2v-12a2 2 0 00-2-2h-2M8 5a2 2 0 002 2h4a2 2 0 002-2M8 5a2 2 0 012-2h4a2 2 0 012 2m-6 8v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
                             </svg>
                         </button>
-                    ` : ''}
+                        ${booking ? `
+                            <button type="button" onclick="handleDeleteBooking(${booking.id})" 
+                                class="p-2 rounded-full hover:bg-red-100 text-red-600"
+                                title="Delete">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                </svg>
+                            </button>
+                        ` : ''}
+                    </div>
                 </div>
             </form>
         `;
@@ -381,32 +390,19 @@
 {% comment %} {% include "handyman_booking_create.html" %}
 {% include "handyman_booking_edit.html" %} {% endcomment %}
 
-<div id="bookingsModal" class="hidden fixed inset-0 bg-black bg-opacity-75 overflow-y-auto h-full w-full z-50 items-center justify-center">
-    <div class="relative p-5 border w-[1000px] shadow-lg rounded-md bg-white">
-        <div class="flex flex-col">
+<div id="bookingsModal" class="hidden fixed inset-0 bg-black bg-opacity-75 overflow-y-auto h-full w-full z-50 flex items-center justify-center p-4">
+    <div class="relative border shadow-lg rounded-md bg-white mx-auto my-4 w-full max-w-[1000px] max-h-[90vh] overflow-y-auto">
+        <div class="flex flex-col p-3 sm:p-4 md:p-5">
             <div class="flex justify-between items-center mb-4">
                 <h3 class="text-lg font-semibold" id="modalDate"></h3>
                 <button onclick="closeModal()" class="text-gray-500 hover:text-gray-700">
                     <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
                     </svg>
-                </button>
+                </button> 
             </div>
             
-            <div id="bookingsList" class="mb-4">
-                <!-- Bookings form will be inserted here -->
-            </div>
-
-            <div class="flex justify-between items-center mb-4">
-                <div id="modalDate"></div>
-                <button onclick="closeModal()" class="text-gray-500 hover:text-gray-700">
-                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-                    </svg>
-                </button>
-            </div>
-
-            <div id="bookingsList" class="mb-4">
+            <div id="bookingsList" class="mb-4 overflow-x-auto">
                 <!-- Bookings form will be inserted here -->
             </div>
 
