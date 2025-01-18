@@ -116,6 +116,7 @@
             </a>
           </li>
           {% endif %}
+          {% if user_role in 'Admin,Manager' %}
           <li>
             <a href="/handyman_calendar/"
               class="flex items-center p-2 text-base font-medium text-gray-900 rounded-lg dark:text-white hover:bg-gray-100 dark:hover:bg-gray-700 group {% if current_path == '/handyman_calendar/' %}bg-gray-100{% endif %}">
@@ -126,6 +127,8 @@
               <span class="ml-3">Handyman Calendar</span>
             </a>
           </li>
+          {% endif %}
+          {% if user_role in 'Admin,Manager' %}
           <li>
             <a href="/parking_calendar/"
               class="flex items-center p-2 text-base font-medium text-gray-900 rounded-lg dark:text-white hover:bg-gray-100 dark:hover:bg-gray-700 group {% if current_path == '/handyman_calendar/' %}bg-gray-100{% endif %}">
@@ -135,6 +138,7 @@
               <span class="ml-3">Parking Calendar</span>
             </a>
           </li>
+          {% endif %}
           {% if user_role in 'Admin,Manager' %}
           <li>
             <a href="/booking-availability/"
