@@ -33,7 +33,6 @@ class ApartmentBookingDates(APIView):
             # Get all confirmed bookings for this apartment
             bookings = Booking.objects.filter(
                 apartment=apartment,
-                status='Confirmed'
             )
             
             # For each booking, get all dates between start and end date
