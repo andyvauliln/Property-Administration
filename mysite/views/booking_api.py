@@ -27,25 +27,22 @@ class ApartmentBookingDates(APIView):
         for apartment in apartments:
             apartment_data = {
                 "apartment_id": apartment.id,
-                "booked_dates": []
+                "bookings": []
             }
             
-            # Get all confirmed bookings for this apartment
+            # Get all bookings for this apartment
             bookings = Booking.objects.filter(
                 apartment=apartment,
             )
             
-            # For each booking, get all dates between start and end date
+            # For each booking, add its period and status
             for booking in bookings:
-                current_date = booking.start_date
-                while current_date <= booking.end_date:
-                    apartment_data["booked_dates"].append(
-                        current_date.strftime("%Y-%m-%d")
-                    )
-                    current_date += timedelta(days=1)
+                apartment_data["bookings"].append({
+                    "start_date": booking.start_date.strftime("%Y-%m-%d"),
+                    "end_date": booking.end_date.strftime("%Y-%m-%d"),
+                    "status": booking.status
+                })
             
-            # Remove duplicates and sort dates
-            apartment_data["booked_dates"] = sorted(list(set(apartment_data["booked_dates"])))
             response_data["apartments"].append(apartment_data)
         
         return Response(response_data, content_type='application/json')
