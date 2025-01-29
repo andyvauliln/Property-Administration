@@ -23,7 +23,7 @@ def my_cron_job():
         if notification.payment and (notification.payment.payment_status == "Completed" or notification.payment.payment_status == "Merged"):
             continue
         else:
-            message = f"Tomorrow events: {notification.notification_message}"
+            message = f"{notification.notification_message}"
 
             for chat_id in telegram_chat_ids:
                 send_telegram_message(chat_id.strip(), telegram_token, message)

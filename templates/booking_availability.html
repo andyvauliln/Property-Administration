@@ -98,82 +98,96 @@
                 </div>
             </div>
             <div class="flex-grow overflow-auto">
-                {% for month_data in monthly_data %}
-                    <!-- Monthly Report Header with Summaries -->
-                    <div class="p-4 flex items-center justify-between bg-zinc-200"> 
-                        <div class="flex items-center text-lg font-bold text-blue-500 underline">{{ month_data.month_name }}</div> 
-                        <div class="flex space-x-4">
-                            <div class="mr-4 text-blue-500"><span class="font-bold">Revenue:</span> ${{ month_data.month_revenue|default:0|format_number }}</div>
-                            <div class="text-yellow-500"><span class="font-bold">Occupancy:</span> {{ month_data.month_occupancy|default:0|format_number }}%</div> 
-                        </div>   
-                    </div>
-               
-                    <!-- Monthly Payments Table -->
-
-                        <table class="w-full text-[7px] text-left text-gray-500 dark:text-gray-400">
-                            <thead class="text-center text-gray-700 uppercase bg-gray-50 dark:bg-gray-700 dark:text-gray-400">
-                                <tr>    
-                                    <th scope="col" class="p-1 border-r border-gray-500 w-10">Name</th> 
-
-                                    {% for number in 1|range:month_data.days_in_month %}
-                                        <th scope="col" class="p-1 border-r border-gray-500 w-10">{{ number }}</th> 
-                                    {% endfor %}
-
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {% for apartment in month_data.apartments %}
+                <!-- Combined Monthly Table -->
+                <table class="w-full text-[7px] text-left text-gray-500 dark:text-gray-400">
+                    <thead class="text-center text-gray-700 uppercase bg-gray-50 dark:bg-gray-700 dark:text-gray-400">
+                        <tr>
+                            <th scope="col" class="p-1 border-r border-gray-500 w-20">Name</th>
+                            {% for month_data in monthly_data|slice:":3" %}
+                                <!-- Month Header -->
+                                <th scope="col" colspan="{{ month_data.days_in_month }}" class="p-4 border-r border-gray-500 bg-zinc-200">
+                                    <div class="flex items-center justify-between">
+                                        <div class="flex items-center text-lg font-bold text-blue-500 underline">{{ month_data.month_name }}</div>
+                                        <div class="flex space-x-4">
+                                            <div class="mr-4 text-blue-500"><span class="font-bold">Revenue:</span> ${{ month_data.month_revenue|default:0|format_number }}</div>
+                                            <div class="text-yellow-500"><span class="font-bold">Occupancy:</span> {{ month_data.month_occupancy|default:0|format_number }}%</div>
+                                        </div>
+                                    </div>
+                                </th>
+                            {% endfor %}
+                        </tr>
+                        <tr>
+                            <th scope="col" class="p-1 border-r border-gray-500 w-20"></th>
+                            {% for month_data in monthly_data|slice:":3" %}
+                                {% for number in 1|range:month_data.days_in_month %}
+                                    <th scope="col" class="p-0 border-r border-gray-500 w-3">{{ number }}</th>
+                                {% endfor %}
+                            {% endfor %}
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% with first_month=monthly_data|first %}
+                            {% for apartment in first_month.apartments %}
                                 <tr class="border-b hover:text-xl cursor-pointer dark:border-gray-700" data-id="{{ apartment.id }}">
-                                        <td class="border-r border-gray-500 p-1 font-bold {% if apartment.apartment_type == 'In Ownership' %}text-purple-500{% elif apartment.apartment_type == '2' %}text-yellow-500{% elif apartment.apartment_type == '3' %}text-red-500{% else %}text-gray-500{% endif %}">
-                                            <a href="/apartment/?apartment.id={{ apartment.id }}" class="hover:underline hover:text-blue-500">
-                                                {{ apartment.name|default:'' }}
-                                            </a>
-                                        </td>
+                                    <td class="border-r border-gray-500 p-1 font-bold w-20 truncate {% if apartment.apartment_type == 'In Ownership' %}text-purple-500{% elif apartment.apartment_type == '2' %}text-yellow-500{% elif apartment.apartment_type == '3' %}text-red-500{% else %}text-gray-500{% endif %}">
+                                        <a href="/apartment/?apartment.id={{ apartment.id }}" class="hover:underline hover:text-blue-500">
+                                            {{ apartment.name|default:'' }}
+                                        </a>
+                                    </td>
+                                    {% for month_data in monthly_data|slice:":3" %}
                                         {% for number in 1|range:month_data.days_in_month %}
-                                        <td 
-                                            data-day="{{ apartment.days|get_dic_item:number|get_dic_item:'day' }}"
-                                            data-tenant-names="{{ apartment.days|get_dic_item:number|get_dic_item:'tenant_names'|join:', ' }}"
-                                            data-notes="{{ apartment.days|get_dic_item:number|get_dic_item:'notes'|join:', ' }}"
-                                            data-booking-data="{{ apartment.days|get_dic_item:number|get_dic_item:'booking_data'|join:', ' }}"
-                                            class="day border-r border-gray-500 relative p-0
-                                                {% if apartment.days|get_dic_item:number|get_dic_item:'status' == 'Confirmed' %} bg-green-500 text-white
-                                                {% elif apartment.days|get_dic_item:number|get_dic_item:'status' == 'Pending' %} bg-green-300 text-white
-                                                {% elif apartment.days|get_dic_item:number|get_dic_item:'status' == 'Waiting Payment' %} bg-orange-400 text-white
-                                                {% elif apartment.days|get_dic_item:number|get_dic_item:'status' == 'Waiting Contract' %} bg-yellow-500 text-white
-                                                {% elif apartment.days|get_dic_item:number|get_dic_item:'status' == 'Blocked' %} bg-black text-white
-                                                {% elif apartment.days|get_dic_item:number|get_dic_item:'status' == 'Problem Booking' %} bg-red-500 text-white
-                                                {% elif apartment.days|get_dic_item:number|get_dic_item:'status' == 'Available' and apartment.days|get_dic_item:number|get_dic_item:'past' %} bg-gray-300 text-black
-                                                {% else %} bg-white text-black
+                                            {% with apt=month_data.apartments|filter_by_id:apartment.id|first %}
+                                            {% if apt %}
+                                            <td 
+                                                data-day="{{ apt.days|get_dic_item:number|get_dic_item:'day' }}"
+                                                data-tenant-names="{{ apt.days|get_dic_item:number|get_dic_item:'tenant_names'|join:', ' }}"
+                                                data-notes="{{ apt.days|get_dic_item:number|get_dic_item:'notes'|join:', ' }}"
+                                                data-booking-data="{{ apt.days|get_dic_item:number|get_dic_item:'booking_data'|join:', ' }}"
+                                                class="day border-r border-gray-500 relative p-0 w-3 h-3
+                                                    {% if apt.days|get_dic_item:number|get_dic_item:'status' == 'Confirmed' %} bg-green-500 text-white
+                                                    {% elif apt.days|get_dic_item:number|get_dic_item:'status' == 'Pending' %} bg-green-300 text-white
+                                                    {% elif apt.days|get_dic_item:number|get_dic_item:'status' == 'Waiting Payment' %} bg-orange-400 text-white
+                                                    {% elif apt.days|get_dic_item:number|get_dic_item:'status' == 'Waiting Contract' %} bg-yellow-500 text-white
+                                                    {% elif apt.days|get_dic_item:number|get_dic_item:'status' == 'Blocked' %} bg-black text-white
+                                                    {% elif apt.days|get_dic_item:number|get_dic_item:'status' == 'Problem Booking' %} bg-red-500 text-white
+                                                    {% elif apt.days|get_dic_item:number|get_dic_item:'status' == 'Available' and apt.days|get_dic_item:number|get_dic_item:'past' %} bg-gray-300 text-black
+                                                    {% else %} bg-white text-black
+                                                    {% endif %}
+                                                    {% if apt.days|get_dic_item:number|get_dic_item:'is_start' and apt.days|get_dic_item:number|get_dic_item:'is_end' %} booking-start-end
+                                                    {% elif apt.days|get_dic_item:number|get_dic_item:'is_start' %} booking-start
+                                                    {% elif apt.days|get_dic_item:number|get_dic_item:'is_end' %} booking-end
+                                                    {% endif %}">
+                                                {% if apt.days|get_dic_item:number|get_dic_item:'booking_ids' %}
+                                                    <a href="/bookings/?q=id={{ apt.days|get_dic_item:number|get_dic_item:'booking_ids'|first }}" target="_blank"
+                                                       class="block w-full h-full p-0 text-center align-middle">
+                                                        {{ number }}
+                                                    </a>
+                                                {% else %}
+                                                    <div class="text-center">
+                                                        {{ number }}
+                                                    </div>
                                                 {% endif %}
-                                                {% if apartment.days|get_dic_item:number|get_dic_item:'is_start' and apartment.days|get_dic_item:number|get_dic_item:'is_end' %} booking-start-end
-                                                {% elif apartment.days|get_dic_item:number|get_dic_item:'is_start' %} booking-start
-                                                {% elif apartment.days|get_dic_item:number|get_dic_item:'is_end' %} booking-end
-                                                {% endif %}
-                                                text-center">
-                                            {% if apartment.days|get_dic_item:number|get_dic_item:'booking_ids' %}
-                                                <a href="/bookings/?q=id={{ apartment.days|get_dic_item:number|get_dic_item:'booking_ids'|first }}" target="_blank"
-                                                   class="block w-full h-full p-1">
-                                                    {{ number }}
-                                                </a>
+                                            </td>
                                             {% else %}
-                                                <div class="p-1">
+                                            <td class="day border-r border-gray-500 relative p-0 w-3 h-3 bg-white text-black">
+                                                <div class="text-center">
                                                     {{ number }}
                                                 </div>
+                                            </td>
                                             {% endif %}
-                                        </td>
+                                            {% endwith %}
                                         {% endfor %}
-                                    </tr>
-                                {% empty %}
-                                    <tr>
-                                        <td colspan="8" class="text-center py-4">No data found</td>
-                                    </tr>
-                                {% endfor %}
-                            </tbody>
-                            
-                        </table>
-
-            {% endfor %}
-        </div>
+                                    {% endfor %}
+                                </tr>
+                            {% empty %}
+                                <tr>
+                                    <td colspan="8" class="text-center py-4">No data found</td>
+                                </tr>
+                            {% endfor %}
+                        {% endwith %}
+                    </tbody>
+                </table>
+            </div>
             
         </div>
     </div>

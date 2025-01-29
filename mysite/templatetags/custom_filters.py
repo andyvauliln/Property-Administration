@@ -3,6 +3,7 @@ import calendar
 import json
 from datetime import timedelta
 from datetime import datetime
+import locale
 
 register = template.Library()
 
@@ -113,3 +114,10 @@ def format_nullable_date(date_string):
         return '-'
 
     return formatted_date
+
+@register.filter
+def filter_by_id(apartments, apartment_id):
+    """Find an apartment in a list by its ID"""
+    if not apartments:
+        return []
+    return [apt for apt in apartments if apt.get('id') == apartment_id]
