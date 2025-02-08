@@ -10,7 +10,6 @@ from mysite.docuseal_contract_managment import create_contract, sendWelcomeMessa
 from itertools import zip_longest
 import re
 import uuid
-from decimal import Decimal
 
 def convert_date_format(value):
     if isinstance(value, date):
@@ -1011,6 +1010,8 @@ class ApartmentParking(models.Model):
     parking_number = models.IntegerField(blank=True, null=True)
     notes = models.CharField(max_length=255, blank=True, null=True)
     status = models.CharField(max_length=255, blank=True, null=True, choices=STATUS)
+    start_date = models.DateField(blank=True, null=True)
+    end_date = models.DateField(blank=True, null=True)
     
     # Add relationships
     apartment = models.ForeignKey(
@@ -1037,59 +1038,59 @@ class ApartmentParking(models.Model):
         # Convert parking to integer if it's a string number
         if isinstance(self.parking_number, str) and self.parking_number.isdigit():
             self.parking_number = int(self.parking_number)
+
+        # If booking is assigned, use booking dates
+        if self.booking:
+            self.start_date = self.booking.start_date
+            self.end_date = self.booking.end_date
+            self.status = 'Booked'
+        elif self.status == 'Booked' and not (self.start_date and self.end_date):
+            raise ValueError("Start date and end date are required when status is 'Booked' without a booking")
+
+        # If status is not 'Booked' and no dates are set, clear them
+        if self.status != 'Booked' and not self.booking:
+            self.start_date = None
+            self.end_date = None
+
         super().save(*args, **kwargs)
 
     @classmethod
     def update_parking_statuses(cls):
         """
-        Updates all parking spot statuses based on booking dates.
-        If a booking has ended, sets the spot to Available and removes the booking reference.
+        Updates all parking spot statuses based on booking dates and manual date ranges.
+        If a booking has ended or manual date range has expired, sets the spot to Available.
         """
         from datetime import date
         today = date.today()
         
-        # Get all parking spots with bookings
-        parking_spots = cls.objects.filter(booking__isnull=False)
+        # Get all booked parking spots
+        booked_spots = cls.objects.filter(status='Booked')
         
-        for spot in parking_spots:
-            if spot.booking and spot.booking.end_date < today:
-                # Booking has ended, update the parking spot
+        for spot in booked_spots:
+            if spot.end_date and spot.end_date < today:
+                # Booking/reservation has ended, update the parking spot
                 spot.status = 'Available'
                 spot.booking = None
+                spot.start_date = None
+                spot.end_date = None
                 spot.save()
 
     @classmethod
     def get_all_parking(cls):
         """
-        Get all parking spots after updating expired bookings
+        Get all parking spots after updating expired bookings/reservations
         """
-        from datetime import date
-        today = date.today()
-        
-        # Update statuses for expired bookings
-        expired_spots = cls.objects.filter(
-            booking__isnull=False,
-            booking__end_date__lt=today
-        )
-        expired_spots.update(status='Available', booking=None)
-        
+        # Update statuses for expired bookings/reservations
+        cls.update_parking_statuses()
         return cls.objects.all()
 
     @classmethod
     def get_filtered_parking(cls, status):
         """
-        Get parking spots filtered by status after updating expired bookings
+        Get parking spots filtered by status after updating expired bookings/reservations
         """
-        from datetime import date
-        today = date.today()
-        
-        # Update statuses for expired bookings
-        expired_spots = cls.objects.filter(
-            booking__isnull=False,
-            booking__end_date__lt=today
-        )
-        expired_spots.update(status='Available', booking=None)
-        
+        # Update statuses for expired bookings/reservations
+        cls.update_parking_statuses()
         return cls.objects.filter(status=status)
 
     @property

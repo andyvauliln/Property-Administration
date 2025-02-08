@@ -128,7 +128,7 @@
                     <tbody>
                         {% with first_month=monthly_data|first %}
                             {% for apartment in first_month.apartments %}
-                                <tr class="border-b hover:text-xl cursor-pointer dark:border-gray-700" data-id="{{ apartment.id }}">
+                                <tr class="border-b cursor-pointer dark:border-gray-700" data-id="{{ apartment.id }}">
                                     <td class="border-r border-gray-500 p-1 font-bold w-20 truncate {% if apartment.apartment_type == 'In Ownership' %}text-purple-500{% elif apartment.apartment_type == '2' %}text-yellow-500{% elif apartment.apartment_type == '3' %}text-red-500{% else %}text-gray-500{% endif %}">
                                         <a href="/apartment/?apartment.id={{ apartment.id }}" class="hover:underline hover:text-blue-500">
                                             {{ apartment.name|default:'' }}

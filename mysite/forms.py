@@ -939,7 +939,7 @@ class HandymanCalendarForm(forms.ModelForm):
 class ApartmentParkingForm(forms.ModelForm):
     class Meta:
         model = ApartmentParking
-        fields = ['parking_number', 'notes', 'status', 'apartment', 'booking']
+        fields = ['parking_number', 'notes', 'status', 'apartment', 'booking', 'start_date', 'end_date']
 
     def __init__(self, *args, **kwargs):
         self.request = kwargs.pop('request', None)
@@ -1000,12 +1000,33 @@ class ApartmentParkingForm(forms.ModelForm):
         order=5
     )
 
+    start_date = DateFieldEx(
+        required=False,
+        isColumn=True,
+        isEdit=True,
+        isCreate=True,
+        ui_element="datepicker",
+        order=6
+    )
+
+    end_date = DateFieldEx(
+        required=False,
+        isColumn=True,
+        isEdit=True,
+        isCreate=True,
+        ui_element="datepicker",
+        order=7
+    )
+
     def clean(self):
         cleaned_data = super().clean()
         parking_number = cleaned_data.get('parking_number')
         apartment = cleaned_data.get('apartment')
         booking = cleaned_data.get('booking')
         status = cleaned_data.get('status', "Available")
+        start_date = cleaned_data.get('start_date')
+        end_date = cleaned_data.get('end_date')
+
         if not status:
             cleaned_data['status'] = "Available"
 
@@ -1013,14 +1034,22 @@ class ApartmentParkingForm(forms.ModelForm):
         if isinstance(parking_number, str) and parking_number.isdigit():
             cleaned_data['parking_number'] = int(parking_number)
 
-        # If booking is assigned, status should be 'Booked'
-        if booking and status != 'Booked':
+        # If booking is assigned, use booking dates and set status to 'Booked'
+        if booking:
+            cleaned_data['start_date'] = booking.start_date
+            cleaned_data['end_date'] = booking.end_date
             cleaned_data['status'] = 'Booked'
-        
-        # If status is 'Booked' but no booking is assigned, raise error
-        if status == 'Booked' and not booking:
+        else:
+            # If no booking but status is 'Booked', require dates
+            if status == 'Booked' and not (start_date and end_date):
+                raise forms.ValidationError(
+                    "Start date and end date are required when status is 'Booked' without a booking"
+                )
+
+        # Validate date range if both dates are provided
+        if start_date and end_date and start_date > end_date:
             raise forms.ValidationError(
-                "A booking must be assigned when status is 'Booked'"
+                "End date must be after start date"
             )
 
         # Check for duplicate parking numbers within the same apartment

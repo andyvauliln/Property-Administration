@@ -60,7 +60,7 @@
                     </div>
                     <div>
                         <p class="text-sm font-medium text-gray-500">Dates</p>
-                        <p class="text-sm text-gray-900">${parking.start_date || 'N/A'} - ${parking.end_date || 'N/A'}</p>
+                        <p class="text-sm text-gray-900">${parking.start_date ? formatDates(parking.start_date, parking.end_date) : 'N/A'}</p>
                     </div>
                 </div>
                 <div>
@@ -69,6 +69,44 @@
                 </div>
             </div>
         `;
+    }
+
+    function handleBookingChange(bookingId) {
+        const bookingField = document.getElementById('booking');
+        const startDateField = document.getElementById('start_date');
+        const endDateField = document.getElementById('end_date');
+        const statusField = document.getElementById('status');
+        const dateFields = document.querySelectorAll('.date-field');
+        
+        if (bookingId) {
+            // Find the booking in the dropdown options
+            const bookingOption = bookingField.querySelector(`option[value="${bookingId}"]`);
+            if (bookingOption) {
+                const label = bookingOption.textContent;
+                // Extract dates from the label format "ApartmentName:[YYYY-MM-DD - YYYY-MM-DD]"
+                const dateMatch = label.match(/\[(.*?) - (.*?)\]/);
+                if (dateMatch) {
+                    startDateField.value = dateMatch[1];
+                    endDateField.value = dateMatch[2];
+                    statusField.value = 'Booked';
+                    
+                    // Hide date fields and make them readonly when booking is selected
+                    dateFields.forEach(field => {
+                        field.style.display = 'none';
+                        field.querySelector('input').readOnly = true;
+                    });
+                }
+            }
+        } else {
+            // Clear dates if no booking is selected
+            startDateField.value = '';
+            endDateField.value = '';
+            startDateField.readOnly = false;
+            endDateField.readOnly = false;
+            
+            // Show/hide date fields based on status
+            handleStatusChange(statusField.value);
+        }
     }
 
     function createFormFields(modelFields, parkingData) {
@@ -84,9 +122,13 @@
                         return `<option value="${choice.value}" ${selected}>${choice.label}</option>`;
                     }).join('');
                     
-                    // Add onchange event for apartment_number field
+                    // Add onchange events for specific fields
                     const extraAttributes = field.name === 'apartment_number' ? 
-                        'onchange="filterBookingsByApartment(this.value)"' : '';
+                        'onchange="filterBookingsByApartment(this.value)"' : 
+                        field.name === 'status' ?
+                        'onchange="handleStatusChange(this.value)"' :
+                        field.name === 'booking' ?
+                        'onchange="handleBookingChange(this.value)"' : '';
                     
                     inputElement = `
                         <select id="${field.name}" name="${field.name}" 
@@ -104,6 +146,25 @@
                                  class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white"
                                  ${isRequired ? 'required' : ''}>${value}</textarea>`;
                     break;
+
+                case 'datepicker':
+                    // Format the date value if it exists
+                    let formattedValue = value;
+                    if (value) {
+                        try {
+                            const date = new Date(value);
+                            formattedValue = date.toISOString().split('T')[0];
+                        } catch (e) {
+                            console.error('Error formatting date:', e);
+                        }
+                    }
+                    
+                    inputElement = `
+                        <input type="date" id="${field.name}" name="${field.name}" 
+                               value="${formattedValue}"
+                               class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white"
+                               ${isRequired ? 'required' : ''}>`;
+                    break;
                     
                 default: // 'input'
                     inputElement = `
@@ -113,8 +174,13 @@
                                ${isRequired ? 'required' : ''}>`;
             }
             
+            // Add date-field class and initial display state
+            const isDateField = field.name === 'start_date' || field.name === 'end_date';
+            const initialDisplay = parkingData.status === 'Booked' && !parkingData.booking ? 'block' : 'none';
+            
             return `
-                <div class="mb-4">
+                <div class="mb-4 ${isDateField ? 'date-field' : ''}" 
+                     ${isDateField ? `style="display: ${initialDisplay};"` : ''}>
                     <label for="${field.name}" class="block mb-2 text-sm font-medium text-gray-900 dark:text-white">
                         ${field.label}${isRequired ? ' *' : ''}
                     </label>
@@ -127,9 +193,41 @@
         }).join('');
     }
 
+    function handleStatusChange(status) {
+        const dateFields = document.querySelectorAll('.date-field');
+        const bookingField = document.getElementById('booking');
+        
+        if (status === 'Booked') {
+            if (!bookingField.value) {
+                // Only show and require dates if no booking is selected
+                dateFields.forEach(field => {
+                    field.style.display = 'block';
+                    field.querySelector('input').required = true;
+                    field.querySelector('input').readOnly = false;
+                });
+            }
+        } else {
+            // For non-booked status, hide dates and clear values
+            dateFields.forEach(field => {
+                field.style.display = 'none';
+                const input = field.querySelector('input');
+                input.required = false;
+                input.value = '';
+                input.readOnly = false;
+            });
+        }
+    }
+
     function validateForm(form) {
         const requiredFields = ['apartment_number', 'parking_number'];
         let isValid = true;
+        
+        // Add date validation for booked status without booking
+        const status = form.querySelector('[name="status"]').value;
+        const booking = form.querySelector('[name="booking"]').value;
+        if (status === 'Booked' && !booking) {
+            requiredFields.push('start_date', 'end_date');
+        }
         
         requiredFields.forEach(fieldName => {
             const field = form.querySelector(`[name="${fieldName}"]`);
@@ -149,6 +247,18 @@
                 errorElement?.classList.add('hidden');
             }
         });
+        
+        // Validate date range if both dates are provided
+        const startDate = form.querySelector('[name="start_date"]')?.value;
+        const endDate = form.querySelector('[name="end_date"]')?.value;
+        if (startDate && endDate) {
+            const start = new Date(startDate);
+            const end = new Date(endDate);
+            if (start > end) {
+                isValid = false;
+                alert('End date must be after start date');
+            }
+        }
         
         return isValid;
     }
@@ -206,6 +316,18 @@
                     </button>
                 </div>
             </form>`;
+
+        // Initialize form state based on current values
+        const form = document.getElementById('parkingForm');
+        if (form) {
+            const status = form.querySelector('[name="status"]').value;
+            const booking = form.querySelector('[name="booking"]').value;
+            if (booking) {
+                handleBookingChange(booking);
+            } else {
+                handleStatusChange(status);
+            }
+        }
 
         // Add form submit handler
         addFormSubmitHandler(document.getElementById('parkingForm'));
@@ -356,7 +478,7 @@
         info += `<p class="text-blue-600 dark:text-blue-400 font-medium mb-1">Parking #${parking.parking_number || 'N/A'}</p>`;
         
         if (!parking.tenant_name && !parking.start_date) {
-            info += '<p>No current booking</p>';
+            info += '<p>No current booking/reservation</p>';
             return info;
         }
 
@@ -365,6 +487,9 @@
         }
         if (parking.start_date && parking.end_date) {
             info += `<p class="text-gray-500">${formatDates(parking.start_date, parking.end_date)}</p>`;
+            if (!parking.tenant_name) {
+                info += '<p class="text-sm text-gray-400">(Reserved)</p>';
+            }
         }
         return info;
     }
