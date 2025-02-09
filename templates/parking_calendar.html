@@ -114,7 +114,10 @@
             const value = parkingData[field.name] || '';
             let inputElement = '';
             const isRequired = field.name === 'apartment_number' || field.name === 'parking_number';
-            
+            console.log(field, "field");
+            console.log(value, "value");
+            console.log(parkingData, "parkingData");
+            console.log(field.ui_element, "field.ui_element");
             switch (field.ui_element) {
                 case 'dropdown':
                     const options = field.choices.map(choice => {
@@ -149,6 +152,7 @@
 
                 case 'datepicker':
                     // Format the date value if it exists
+                    console.log(field.name, value, "DATA PICKER");
                     let formattedValue = value;
                     if (value) {
                         try {
@@ -158,12 +162,13 @@
                             console.error('Error formatting date:', e);
                         }
                     }
-                    
+                    console.log(formattedValue, "formattedValue");
                     inputElement = `
-                        <input type="date" id="${field.name}" name="${field.name}" 
-                               value="${formattedValue}"
-                               class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white"
+                        <input datepicker datepicker-format="MM dd yyyy" type="text" id="${field.name}" name="${field.name}" 
+                               value="${formattedValue || ''}"
+                               class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white dark:focus:ring-blue-500 dark:focus:border-blue-500" placeholder="Select date"
                                ${isRequired ? 'required' : ''}>`;
+                    console.log(inputElement, "inputElement");
                     break;
                     
                 default: // 'input'
@@ -179,8 +184,7 @@
             const initialDisplay = parkingData.status === 'Booked' && !parkingData.booking ? 'block' : 'none';
             
             return `
-                <div class="mb-4 ${isDateField ? 'date-field' : ''}" 
-                     ${isDateField ? `style="display: ${initialDisplay};"` : ''}>
+                <div class="mb-4">
                     <label for="${field.name}" class="block mb-2 text-sm font-medium text-gray-900 dark:text-white">
                         ${field.label}${isRequired ? ' *' : ''}
                     </label>

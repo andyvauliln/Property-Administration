@@ -79,15 +79,44 @@
         // Add new booking form at the top
         formContainer.appendChild(createBookingRow());
 
-        // Add existing bookings
+        // Add existing bookings created by the user
         if (bookings && bookings.length > 0) {
             bookings.forEach(booking => {
-                formContainer.appendChild(createBookingRow(booking));
+                if (isMyBooking(booking.id)) {
+                    formContainer.appendChild(createBookingRow(booking));
+                }
             });
         }
-        
+
+        // Display all time slots and mark booked ones
+        const timeSlots = generateTimeSlots();
+        timeSlots.forEach(slot => {
+            const isBooked = bookings.some(booking => booking.start_time === slot.start && booking.end_time === slot.end);
+            const slotClass = isBooked ? 'bg-red-200' : 'bg-green-200';
+            const slotDiv = document.createElement('div');
+            slotDiv.className = `flex justify-between items-center p-2 border rounded ${slotClass}`;
+            slotDiv.innerHTML = `
+                <div class="text-gray-700">
+                    ${slot.start} - ${slot.end} ${isBooked ? '(Booked)' : '(Available)'}
+                </div>
+            `;
+            formContainer.appendChild(slotDiv);
+        });
+
         bookingsList.appendChild(formContainer);
         modal.classList.remove('hidden');
+    }
+
+    function generateTimeSlots() {
+        const slots = [];
+        const startHour = 9;
+        const endHour = 17;
+        for (let hour = startHour; hour < endHour; hour++) {
+            const startTime = `${hour.toString().padStart(2, '0')}:00`;
+            const endTime = `${(hour + 1).toString().padStart(2, '0')}:00`;
+            slots.push({ start: startTime, end: endTime });
+        }
+        return slots;
     }
 
     function createBookingRow(booking = null) {
@@ -100,17 +129,32 @@
         
         // For other people's bookings, show limited information
         if (booking && !isMyBookingRow) {
-            rowDiv.innerHTML = `
-                <div class="flex flex-col space-y-2">
-                    <div class="flex justify-between items-center">
-                        <div class="text-gray-700">
-                            <span class="font-medium">Booked:</span> ${booking.start_time} - ${booking.end_time}
+            const timeSlots = generateTimeSlots();
+            const existingBookings = getBookingsForDate(booking.date);
+            rowDiv.innerHTML = timeSlots.map(slot => {
+                const isBooked = existingBookings.some(b => b.start_time === slot.start && b.end_time === slot.end);
+                const slotClass = isBooked ? 'bg-red-200' : 'bg-green-200';
+                return `
+                    <div class="flex flex-col space-y-2">
+                        <div class="flex justify-between items-center ${slotClass}">
+                            <div class="text-gray-700">
+                                ${slot.start} - ${slot.end} ${isBooked ? '(Booked)' : '(Available)'}
+                            </div>
                         </div>
                     </div>
-                </div>
-            `;
+                `;
+            }).join('');
             return rowDiv;
         }
+
+        const timeSlots = generateTimeSlots();
+        const existingBookings = getBookingsForDate(booking?.date || '');
+        const timeOptions = timeSlots.map(slot => {
+            const isBooked = existingBookings.some(b => b.start_time === slot.start && b.end_time === slot.end);
+            const optionClass = isBooked ? 'bg-red-200' : '';
+            const isSelected = booking && booking.start_time === slot.start && booking.end_time === slot.end ? 'selected' : '';
+            return `<option value="${slot.start} - ${slot.end}" class="${optionClass}" ${isSelected}>${slot.start} - ${slot.end}</option>`;
+        }).join('');
 
         rowDiv.innerHTML = `
             <form onsubmit="handleSubmitBooking(event)" action="/handyman_calendar/" class="flex flex-col space-y-2 w-full" 
@@ -137,13 +181,9 @@
                                 class="${inputClass} md:w-[200px] w-full">
                                 
                             <div class="flex space-x-2">
-                                <input type="time" name="start_time" 
-                                    value="${booking?.start_time || ''}" 
-                                    class="${inputClass} w-full md:w-[100px]">
-                                    
-                                <input type="time" name="end_time" 
-                                    value="${booking?.end_time || ''}" 
-                                    class="${inputClass} w-full md:w-[100px]">
+                                <select name="start_time" class="${inputClass} w-full md:w-[100px]">
+                                    ${timeOptions}
+                                </select>
                             </div>
                         </div>
                         <div class="w-full">
@@ -227,8 +267,7 @@
             'apartment_name': formData.get('apartment_name'),
             'tenant_name': formData.get('tenant_name'),
             'tenant_phone': formData.get('tenant_phone'),
-            'start_time': formData.get('start_time'),
-            'end_time': formData.get('end_time')
+            'start_time': formData.get('start_time') // Only need to check start_time as it represents the slot
         };
 
         const missing_fields = Object.entries(required_fields)
@@ -260,6 +299,16 @@
         const rawDate = document.getElementById('modalDate').getAttribute('data-date');
         formData.set('date', rawDate);
 
+        // Extract start and end times from the selected slot
+        const selectedSlot = formData.get('start_time');
+        const [startTime, endTime] = selectedSlot.split(' - ');
+        console.log(startTime, endTime,selectedSlot, "startTime, endTime,selectedSlot");
+
+        // Ensure times are in HH:MM format
+        const formatTime = time => time.padStart(5, '0');
+        formData.set('start_time', formatTime(startTime));
+        formData.set('end_time', formatTime(endTime));
+
         // Check if date is in the past
         const selectedDate = new Date(rawDate);
         const today = new Date();
@@ -267,14 +316,6 @@
         
         if (selectedDate < today) {
             errors.push("Cannot create appointments for past dates");
-        }
-
-        // Check if end time is after start time
-        const startTime = formData.get('start_time');
-        const endTime = formData.get('end_time');
-        
-        if (startTime >= endTime) {
-            errors.push("End time must be after start time");
         }
 
         // Check for overlapping appointments
@@ -412,12 +453,14 @@
             year: 'numeric'
         });
 
-        // Generate content - show only apartment and time for non-owned bookings
-        content.innerHTML = bookings.map(booking => {
+        // Generate content - show all time slots and mark only the booked ones
+        content.innerHTML = generateTimeSlots().map(slot => {
+            const isBooked = bookings.some(booking => booking.start_time === slot.start && booking.end_time === slot.end);
+            const slotClass = isBooked ? 'bg-red-200' : 'bg-green-200';
             return `
-                <div class="py-1">
+                <div class="py-1 ${slotClass}">
                     <div class="text-gray-700">
-                        Booked: ${booking.start_time} - ${booking.end_time}
+                        ${slot.start} - ${slot.end} ${isBooked ? '(Booked)' : '(Available)'}
                     </div>
                 </div>
             `;
