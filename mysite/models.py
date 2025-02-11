@@ -1000,14 +1000,20 @@ class HandymanCalendar(models.Model):
     def __str__(self):
         return f"{self.apartment_name} - {self.date} {self.start_time} - {self.end_time}"
 
+class Parking(models.Model):
+    number = models.CharField(max_length=20, blank=True, null=False)
+    notes = models.CharField(max_length=255, blank=True, null=True)
+    building = models.CharField(max_length=255, blank=True, null=True)
+    def __str__(self):
+        return f"Building: {self.building}. #{self.number}"
 
-class ApartmentParking(models.Model):
+class ParkingBooking(models.Model):
     STATUS = [
-        ('Available', 'Available'),
         ('Unavailable', 'Unavailable'),
         ('Booked', 'Booked'),
     ]
-    parking_number = models.IntegerField(blank=True, null=True)
+    parking = models.ForeignKey(Parking, on_delete=models.SET_NULL, db_index=True,
+                                related_name='parking_bookings', null=True, blank=True)
     notes = models.CharField(max_length=255, blank=True, null=True)
     status = models.CharField(max_length=255, blank=True, null=True, choices=STATUS)
     start_date = models.DateField(blank=True, null=True)
@@ -1016,82 +1022,37 @@ class ApartmentParking(models.Model):
     # Add relationships
     apartment = models.ForeignKey(
         Apartment, 
-        on_delete=models.CASCADE,
-        related_name='parking_spots',
+        on_delete=models.SET_NULL,
+        related_name='parking_bookings',
         null=True
     )
     booking = models.ForeignKey(
         Booking,
         on_delete=models.SET_NULL,
-        related_name='parking_spots',
+        related_name='parking_bookings',
         null=True,
         blank=True
     )
 
     def __str__(self):
-        parking_str = f" {self.parking_number}" if self.parking_number is not None else "No parking"
+        parking_str = f" {self.parking.number}" if self.parking else "No parking"
         apartment_name = f"{self.apartment.name}" if self.apartment else ""
-        booking_info = f"({self.status})"
-        return f"{apartment_name} {parking_str}{booking_info}"
+        status_str = f"({self.status})"
+        return f"{apartment_name} {parking_str}{status_str}"
 
     def save(self, *args, **kwargs):
-        # Convert parking to integer if it's a string number
-        if isinstance(self.parking_number, str) and self.parking_number.isdigit():
-            self.parking_number = int(self.parking_number)
 
         # If booking is assigned, use booking dates
         if self.booking:
-            self.start_date = self.booking.start_date
-            self.end_date = self.booking.end_date
+            self.start_date = self.start_date or self.booking.start_date
+            self.end_date = self.end_date or self.booking.end_date
+            self.apartment = self.booking.apartment
             self.status = 'Booked'
-        elif self.status == 'Booked' and not (self.start_date and self.end_date):
+        if not (self.start_date and self.end_date):
             raise ValueError("Start date and end date are required when status is 'Booked' without a booking")
-
-        # If status is not 'Booked' and no dates are set, clear them
-        if self.status != 'Booked' and not self.booking:
-            self.start_date = None
-            self.end_date = None
 
         super().save(*args, **kwargs)
 
-    @classmethod
-    def update_parking_statuses(cls):
-        """
-        Updates all parking spot statuses based on booking dates and manual date ranges.
-        If a booking has ended or manual date range has expired, sets the spot to Available.
-        """
-        from datetime import date
-        today = date.today()
-        
-        # Get all booked parking spots
-        booked_spots = cls.objects.filter(status='Booked')
-        
-        for spot in booked_spots:
-            if spot.end_date and spot.end_date < today:
-                # Booking/reservation has ended, update the parking spot
-                spot.status = 'Available'
-                spot.booking = None
-                spot.start_date = None
-                spot.end_date = None
-                spot.save()
-
-    @classmethod
-    def get_all_parking(cls):
-        """
-        Get all parking spots after updating expired bookings/reservations
-        """
-        # Update statuses for expired bookings/reservations
-        cls.update_parking_statuses()
-        return cls.objects.all()
-
-    @classmethod
-    def get_filtered_parking(cls, status):
-        """
-        Get parking spots filtered by status after updating expired bookings/reservations
-        """
-        # Update statuses for expired bookings/reservations
-        cls.update_parking_statuses()
-        return cls.objects.filter(status=status)
 
     @property
     def links(self):

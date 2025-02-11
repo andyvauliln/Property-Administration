@@ -3,634 +3,140 @@
 {% load custom_filters %}
 {% block content %}
 
-<section class="bg-white dark:bg-gray-900"> 
-    <div class="pb-8 px-4 mx-auto max-w-screen-xl lg:pb-16 lg:px-6">
-        <div class="mx-auto max-w-screen-md mb-8 lg:mb-12 flex justify-center items-center flex-col">
-            <h2 class="text-4xl tracking-tight font-extrabold text-gray-900 dark:text-white mr-4 mt-4">Parking Calendar</h2>
-        </div>
-        
-        <!-- Add building sections -->
-        <div class="grid gap-8" id="buildingsContainer">
-            <!-- Buildings will be populated by JavaScript -->
+{% csrf_token %}
+
+<section class="bg-gray-50 dark:bg-gray-900 p-3 sm:p-5 antialiased h-screen flex flex-col">
+    <div class="mx-auto max-w-screen-xl px-4 lg:px-12 flex-grow flex flex-col">
+        <div class="bg-white dark:bg-gray-800 relative shadow-md sm:rounded-lg overflow-hidden flex flex-col flex-grow">
+            
+            <div class="flex items-center justify-between w-full p-2">
+                <div class="flex items-center space-x-4">
+                    {% comment %} <select name="booking_status" class="ml-2 bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-primary-500 focus:border-primary-500 block w-full p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white dark:focus:ring-primary-500 dark:focus:border-primary-500">
+                        <option value="">All Statuses</option>
+                        <option class="text-blue-600" value="Booked">Booked</option>
+                        <option class="text-red-500" value="Unavailable">Unavailable</option>
+                    </select> {% endcomment %}
+                    <button id="createParkingBtn" class="text-white bg-blue-600 w-[300px] hover:bg-blue-700 focus:ring-4 focus:ring-blue-300 font-medium rounded-lg text-sm px-5 py-2.5">
+                        Create New Parking
+                    </button>
+                    <button id="createParkingBookingBtn" class="text-white bg-green-600 w-[300px] hover:bg-green-700 focus:ring-4 focus:ring-green-300 font-medium rounded-lg text-sm px-5 py-2.5">
+                        Create New Parking Booking
+                    </button>
+                    <div class="flex items-center justify-center space-x-4">
+                        <a href="/parking_calendar/?page={{ prev_page }}" class="flex items-center text-black p-4 rounded-l">
+                            <svg class="w-4 h-4 text-blue-500  dark:text-white mr-2" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 8 14">
+                                <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 1 1.3 6.326a.91.91 0 0 0 0 1.348L7 13"/>
+                            </svg>
+                            <span class="text-2xl text-blue-500 font-extrabold">Previous</span>
+                        </a>
+    
+                        <a href="/parking_calendar/?page={{ next_page }}" class="flex items-center text-black p-4 rounded-r">
+                            <span class="text-2xl text-blue-500 font-extrabold">Next</span>
+                            <svg class="w-4 h-4 text-blue-500 dark:text-white ml-2" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 8 14">
+                                <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m1 13 5.7-5.326a.909.909 0 0 0 0-1.348L1 1"/>
+                            </svg>
+                        </a>
+                    </div>
+                </div>
+            </div>
+
+            <div class="flex items-center justify-between flex-col w-full p-2">
+                <div class="flex items-center space-x-4">
+                    <div class="flex items-center">
+                        <div class="w-4 h-4 bg-blue-600 mr-2"></div>
+                        <span>Booked</span>
+                    </div>
+                    <div class="flex items-center">
+                        <div class="w-4 h-4 bg-red-500 mr-2"></div>
+                        <span>Unavailable</span>
+                    </div>
+                    <div class="flex items-center">
+                        <div class="w-4 h-4 bg-white border border-gray-300 mr-2"></div>
+                        <span>Available</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="flex-grow overflow-auto">
+                <table class="w-full text-[7px] text-left text-gray-500 dark:text-gray-400">
+                    <thead class="text-center text-gray-700 uppercase bg-gray-50 dark:bg-gray-700 dark:text-gray-400">
+                        <tr>
+                            <th scope="col" class="p-1 border-r border-gray-500 w-16">Building</th>
+                            <th scope="col" class="p-1 border-r border-gray-500 w-16">Parking</th>
+                            {% for month_data in monthly_data|slice:":3" %}
+                                <!-- Month Header -->
+                                <th scope="col" colspan="{{ month_data.days_in_month }}" class="p-4 border-r border-gray-500 bg-zinc-200">
+                                    <div class="flex items-center justify-center">
+                                        <div class="text-lg font-bold text-blue-500 underline">{{ month_data.month_name }}</div>
+                                    </div>
+                                </th>
+                            {% endfor %}
+                        </tr>
+                        <tr>
+                            <th scope="col" class="p-1 border-r border-gray-500 w-16"></th>
+                            <th scope="col" class="p-1 border-r border-gray-500 w-16"></th>
+                            {% for month_data in monthly_data|slice:":3" %}
+                                {% for number in 1|range:month_data.days_in_month %}
+                                    <th scope="col" class="p-0 border-r border-gray-500 w-3">{{ number }}</th>
+                                {% endfor %}
+                            {% endfor %}
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for month_data in monthly_data|slice:":1" %}
+                            {% for parking in month_data.parkings %}
+                                <tr class="border-b dark:border-gray-700 hover:bg-gray-50">
+                                    <td class="border-r border-gray-500 p-1 w-16 text-center">
+                                        <span class="text-purple-600 font-bold">{{ parking.building }}</span>
+                                    </td>
+                                    <td class="border-r border-gray-500 p-1 w-16 text-center">
+                                        <span class="text-blue-500 font-bold cursor-pointer hover:underline edit-parking" 
+                                            data-parking-id="{{ parking.id }}" 
+                                            data-building="{{ parking.building }}" 
+                                            data-number="{{ parking.number }}"
+                                            data-notes="{{ parking.notes|default:'' }}">{{ parking.number }}</span>
+                                    </td>
+                                    {% for month_data in monthly_data %}
+                                        {% with parking_data=month_data.parkings|filter_by_id:parking.id|first %}
+                                            {% for day, day_data in parking_data.days.items %}
+                                                <td class="day border-r border-gray-500 relative p-0 w-3 h-3
+                                                    {% if day_data.status == 'Booked' %} bg-blue-600 text-white
+                                                    {% elif day_data.status == 'Unavailable' %} bg-red-500 text-white
+                                                    {% else %} bg-white text-black
+                                                    {% endif %}
+                                                    {% if day_data.is_start and day_data.is_end %} booking-start-end
+                                                    {% elif day_data.is_start %} booking-start
+                                                    {% elif day_data.is_end %} booking-end
+                                                    {% endif %}"
+                                                    data-day="{{ day_data.day }}"
+                                                    data-tenant-name="{{ day_data.tenant_name }}"
+                                                    data-notes="{{ day_data.notes }}"
+                                                    data-apartment-name="{{ day_data.apartment_name }}"
+                                                    data-status="{{ day_data.status }}"
+                                                    data-apartment-id="{{ day_data.apartment_id }}"
+                                                    data-booking-id="{{ day_data.booking_id }}"
+                                                    data-id="{{ day_data.id }}"
+                                                    data-start-date="{{ day_data.start_date }}"
+                                                    data-end-date="{{ day_data.end_date }}">
+                                                    <div class="text-center">
+                                                        {{ day }}
+                                                    </div>
+                                                </td>
+                                            {% endfor %}
+                                        {% endwith %}
+                                    {% endfor %}
+                                </tr>
+                            {% endfor %}
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
         </div>
     </div>
 </section>
 
-<script>
-    console.log('Raw parking_data_json:', {{ parking_data_json|safe }});
-    const parkingData = JSON.parse('{{ parking_data_json|safe }}');
-    console.log('Grouped parkingData:', parkingData);
-    const model_fields_json = JSON.parse('{{ model_fields_json|safe }}');
-    console.log('Model fields:', model_fields_json);
-    function getParkingById(id) {
-        for (const [buildingNumber, parkings] of Object.entries(parkingData)) {
-            const found = parkings.find(p => p.id === id);
-            if (found) {
-                return found;
-            }
-        }
-        return null;
-    }
-
-    function displayParkingInfo(parking) {
-        if (!parking) return '';
-        
-        return `
-            <div class="space-y-4">
-                <div class="grid grid-cols-2 gap-4">
-                    <div>
-                        <p class="text-sm font-medium text-gray-500">Building</p>
-                        <p class="text-sm text-gray-900">${parking.building_n}</p>
-                    </div>
-                    <div>
-                        <p class="text-sm font-medium text-gray-500">Apartment</p>
-                        <p class="text-sm text-gray-900">${parking.apartment_number}</p>
-                    </div>
-                    <div>
-                        <p class="text-sm font-medium text-gray-500">Status</p>
-                        <p class="text-sm text-gray-900">${parking.status}</p>
-                    </div>
-                    <div>
-                        <p class="text-sm font-medium text-gray-500">Tenant</p>
-                        <p class="text-sm text-gray-900">${parking.tenant_name || 'N/A'}</p>
-                    </div>
-                    <div>
-                        <p class="text-sm font-medium text-gray-500">Phone</p>
-                        <p class="text-sm text-gray-900">${parking.tenant_phone || 'N/A'}</p>
-                    </div>
-                    <div>
-                        <p class="text-sm font-medium text-gray-500">Dates</p>
-                        <p class="text-sm text-gray-900">${parking.start_date ? formatDates(parking.start_date, parking.end_date) : 'N/A'}</p>
-                    </div>
-                </div>
-                <div>
-                    <p class="text-sm font-medium text-gray-500">Notes</p>
-                    <p class="text-sm text-gray-900">${parking.notes || 'No notes'}</p>
-                </div>
-            </div>
-        `;
-    }
-
-    function handleBookingChange(bookingId) {
-        const bookingField = document.getElementById('booking');
-        const startDateField = document.getElementById('start_date');
-        const endDateField = document.getElementById('end_date');
-        const statusField = document.getElementById('status');
-        const dateFields = document.querySelectorAll('.date-field');
-        
-        if (bookingId) {
-            // Find the booking in the dropdown options
-            const bookingOption = bookingField.querySelector(`option[value="${bookingId}"]`);
-            if (bookingOption) {
-                const label = bookingOption.textContent;
-                // Extract dates from the label format "ApartmentName:[YYYY-MM-DD - YYYY-MM-DD]"
-                const dateMatch = label.match(/\[(.*?) - (.*?)\]/);
-                if (dateMatch) {
-                    startDateField.value = dateMatch[1];
-                    endDateField.value = dateMatch[2];
-                    statusField.value = 'Booked';
-                    
-                    // Hide date fields and make them readonly when booking is selected
-                    dateFields.forEach(field => {
-                        field.style.display = 'none';
-                        field.querySelector('input').readOnly = true;
-                    });
-                }
-            }
-        } else {
-            // Clear dates if no booking is selected
-            startDateField.value = '';
-            endDateField.value = '';
-            startDateField.readOnly = false;
-            endDateField.readOnly = false;
-            
-            // Show/hide date fields based on status
-            handleStatusChange(statusField.value);
-        }
-    }
-
-    function createFormFields(modelFields, parkingData) {
-        return modelFields.map(field => {
-            const value = parkingData[field.name] || '';
-            let inputElement = '';
-            const isRequired = field.name === 'apartment_number' || field.name === 'parking_number';
-            console.log(field, "field");
-            console.log(value, "value");
-            console.log(parkingData, "parkingData");
-            console.log(field.ui_element, "field.ui_element");
-            switch (field.ui_element) {
-                case 'dropdown':
-                    const options = field.choices.map(choice => {
-                        const selected = choice.value === value ? 'selected' : '';
-                        return `<option value="${choice.value}" ${selected}>${choice.label}</option>`;
-                    }).join('');
-                    
-                    // Add onchange events for specific fields
-                    const extraAttributes = field.name === 'apartment_number' ? 
-                        'onchange="filterBookingsByApartment(this.value)"' : 
-                        field.name === 'status' ?
-                        'onchange="handleStatusChange(this.value)"' :
-                        field.name === 'booking' ?
-                        'onchange="handleBookingChange(this.value)"' : '';
-                    
-                    inputElement = `
-                        <select id="${field.name}" name="${field.name}" 
-                                class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white"
-                                ${isRequired ? 'required' : ''}
-                                ${extraAttributes}>
-                            <option value="">Select ${field.label}</option>
-                            ${options}
-                        </select>`;
-                    break;
-                    
-                case 'textarea':
-                    inputElement = `
-                        <textarea id="${field.name}" name="${field.name}" 
-                                 class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white"
-                                 ${isRequired ? 'required' : ''}>${value}</textarea>`;
-                    break;
-
-                case 'datepicker':
-                    // Format the date value if it exists
-                    console.log(field.name, value, "DATA PICKER");
-                    let formattedValue = value;
-                    if (value) {
-                        try {
-                            const date = new Date(value);
-                            formattedValue = date.toISOString().split('T')[0];
-                        } catch (e) {
-                            console.error('Error formatting date:', e);
-                        }
-                    }
-                    console.log(formattedValue, "formattedValue");
-                    inputElement = `
-                        <input datepicker datepicker-format="MM dd yyyy" type="text" id="${field.name}" name="${field.name}" 
-                               value="${formattedValue || ''}"
-                               class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white dark:focus:ring-blue-500 dark:focus:border-blue-500" placeholder="Select date"
-                               ${isRequired ? 'required' : ''}>`;
-                    console.log(inputElement, "inputElement");
-                    break;
-                    
-                default: // 'input'
-                    inputElement = `
-                        <input type="text" id="${field.name}" name="${field.name}" 
-                               value="${value}"
-                               class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white"
-                               ${isRequired ? 'required' : ''}>`;
-            }
-            
-            // Add date-field class and initial display state
-            const isDateField = field.name === 'start_date' || field.name === 'end_date';
-            const initialDisplay = parkingData.status === 'Booked' && !parkingData.booking ? 'block' : 'none';
-            
-            return `
-                <div class="mb-4">
-                    <label for="${field.name}" class="block mb-2 text-sm font-medium text-gray-900 dark:text-white">
-                        ${field.label}${isRequired ? ' *' : ''}
-                    </label>
-                    ${inputElement}
-                    ${isRequired ? `
-                    <p class="mt-1 text-sm text-red-600 dark:text-red-400 hidden" id="${field.name}-error">
-                        This field is required
-                    </p>` : ''}
-                </div>`;
-        }).join('');
-    }
-
-    function handleStatusChange(status) {
-        const dateFields = document.querySelectorAll('.date-field');
-        const bookingField = document.getElementById('booking');
-        
-        if (status === 'Booked') {
-            if (!bookingField.value) {
-                // Only show and require dates if no booking is selected
-                dateFields.forEach(field => {
-                    field.style.display = 'block';
-                    field.querySelector('input').required = true;
-                    field.querySelector('input').readOnly = false;
-                });
-            }
-        } else {
-            // For non-booked status, hide dates and clear values
-            dateFields.forEach(field => {
-                field.style.display = 'none';
-                const input = field.querySelector('input');
-                input.required = false;
-                input.value = '';
-                input.readOnly = false;
-            });
-        }
-    }
-
-    function validateForm(form) {
-        const requiredFields = ['apartment_number', 'parking_number'];
-        let isValid = true;
-        
-        // Add date validation for booked status without booking
-        const status = form.querySelector('[name="status"]').value;
-        const booking = form.querySelector('[name="booking"]').value;
-        if (status === 'Booked' && !booking) {
-            requiredFields.push('start_date', 'end_date');
-        }
-        
-        requiredFields.forEach(fieldName => {
-            const field = form.querySelector(`[name="${fieldName}"]`);
-            if (!field) {
-                console.error(`Field ${fieldName} not found in form`);
-                return;
-            }
-            
-            const errorElement = document.getElementById(`${fieldName}-error`);
-            
-            if (!field.value.trim()) {
-                isValid = false;
-                field.classList.add('border-red-500');
-                errorElement?.classList.remove('hidden');
-            } else {
-                field.classList.remove('border-red-500');
-                errorElement?.classList.add('hidden');
-            }
-        });
-        
-        // Validate date range if both dates are provided
-        const startDate = form.querySelector('[name="start_date"]')?.value;
-        const endDate = form.querySelector('[name="end_date"]')?.value;
-        if (startDate && endDate) {
-            const start = new Date(startDate);
-            const end = new Date(endDate);
-            if (start > end) {
-                isValid = false;
-                alert('End date must be after start date');
-            }
-        }
-        
-        return isValid;
-    }
-
-    function addFormSubmitHandler(form) {
-        form.addEventListener('submit', function(e) {
-            e.preventDefault();
-            
-            if (!validateForm(this)) {
-                return;
-            }
-            
-            // Log form data before submit
-            const formData = new FormData(this);
-            console.log('Form Data:');
-            for (let pair of formData.entries()) {
-                console.log(pair[0] + ': ' + pair[1]);
-            }
-            
-            // Submit the form traditionally
-            this.submit();
-        });
-    }
-
-    function openModalForDay(id) {
-        const selectedParking = getParkingById(id);
-        if (!selectedParking) return;
-
-        const modal = document.getElementById('parkingModal');
-        const parkingList = document.getElementById('parkingList');
-        const modalDate = document.getElementById('modalDate');
-        
-        modalDate.textContent = `Parking Details - ${selectedParking.apartment_name}`;
-        modalDate.setAttribute('data-number', selectedParking.apartment_number);
-        
-        // Create form with model fields
-        parkingList.innerHTML = `
-            <form id="parkingForm" method="POST" action="${window.location.href}" class="space-y-4">
-                <input type="hidden" name="id" value="${selectedParking.id}">
-                <input type="hidden" name="edit" value="true">
-                ${createFormFields(model_fields_json, selectedParking)}
-                <div class="flex justify-end space-x-2">
-                    <button type="button" 
-                            onclick="handleDelete(${selectedParking.id})"
-                            class="px-4 py-2 text-sm font-medium text-white bg-red-600 rounded-lg hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500">
-                        Delete
-                    </button>
-                    <button type="button" onclick="closeModal()" 
-                            class="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-gray-400">
-                        Cancel
-                    </button>
-                    <button type="submit" 
-                            class="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500">
-                        Save Changes
-                    </button>
-                </div>
-            </form>`;
-
-        // Initialize form state based on current values
-        const form = document.getElementById('parkingForm');
-        if (form) {
-            const status = form.querySelector('[name="status"]').value;
-            const booking = form.querySelector('[name="booking"]').value;
-            if (booking) {
-                handleBookingChange(booking);
-            } else {
-                handleStatusChange(status);
-            }
-        }
-
-        // Add form submit handler
-        addFormSubmitHandler(document.getElementById('parkingForm'));
-        
-        modal.classList.remove('hidden');
-    }
-
-    function closeModal() {
-        document.getElementById('parkingModal').classList.add('hidden');
-    }
-
-    // Move all popover-related code inside DOMContentLoaded
-    document.addEventListener('DOMContentLoaded', function() {
-        // Add event listener for close button
-        const closePopoverButton = document.getElementById('close-popover');
-        if (closePopoverButton) {
-            closePopoverButton.addEventListener('click', hidePopover);
-        }
-
-        // Prevent popover from closing when clicking inside it
-        const dynamicPopover = document.getElementById('dynamic-popover');
-        if (dynamicPopover) {
-            dynamicPopover.addEventListener('mouseenter', (e) => {
-                e.stopPropagation();
-            });
-        }
-
-        // Initialize popover listeners
-        addPopoverListeners();
-    });
-
-    // Keep these functions outside but available globally
-    function showPopover(event, dateStr) {
-        const bookings = getBookingsForDate(dateStr);
-        if (!bookings || bookings.length === 0) return;
-
-        const popover = document.getElementById('dynamic-popover');
-        const title = document.getElementById('popover-title');
-        const content = document.getElementById('popover-content');
-
-        if (!popover || !title || !content) return;
-
-        // Set title
-        const date = new Date(dateStr);
-        title.textContent = date.toLocaleDateString('en-US', { 
-            month: 'long', 
-            day: 'numeric',
-            year: 'numeric'
-        });
-
-        // Generate content - simplified to show just "Booked: StartTime - EndTime"
-        content.innerHTML = bookings.map(booking => `
-            <div class="py-1">
-                <div class="text-gray-700">Booked: ${booking.start_time} - ${booking.end_time}</div>
-            </div>
-        `).join('');
-
-        // Position popover
-        popover.style.left = `${event.pageX + 10}px`;
-        popover.style.top = `${event.pageY + 10}px`;
-        popover.classList.remove('hidden');
-    }
-
-    function hidePopover() {
-        const popover = document.getElementById('dynamic-popover');
-        if (popover) {
-            popover.classList.add('hidden');
-        }
-    }
-
-    function addPopoverListeners() {
-        const bookedDays = document.querySelectorAll('[data-has-bookings="true"]');
-        bookedDays.forEach(day => {
-            day.addEventListener('mouseenter', (e) => {
-                const dateStr = day.getAttribute('data-date');
-                showPopover(e, dateStr);
-            });
-            day.addEventListener('mouseleave', hidePopover);
-        });
-    }
-
-    // Add new function to create building sections
-    function createBuildingSections() {
-        const container = document.getElementById('buildingsContainer');
-        
-        // Sort building numbers
-        const buildingNumbers = Object.keys(parkingData).sort((a, b) => {
-            return parseInt(a) - parseInt(b);
-        });
-
-        // Add create button at the top
-        const createButtonSection = document.createElement('div');
-        createButtonSection.className = 'flex justify-end mb-4';
-        createButtonSection.innerHTML = `
-            <button onclick="openCreateModal()"
-                    class="px-4 py-2 text-sm font-medium text-white bg-green-600 rounded-lg hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500">
-                Create New Parking Record
-            </button>
-        `;
-        container.appendChild(createButtonSection);
-
-        buildingNumbers.forEach(buildingNumber => {
-            const parkings = parkingData[buildingNumber];
-            
-            const buildingSection = document.createElement('div');
-            buildingSection.className = 'bg-white dark:bg-gray-800 rounded-lg shadow p-6';
-            
-            buildingSection.innerHTML = `
-                <h3 class="text-2xl font-bold mb-4">Building ${buildingNumber}</h3>
-                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                    ${parkings.map(parking => `
-                        <div class="border rounded-lg p-4 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700"
-                             onclick="openModalForDay(${parking.id})">
-                            <div class="flex justify-between items-center mb-2">
-                                <div>
-                                    <span class="font-semibold">Apt ${parking.apartment_number}</span>
-                                    <span class="ml-2 px-2 py-1 rounded-full text-sm ${getStatusClass(parking.status)}">
-                                        ${parking.status || 'Unknown'}
-                                    </span>
-                                </div>
-                            </div>
-                            <div class="text-sm text-gray-600 dark:text-gray-300">
-                                ${formatParkingInfo(parking)}
-                            </div>
-                        </div>
-                    `).join('')}
-                </div>
-            `;
-            
-            container.appendChild(buildingSection);
-        });
-    }
-
-    function getStatusClass(status) {
-        const statusClasses = {
-            'available': 'bg-green-100 text-green-800',
-            'occupied': 'bg-red-100 text-red-800',
-            'reserved': 'bg-yellow-100 text-yellow-800',
-            'maintenance': 'bg-gray-100 text-gray-800'
-        };
-        return statusClasses[status?.toLowerCase()] || 'bg-gray-100 text-gray-800';
-    }
-
-    function formatParkingInfo(parking) {
-        let info = '';
-        
-        // Add parking number with accent color
-        info += `<p class="text-blue-600 dark:text-blue-400 font-medium mb-1">Parking #${parking.parking_number || 'N/A'}</p>`;
-        
-        if (!parking.tenant_name && !parking.start_date) {
-            info += '<p>No current booking/reservation</p>';
-            return info;
-        }
-
-        if (parking.tenant_name) {
-            info += `<p class="truncate">${parking.tenant_name}</p>`;
-        }
-        if (parking.start_date && parking.end_date) {
-            info += `<p class="text-gray-500">${formatDates(parking.start_date, parking.end_date)}</p>`;
-            if (!parking.tenant_name) {
-                info += '<p class="text-sm text-gray-400">(Reserved)</p>';
-            }
-        }
-        return info;
-    }
-
-    function formatDates(startDate, endDate) {
-        if (!startDate || !endDate) return 'N/A';
-        return `${new Date(startDate).toLocaleDateString()} - ${new Date(endDate).toLocaleDateString()}`;
-    }
-
-    // Add new function to handle delete
-    function handleDelete(id) {
-        if (confirm('Are you sure you want to delete this parking record?')) {
-            const form = document.getElementById('parkingForm');
-            const formData = new FormData(form);
-            
-            // Log form data
-            console.log('Delete Form Data:');
-            for (let pair of formData.entries()) {
-                console.log(pair[0] + ': ' + pair[1]);
-            }
-            
-            formData.delete('edit');
-            formData.append('delete', 'true');
-            
-            // Create and submit a form for delete
-            const deleteForm = document.createElement('form');
-            deleteForm.method = 'POST';
-            deleteForm.action = window.location.href;
-            
-            for (let pair of formData.entries()) {
-                const input = document.createElement('input');
-                input.type = 'hidden';
-                input.name = pair[0];
-                input.value = pair[1];
-                deleteForm.appendChild(input);
-            }
-            
-            document.body.appendChild(deleteForm);
-            deleteForm.submit();
-        }
-    }
-
-    // Add this new function
-    function openCreateModal() {
-        const modal = document.getElementById('parkingModal');
-        const parkingList = document.getElementById('parkingList');
-        const modalDate = document.getElementById('modalDate');
-        
-        modalDate.textContent = 'Create New Parking Record';
-        
-        // Create empty form for new parking
-        parkingList.innerHTML = `
-            <form id="parkingForm" method="POST" class="space-y-4">
-                <input type="hidden" name="add" value="true">
-                ${createFormFields(model_fields_json, {})}
-                <div class="flex justify-end space-x-2">
-                    <button type="button" onclick="closeModal()" 
-                            class="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-gray-400">
-                        Cancel
-                    </button>
-                    <button type="submit" 
-                            class="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500">
-                        Create
-                    </button>
-                </div>
-            </form>`;
-
-        // Remove the form submit handler since we want native form submission
-        const form = document.getElementById('parkingForm');
-        form.addEventListener('submit', function(e) {
-            if (!validateForm(this)) {
-                e.preventDefault();
-                return;
-            }
-        });
-        
-        modal.classList.remove('hidden');
-    }
-
-    // Add new function to filter bookings by apartment
-    function filterBookingsByApartment(apartmentNumber) {
-        if (!apartmentNumber) return;
-        
-        // Find all bookings for this apartment
-        let apartmentBookings = [];
-        for (const [buildingNumber, parkings] of Object.entries(parkingData)) {
-            const filtered = parkings.filter(p => p.apartment_number === apartmentNumber);
-            apartmentBookings = apartmentBookings.concat(filtered);
-        }
-        
-        // Update the bookings display in the modal
-        const bookingsContainer = document.createElement('div');
-        bookingsContainer.className = 'mt-4 border-t pt-4';
-        bookingsContainer.innerHTML = `
-            <h4 class="text-lg font-medium mb-2">Existing Bookings for Apartment ${apartmentNumber}</h4>
-            ${apartmentBookings.length > 0 ? `
-                <div class="space-y-2">
-                    ${apartmentBookings.map(booking => `
-                        <div class="p-3 bg-gray-50 rounded-lg">
-                            <div class="flex justify-between items-center">
-                                <div>
-                                    <p class="font-medium">Parking #${booking.parking_number}</p>
-                                    <p class="text-sm text-gray-600">
-                                        ${booking.start_date ? `${formatDates(booking.start_date, booking.end_date)}` : 'No dates specified'}
-                                    </p>
-                                </div>
-                                <span class="px-2 py-1 rounded-full text-sm ${getStatusClass(booking.status)}">
-                                    ${booking.status || 'Unknown'}
-                                </span>
-                            </div>
-                        </div>
-                    `).join('')}
-                </div>
-            ` : '<p class="text-gray-500">No existing bookings found for this apartment</p>'}
-        `;
-        
-        // Find or create the bookings display container
-        let existingBookingsContainer = document.getElementById('apartment-bookings');
-        if (!existingBookingsContainer) {
-            existingBookingsContainer = document.createElement('div');
-            existingBookingsContainer.id = 'apartment-bookings';
-            document.getElementById('parkingList').appendChild(existingBookingsContainer);
-        }
-        
-        // Update the container content
-        existingBookingsContainer.innerHTML = '';
-        existingBookingsContainer.appendChild(bookingsContainer);
-    }
-
-    // Call the function when the document is loaded
-    document.addEventListener('DOMContentLoaded', function() {
-        createBuildingSections();
-        // Keep existing DOMContentLoaded handlers...
-    });
-</script>
-
-<div id="dynamic-popover" class="hidden fixed z-10 w-[375px] text-sm text-gray-500 bg-white border border-gray-200 rounded-lg shadow-sm dark:text-gray-400 dark:border-gray-600 dark:bg-gray-800">
+<!-- Tooltip HTML -->
+<div id="dynamic-popover" class="hidden fixed z-10 w-[375px] max-w-[90%] text-sm text-gray-500 bg-white border border-gray-200 rounded-lg shadow-sm dark:text-gray-400 dark:border-gray-600 dark:bg-gray-800">
     <div class="px-3 py-2 bg-gray-100 border-b border-gray-200 rounded-t-lg dark:border-gray-600 dark:bg-gray-700 flex justify-between items-center">
         <h3 class="font-semibold text-gray-900 dark:text-white" id="popover-title"></h3>
         <button id="close-popover" class="text-gray-600 hover:text-gray-800 dark:text-gray-300 dark:hover:text-white">
@@ -642,24 +148,572 @@
     </div>
 </div>
 
-
-<div id="parkingModal" class="hidden fixed inset-0 bg-black bg-opacity-75 overflow-y-auto h-full w-full z-50 flex items-center justify-center">
-    <div class="relative p-6 border w-full max-w-2xl shadow-lg rounded-md bg-white">
-        <div class="flex flex-col">
-            <div class="flex justify-between items-center mb-4">
-                <h3 class="text-xl font-semibold text-gray-900" id="modalDate"></h3>
-                <button onclick="closeModal()" class="text-gray-500 hover:text-gray-700">
-                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-                    </svg>
-                </button>
-            </div>
-            
-            <div id="parkingList" class="mb-4">
-                <!-- Parking information will be inserted here -->
-            </div>
+<!-- Parking Modal -->
+<div id="parkingModal" class="hidden fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
+    <div class="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white">
+        <div class="mt-3">
+            <h3 class="text-lg font-medium text-gray-900 mb-4" id="modalTitle">Create New Parking</h3>
+            <form id="parkingForm" method="POST" action="/parking_calendar/" class="space-y-4">
+                <input type="hidden" id="parkingId" name="id">
+                <input type="hidden" id="formAction" name="">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700">Building</label>
+                    <select id="building" name="building" required class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700">Number</label>
+                    <input type="text" id="number" name="number" required class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700">Notes</label>
+                    <textarea id="notes" name="notes" rows="3" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"></textarea>
+                </div>
+                <div class="flex justify-between mt-4">
+                    <button type="button" id="deleteParking" class="hidden bg-red-600 text-white px-4 py-2 rounded-md hover:bg-red-700">Delete</button>
+                    <div class="space-x-2">
+                        <button type="button" id="cancelParking" class="bg-gray-200 px-4 py-2 rounded-md hover:bg-gray-300">Cancel</button>
+                        <button type="submit" id="submitBtn" class="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700">Save</button>
+                    </div>
+                </div>
+            </form>
         </div>
     </div>
 </div>
+
+<!-- Parking Booking Modal -->
+<div id="parkingBookingModal" class="hidden fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
+    <div class="relative top-20 mx-auto p-5 border w-[500px] shadow-lg rounded-md bg-white">
+        <div class="mt-3">
+            <h3 class="text-lg font-medium text-gray-900 mb-4" id="bookingModalTitle">Create New Parking Booking</h3>
+            <form id="parkingBookingForm" method="POST" action="/parking_calendar/" class="space-y-4">
+                {% csrf_token %}
+                <input type="hidden" id="bookingId" name="id">
+                <input type="hidden" id="bookingFormAction" name="">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700">Parking</label>
+                    <select id="parking" name="parking" required class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700">Status</label>
+                    <select id="status" name="status" required class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
+                        <option value="Booked">Booked</option>
+                        <option value="Unavailable">Unavailable</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700">Apartment</label>
+                    <select id="apartment" name="apartment" required class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700">Booking</label>
+                    <select id="booking" name="booking" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
+                        <option value="">Select Booking (Optional)</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700">Start Date</label>
+                    <input type="date" id="start_date" name="start_date" required class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700">End Date</label>
+                    <input type="date" id="end_date" name="end_date" required class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700">Notes</label>
+                    <textarea id="booking_notes" name="notes" rows="3" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"></textarea>
+                </div>
+                <div class="flex justify-between mt-4">
+                    <button type="button" id="deleteBooking" class="hidden bg-red-600 text-white px-4 py-2 rounded-md hover:bg-red-700">Delete</button>
+                    <div class="space-x-2">
+                        <button type="button" id="cancelBooking" class="bg-gray-200 px-4 py-2 rounded-md hover:bg-gray-300">Cancel</button>
+                        <button type="submit" id="submitBookingBtn" class="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700">Save</button>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script>
+    // Select all the day cells in the calendar
+    const days = document.querySelectorAll('td.day');
+    const popover = document.getElementById('dynamic-popover');
+    const popoverTitle = document.getElementById('popover-title');
+    const popoverContent = document.getElementById('popover-content');
+
+    days.forEach(function(day) {
+        day.addEventListener('mouseenter', function(event) {
+            // Retrieve data from data attributes
+            const date = day.dataset.day;
+            const tenantName = day.dataset.tenantName;
+            const notes = day.dataset.notes;
+            const bookingId = day.dataset.bookingId;
+            const status = day.classList.contains('bg-blue-600') ? 'Booked' : 
+                          day.classList.contains('bg-red-500') ? 'Unavailable' : 'Available';
+
+            // Set the title of the popover with the date
+            popoverTitle.textContent = new Date(date).toLocaleDateString('en-US', { 
+                weekday: 'long', 
+                year: 'numeric', 
+                month: 'long', 
+                day: 'numeric' 
+            });
+
+            // Prepare the content for the popover
+            let content = `
+                <div class="space-y-2">
+                    <div class="flex items-center">
+                        <div class="w-3 h-3 rounded-full mr-2 ${
+                            status === 'Booked' ? 'bg-blue-600' : 
+                            status === 'Unavailable' ? 'bg-red-500' : 
+                            'bg-white border border-gray-300'
+                        }"></div>
+                        <span class="font-semibold">${status}</span>
+                    </div>`;
+
+            if (tenantName) {
+                content += `
+                    <div class="mt-2">
+                        <span class="font-semibold text-gray-600">Tenant:</span>
+                        <span class="ml-2">${tenantName}</span>
+                    </div>`;
+            }
+
+            if (day.dataset.apartmentName) {
+                content += `
+                    <div class="mt-2">
+                        <span class="font-semibold text-gray-600">Apartment:</span>
+                        <span class="ml-2">${day.dataset.apartmentName}</span>
+                    </div>`;
+            }
+
+            if (notes) {
+                content += `
+                    <div class="mt-2">
+                        <span class="font-semibold text-gray-600">Notes:</span>
+                        <span class="ml-2">${notes}</span>
+                    </div>`;
+            }
+
+            content += `</div>`;
+
+            // Update the popover content
+            popoverContent.innerHTML = content;
+
+            // Position the popover
+            popover.style.left = '-9999px';
+            popover.style.top = '-9999px';
+            popover.classList.remove('hidden');
+
+            // Get tooltip dimensions
+            const tooltipWidth = popover.offsetWidth;
+            const tooltipHeight = popover.offsetHeight;
+
+            // Get window dimensions
+            const windowWidth = window.innerWidth;
+            const windowHeight = window.innerHeight;
+
+            // Calculate desired position
+            let leftPos, topPos;
+
+            if (event.clientX + tooltipWidth + 15 < windowWidth) {
+                leftPos = event.clientX + 15;
+            } else {
+                leftPos = event.clientX - tooltipWidth - 15;
+            }
+
+            if (leftPos < 0) {
+                leftPos = 0;
+            }
+
+            topPos = event.clientY - tooltipHeight / 2;
+
+            if (topPos + tooltipHeight > windowHeight) {
+                topPos = windowHeight - tooltipHeight - 10;
+            }
+            if (topPos < 0) {
+                topPos = 10;
+            }
+
+            popover.style.left = `${leftPos}px`;
+            popover.style.top = `${topPos}px`;
+        });
+
+        day.addEventListener('mouseleave', function(event) {
+            popover.classList.add('hidden');
+        });
+    });
+
+    // Close popover when clicking outside
+    document.addEventListener('click', function(event) {
+        if (!popover.contains(event.target) && !event.target.classList.contains('day')) {
+            popover.classList.add('hidden');
+        }
+    });
+
+    // Parse the buildings JSON data
+    const buildings = {{ buildings_json|safe }};
+    
+    // Modal elements
+    const modal = document.getElementById('parkingModal');
+    const modalTitle = document.getElementById('modalTitle');
+    const parkingForm = document.getElementById('parkingForm');
+    const parkingIdInput = document.getElementById('parkingId');
+    const buildingSelect = document.getElementById('building');
+    const numberInput = document.getElementById('number');
+    const notesInput = document.getElementById('notes');
+    const deleteButton = document.getElementById('deleteParking');
+    const createButton = document.getElementById('createParkingBtn');
+    const cancelButton = document.getElementById('cancelParking');
+
+    // Populate building select
+    function populateBuildingSelect() {
+        buildingSelect.innerHTML = '<option value="">Select Building</option>';
+        if (buildings && buildings.length > 0) {
+            buildings.forEach(building => {
+                if (building.building) {  // Only add if building value exists
+                    const option = document.createElement('option');
+                    option.value = building.building;
+                    option.textContent = building.building;
+                    buildingSelect.appendChild(option);
+                }
+            });
+        }
+    }
+
+    // Show modal function
+    function showModal(isEdit = false, parkingData = null) {
+        modal.classList.remove('hidden');
+        populateBuildingSelect();
+        const formAction = document.getElementById('formAction');
+        
+        if (isEdit && parkingData) {
+            modalTitle.textContent = 'Edit Parking';
+            parkingIdInput.value = parkingData.id;
+            buildingSelect.value = parkingData.building;
+            numberInput.value = parkingData.number;
+            console.log(parkingData, "Test", parkingData.notes);
+            document.getElementById('notes').value = parkingData.notes || '';
+            deleteButton.classList.remove('hidden');
+            formAction.name = 'edit';
+            formAction.value = 'true';
+        } else {
+            modalTitle.textContent = 'Create New Parking';
+            parkingForm.reset();
+            parkingIdInput.value = '';
+            deleteButton.classList.add('hidden');
+            formAction.name = 'add';
+            formAction.value = 'true';
+        }
+    }
+
+    // Hide modal function
+    function hideModal() {
+        modal.classList.add('hidden');
+        parkingForm.reset();
+        const formAction = document.getElementById('formAction');
+        formAction.name = '';
+        formAction.value = '';
+    }
+
+    // Event Listeners
+    createButton.addEventListener('click', () => showModal());
+    cancelButton.addEventListener('click', hideModal);
+
+    // Handle clicking outside modal to close
+    modal.addEventListener('click', (e) => {
+        if (e.target === modal) hideModal();
+    });
+
+    // Edit parking click handler
+    document.querySelectorAll('.edit-parking').forEach(element => {
+        element.addEventListener('click', (e) => {
+            const parkingData = {
+                id: e.target.dataset.parkingId,
+                building: e.target.dataset.building,
+                number: e.target.dataset.number,
+                notes: e.target.dataset.notes
+            };
+            showModal(true, parkingData);
+        });
+    });
+
+    // Form submission
+    parkingForm.addEventListener('submit', function(e) {
+        if (!buildingSelect.value || !numberInput.value) {
+            e.preventDefault();
+            alert('Please fill in all required fields');
+        }
+    });
+
+    // Delete parking handler
+    deleteButton.addEventListener('click', function(e) {
+        if (confirm('Are you sure you want to delete this parking?')) {
+            const formAction = document.getElementById('formAction');
+            formAction.name = 'delete';
+            formAction.value = 'true';
+            parkingForm.submit();
+        }
+    });
+
+    // Booking Modal elements
+    const bookingModal = document.getElementById('parkingBookingModal');
+    const bookingModalTitle = document.getElementById('bookingModalTitle');
+    const parkingBookingForm = document.getElementById('parkingBookingForm');
+    const bookingIdInput = document.getElementById('bookingId');
+    const parkingSelect = document.getElementById('parking');
+    const apartmentSelect = document.getElementById('apartment');
+    const bookingSelect = document.getElementById('booking');
+    const startDateInput = document.getElementById('start_date');
+    const endDateInput = document.getElementById('end_date');
+    const bookingNotesInput = document.getElementById('booking_notes');
+    const deleteBookingButton = document.getElementById('deleteBooking');
+    const createBookingButton = document.getElementById('createParkingBookingBtn');
+    const cancelBookingButton = document.getElementById('cancelBooking');
+
+    // Parse the JSON data
+    const parkings = {{ parking_data_json|safe }};
+    const apartments = {{ apartments_json|safe }};
+    const bookings = {{ bookings_json|safe }};
+
+    // Populate selects
+    function populateSelects() {
+        // Populate parking select
+        parkingSelect.innerHTML = '<option value="">Select Parking</option>';
+        if (parkings && parkings.length > 0) {
+            const firstMonth = parkings[0];
+            firstMonth.parkings.forEach(parking => {
+                const option = document.createElement('option');
+                option.value = parking.id;
+                option.textContent = `Building: ${parking.building}. Number: ${parking.number}`;
+                parkingSelect.appendChild(option);
+            });
+        }
+
+        // Populate apartment select
+        apartmentSelect.innerHTML = '<option value="">Select Apartment</option>';
+        if (apartments && apartments.length > 0) {
+            apartments.forEach(apt => {
+                const option = document.createElement('option');
+                option.value = apt.id;
+                option.textContent = apt.name;
+                apartmentSelect.appendChild(option);
+            });
+        }
+
+        // Populate booking select
+        bookingSelect.innerHTML = '<option value="">Select Booking (Optional)</option>';
+        if (bookings && bookings.length > 0) {
+            bookings.forEach(booking => {
+                const option = document.createElement('option');
+                option.value = booking.id;
+                option.textContent = `(${booking.start_date} - ${booking.end_date})${booking.tenant__full_name ? " " + booking.tenant__full_name : ''} ${booking.apartment__name ? " " + booking.apartment__name : ''} `;
+                bookingSelect.appendChild(option);
+            });
+        }
+    }
+
+    // Show booking modal function
+    function showBookingModal(isEdit = false, bookingData = null) {
+        console.log(bookingData, "booking data");
+        console.log("Start date from booking data:", bookingData?.start_date);
+        bookingModal.classList.remove('hidden');
+        populateSelects();
+        const formAction = document.getElementById('bookingFormAction');
+        
+        if (isEdit && bookingData) {
+            bookingModalTitle.textContent = 'Edit Parking Booking';
+            bookingIdInput.value = bookingData.id;  // This is the parking booking ID
+            parkingSelect.value = bookingData.parking_id;
+            apartmentSelect.value = bookingData.apartment_id;
+            document.getElementById('status').value = bookingData.status;
+            startDateInput.value = bookingData.start_date;
+            endDateInput.value = bookingData.end_date;
+            bookingNotesInput.value = bookingData.notes || '';
+            deleteBookingButton.classList.remove('hidden');
+            formAction.name = 'edit_booking';
+            formAction.value = 'true';
+
+            // Set booking after a short delay to ensure apartment change event has completed
+            setTimeout(() => {
+                bookingSelect.value = bookingData.booking_id || '';  // This is the booking ID
+            }, 200);
+        } else {
+            bookingModalTitle.textContent = 'Create New Parking Booking';
+            parkingBookingForm.reset();
+            bookingIdInput.value = '';
+            deleteBookingButton.classList.add('hidden');
+            formAction.name = 'add_booking';
+            formAction.value = 'true';
+
+            // If we have initial data for new booking, set it
+            if (bookingData) {
+                parkingSelect.value = bookingData.parking_id;
+                // Ensure we set the dates even for new bookings
+                if (bookingData.start_date) {
+                    console.log("Setting start date for new booking to:", bookingData.start_date);
+                    startDateInput.value = bookingData.start_date;
+                }
+                if (bookingData.end_date) {
+                    endDateInput.value = bookingData.end_date;
+                }
+            }
+        }
+    }
+
+    // Hide booking modal function
+    function hideBookingModal() {
+        bookingModal.classList.add('hidden');
+        parkingBookingForm.reset();
+        const formAction = document.getElementById('bookingFormAction');
+        formAction.name = '';
+        formAction.value = '';
+    }
+
+    // Event Listeners for booking modal
+    createBookingButton.addEventListener('click', () => showBookingModal());
+    cancelBookingButton.addEventListener('click', hideBookingModal);
+
+    // Handle clicking outside booking modal to close
+    bookingModal.addEventListener('click', (e) => {
+        if (e.target === bookingModal) hideBookingModal();
+    });
+
+    // Day click handler for editing booking
+    days.forEach(day => {
+        day.addEventListener('click', (e) => {
+            const parkingBookingId = day.dataset.id;  // This is the parking booking ID
+            console.log(day.dataset, "day dataset");
+            const parkingId = day.closest('tr').querySelector('.edit-parking').dataset.parkingId;
+            
+            if (parkingBookingId) {
+                const bookingData = {
+                    id: parkingBookingId,  // This is the parking booking ID
+                    parking_id: parkingId,
+                    apartment_id: day.dataset.apartmentId,
+                    booking_id: day.dataset.bookingId,  // This is the booking ID
+                    status: day.dataset.status,
+                    start_date: day.dataset.startDate || day.dataset.day,
+                    end_date: day.dataset.endDate || day.dataset.day,
+                    notes: day.dataset.notes || ''
+                };
+                showBookingModal(true, bookingData);
+            } else {
+                // Create new booking starting from clicked day
+                const bookingData = {
+                    parking_id: parkingId,
+                    start_date: day.dataset.day,
+                    end_date: day.dataset.day
+                };
+                showBookingModal(false, bookingData);
+            }
+            
+            // Preselect the parking in the dropdown
+            setTimeout(() => {
+                parkingSelect.value = parkingId;
+                if (day.dataset.bookingId) {  // Changed from bookingId to day.dataset.bookingId
+                    // Set apartment and trigger its change event to populate bookings
+                    apartmentSelect.value = day.dataset.apartmentId;
+                    apartmentSelect.dispatchEvent(new Event('change'));
+                    
+                    // After apartment change event, set the booking
+                    setTimeout(() => {
+                        bookingSelect.value = day.dataset.bookingId || '';
+                        // Don't trigger booking change event since we already have the correct dates
+                    }, 100);
+                }
+            }, 0);
+        });
+    });
+
+    // Form submission for booking
+    parkingBookingForm.addEventListener('submit', function(e) {
+        if (!parkingSelect.value || !startDateInput.value || !endDateInput.value || !apartmentSelect.value) {
+            e.preventDefault();
+            alert('Please fill in all required fields');
+        }
+    });
+
+    // Delete booking handler
+    deleteBookingButton.addEventListener('click', function(e) {
+        if (confirm('Are you sure you want to delete this parking booking?')) {
+            const formAction = document.getElementById('bookingFormAction');
+            formAction.name = 'delete_booking';
+            formAction.value = 'true';
+            parkingBookingForm.submit();
+        }
+    });
+
+    // Populate booking select based on selected apartment
+    function updateBookingSelect(apartmentId) {
+        bookingSelect.innerHTML = '<option value="">Select Booking (Optional)</option>';
+        if (bookings && bookings.length > 0) {
+            const filteredBookings = apartmentId ? 
+                bookings.filter(booking => String(booking.apartment_id) === apartmentId) : 
+                bookings;
+            
+            filteredBookings.forEach(booking => {
+                const option = document.createElement('option');
+                option.value = booking.id;
+                option.textContent = `(${booking.start_date} - ${booking.end_date})${booking.tenant__full_name ? " " + booking.tenant__full_name : ''} ${booking.apartment__name ? " " + booking.apartment__name : ''} `;
+                bookingSelect.appendChild(option);
+            });
+        }
+    }
+
+    // Apartment select change handler
+    apartmentSelect.addEventListener('change', function(e) {
+        updateBookingSelect(e.target.value);
+        // Only clear dates if we're not in the middle of setting up an edit
+        if (!bookingIdInput.value && !startDateInput.value) {
+            bookingSelect.value = '';
+            startDateInput.value = '';
+            endDateInput.value = '';
+        }
+    });
+
+    // Booking select change handler
+    bookingSelect.addEventListener('change', function(e) {
+        setTimeout(() => {
+            if (e.target.value) {
+                // Convert the selected value to string for comparison
+                const selectedBooking = bookings.find(b => String(b.id) === e.target.value);
+                if (selectedBooking) {
+                    // Only set dates if they're not already set (for new bookings)
+                    if (!startDateInput.value || !endDateInput.value) {
+                        startDateInput.value = selectedBooking.start_date;
+                        endDateInput.value = selectedBooking.end_date;
+                    }
+                    document.getElementById('status').value = 'Booked';
+                }
+            } else {
+                // Only clear dates if we're not editing an existing booking
+                if (!bookingIdInput.value) {
+                    startDateInput.value = '';
+                    endDateInput.value = '';
+                }
+            }
+        }, 0);
+    });
+
+    // Initialize booking select with all bookings
+    updateBookingSelect('');
+</script>
+
+<style>
+    .booking-start {
+        border-left: 2px solid black !important;
+    }
+    .booking-end {
+        border-right: 2px solid black !important;
+    }
+    .booking-start-end {
+        border-left: 2px solid black !important;
+        border-right: 2px solid black !important;
+    }
+</style>
 
 {% endblock content %}

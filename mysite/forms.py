@@ -1,7 +1,7 @@
 # mysite/forms.py
 from django import forms
 from django.contrib.auth.forms import AuthenticationForm
-from mysite.models import Booking, User, Apartment, Payment, Cleaning, Notification, PaymentMethod, PaymenType, HandymanCalendar, ApartmentParking
+from mysite.models import Booking, User, Apartment, Payment, Cleaning, Notification, PaymentMethod, PaymenType, HandymanCalendar, Parking, ParkingBooking
 from datetime import date
 import requests
 import uuid
@@ -61,7 +61,7 @@ def get_dropdown_options(identifier, isData=False, request=None):
             return items
         return [{"value": item.id, "label": item.full_name} for item in items]
     elif identifier == 'parking_numbers':
-        items = ApartmentParking.get_all_parking()
+        items = Parking.objects.all()
         if isData:
             return items
         return [{"value": item.id, "label": str(item)} for item in items]
@@ -148,6 +148,8 @@ def get_dropdown_options(identifier, isData=False, request=None):
 
     elif identifier == 'payment_status':
         return [{"value": x[0], "label": x[1]} for x in Payment.PAYMENT_STATUS]
+    elif identifier == 'parkings':
+        return [{"value": x.id, "label": x.number} for x in Parking.objects.all()]
 
     elif identifier == 'cleaning_status':
         return [{"value": x[0], "label": x[1]} for x in Cleaning.STATUS]
@@ -936,22 +938,25 @@ class HandymanCalendarForm(forms.ModelForm):
         return cleaned_data
 
 
-class ApartmentParkingForm(forms.ModelForm):
+class ParkingBookingForm(forms.ModelForm):
     class Meta:
-        model = ApartmentParking
-        fields = ['parking_number', 'notes', 'status', 'apartment', 'booking', 'start_date', 'end_date']
+        model = ParkingBooking
+        fields = ['parking', 'notes', 'status', 'apartment', 'booking', 'start_date', 'end_date']
 
     def __init__(self, *args, **kwargs):
         self.request = kwargs.pop('request', None)
         action = kwargs.pop('action', 'create')
-        super(ApartmentParkingForm, self).__init__(*args, **kwargs)
+        super(ParkingBookingForm, self).__init__(*args, **kwargs)
 
-    parking_number = IntegerFieldEx(
+    parking = ModelChoiceFieldEx(
+        queryset=Parking.objects.all(),
         isColumn=True,
         isEdit=True,
         isCreate=True,
         required=True,
-        ui_element="input",
+        ui_element="dropdown",
+        _dropdown_options=lambda: get_dropdown_options("parkings"),
+        display_field=["parking.number"],
         order=1
     )
 
@@ -966,14 +971,14 @@ class ApartmentParkingForm(forms.ModelForm):
     )
 
     status = ChoiceFieldEx(
-        choices=ApartmentParking.STATUS,
+        choices=ParkingBooking.STATUS,
         isColumn=True,
         isEdit=True,
         isCreate=True,
         required=False,
-        initial='Available',
+        initial='Unavailable',
         ui_element="dropdown",
-        _dropdown_options=lambda: [{"value": x[0], "label": x[1]} for x in ApartmentParking.STATUS],
+        _dropdown_options=lambda: [{"value": x[0], "label": x[1]} for x in ParkingBooking.STATUS],
         order=2
     )
 
@@ -1020,24 +1025,18 @@ class ApartmentParkingForm(forms.ModelForm):
 
     def clean(self):
         cleaned_data = super().clean()
-        parking_number = cleaned_data.get('parking_number')
+        parking = cleaned_data.get('parking')
         apartment = cleaned_data.get('apartment')
         booking = cleaned_data.get('booking')
-        status = cleaned_data.get('status', "Available")
+        status = cleaned_data.get('status', "Unavailable")
         start_date = cleaned_data.get('start_date')
         end_date = cleaned_data.get('end_date')
-
-        if not status:
-            cleaned_data['status'] = "Available"
-
-        # Convert string parking number to integer if possible
-        if isinstance(parking_number, str) and parking_number.isdigit():
-            cleaned_data['parking_number'] = int(parking_number)
 
         # If booking is assigned, use booking dates and set status to 'Booked'
         if booking:
             cleaned_data['start_date'] = booking.start_date
             cleaned_data['end_date'] = booking.end_date
+            cleaned_data['apartment'] = booking.apartment
             cleaned_data['status'] = 'Booked'
         else:
             # If no booking but status is 'Booked', require dates
@@ -1053,19 +1052,79 @@ class ApartmentParkingForm(forms.ModelForm):
             )
 
         # Check for duplicate parking numbers within the same apartment
-        if parking_number and apartment:
-            existing_parking = ApartmentParking.objects.filter(
+        if parking and apartment:
+            existing_parking = ParkingBooking.objects.filter(
                 apartment=apartment,
-                parking_number=parking_number
+                parking=parking,
+                start_date__lte=end_date,
+                end_date__gte=start_date
             )
             if self.instance.id:
                 existing_parking = existing_parking.exclude(id=self.instance.id)
             
             if existing_parking.exists():
                 raise forms.ValidationError(
-                    f"Parking number {parking_number} already exists for this apartment"
+                    f"Parking {parking} already exists for this apartment"
                 )
 
         return cleaned_data
 
 
+
+class ParkingForm(forms.ModelForm):
+    class Meta:
+        model = Parking
+        fields = ['building', 'number', 'notes']
+
+    def __init__(self, *args, **kwargs):
+        # Remove request from kwargs if it exists, since we don't need it
+        kwargs.pop('request', None)
+        # Remove action from kwargs if it exists
+        kwargs.pop('action', None)
+        super().__init__(*args, **kwargs)
+
+    building = CharFieldEx(
+        max_length=255,
+        isColumn=True,
+        isEdit=True,
+        isCreate=True,
+        required=True,
+        order=1
+    )
+
+    number = CharFieldEx(
+        max_length=255,
+        isColumn=True,
+        isEdit=True,
+        isCreate=True,
+        required=True,
+        order=2
+    )
+
+    notes = CharFieldEx(
+        max_length=255,
+        isColumn=True,
+        isEdit=True,
+        isCreate=True,
+        required=False,
+        order=3
+    )
+
+    def clean(self):
+        cleaned_data = super().clean()
+        building = cleaned_data.get('building')
+        number = cleaned_data.get('number')
+        notes = cleaned_data.get('notes')
+
+        if not building or not number:
+            raise forms.ValidationError("Building and number are required")
+
+        # Check if parking already exists with this building and number
+        existing_parking = Parking.objects.filter(building=building, number=number)
+        if self.instance.id:
+            existing_parking = existing_parking.exclude(id=self.instance.id)
+        
+        if existing_parking.exists():
+            raise forms.ValidationError(f"Parking with building '{building}' and number '{number}' already exists")
+
+        return cleaned_data

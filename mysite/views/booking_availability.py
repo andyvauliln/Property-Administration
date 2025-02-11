@@ -18,8 +18,8 @@ def booking_availability(request):
     # Calculate start and end dates based on the page (6 months)
     current_date = timezone.now().date()
     page_offset = int(request.GET.get('page', 0))
-    start_date = (current_date.replace(day=1) + relativedelta(months=page_offset * 6)).replace(day=1)
-    end_date = start_date + relativedelta(months=6, days=-1)
+    start_date = (current_date.replace(day=1) + relativedelta(months=page_offset * 3)).replace(day=1)
+    end_date = start_date + relativedelta(months=3, days=-1)
 
     # Prepare the Prefetch for booked_apartments
     booking_queryset = Booking.objects.filter(
