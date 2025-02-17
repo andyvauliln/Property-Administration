@@ -338,3 +338,43 @@ def assign_color_classes(payments, in_colors, out_colors):
                     out_colors)]
         else:
             payment.color_class = "text-gray-500"
+
+
+def send_handyman_telegram_notification(booking, action):
+    """Send a notification to Telegram about handyman booking changes."""
+    import requests
+    import os
+    
+    token = os.environ.get('TELEGRAM_HANDY_MAN_BOT_TOKEN')
+    chat_id = os.environ.get('TELEGRAM_HANDY_MAN_CHAT_ID')
+    
+    if not token or not chat_id:
+        return
+        
+    action_emoji = {
+        'created': '✅',
+        'edited': '📝',
+        'deleted': '❌'
+    }.get(action, '')
+    
+    message = f"{action_emoji} Handyman Booking {action.title()}:\n"
+    message += f"📅 Date: {booking.date}\n"
+    message += f"⏰ Time: {booking.start_time.strftime('%H:%M')} - {booking.end_time.strftime('%H:%M')}\n"
+    message += f"🏠 Apartment: {booking.apartment_name}\n"
+    message += f"👤 Tenant: {booking.tenant_name}\n"
+    if booking.tenant_phone:
+        message += f"📞 Phone: {booking.tenant_phone}\n"
+    if booking.notes:
+        message += f"📝 Notes: {booking.notes}\n"
+    
+    base_url = f"https://api.telegram.org/bot{token}/sendMessage"
+    params = {
+        "chat_id": chat_id,
+        "text": message,
+        "parse_mode": "HTML"
+    }
+    
+    try:
+        requests.get(base_url, params=params)
+    except Exception as e:
+        print(f"Failed to send Telegram notification: {str(e)}")

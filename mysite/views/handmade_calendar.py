@@ -9,7 +9,7 @@ from collections import defaultdict
 from django.utils import timezone
 from dateutil.relativedelta import relativedelta
 from ..decorators import user_has_role
-from .utils import generate_weeks, DateEncoder, get_model_fields
+from .utils import generate_weeks, DateEncoder, get_model_fields, send_handyman_telegram_notification
 from mysite.forms import HandymanCalendarForm
 from django.http import JsonResponse
 from django.views.decorators.http import require_http_methods
@@ -27,6 +27,7 @@ def handle_post_request(request, model, form_class):
                                   request=request, action='edit')
                 if form.is_valid():
                     saved_instance = form.save()
+                    send_handyman_telegram_notification(saved_instance, 'edited')
                     return JsonResponse({'id': saved_instance.id, 'success': True})
                 else:
                     return JsonResponse({'error': form.errors}, status=400)
@@ -34,11 +35,13 @@ def handle_post_request(request, model, form_class):
             form = form_class(request.POST, request=request)
             if form.is_valid():
                 saved_instance = form.save()
+                send_handyman_telegram_notification(saved_instance, 'created')
                 return JsonResponse({'id': saved_instance.id, 'success': True})
             else:
                 return JsonResponse({'error': form.errors}, status=400)
         elif 'delete' in request.POST:
             instance = model.objects.get(id=request.POST['id'])
+            send_handyman_telegram_notification(instance, 'deleted')
             instance.delete()
             return JsonResponse({'success': True})
     except Exception as e:

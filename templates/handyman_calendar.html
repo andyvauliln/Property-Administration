@@ -105,9 +105,17 @@
                 // Create the time slot display
                 const timeDisplay = document.createElement('div');
                 timeDisplay.className = 'text-gray-700';
-                timeDisplay.textContent = `${slot.start} - ${slot.end} ${isBooked ? 
-                    (window.isAdmin ? '(Booked - Click to Edit)' : '(Booked)') : 
-                    '(Available)'}`;
+                let statusText = '(Available)';
+                if (isBooked) {
+                    if (isMyBookingSlot) {
+                        statusText = '(Booked)(User Booking)';
+                    } else if (window.isAdmin) {
+                        statusText = '(Booked - Click to Edit)';
+                    } else {
+                        statusText = '(Booked)';
+                    }
+                }
+                timeDisplay.textContent = `${slot.start} - ${slot.end} ${statusText}`;
                 slotDiv.appendChild(timeDisplay);
 
                 // If it's available, admin, or user's booking, make it interactive
@@ -209,7 +217,7 @@
                                     readonly
                                     placeholder="Time Slot" 
                                     value="${booking ? `${booking.start_time} - ${booking.end_time}` : ''}" 
-                                    class="${inputClass} w-full md:w-[150px] bg-gray-50">
+                                    class="${inputClass} w-full md:w-[150px] bg-gray-50 cursor-not-allowed">
                             </div>
                         </div>
                         <div class="w-full">
@@ -481,12 +489,26 @@
 
         // Generate content - show all time slots and mark only the booked ones
         content.innerHTML = generateTimeSlots().map(slot => {
-            const isBooked = bookings.some(booking => booking.start_time === slot.start && booking.end_time === slot.end);
+            const existingBooking = bookings.find(booking => 
+                booking.start_time === slot.start && booking.end_time === slot.end
+            );
+            const isBooked = existingBooking !== undefined;
+            const isMyBookingSlot = existingBooking ? window.isMyBooking(existingBooking.id) : false;
             const slotClass = isBooked ? 'bg-red-200' : 'bg-green-200';
+            
+            let statusText = '(Available)';
+            if (isBooked) {
+                if (isMyBookingSlot) {
+                    statusText = '(Booked)(User Booking)';
+                } else {
+                    statusText = '(Booked)';
+                }
+            }
+            
             return `
                 <div class="py-1 ${slotClass}">
                     <div class="text-gray-700">
-                        ${slot.start} - ${slot.end} ${isBooked ? '(Booked)' : '(Available)'}
+                        ${slot.start} - ${slot.end} ${statusText}
                     </div>
                 </div>
             `;

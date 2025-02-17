@@ -290,7 +290,7 @@ class CustomUserForm(forms.ModelForm):
         
         cleaned_data = super().clean()
         email = cleaned_data.get("email")
-        if email or cleaned_data.get("email") == "None":
+        if not email or email == "None":
             cleaned_data["email"] = f"tenant_{uuid.uuid4()}@example.com"
         return cleaned_data
 
