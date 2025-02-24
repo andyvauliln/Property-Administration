@@ -396,10 +396,16 @@ class Booking(models.Model):
                 sendWelcomeMessageToTwilio(self)
         
         if parking_number:
-            apartment_parking = ApartmentParking.objects.get(id=parking_number)
-            apartment_parking.booking = self
-            apartment_parking.status = "Booked"
-            apartment_parking.save()
+            parking = Parking.objects.get(id=parking_number)
+            parking_booking = ParkingBooking.objects.create(
+                parking=parking,
+                booking=self,
+                status="Booked",
+                start_date=self.start_date,
+                end_date=self.end_date,
+                apartment=self.apartment
+            )
+            parking_booking.save()
        
     def deletePayments(self):
         payments_to_delete = Payment.objects.filter(

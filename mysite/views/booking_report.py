@@ -20,8 +20,12 @@ def print_info(message):
     logger_common.debug(message)
 
 
-@user_has_role('Admin')
+@user_has_role('Admin', 'Manager')
 def booking_report(request):
+    if request.user.role == 'Manager':
+        bookings = Booking.objects.filter(apartment__manager=request.user)
+    else:
+        bookings = Booking.objects.all()
 
     try:
         referer_url = request.META.get('HTTP_REFERER', '/')
@@ -30,7 +34,7 @@ def booking_report(request):
         if (report_start_date and report_end_date):
             start_date = datetime.strptime(report_start_date, "%B %d %Y")
             end_date = datetime.strptime(report_end_date, "%B %d %Y")
-            bookings = Booking.objects.filter(start_date__gte=start_date, end_date__lte=end_date)
+            bookings = bookings.filter(start_date__gte=start_date, end_date__lte=end_date)
             if (bookings):
                 booking_report_url = generate_excel(bookings, report_start_date, report_end_date)
                 print_info(f'Report created {booking_report_url}')

@@ -27,6 +27,9 @@ def booking_availability(request):
         end_date__gte=start_date
     )
 
+    if request.user.role == 'Manager':
+        booking_queryset = booking_queryset.filter(apartment__manager=request.user)
+
     if booking_status and booking_status != 'Available':
         booking_queryset = booking_queryset.filter(status=booking_status)
 
@@ -38,6 +41,9 @@ def booking_availability(request):
     # Fetch apartments based on filters
     apartments = Apartment.objects.all()
     
+    if request.user.role == 'Manager':
+        apartments = apartments.filter(manager=request.user)
+
     apartments = apartments.prefetch_related(
         prefetch_bookings,
         Prefetch('payments',  # Apartment payments

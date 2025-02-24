@@ -1,4 +1,3 @@
-
 from django.shortcuts import render
 from ..models import Apartment, Booking, Cleaning, Payment, User
 import logging
@@ -36,20 +35,19 @@ def index(request):
     end_date = months[-1] + relativedelta(months=1) - timedelta(days=1)
 
     if request.user.role == 'Manager':
-        # Filter apartments managed by this user
+        # Fetch properties managed by the current user
         apartments = Apartment.objects.filter(
             Q(end_date__gte=start_month) | Q(end_date__isnull=True),
-            manager=request.user
-        ).order_by('name')
-        # Filter bookings related to apartments managed by this user
-        bookings = Booking.objects.filter(apartment__manager=request.user)
-        # Filter cleanings related to bookings managed by this user
+            manager=request.user).order_by('name')
+        bookings = Booking.objects.filter(
+            Q(start_date__lte=end_date, end_date__gte=start_month),
+            apartment__manager=request.user)
         cleanings = Cleaning.objects.filter(
-            booking__apartment__manager=request.user, date__range=(start_month, end_date)).select_related(
-            'booking__apartment')
-        # Filter payments related to bookings managed by this user
-        payments = Payment.objects.filter(booking__apartment__manager=request.user, payment_date__range=(
-            start_month, end_date)).select_related('booking__apartment')
+            booking__apartment__manager=request.user,
+            date__range=(start_month, end_date)).select_related('booking__apartment')
+        payments = Payment.objects.filter(
+            Q(booking__apartment__manager=request.user) | Q(apartment__manager=request.user),
+            payment_date__range=(start_month, end_date)).select_related('booking__apartment')
     else:
         # Fetch all properties
         apartments = Apartment.objects.filter(

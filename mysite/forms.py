@@ -572,6 +572,18 @@ class BookingForm(forms.ModelForm):
             raise forms.ValidationError(
                 "The start date cannot be later than the end date."
             )
+        parking_number = cleaned_data.get('parking_number')
+        if parking_number:
+            overlapping_parking_bookings = ParkingBooking.objects.filter(
+                parking=parking_number,
+                start_date__lt=end_date,
+                end_date__gt=start_date
+            )
+            if overlapping_parking_bookings.exists():
+                parking = Parking.objects.get(id=parking_number)
+                raise forms.ValidationError(
+                    f"The parking spot is already booked from {overlapping_parking_bookings.first().start_date} to {overlapping_parking_bookings.first().end_date}. Building {parking.building} #{parking.number}"
+                )
 
         return cleaned_data
 

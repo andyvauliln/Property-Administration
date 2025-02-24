@@ -41,7 +41,7 @@ def payment_types(request):
     return generic_view(request, 'paymenttype', PaymentTypeForm, 'payments_types.html')
 
 
-@user_has_role('Admin')
+@user_has_role('Admin', 'Manager')
 def payments(request):
     return generic_view(request, 'payment', PaymentForm, 'payments.html')
 
@@ -95,6 +95,8 @@ def generic_view(request, model_name, form_class, template_name, pages=30):
         items = items.filter(manager=request.user)
     if request.user.role == 'Manager' and model_name.lower() == 'booking':
         items = items.filter(apartment__manager=request.user)
+    if request.user.role == 'Manager' and model_name.lower() == 'payment':
+        items = items.filter(booking__apartment__manager=request.user)
 
     # If there's a search query, apply the filters
     if search_query:

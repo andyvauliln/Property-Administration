@@ -18,6 +18,7 @@ def my_cron_job():
 
     telegram_chat_ids = os.environ["TELEGRAM_CHAT_ID"].split(",")
     telegram_token = os.environ["TELEGRAM_TOKEN"]
+    
 
     for notification in notifications:
         if notification.payment and (notification.payment.payment_status == "Completed" or notification.payment.payment_status == "Merged"):
