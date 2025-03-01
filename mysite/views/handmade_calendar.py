@@ -51,6 +51,9 @@ def handyman_calendar(request):
     page = request.GET.get('page', 1)
 
     if request.method == 'POST':
+        # Debug the POST data
+        print(f"DEBUG - POST data: {request.POST}")
+        
         # For anonymous users, we'll only store the booking ID in the response
         response = handle_post_request(request, HandymanCalendar, HandymanCalendarForm)
         if isinstance(response, JsonResponse) and response.status_code == 200:

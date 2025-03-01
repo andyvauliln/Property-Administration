@@ -13,6 +13,8 @@ from django.core.serializers.json import DjangoJSONEncoder
 
 def handle_post_request(request, model, form_class):
     try:
+        print(f"DEBUG - handle_post_request - POST data: {request.POST}")
+        
         if 'edit' in request.POST or 'edit_booking' in request.POST:
             item_id = request.POST['id']
             if item_id:
@@ -22,6 +24,7 @@ def handle_post_request(request, model, form_class):
                 if form.is_valid():
                     form.save()
                 else:
+                    print(f"DEBUG - Form errors: {form.errors}")
                     for field, errors in form.errors.items():
                         for error in errors:
                             messages.error(request, f"{field}: {error}")
@@ -31,6 +34,7 @@ def handle_post_request(request, model, form_class):
             if form.is_valid():
                 form.save()
             else:
+                print(f"DEBUG - Form errors: {form.errors}")
                 for field, errors in form.errors.items():
                     for error in errors:
                         messages.error(request, f"{field}: {error}")
@@ -41,6 +45,7 @@ def handle_post_request(request, model, form_class):
             form = form_class()
             return redirect(request.path)
     except Exception as e:
+        print(f"DEBUG - Exception: {e}")
         messages.error(request, f"Error: {e}")
         return redirect(request.path)
 

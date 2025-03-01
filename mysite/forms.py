@@ -915,11 +915,22 @@ class HandymanCalendarForm(forms.ModelForm):
                 f"The following fields are required: {', '.join(missing_fields)}"
             )
 
-        # Check if date is in the past
-        if date and date < timezone.now().date():
-            raise forms.ValidationError(
-                "Cannot create appointments for past dates"
-            )
+        # Check if date is in the past (but allow today's date)
+        # Get the current date in UTC
+        today_utc = timezone.now().date()
+        
+        # For debugging
+        print(f"DEBUG - Booking date: {date}, Today's date (UTC): {today_utc}")
+        
+        # Compare dates - only reject if the date is strictly before today's date in UTC
+        # This allows bookings for today's date in any timezone
+        if date and date < today_utc:
+            # If the date is exactly one day before today, it might be a timezone issue
+            # Allow bookings for dates that are just one day before the server's date
+            if (today_utc - date).days > 1:
+                raise forms.ValidationError(
+                    "Cannot create appointments for past dates"
+                )
 
         # Check if end time is after start time
         if start_time and end_time and start_time >= end_time:

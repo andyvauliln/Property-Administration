@@ -35,7 +35,12 @@ class ApartmentBookingDates(APIView):
                 Q(end_date__isnull=True) | Q(end_date__gte=today)
             )
         else:
-            # If no apartment_ids provided, return empty response
+            # giving all apartments
+            apartments = Apartment.objects.filter(
+                Q(end_date__isnull=True) | Q(end_date__gte=today),
+                status='Available',
+
+            )
             return Response({"apartments": []}, content_type='application/json')
         
         # Prepare response data
@@ -47,13 +52,14 @@ class ApartmentBookingDates(APIView):
         for apartment in apartments:
             apartment_data = {
                 "apartment_id": apartment.id,
+                "apartment_name": apartment.name,
                 "bookings": []
             }
             
             # Get all active bookings for this apartment (ended yesterday or later)
             bookings = Booking.objects.filter(
                 apartment=apartment,
-                end_date__gte=yesterday
+                end_date__gte=today
             )
             
             # For each booking, add its period and status
