@@ -436,60 +436,29 @@ class BookingForm(forms.ModelForm):
             instance.save(form_data=form_data, payments_data=payments_data, parking_number=parking_number)
 
         return instance
-
-    tenant_email = EmailFieldEx(isEdit=True, initial=f"tenant_{uuid.uuid4()}@example.com", order=3, required=False,
-                                isCreate=True, ui_element="input")
-    tenant_full_name = CharFieldEx(
-        max_length=255, order=2, initial="Not Availabale", required=False, isEdit=True, isCreate=True, ui_element="input")
-    tenant_phone = CharFieldEx(
-        max_length=20, order=4, initial="", required=False, isEdit=True, isCreate=True, ui_element="input")
-    assigned_cleaner = ModelChoiceFieldEx(
-        queryset=User.objects.all(),
-        order=1,
-        initial=17,
-        isColumn=False, isEdit=True, isCreate=True, required=False, ui_element="radio",
-        _dropdown_options=lambda: get_dropdown_options("cleaners"))
-    owner = ModelChoiceFieldEx(
-        queryset=User.objects.all(),
-        isColumn=False, isEdit=False, isCreate=False, required=False, ui_element="dropdown",
-        _dropdown_options=lambda: get_dropdown_options("owners"))
-
-    start_date = DateFieldEx(isColumn=True, isEdit=True, order=-3,
+    start_date = DateFieldEx(isColumn=True, isEdit=True, order=0,
                              isCreate=True, ui_element="datepicker")
-    end_date = DateFieldEx(isColumn=True, order=-2, isEdit=True,
+    end_date = DateFieldEx(isColumn=True, order=1, isEdit=True,
                            isCreate=True, ui_element="datepicker")
+    
     apartment = ModelChoiceFieldEx(
         queryset=Apartment.objects.all().order_by('name'),
         isColumn=True,
         isEdit=True,
         isCreate=True,
         ui_element="dropdown",
-        order=-1,
-        # _dropdown_options=lambda: get_dropdown_options("apartments"),
+        order=2,
         display_field=["apartment.name"]
     )
-    notes = CharFieldEx(isColumn=False, order=10, isEdit=True,
-                        isCreate=True, ui_element="textarea", initial="", required=False)
-    keywords = CharFieldEx(isColumn=False, order=11, isEdit=True,
-                        isCreate=True, ui_element="textarea", initial="", required=False)
-    other_tenants = CharFieldEx(
-        isColumn=False, isEdit=True, initial="", order=9, isCreate=True, ui_element="textarea", required=False)
-    tenant = ModelChoiceFieldEx(queryset=User.objects.all(), required=False, isColumn=True,
-                                isEdit=False, isCreate=False, ui_element="input", display_field=["tenant.full_name"])
-    tenants_n = DecimalFieldEx(isColumn=False, initial=1, order=8,
-                               isEdit=True, isCreate=True, required=False,  ui_element="input")
-    status = ChoiceFieldEx(choices=Booking.STATUS, isColumn=True, initial='Waiting Contract', isEdit=True,
-                           required=False, isCreate=True, ui_element="radio", order=0,
-                           _dropdown_options=lambda: get_dropdown_options("booking_status"))
-    source = ChoiceFieldEx(choices=Booking.SOURCE, initial="Airbnb", order=5, isColumn=False, isEdit=True,
-                           required=False, isCreate=True, ui_element="radio",
-                           _dropdown_options=lambda: get_dropdown_options("booking_source"))
-    animals = ChoiceFieldEx(choices=Booking.ANIMALS, order=7,  isColumn=False,  isEdit=True, required=False,
-                            isCreate=True, ui_element="radio", _dropdown_options=lambda: get_dropdown_options("animals"))
-    visit_purpose = ChoiceFieldEx(
-        choices=Booking.VISIT_PURPOSE, isColumn=False, order=6, isEdit=True, required=False, isCreate=True,
-        ui_element="radio", _dropdown_options=lambda: get_dropdown_options("visit_purpose"))
+    tenant_full_name = CharFieldEx(
+        max_length=255, order=3, initial="Not Availabale", required=False, isEdit=True, isCreate=True, ui_element="input")
 
+    tenant_email = EmailFieldEx(isEdit=True, initial=f"tenant_{uuid.uuid4()}@example.com", order=4, required=False,
+                                isCreate=True, ui_element="input")
+    
+    tenant_phone = CharFieldEx(
+        max_length=20, order=5, initial="", required=False, isEdit=True, isCreate=True, ui_element="input")
+    
     send_contract = ChoiceFieldEx( choices=[
         (118378, "Send OCCUPANCY AGREEMENT"),
         (120946, "Send HOA PACKAGE"),
@@ -499,7 +468,66 @@ class BookingForm(forms.ModelForm):
             {"value": 118378, "label": "Send OCCUPANCY AGREEMENT"},
             {"value": 120946, "label": "Send HOA PACKAGE"},
         ],
-        order=11)
+        order=6)
+    tenants_n = DecimalFieldEx(isColumn=False, initial=1, order=7,
+                               isEdit=True, isCreate=True, required=False,  ui_element="input")
+    other_tenants = CharFieldEx(    
+        isColumn=False, isEdit=True, initial="", order=8, isCreate=True, ui_element="textarea", required=False)
+    
+    notes = CharFieldEx(isColumn=False, order=9, isEdit=True,
+                        isCreate=True, ui_element="textarea", initial="", required=False)
+
+    keywords = CharFieldEx(isColumn=False, order=10, isEdit=True,
+                        isCreate=True, ui_element="textarea", initial="", required=False)
+    
+
+    assigned_cleaner = ModelChoiceFieldEx(
+        queryset=User.objects.all(),
+        order=11,
+        initial=17,
+        isColumn=False, isEdit=True, isCreate=True, required=False, ui_element="radio",
+        _dropdown_options=lambda: get_dropdown_options("cleaners"))
+    
+    status = ChoiceFieldEx(choices=Booking.STATUS, isColumn=True, initial='Waiting Contract', isEdit=True,
+                           required=False, isCreate=True, ui_element="radio", order=12,
+                           _dropdown_options=lambda: get_dropdown_options("booking_status"))
+    
+    owner = ModelChoiceFieldEx(
+        queryset=User.objects.all(),
+        order=13,
+        isColumn=False, isEdit=False, isCreate=False, required=False, ui_element="dropdown",
+        _dropdown_options=lambda: get_dropdown_options("owners"))
+
+  
+    
+   
+    tenant = ModelChoiceFieldEx(queryset=User.objects.all(), order=14, required=False, isColumn=True,
+                                isEdit=False, isCreate=False, ui_element="input", display_field=["tenant.full_name"])
+    
+    visit_purpose = ChoiceFieldEx(
+        choices=Booking.VISIT_PURPOSE, isColumn=False, order=15, isEdit=True, required=False, isCreate=True,
+        ui_element="radio", _dropdown_options=lambda: get_dropdown_options("visit_purpose"))
+
+    source = ChoiceFieldEx(choices=Booking.SOURCE, initial="Airbnb", order=16, isColumn=False, isEdit=True,
+                           required=False, isCreate=True, ui_element="radio",
+                           _dropdown_options=lambda: get_dropdown_options("booking_source"))
+    animals = ChoiceFieldEx(choices=Booking.ANIMALS, order=17,  isColumn=False,  isEdit=True, required=False,
+                            isCreate=True, ui_element="radio", _dropdown_options=lambda: get_dropdown_options("animals"))
+    
+    is_rent_car = CustomBooleanField(
+        required=False, initial="", isCreate=True, isEdit=True, ui_element="radio", _dropdown_options=lambda: get_dropdown_options("is_rent_car"), order=18)
+    
+    car_model = CharFieldEx(max_length=100, initial="", required=False,
+                            isCreate=True, isEdit=True, ui_element="input", order=19)
+    car_price = DecimalFieldEx(
+        max_digits=10, required=False, initial=0,  isCreate=True, isEdit=True, ui_element="input", order=20)
+    car_rent_days = IntegerFieldEx(
+        required=False,  isCreate=True, initial=0, isEdit=True, ui_element="input", order=21)
+    
+    parking_number = IntegerFieldEx(
+        required=False, isColumn=False, isCreate=True, initial=None, isEdit=False, ui_element="dropdown", order=22,
+        _dropdown_options=lambda: get_dropdown_options("parking_numbers"))
+
     create_chat = ChoiceFieldEx( choices=[
         (True, "Create Chat"),
     ],
@@ -507,20 +535,9 @@ class BookingForm(forms.ModelForm):
         _dropdown_options=[
             {"value": True, "label": "Create Chat"},
             ],
-            order=12)
-    is_rent_car = CustomBooleanField(
-        required=False, initial="", isCreate=True, isEdit=True, ui_element="radio", _dropdown_options=lambda: get_dropdown_options("is_rent_car"), order=13)
+        order=23)
     
-    car_model = CharFieldEx(max_length=100, initial="", required=False,
-                            isCreate=True, isEdit=True, ui_element="input", order=14)
-    car_price = DecimalFieldEx(
-        max_digits=10, required=False, initial=0,  isCreate=True, isEdit=True, ui_element="input", order=15)
-    car_rent_days = IntegerFieldEx(
-        required=False,  isCreate=True, initial=0, isEdit=True, ui_element="input", order=16)
-    
-    parking_number = IntegerFieldEx(
-        required=False, isColumn=False, isCreate=True, initial=None, isEdit=False, ui_element="dropdown", order=17,
-        _dropdown_options=lambda: get_dropdown_options("parking_numbers"))
+   
     
     def clean(self):
         cleaned_data = super().clean()
