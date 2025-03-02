@@ -941,13 +941,13 @@ class HandymanCalendarForm(forms.ModelForm):
         
         # Compare dates - only reject if the date is strictly before today's date in UTC
         # This allows bookings for today's date in any timezone
-        if date and date < today_utc:
-            # If the date is exactly one day before today, it might be a timezone issue
-            # Allow bookings for dates that are just one day before the server's date
-            if (today_utc - date).days > 1:
-                raise forms.ValidationError(
-                    "Cannot create appointments for past dates"
-                )
+        # if date and date < today_utc:
+        #     # If the date is exactly one day before today, it might be a timezone issue
+        #     # Allow bookings for dates that are just one day before the server's date
+        #     if (today_utc - date).days > 1:
+        #         raise forms.ValidationError(
+        #             "Cannot create appointments for past dates"
+        #         )
 
         # Check if end time is after start time
         if start_time and end_time and start_time >= end_time:
