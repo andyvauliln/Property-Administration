@@ -257,6 +257,7 @@
             payment.notes = (db_payment.notes || '') + ` [${file_payment.notes}]`
             payment.payment_status = 'Merged'
             payment.bank = file_payment.bank
+            payment.apartment_name  = db_payment.apartment_name
           
         }
         return payment
@@ -265,9 +266,7 @@
     function openEditModalForPayment(db_payment_id, file_payment_id) {
         const updateModal = document.getElementById('updateModal');
         payment = merge2Payments(db_payment_id, file_payment_id)
-       
-       
-
+       console.log(payment, 'payment')
         if (payment) {
             payment.status = 'Completed'
             id_input = document.getElementById('editId')
@@ -275,21 +274,46 @@
             id_input.value = payment.id
             file_id_input.value = payment.file_id
             for (let [fieldName, fieldValue] of Object.entries(payment)) {
+                // Handle apartment field specifically
                 if(fieldName === "apartment_id"){
                     fieldName = "apartment"
                 }
-               
-              
+                
                 const inputFields = updateModal.querySelectorAll(`[name="${fieldName}"]`);
                 inputFields.forEach((inputField) => {
                     if (inputField.tagName === 'SELECT') {
                         let valueSet = false;
-                        for (const option of inputField.options) {
-                            if (option.value == fieldValue) {
-                                option.selected = true;
-                                valueSet = true;
-                            } else {
-                                option.selected = false;
+                        // Special handling for apartment dropdown
+                        if (fieldName === 'apartment' && payment.apartment_name) {
+                            for (const option of inputField.options) {
+                                if (option.text === payment.apartment_name) {
+                                    option.selected = true;
+                                    valueSet = true;
+                                } else {
+                                    option.selected = false;
+                                }
+                            }
+                        } 
+                        // Special handling for payment type dropdown
+                        else if (fieldName === 'payment_type' && payment.payment_type) {
+                            for (const option of inputField.options) {
+                                if (String(option.value) === String(payment.payment_type)) {
+                                    option.selected = true;
+                                    valueSet = true;
+                                } else {
+                                    option.selected = false;
+                                }
+                            }
+                        }
+                        else {
+                            // Normal handling for other dropdowns
+                            for (const option of inputField.options) {
+                                if (String(option.value) === String(fieldValue)) {
+                                    option.selected = true;
+                                    valueSet = true;
+                                } else {
+                                    option.selected = false;
+                                }
                             }
                         }
                         if (!valueSet && !fieldValue) {
