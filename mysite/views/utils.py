@@ -371,6 +371,8 @@ def send_handyman_telegram_notification(booking, action):
         message += f"📞 Phone: {booking.tenant_phone}\n"
     if booking.notes:
         message += f"📝 Notes: {booking.notes}\n"
+
+    message += f"\n🔗 Link: http://68.183.124.79/handyman_calendar/?user=admin"
     
     base_url = f"https://api.telegram.org/bot{token}/sendMessage"
     params = {
