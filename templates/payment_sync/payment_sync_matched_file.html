@@ -412,14 +412,16 @@
                 {% endwith %}
             {% endif %}
             {% if match_item.matches|length > 1 %}
+            {% with match=match_item.matches|first %}
                 <div  class="flex w-full justify-center border-t bg-gray-100 p-2 items-center text-black  border-b border-gray-3000">
                     <div class="flex w-full">DB Matches 
                         <span class="bg-red-100 ml-2 text-red-800 text-xs font-medium me-2 px-2.5 py-0.5 rounded dark:bg-blue-900 dark:text-blue-300">{{match_item.matches|length}}</span>
                     </div>
                     <button onclick="this.parentElement.parentElement.remove()" class="flex text-right justify-end items-end self-end bg-red-500 hover:bg-red-700 text-white font-bold py-2 px-2 rounded">Delete</button>
                     <button onclick="toggleMatches('toggle_{{ match_item.file_payment.id }}'); this.textContent = this.textContent === 'Show' ? 'Hide' : 'Show';" class="flex ml-2 bg-green-500 hover:bg-green-700 text-white font-bold py-2 px-4 rounded">Show</button>
-                    <button onclick="openEditModalForPayment(null, '{{ match_item.file_payment.id }}')" class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded ml-2">Create</button>
+                    <button onclick="openEditModalForPayment('{{ match.db_payment.id }}', '{{ match_item.file_payment.id }}', 'create')" class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded ml-2">Create</button>
                 </div>
+                {% endwith %}
                 
                 <ul  id="toggle_{{ match_item.file_payment.id }}" style="display:none;">
                     <li>
@@ -484,14 +486,16 @@
                     {% endfor %}
                 </ul> 
             {% else %}
+            {% with match=match_item.matches|first %}
                 <div class="flex w-full border-t bg-gray-100 p-2 items-center text-black font-bold text-lg border-b border-gray-3000">
                    <input class="w-[400px]" id="search_input_{{ match_item.file_payment.id }}" type="text" placeholder="Search value"> 
                    <button onclick="searchForMatch('{{ match_item.file_payment.id }}', 'amount')" class="bg-blue-500 text-white font-bold py-2 px-4 rounded ml-2">Search Amount</button>
                     <button onclick="searchForMatch('{{ match_item.file_payment.id }}', 'apartment')" class="bg-blue-500 text-white font-bold py-2 px-4 rounded ml-2">Search Apartment</button>
                     <button onclick="searchForMatch('{{ match_item.file_payment.id }}', 'tenant')" class="bg-blue-500 text-white font-bold py-2 px-4 rounded ml-2">Search Tenant</button>
                     <button onclick="searchForMatch('{{ match_item.file_payment.id }}', 'notes')" class="bg-blue-500 text-white font-bold py-2 px-4 rounded ml-2">Search Notes</button>
-                    <button onclick="openEditModalForPayment(null, '{{ match_item.file_payment.id }}')" class="bg-green-500 text-white font-bold py-2 px-4 rounded ml-2">Create</button>
+                    <button onclick="openEditModalForPayment('{{ match.db_payment.id }}', '{{ match_item.file_payment.id }}', 'create')" class="bg-green-500 text-white font-bold py-2 px-4 rounded ml-2">Create</button>
                 </div>
+                {% endwith %}
                 <ul id="search_results_{{ match_item.file_payment.id }}">
 
                 </ul> 

@@ -242,8 +242,13 @@
     function merge2Payments(db_payment_id, file_payment_id){
         const payment = {}
         let db_payment = {};
+        console.log(db_payment_id, typeof db_payment_id, file_payment_id, typeof file_payment_id, db_payments_json, 'db_payment_id, file_payment_id from merge2Payments')
         if(db_payment_id){
+            if(typeof db_payment_id === 'string'){
+                db_payment_id = parseInt(db_payment_id)
+            }
             db_payment = db_payments_json.find(i => i.id === db_payment_id);
+            console.log(db_payment, typeof db_payment_id, 'db_payment!!!')
         }
         if(file_payment_id){
             const file_payment = file_payments_json.find(i => i.id === file_payment_id);
@@ -263,8 +268,9 @@
         return payment
     }
 
-    function openEditModalForPayment(db_payment_id, file_payment_id) {
+    function openEditModalForPayment(db_payment_id, file_payment_id, mode) {
         const updateModal = document.getElementById('updateModal');
+        console.log(db_payment_id, file_payment_id, mode, 'db_payment_id, file_payment_id, mode')
         payment = merge2Payments(db_payment_id, file_payment_id)
        console.log(payment, 'payment')
         if (payment) {
