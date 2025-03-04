@@ -10,6 +10,7 @@
     const payment_methods_dictionary = Object.fromEntries(payment_methods_json.map(i => [i.id, i.name]));
     const apartments_dictionary = Object.fromEntries(apartments_json.map(i => [i.id, i.name]));
     const payment_types_dictionary = Object.fromEntries(payment_types_json.map(i => [i.id, i.name + ' - ' + i.type]));
+    const payment_types_keywords = payment_types_json.flatMap(i => i.keywords.split(',').map(keyword => keyword.trim()));
     console.log('payment_methods', payment_methods_dictionary)
     console.log('apartments', apartments_dictionary)
     console.log('payment_types', payment_types_dictionary)
@@ -271,6 +272,13 @@
     function openEditModalForPayment(db_payment_id, file_payment_id, mode) {
         const updateModal = document.getElementById('updateModal');
         console.log(db_payment_id, file_payment_id, mode, 'db_payment_id, file_payment_id, mode')
+        const filePayment = file_payments_json.find(i => i.id === file_payment_id)
+        if(filePayment){
+            const possible_keywords = payment_types_keywords.filter(keyword => filePayment.notes.includes(keyword))
+            const payment_type_related_to_keywords = payment_types_json.filter(i => possible_keywords.some(keyword => i.keywords.includes(keyword)))
+            const fist_payment_type_related_to_keywords = payment_type_related_to_keywords[0] || null
+            console.log(possible_keywords, payment_type_related_to_keywords, fist_payment_type_related_to_keywords, 'possible_keywords')
+        }
         payment = merge2Payments(db_payment_id, file_payment_id)
        console.log(payment, 'payment')
         if (payment) {
@@ -303,9 +311,19 @@
                         // Special handling for payment type dropdown
                         else if (fieldName === 'payment_type' && payment.payment_type) {
                             for (const option of inputField.options) {
-                                if (String(option.value) === String(payment.payment_type)) {
+                                if(fist_payment_type_related_to_keywords){
+                                    if (String(option.value) === String(fist_payment_type_related_to_keywords.id)) {
+                                        option.selected = true;
+                                        valueSet = true;
+                                        continue;
+                                    } else {
+                                        option.selected = false;
+                                    }
+                                }
+                                else if (String(option.value) === String(payment.payment_type)) {
                                     option.selected = true;
                                     valueSet = true;
+                                    continue;
                                 } else {
                                     option.selected = false;
                                 }
