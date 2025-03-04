@@ -351,9 +351,6 @@
         const today = new Date();
         today.setHours(0, 0, 0, 0);
         
-        if (selectedDate < today) {
-            errors.push("Cannot create appointments for past dates");
-        }
 
         // Check for overlapping appointments
         const existingBookings = getBookingsForDate(rawDate);
