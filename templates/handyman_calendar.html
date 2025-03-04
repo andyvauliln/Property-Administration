@@ -167,9 +167,15 @@
         const startHour = 9;
         const endHour = 17;
         for (let hour = startHour; hour < endHour; hour++) {
-            const startTime = `${hour.toString().padStart(2, '0')}:00`;
-            const endTime = `${(hour + 1).toString().padStart(2, '0')}:00`;
-            slots.push({ start: startTime, end: endTime });
+            // First 30 minutes of the hour
+            const startTime1 = `${hour.toString().padStart(2, '0')}:00`;
+            const endTime1 = `${hour.toString().padStart(2, '0')}:30`;
+            slots.push({ start: startTime1, end: endTime1 });
+            
+            // Second 30 minutes of the hour
+            const startTime2 = `${hour.toString().padStart(2, '0')}:30`;
+            const endTime2 = `${(hour + 1).toString().padStart(2, '0')}:00`;
+            slots.push({ start: startTime2, end: endTime2 });
         }
         return slots;
     }
