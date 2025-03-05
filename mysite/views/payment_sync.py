@@ -338,15 +338,15 @@ def get_matches_db_to_file(file_payment, db_payments, amount_delta, date_delta):
                     keywords_array.append(payment_from_db.booking.tenant.email.strip())
                 if payment_from_db.booking.tenant.phone:
                     keywords_array.append(payment_from_db.booking.tenant.phone.strip())
-            if payment_from_db.payment_type and payment_from_db.payment_type.keywords:
-                keywords_array.extend([keyword.strip() for keyword in payment_from_db.payment_type.keywords.split(",")] if payment_from_db.payment_type.keywords else [])
+        if payment_from_db.payment_type and payment_from_db.payment_type.keywords:
+            keywords_array.extend([keyword.strip() for keyword in payment_from_db.payment_type.keywords.split(",")] if payment_from_db.payment_type.keywords else [])
 
         match_obj['keywords'] = ""
         for keyword in keywords_array:
             if file_payment['notes'].lower().find(keyword.lower()) != -1:
                 
                 match_obj["db_payment"] = payment_from_db
-                match_obj['keywords'] += f'{keyword},'
+                match_obj['keywords'] += f'{keyword} '
                 match_obj['score'] += 5
         
         
