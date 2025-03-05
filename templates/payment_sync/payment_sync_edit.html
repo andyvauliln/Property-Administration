@@ -10,18 +10,19 @@
     const payment_methods_dictionary = Object.fromEntries(payment_methods_json.map(i => [i.id, i.name]));
     const apartments_dictionary = Object.fromEntries(apartments_json.map(i => [i.id, i.name]));
     const payment_types_dictionary = Object.fromEntries(payment_types_json.map(i => [i.id, i.name + ' - ' + i.type]));
-    const payment_types_keywords = payment_types_json.flatMap(i => i.keywords.split(',').map(keyword => keyword.trim()));
+    const payment_types_keywords = payment_types_json.flatMap(i => i.keywords ? i.keywords.split(',').map(keyword => keyword.trim()) : []);
     console.log('payment_methods', payment_methods_dictionary)
     console.log('apartments', apartments_dictionary)
     console.log('payment_types', payment_types_dictionary)
     console.log("db_payments_json", db_payments_json)
     console.log("file_payments_json", file_payments_json)
+    console.log("payment_types_keywords", payment_types_keywords)
     let payments_for_save_to_db = []
 </script>
 {% endif %}
 
 <div id="updateModal" tabindex="-1" aria-hidden="true" class="hidden overflow-y-auto overflow-x-hidden fixed top-0 right-0 left-0 z-50 justify-center items-center w-full md:inset-0 h-[calc(100%-1rem)] max-h-full">
-    <div class="relative p-4 w-full max-w-2xl max-h-full">
+    <div class="relative p-4 w-full max-w-8xl max-h-full">
         <!-- Modal content -->
         <div class="relative p-4 bg-white rounded-lg shadow dark:bg-gray-800 sm:p-5">
             <!-- Modal header -->
@@ -37,11 +38,11 @@
                 <input type="hidden" name="id" id="editId" value="">
                 <input type="hidden" name="fileId" id="fileId" value="">
                 <input type="hidden" name="merged_payment_key" id="merged_payment_key" value="">
-                <div class="grid gap-4 mb-4 sm:grid-cols-2">
+                <div class="grid gap-4 mb-4 grid-cols-6">
                     {% for field_name, field_instance in data.model_fields %}
                         {% if field_instance.isEdit %}
                             {% if field_instance.ui_element == "textarea" %}
-                                <div class="sm:col-span-2">
+                                <div class="">
                                     <label for="{{ field_name }}" class="block mb-2 text-sm font-medium text-gray-900 dark:text-white">{{ field_name|split_underscore|title }}
                                         {% if field_instance.required %}<span class="text-red-600">*</span>{% endif %}
                                     </label>
@@ -273,14 +274,19 @@
         const updateModal = document.getElementById('updateModal');
         console.log(db_payment_id, file_payment_id, mode, 'db_payment_id, file_payment_id, mode')
         const filePayment = file_payments_json.find(i => i.id === file_payment_id)
+        let first_payment_type_from_keywords = null;
+        
         if(filePayment){
+            console.log(filePayment, 'filePayment')
             const possible_keywords = payment_types_keywords.filter(keyword => filePayment.notes.includes(keyword))
-            const payment_type_related_to_keywords = payment_types_json.filter(i => possible_keywords.some(keyword => i.keywords.includes(keyword)))
-            const fist_payment_type_related_to_keywords = payment_type_related_to_keywords[0] || null
-            console.log(possible_keywords, payment_type_related_to_keywords, fist_payment_type_related_to_keywords, 'possible_keywords')
+            console.log(possible_keywords, 'possible_keywords')
+            const payment_type_related_to_keywords = payment_types_json.filter(i => possible_keywords.some(keyword =>  i.keywords ? i.keywords.includes(keyword) : false))
+            console.log(payment_type_related_to_keywords, 'payment_type_related_to_keywords')
+            first_payment_type_from_keywords = payment_type_related_to_keywords[0] || null
+            console.log(first_payment_type_from_keywords, 'first_payment_type_from_keywords')
         }
         payment = merge2Payments(db_payment_id, file_payment_id)
-       console.log(payment, 'payment')
+        console.log(payment, 'payment')
         if (payment) {
             payment.status = 'Completed'
             id_input = document.getElementById('editId')
@@ -307,29 +313,7 @@
                                     option.selected = false;
                                 }
                             }
-                        } 
-                        // Special handling for payment type dropdown
-                        else if (fieldName === 'payment_type' && payment.payment_type) {
-                            for (const option of inputField.options) {
-                                if(fist_payment_type_related_to_keywords){
-                                    if (String(option.value) === String(fist_payment_type_related_to_keywords.id)) {
-                                        option.selected = true;
-                                        valueSet = true;
-                                        continue;
-                                    } else {
-                                        option.selected = false;
-                                    }
-                                }
-                                else if (String(option.value) === String(payment.payment_type)) {
-                                    option.selected = true;
-                                    valueSet = true;
-                                    continue;
-                                } else {
-                                    option.selected = false;
-                                }
-                            }
-                        }
-                        else {
+                        } else {
                             // Normal handling for other dropdowns
                             for (const option of inputField.options) {
                                 if (String(option.value) === String(fieldValue)) {
@@ -343,18 +327,30 @@
                         if (!valueSet && !fieldValue) {
                             inputField.options[0].selected = true; 
                         }
-                    
                     } else if (inputField.tagName === 'INPUT' && inputField.type === 'radio') {
-                        
-                        if (!fieldValue && !inputField.value) {
-                            inputField.checked = true;
-                        } else if (String(inputField.value) === String(fieldValue)) {
-                            inputField.checked = true;
+                        if (fieldName === 'payment_type') {
+                            // First try to set value from keywords
+                            if (first_payment_type_from_keywords && String(inputField.value) === String(first_payment_type_from_keywords.id)) {
+                                inputField.checked = true;
+                            }
+                            // If no keywords match and we have a payment type, use that
+                            else if (!first_payment_type_from_keywords && payment.payment_type && String(inputField.value) === String(payment.payment_type)) {
+                                inputField.checked = true;
+                            }
+                            // If no value matches and this is the "none" option
+                            else if (!first_payment_type_from_keywords && !payment.payment_type && !inputField.value) {
+                                inputField.checked = true;
+                            }
                         } else {
-                            inputField.checked = false; // Uncheck other options that don't match
+                            // Handle other radio inputs
+                            if (!fieldValue && !inputField.value) {
+                                inputField.checked = true;
+                            } else if (String(inputField.value) === String(fieldValue)) {
+                                inputField.checked = true;
+                            } else {
+                                inputField.checked = false;
+                            }
                         }
-                        
-                    
                     } else if (inputField.tagName === 'INPUT' && inputField.hasAttribute('datepicker')) {
                         inputField.setAttribute('data-date', formatDate(fieldValue));
                         inputField.value = formatDate(fieldValue);
@@ -377,7 +373,7 @@
        const payment = merge2Payments(db_payment_id, file_payment_id)
        const file_payment = file_payments_json.find(i => i.id === file_payment_id);
        payment.id = payment.id + ""
-       payment.file_date = payment.payment_date;
+       payment.payment_date = payment.payment_date;
        payment.payment_date = formatDate(payment.payment_date)
        payment.file_amount = payment.amount;
        payment.file_notes = file_payment.notes;
