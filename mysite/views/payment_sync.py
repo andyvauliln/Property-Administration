@@ -274,7 +274,10 @@ def parse_date(date_str):
     try:
         return datetime.strptime(date_str, '%Y-%m-%d %H:%M:%S').strftime('%m/%d/%Y')
     except ValueError:
-        pass
+        try:
+            return  datetime.strptime(date_str, '%B %d %Y').strftime('%m/%d/%Y')
+        except ValueError:
+            pass
     
     # Try parsing with the format '2024-08-01'
     try:

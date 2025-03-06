@@ -11,12 +11,14 @@
     const apartments_dictionary = Object.fromEntries(apartments_json.map(i => [i.id, i.name]));
     const payment_types_dictionary = Object.fromEntries(payment_types_json.map(i => [i.id, i.name + ' - ' + i.type]));
     const payment_types_keywords = payment_types_json.flatMap(i => i.keywords ? i.keywords.split(',').map(keyword => keyword.trim()) : []);
+    const apartments_keywords = apartments_json.flatMap(i => i.keywords ? i.keywords.split(',').map(keyword => keyword.trim()) : []);
     console.log('payment_methods', payment_methods_dictionary)
     console.log('apartments', apartments_dictionary)
     console.log('payment_types', payment_types_dictionary)
     console.log("db_payments_json", db_payments_json)
     console.log("file_payments_json", file_payments_json)
     console.log("payment_types_keywords", payment_types_keywords)
+    console.log("apartments_keywords", apartments_keywords)
     let payments_for_save_to_db = []
 </script>
 {% endif %}
@@ -277,13 +279,14 @@
         let first_payment_type_from_keywords = null;
         
         if(filePayment){
-            console.log(filePayment, 'filePayment')
             const possible_keywords = payment_types_keywords.filter(keyword => filePayment.notes.includes(keyword))
-            console.log(possible_keywords, 'possible_keywords')
             const payment_type_related_to_keywords = payment_types_json.filter(i => possible_keywords.some(keyword =>  i.keywords ? i.keywords.includes(keyword) : false))
-            console.log(payment_type_related_to_keywords, 'payment_type_related_to_keywords')
             first_payment_type_from_keywords = payment_type_related_to_keywords[0] || null
-            console.log(first_payment_type_from_keywords, 'first_payment_type_from_keywords')
+
+            const apt_possible_keywords = apartments_keywords.filter(keyword => filePayment.notes.includes(keyword))
+            const apt_related_to_keywords = apartments_json.filter(i => apt_possible_keywords.some(keyword =>  i.keywords ? i.keywords.includes(keyword) : false))
+            first_apartment_from_keywords = apt_related_to_keywords[0] || null
+            console.log(first_apartment_from_keywords, 'first_apartment_from_keywords')
         }
         payment = merge2Payments(db_payment_id, file_payment_id)
         console.log(payment, 'payment')
@@ -305,12 +308,20 @@
                         let valueSet = false;
                         // Special handling for apartment dropdown
                         if (fieldName === 'apartment' && payment.apartment_name) {
-                            for (const option of inputField.options) {
-                                if (option.text === payment.apartment_name) {
-                                    option.selected = true;
-                                    valueSet = true;
-                                } else {
-                                    option.selected = false;
+                            if(first_apartment_from_keywords){
+                                inputField.value = first_apartment_from_keywords.id
+                            }
+                            else if(mode === 'create'){
+                                inputField.value = null
+                            }
+                            else {
+                                for (const option of inputField.options) {
+                                    if (option.text === payment.apartment_name) {
+                                        option.selected = true;
+                                        valueSet = true;
+                                    } else {
+                                        option.selected = false;
+                                    }
                                 }
                             }
                         } else {
