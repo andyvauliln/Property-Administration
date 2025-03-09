@@ -153,8 +153,9 @@
     });
     function add_payment(){
         const formData = getAllFormData()
+        console.log(formData, 'formData')
         const file_payment = file_payments_json.find(i => i.id === formData.fileId)
-        formData.file_date = formData.payment_date;
+        formData.file_date = file_payment.payment_date;
         formData.file_amount = formData.amount;
         if(file_payment){
             formData.file_notes = file_payment.notes;
@@ -210,7 +211,7 @@
         const form = new FormData();
         console.log(payments_for_save_to_db, "payments_for_save_to_db")
         form.append('payments_to_update', JSON.stringify(payments_for_save_to_db));
-
+        console.log(form, 'formMMMM')
         fetch('/payments-sync/', {
             method: 'POST',
             body: form
@@ -303,24 +304,33 @@
                 }
                 
                 const inputFields = updateModal.querySelectorAll(`[name="${fieldName}"]`);
+                console.log(inputFields,  fieldName, fieldValue, 'inputFields')
                 inputFields.forEach((inputField) => {
                     if (inputField.tagName === 'SELECT') {
                         let valueSet = false;
                         // Special handling for apartment dropdown
-                        if (fieldName === 'apartment' && payment.apartment_name) {
-                            if(first_apartment_from_keywords){
-                                inputField.value = first_apartment_from_keywords.id
+                        if (fieldName === 'apartment') {
+                            console.log(payment.apartment_name, fieldName, 'payment.apartment_name')
+                            if (first_apartment_from_keywords) {
+                                // Set both the value and selected state
+                                inputField.value = first_apartment_from_keywords.id;
+                                for (const option of inputField.options) {
+                                    option.selected = (option.value === String(first_apartment_from_keywords.id));
+                                }
+                                valueSet = true;
                             }
                             else if(mode === 'create'){
                                 inputField.value = null
                             }
                             else {
+                                if(payment.apartment_name){
                                 for (const option of inputField.options) {
-                                    if (option.text === payment.apartment_name) {
-                                        option.selected = true;
-                                        valueSet = true;
-                                    } else {
-                                        option.selected = false;
+                                        if (option.text === payment.apartment_name) {
+                                            option.selected = true;
+                                            valueSet = true;
+                                        } else {
+                                            option.selected = false;
+                                        }
                                     }
                                 }
                             }
@@ -388,6 +398,7 @@
        payment.payment_date = formatDate(payment.payment_date)
        payment.file_amount = payment.amount;
        payment.file_notes = file_payment.notes;
+       payment.file_date = file_payment.payment_date;
        payments_for_save_to_db.push(payment)
        updateSavedPayments()
        removePaymentFromList(file_payment_id)
