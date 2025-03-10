@@ -394,6 +394,11 @@ class Booking(models.Model):
                 create_contract(self, template_id=form_data["send_contract"], send_sms=form_data["create_chat"])
             elif form_data and form_data["create_chat"]:
                 sendWelcomeMessageToTwilio(self)
+
+            # Update apartment keywords
+            if self.apartment:
+                self.apartment.keywords += f", {self.tenant.full_name}"
+                self.apartment.save()
         
         if parking_number:
             parking = Parking.objects.get(id=parking_number)

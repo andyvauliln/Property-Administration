@@ -1,0 +1,4 @@
+ notification_id | date | notification_message | send_in_telegram | payment_id | payment_status | amount 
+-----------------+------+----------------------+------------------+------------+----------------+--------
+(0 rows)
+
