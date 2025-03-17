@@ -42,6 +42,19 @@ def my_cron_job():
 
             for chat_id in telegram_chat_ids:
                 send_telegram_message(chat_id.strip(), telegram_token, message)
+        
+        if notification.cleaning:
+            message += f"\nCleaning Details:"
+            message += f"\n- Date: {notification.cleaning.date}"
+            if hasattr(notification.cleaning, 'booking'):
+                message += f"\n- Apartment: {notification.cleaning.booking.apartment.name}"
+            if hasattr(notification.cleaning, 'status'):
+                message += f"\n- Status: {notification.cleaning.status}"
+            if hasattr(notification.cleaning, 'cleaner'):
+                message += f"\n- Cleaner: {notification.cleaning.cleaner.name}"
+
+            for chat_id in telegram_chat_ids:
+                send_telegram_message(chat_id.strip(), telegram_token, message)
 
 
 class Command(BaseCommand):

@@ -31,12 +31,16 @@
             localStorage.setItem('myBookings', JSON.stringify([]));
         }
 
-        console.log('Raw bookings_json:', {{ bookings_json|safe }});
-        const bookingsByDate = JSON.parse('{{ bookings_json|safe }}');
+        // Fix JSON parsing by using a safer template variable interpolation
+        const bookingsJsonStr = '{{ bookings_json|escapejs }}';
+        const apartmentsJsonStr = '{{ apartments_json|escapejs }}';
+        
+        console.log('Raw bookings_json:', bookingsJsonStr);
+        const bookingsByDate = JSON.parse(bookingsJsonStr);
         console.log(bookingsByDate, "bookingsByDate");
         
         // Parse the apartments list and make it globally available
-        window.apartmentsList = JSON.parse('{{ apartments_json|safe }}');
+        window.apartmentsList = JSON.parse(apartmentsJsonStr);
         console.log('Available apartments:', window.apartmentsList);
 
         // Make these functions globally available
@@ -58,99 +62,8 @@
             }
         }
 
-        window.openModalForDay = function(day) {
-            clearValidationErrors();
-            const bookings = getBookingsForDate(day);
-            const modal = document.getElementById('bookingsModal');
-            const modalDate = document.getElementById('modalDate');
-            const bookingsList = document.getElementById('bookingsList');
-            
-            modalDate.setAttribute('data-date', day);
-            
-            // Create a date object at noon UTC to avoid timezone issues
-            const [year, month, dayOfMonth] = day.split('-').map(Number);
-            const dateObj = new Date(Date.UTC(year, month - 1, dayOfMonth, 12, 0, 0));
-            
-            const formattedDate = new Intl.DateTimeFormat('en-US', { 
-                weekday: 'long', 
-                year: 'numeric', 
-                month: 'long', 
-                day: 'numeric',
-                timeZone: 'UTC'  // Ensure consistent timezone handling
-            }).format(dateObj);
-            
-            modalDate.textContent = formattedDate;
-            bookingsList.innerHTML = '';
-            
-            // Create form container for all bookings
-            const formContainer = document.createElement('form');
-            formContainer.onsubmit = handleSubmitBooking;
-            formContainer.className = 'space-y-4';
-
-            // Display all time slots and mark booked ones
-            const timeSlots = generateTimeSlots();
-            timeSlots.forEach(slot => {
-                const existingBooking = bookings.find(booking => 
-                    booking.start_time === slot.start && booking.end_time === slot.end
-                );
-                const isBooked = existingBooking !== undefined;
-                const isMyBookingSlot = existingBooking ? window.isMyBooking(existingBooking.id) : false;
-                const slotClass = isBooked ? 
-                    'bg-red-200 cursor-pointer hover:bg-red-300' : 
-                    'bg-green-200 cursor-pointer hover:bg-green-300';
-                
-                const slotDiv = document.createElement('div');
-                slotDiv.className = `flex justify-between items-center p-2 border rounded mb-2 ${slotClass}`;
-                
-                // Create the time slot display
-                const timeDisplay = document.createElement('div');
-                timeDisplay.className = 'text-gray-700';
-                let statusText = '(Available)';
-                if (isBooked) {
-                    if (isMyBookingSlot) {
-                        statusText = '(Booked)(User Booking)';
-                    } else if (window.isAdmin) {
-                        statusText = '(Booked - Click to Edit)';
-                    } else {
-                        statusText = '(Booked)';
-                    }
-                }
-                timeDisplay.textContent = `${slot.start} - ${slot.end} ${statusText}`;
-                slotDiv.appendChild(timeDisplay);
-
-                // If it's available, admin, or user's booking, make it interactive
-                if (!isBooked || isMyBookingSlot || window.isAdmin) {
-                    slotDiv.onclick = () => {
-                        // Remove any existing form for this time slot
-                        const existingForm = document.querySelector(`[data-time-slot="${slot.start}-${slot.end}"]`);
-                        if (existingForm) {
-                            existingForm.remove();
-                            return;
-                        }
-
-                        // Create booking form
-                        const bookingForm = createBookingRow(existingBooking);
-                        bookingForm.setAttribute('data-time-slot', `${slot.start}-${slot.end}`);
-                        
-                        // Set the time in the input
-                        const timeInput = bookingForm.querySelector('input[name="start_time"]');
-                        if (timeInput) {
-                            timeInput.value = `${slot.start} - ${slot.end}`;
-                        }
-
-                        // Insert the form after this time slot
-                        slotDiv.after(bookingForm);
-                    };
-                }
-
-                formContainer.appendChild(slotDiv);
-            });
-
-            bookingsList.appendChild(formContainer);
-            modal.classList.remove('hidden');
-        }
-
-        // Make other functions globally available as well
+        // Make other functions globally available
+        window.openModalForDay = openModalForDay;
         window.generateTimeSlots = generateTimeSlots;
         window.createBookingRow = createBookingRow;
         window.closeModal = closeModal;
@@ -539,6 +452,99 @@
             });
             day.addEventListener('mouseleave', hidePopover);
         });
+    }
+
+    // Keep these function definitions outside the DOMContentLoaded event
+    function openModalForDay(day) {
+        clearValidationErrors();
+        const bookings = getBookingsForDate(day);
+        const modal = document.getElementById('bookingsModal');
+        const modalDate = document.getElementById('modalDate');
+        const bookingsList = document.getElementById('bookingsList');
+        
+        modalDate.setAttribute('data-date', day);
+        
+        // Create a date object at noon UTC to avoid timezone issues
+        const [year, month, dayOfMonth] = day.split('-').map(Number);
+        const dateObj = new Date(Date.UTC(year, month - 1, dayOfMonth, 12, 0, 0));
+        
+        const formattedDate = new Intl.DateTimeFormat('en-US', { 
+            weekday: 'long', 
+            year: 'numeric', 
+            month: 'long', 
+            day: 'numeric',
+            timeZone: 'UTC'  // Ensure consistent timezone handling
+        }).format(dateObj);
+        
+        modalDate.textContent = formattedDate;
+        bookingsList.innerHTML = '';
+        
+        // Create form container for all bookings
+        const formContainer = document.createElement('form');
+        formContainer.onsubmit = handleSubmitBooking;
+        formContainer.className = 'space-y-4';
+
+        // Display all time slots and mark booked ones
+        const timeSlots = generateTimeSlots();
+        timeSlots.forEach(slot => {
+            const existingBooking = bookings.find(booking => 
+                booking.start_time === slot.start && booking.end_time === slot.end
+            );
+            const isBooked = existingBooking !== undefined;
+            const isMyBookingSlot = existingBooking ? window.isMyBooking(existingBooking.id) : false;
+            const slotClass = isBooked ? 
+                'bg-red-200 cursor-pointer hover:bg-red-300' : 
+                'bg-green-200 cursor-pointer hover:bg-green-300';
+            
+            const slotDiv = document.createElement('div');
+            slotDiv.className = `flex justify-between items-center p-2 border rounded mb-2 ${slotClass}`;
+            
+            // Create the time slot display
+            const timeDisplay = document.createElement('div');
+            timeDisplay.className = 'text-gray-700';
+            let statusText = '(Available)';
+            if (isBooked) {
+                if (isMyBookingSlot) {
+                    statusText = '(Booked)(User Booking)';
+                } else if (window.isAdmin) {
+                    statusText = '(Booked - Click to Edit)';
+                } else {
+                    statusText = '(Booked)';
+                }
+            }
+            timeDisplay.textContent = `${slot.start} - ${slot.end} ${statusText}`;
+            slotDiv.appendChild(timeDisplay);
+
+            // If it's available, admin, or user's booking, make it interactive
+            if (!isBooked || isMyBookingSlot || window.isAdmin) {
+                slotDiv.onclick = () => {
+                    // Remove any existing form for this time slot
+                    const existingForm = document.querySelector(`[data-time-slot="${slot.start}-${slot.end}"]`);
+                    if (existingForm) {
+                        existingForm.remove();
+                        return;
+                    }
+
+                    // Create booking form
+                    const bookingForm = createBookingRow(existingBooking);
+                    bookingForm.setAttribute('data-time-slot', `${slot.start}-${slot.end}`);
+                    
+                    // Set the time in the input
+                    const timeInput = bookingForm.querySelector('input[name="start_time"]');
+                    if (timeInput) {
+                        timeInput.value = `${slot.start} - ${slot.end}`;
+                    }
+
+                    // Insert the form after this time slot
+                    slotDiv.after(bookingForm);
+                };
+            }
+
+            formContainer.appendChild(slotDiv);
+        });
+
+        bookingsList.appendChild(formContainer);
+        modal.classList.remove('hidden');
     }
 </script>
 
