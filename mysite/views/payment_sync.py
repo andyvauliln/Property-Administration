@@ -214,11 +214,18 @@ def get_payment_data(request, csv_file, payment_methods, apartments, payment_typ
         payment_type = None
 
         for payment_method in payment_methods:
-            if payment_method.name in description:
+            if payment_method.name in description.strip().lower():
                 payment_method_to_assign = payment_method
                 break
-        if 'DEPOSIT *MOBILE' in description:
+        if 'deposit *mobile' in description.strip().lower():
             payment_method_to_assign = payment_methods.filter(name="Check").first()
+
+        if payment_method_to_assign is None:
+            for payment_method in payment_methods:
+                keywords_array = [keyword.strip() for keyword in payment_method.keywords.split(",")] if payment_method.keywords else []
+                if any(keyword.strip().lower() in description.strip().lower() for keyword in keywords_array):
+                    payment_method_to_assign = payment_method
+                    break
 
         for apartment in apartments:
             if apartment.name in description:

@@ -662,6 +662,7 @@ class PaymentMethod(models.Model):
     ]
     name = models.CharField(max_length=50, unique=True)
     type = models.CharField(max_length=32, db_index=True, choices=TYPE)
+    keywords = models.TextField(blank=True, null=True)
     notes = models.TextField(blank=True, null=True)
 
     created_at = models.DateTimeField(auto_now_add=True)

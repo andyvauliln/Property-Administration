@@ -788,13 +788,15 @@ class NotificationForm(forms.ModelForm):
 class PaymentMethodForm(forms.ModelForm):
     class Meta:
         model = PaymentMethod
-        fields = ['name', 'type', "notes"]
+        fields = ['name', 'type', "notes", "keywords"]
 
     name = CharFieldEx(max_length=32, initial="", isColumn=True,
                        isEdit=True, isCreate=True, ui_element="input")
     type = ChoiceFieldEx(choices=PaymentMethod.TYPE, isColumn=True, isEdit=True, isCreate=True,
                          ui_element="dropdown", _dropdown_options=lambda: get_dropdown_options("payment_method_type"))
     notes = CharFieldEx(isColumn=False, initial="", isEdit=True,
+                        required=False, isCreate=True, ui_element="textarea")
+    keywords = CharFieldEx(isColumn=False, initial="", isEdit=True,
                         required=False, isCreate=True, ui_element="textarea")
 
     def __init__(self, *args, **kwargs):
