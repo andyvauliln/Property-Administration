@@ -320,7 +320,7 @@
                                 valueSet = true;
                             }
                             else if(mode === 'create'){
-                                inputField.value = null
+                                inputField.options[0].selected = true; 
                             }
                             else {
                                 if(payment.apartment_name){
