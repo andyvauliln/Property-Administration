@@ -244,7 +244,7 @@
        
     }
 
-    function merge2Payments(db_payment_id, file_payment_id){
+    function merge2Payments(db_payment_id, file_payment_id, create_mode = false){
         const payment = {}
         let db_payment = {};
         console.log(db_payment_id, typeof db_payment_id, file_payment_id, typeof file_payment_id, db_payments_json, 'db_payment_id, file_payment_id from merge2Payments')
@@ -264,7 +264,12 @@
             payment.amount = Math.abs(file_payment.amount)
             payment.payment_method = file_payment.payment_method ? file_payment.payment_method : db_payment.payment_method ? db_payment.payment_method : null
             payment.payment_type = db_payment.payment_type ? db_payment.payment_type : file_payment.payment_type
-            payment.notes = (db_payment.notes || '') + ` [${file_payment.notes}]`
+            if(create_mode){
+                payment.notes = `${file_payment.notes}`
+            }
+            else{
+                payment.notes = (db_payment.notes || '') + ` [${file_payment.notes}]`
+            }
             payment.payment_status = 'Merged'
             payment.bank = file_payment.bank
             payment.apartment_name  = db_payment.apartment_name
@@ -289,7 +294,7 @@
             first_apartment_from_keywords = apt_related_to_keywords[0] || null
             console.log(first_apartment_from_keywords, 'first_apartment_from_keywords')
         }
-        payment = merge2Payments(db_payment_id, file_payment_id)
+        payment = merge2Payments(db_payment_id, file_payment_id, mode === 'create')
         console.log(payment, 'payment')
         if (payment) {
             payment.status = 'Completed'
@@ -308,6 +313,7 @@
                 inputFields.forEach((inputField) => {
                     if (inputField.tagName === 'SELECT') {
                         let valueSet = false;
+                        inputField.options[0].selected = true; 
                         // Special handling for apartment dropdown
                         if (fieldName === 'apartment') {
                             console.log(payment.apartment_name, fieldName, 'payment.apartment_name')
@@ -349,27 +355,33 @@
                             inputField.options[0].selected = true; 
                         }
                     } else if (inputField.tagName === 'INPUT' && inputField.type === 'radio') {
-                        if (fieldName === 'payment_type') {
-                            // First try to set value from keywords
-                            if (first_payment_type_from_keywords && String(inputField.value) === String(first_payment_type_from_keywords.id)) {
-                                inputField.checked = true;
+                        console.log('Processing radio input:', {
+                            fieldName,
+                            inputValue: inputField.value,
+                            fieldValue,
+                            inputValueType: typeof inputField.value,
+                            fieldValueType: typeof fieldValue
+                        });
+
+                        // Get all radio buttons with the same name
+                        const allRadios = document.querySelectorAll(`input[type="radio"][name="${fieldName}"]`);
+                        let matchFound = false;
+
+                        // First pass: try to find an exact match
+                        allRadios.forEach(radio => {
+                            const radioVal = !isNaN(radio.value) ? Number(radio.value) : String(radio.value).trim();
+                            const compareVal = !isNaN(fieldValue) ? Number(fieldValue) : String(fieldValue).trim();
+                            if (radioVal === compareVal) {
+                                radio.checked = true;
+                                matchFound = true;
                             }
-                            // If no keywords match and we have a payment type, use that
-                            else if (!first_payment_type_from_keywords && payment.payment_type && String(inputField.value) === String(payment.payment_type)) {
-                                inputField.checked = true;
-                            }
-                            // If no value matches and this is the "none" option
-                            else if (!first_payment_type_from_keywords && !payment.payment_type && !inputField.value) {
-                                inputField.checked = true;
-                            }
-                        } else {
-                            // Handle other radio inputs
-                            if (!fieldValue && !inputField.value) {
-                                inputField.checked = true;
-                            } else if (String(inputField.value) === String(fieldValue)) {
-                                inputField.checked = true;
-                            } else {
-                                inputField.checked = false;
+                        });
+
+                        // If no match found, select the first (empty) option
+                        if (!matchFound) {
+                            const firstRadio = allRadios[0];
+                            if (firstRadio) {
+                                firstRadio.checked = true;
                             }
                         }
                     } else if (inputField.tagName === 'INPUT' && inputField.hasAttribute('datepicker')) {
