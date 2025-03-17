@@ -10,8 +10,8 @@
     const payment_methods_dictionary = Object.fromEntries(payment_methods_json.map(i => [i.id, i.name]));
     const apartments_dictionary = Object.fromEntries(apartments_json.map(i => [i.id, i.name]));
     const payment_types_dictionary = Object.fromEntries(payment_types_json.map(i => [i.id, i.name + ' - ' + i.type]));
-    const payment_types_keywords = payment_types_json.flatMap(i => i.keywords ? i.keywords.split(',').map(keyword => keyword.trim()) : []);
-    const apartments_keywords = apartments_json.flatMap(i => i.keywords ? i.keywords.split(',').map(keyword => keyword.trim()) : []);
+    const payment_types_keywords = payment_types_json.flatMap(i => i.keywords ? i.keywords.split(',').map(keyword => keyword.toLowerCase().trim()) : []);
+    const apartments_keywords = apartments_json.flatMap(i => i.keywords ? i.keywords.split(',').map(keyword => keyword.toLowerCase().trim()) : []);
     console.log('payment_methods', payment_methods_dictionary)
     console.log('apartments', apartments_dictionary)
     console.log('payment_types', payment_types_dictionary)
@@ -153,7 +153,6 @@
     });
     function add_payment(){
         const formData = getAllFormData()
-        console.log(formData, 'formData')
         const file_payment = file_payments_json.find(i => i.id === formData.fileId)
         formData.file_date = file_payment.payment_date;
         formData.file_amount = formData.amount;
@@ -161,7 +160,6 @@
             formData.file_notes = file_payment.notes;
         }
         payments_for_save_to_db.push(formData)
-        console.log(formData, 'formData')
         updateSavedPayments()
         removePaymentFromList(formData.fileId)
     }
@@ -211,7 +209,6 @@
         const form = new FormData();
         console.log(payments_for_save_to_db, "payments_for_save_to_db")
         form.append('payments_to_update', JSON.stringify(payments_for_save_to_db));
-        console.log(form, 'formMMMM')
         fetch('/payments-sync/', {
             method: 'POST',
             body: form
@@ -247,13 +244,11 @@
     function merge2Payments(db_payment_id, file_payment_id, create_mode = false){
         const payment = {}
         let db_payment = {};
-        console.log(db_payment_id, typeof db_payment_id, file_payment_id, typeof file_payment_id, db_payments_json, 'db_payment_id, file_payment_id from merge2Payments')
         if(db_payment_id){
             if(typeof db_payment_id === 'string'){
                 db_payment_id = parseInt(db_payment_id)
             }
-            db_payment = db_payments_json.find(i => i.id === db_payment_id);
-            console.log(db_payment, typeof db_payment_id, 'db_payment!!!')
+            db_payment = db_payments_json.find(i => i.id === db_payment_id)
         }
         if(file_payment_id){
             const file_payment = file_payments_json.find(i => i.id === file_payment_id);
@@ -285,12 +280,12 @@
         let first_payment_type_from_keywords = null;
         
         if(filePayment){
-            const possible_keywords = payment_types_keywords.filter(keyword => filePayment.notes.includes(keyword))
-            const payment_type_related_to_keywords = payment_types_json.filter(i => possible_keywords.some(keyword =>  i.keywords ? i.keywords.includes(keyword) : false))
+            const possible_keywords = payment_types_keywords.filter(keyword => filePayment.notes.toLowerCase().includes(keyword))
+            const payment_type_related_to_keywords = payment_types_json.filter(i => possible_keywords.some(keyword =>  i.keywords ? i.keywords.toLowerCase().includes(keyword) : false))
             first_payment_type_from_keywords = payment_type_related_to_keywords[0] || null
 
-            const apt_possible_keywords = apartments_keywords.filter(keyword => filePayment.notes.includes(keyword))
-            const apt_related_to_keywords = apartments_json.filter(i => apt_possible_keywords.some(keyword =>  i.keywords ? i.keywords.includes(keyword) : false))
+            const apt_possible_keywords = apartments_keywords.filter(keyword => filePayment.notes.toLowerCase().includes(keyword))
+            const apt_related_to_keywords = apartments_json.filter(i => apt_possible_keywords.some(keyword =>  i.keywords ? i.keywords.toLowerCase().includes(keyword) : false))
             first_apartment_from_keywords = apt_related_to_keywords[0] || null
             console.log(first_apartment_from_keywords, 'first_apartment_from_keywords')
         }
@@ -309,7 +304,6 @@
                 }
                 
                 const inputFields = updateModal.querySelectorAll(`[name="${fieldName}"]`);
-                console.log(inputFields,  fieldName, fieldValue, 'inputFields')
                 inputFields.forEach((inputField) => {
                     if (inputField.tagName === 'SELECT') {
                         let valueSet = false;
@@ -355,13 +349,6 @@
                             inputField.options[0].selected = true; 
                         }
                     } else if (inputField.tagName === 'INPUT' && inputField.type === 'radio') {
-                        console.log('Processing radio input:', {
-                            fieldName,
-                            inputValue: inputField.value,
-                            fieldValue,
-                            inputValueType: typeof inputField.value,
-                            fieldValueType: typeof fieldValue
-                        });
 
                         // Get all radio buttons with the same name
                         const allRadios = document.querySelectorAll(`input[type="radio"][name="${fieldName}"]`);
