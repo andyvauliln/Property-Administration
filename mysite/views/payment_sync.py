@@ -213,8 +213,11 @@ def get_payment_data(request, csv_file, payment_methods, apartments, payment_typ
         extracted_id = None
         payment_type = None
 
+        if 'paypal' in description.strip().lower():
+            print(f'Paypal: {description}')
+
         for payment_method in payment_methods:
-            if payment_method.name in description.strip().lower():
+            if payment_method.name.lower() in description.strip().lower():
                 payment_method_to_assign = payment_method
                 break
         if 'deposit *mobile' in description.strip().lower():
