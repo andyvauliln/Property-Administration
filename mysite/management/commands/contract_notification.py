@@ -67,7 +67,7 @@ def send_telegram_message(message):
 def send_to_manager(message, booking, message_status="SENDED"):
     account_sid = os.environ["TWILIO_ACCOUNT_SID"]
     auth_token = os.environ["TWILIO_AUTH_TOKEN"]
-    twilio_phone_number = os.environ["TWILIO_PHONE"]
+    twilio_phone_number = os.environ["TWILIO_PHONE_SECONDARY"]
     twilio_manager_number = os.environ["TWILIO_MANAGER_PHONE"]
     twilio_manager_number2 = os.environ["TWILIO_MANAGER_PHONE2"]
 

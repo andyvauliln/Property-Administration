@@ -160,7 +160,7 @@ class Command(BaseCommand):
     def send_sms(self, booking, message):
         account_sid = os.environ["TWILIO_ACCOUNT_SID"]
         auth_token = os.environ["TWILIO_AUTH_TOKEN"]
-        twilio_phone_number = os.environ["TWILIO_PHONE"]
+        twilio_phone_number = os.environ["TWILIO_PHONE_SECONDARY"]
 
         client = Client(account_sid, auth_token)
 
