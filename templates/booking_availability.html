@@ -50,16 +50,15 @@
             </div>
             <div class="flex items-center justify-between flex-col w-full p-2">
                 <div class="flex items-center justify-center space-x-4">
-                    <a href="/booking-availability/?page={{ prev_page }}" class="flex items-center text-black p-4 rounded-l">
+                    <a href="/booking-availability/?page={{ prev_page }}{% if current_apartment_type %}&apartment_type={{ current_apartment_type }}{% endif %}{% if current_booking_status %}&booking_status={{ current_booking_status }}{% endif %}{% if current_rooms %}&rooms={{ current_rooms }}{% endif %}{% if start_date %}&start_date={{ start_date }}{% endif %}{% if end_date %}&end_date={{ end_date }}{% endif %}" class="flex items-center text-black p-4 rounded-l">
                         <svg class="w-4 h-4 text-blue-500  dark:text-white mr-2" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 8 14">
                             <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 1 1.3 6.326a.91.91 0 0 0 0 1.348L7 13"/>
                         </svg>
                         <span class="text-2xl text-blue-500 font-extrabold">Previous</span>
                     </a>
-
+                
                     <!-- Next Button -->
-                    <a href="/booking-availability/?page={{ next_page }}" class="flex items-center text-black p-4 rounded-r">
-                        
+                    <a href="/booking-availability/?page={{ next_page }}{% if current_apartment_type %}&apartment_type={{ current_apartment_type }}{% endif %}{% if current_booking_status %}&booking_status={{ current_booking_status }}{% endif %}{% if current_rooms %}&rooms={{ current_rooms }}{% endif %}{% if start_date %}&start_date={{ start_date }}{% endif %}{% if end_date %}&end_date={{ end_date }}{% endif %}" class="flex items-center text-black p-4 rounded-r">
                         <span class="text-2xl text-blue-500 font-extrabold">Next</span>
                         <svg class="w-4 h-4 text-blue-500 dark:text-white ml-2" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 8 14">
                             <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m1 13 5.7-5.326a.909.909 0 0 0 0-1.348L1 1"/>

@@ -634,7 +634,7 @@ class PaymentForm(forms.ModelForm):
     payment_type = ModelChoiceFieldEx(
         queryset=PaymenType.objects.all(),
         order=7,
-        isColumn=True, isEdit=True, isCreate=True, ui_element="radio",
+        isColumn=True, isEdit=True, required=True, isCreate=True, ui_element="radio",
         _dropdown_options=lambda: get_dropdown_options("payment_type"),
         display_field=["payment_type.full_name2"])
     bank = ModelChoiceFieldEx(
