@@ -14,7 +14,7 @@ from ..decorators import user_has_role
 from .utils import generate_weeks, DateEncoder, handle_post_request, stringify_keys, aggregate_data, get_model_fields
 
 
-@user_has_role('Admin')
+@user_has_role('Admin', 'Manager')
 def apartment(request):
     apartment_id = request.GET.get('apartment.id', 22)
     year = request.GET.get('year')

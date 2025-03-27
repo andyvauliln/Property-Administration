@@ -721,7 +721,7 @@ class Payment(models.Model):
     invoice_url = models.TextField(blank=True, null=True)
     payment_date = models.DateField(db_index=True)
     amount = models.DecimalField(max_digits=14, decimal_places=2)
-    payment_type = models.ForeignKey(PaymenType, on_delete=models.SET_NULL,
+    payment_type = models.ForeignKey(PaymenType, on_delete=models.CASCADE,
                                      db_index=True, related_name='payment_type_payments', null=False, blank=False)
     payment_status = models.CharField(
         max_length=32, db_index=True, choices=PAYMENT_STATUS, default='Pending')
