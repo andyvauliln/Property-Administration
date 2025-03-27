@@ -278,12 +278,16 @@
         console.log(db_payment_id, file_payment_id, mode, 'db_payment_id, file_payment_id, mode')
         const filePayment = file_payments_json.find(i => i.id === file_payment_id)
         let first_payment_type_from_keywords = null;
+        let first_apartment_from_keywords = null;
         
         if(filePayment){
+            console.log(filePayment.notes, 'filePayment.notes')
             const possible_keywords = payment_types_keywords.filter(keyword => filePayment.notes.toLowerCase().includes(keyword))
+            console.log(possible_keywords, 'possible_keywords')
             const payment_type_related_to_keywords = payment_types_json.filter(i => possible_keywords.some(keyword =>  i.keywords ? i.keywords.toLowerCase().includes(keyword) : false))
+            console.log(payment_type_related_to_keywords, 'payment_type_related_to_keywords')
             first_payment_type_from_keywords = payment_type_related_to_keywords[0] || null
-
+            console.log(first_payment_type_from_keywords, 'first_payment_type_from_keywords')
             const apt_possible_keywords = apartments_keywords.filter(keyword => filePayment.notes.toLowerCase().includes(keyword))
             const apt_related_to_keywords = apartments_json.filter(i => apt_possible_keywords.some(keyword =>  i.keywords ? i.keywords.toLowerCase().includes(keyword) : false))
             first_apartment_from_keywords = apt_related_to_keywords[0] || null
@@ -354,15 +358,27 @@
                         const allRadios = document.querySelectorAll(`input[type="radio"][name="${fieldName}"]`);
                         let matchFound = false;
 
-                        // First pass: try to find an exact match
-                        allRadios.forEach(radio => {
-                            const radioVal = !isNaN(radio.value) ? Number(radio.value) : String(radio.value).trim();
-                            const compareVal = !isNaN(fieldValue) ? Number(fieldValue) : String(fieldValue).trim();
-                            if (radioVal === compareVal) {
-                                radio.checked = true;
-                                matchFound = true;
-                            }
-                        });
+                        // Special handling for payment_type
+                        if (fieldName === 'payment_type' && first_payment_type_from_keywords) {
+                            allRadios.forEach(radio => {
+                                if (String(radio.value) === String(first_payment_type_from_keywords.id)) {
+                                    radio.checked = true;
+                                    matchFound = true;
+                                }
+                            });
+                        }
+
+                        // If no match found from keywords, try to find an exact match
+                        if (!matchFound) {
+                            allRadios.forEach(radio => {
+                                const radioVal = !isNaN(radio.value) ? Number(radio.value) : String(radio.value).trim();
+                                const compareVal = !isNaN(fieldValue) ? Number(fieldValue) : String(fieldValue).trim();
+                                if (radioVal === compareVal) {
+                                    radio.checked = true;
+                                    matchFound = true;
+                                }
+                            });
+                        }
 
                         // If no match found, select the first (empty) option
                         if (!matchFound) {
