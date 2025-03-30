@@ -1,15 +1,44 @@
-
-
 import requests
 from datetime import timedelta, date
-from mysite.models import Notification
+from mysite.models import Notification, Payment
 import os
 from django.core.management.base import BaseCommand
+from django.db.models import Q
 
 
 def send_telegram_message(chat_id, token, message):
     base_url = f"https://api.telegram.org/bot{token}/sendMessage?chat_id={chat_id}&text={message}"
     requests.get(base_url)
+
+
+def get_pending_payments_message():
+    tomorrow = date.today() + timedelta(days=1)
+    # Get all pending payments that are due in the past
+    pending_payments = Payment.objects.filter(
+        payment_status='Pending',
+        payment_date__lt=tomorrow
+    ).order_by('payment_date')
+    
+    if not pending_payments.exists():
+        return ""
+        
+    message = "\n\n🚨 PENDING PAYMENTS FROM PAST PERIODS:"
+    for payment in pending_payments:
+        message += f"\n- Amount: ${payment.amount}"
+        message += f"\n  Payment Date: {payment.payment_date}"
+        if payment.payment_type:
+            message += f"\n  Type: {payment.payment_type.name}"
+        if hasattr(payment, 'booking') and payment.booking and payment.booking.apartment:
+            message += f"\n  Apartment: {payment.booking.apartment.name}"
+            if payment.booking.tenant:
+                message += f"\n  Tenant: {payment.booking.tenant.full_name}"
+        elif hasattr(payment, 'apartment') and payment.apartment:
+            message += f"\n  Apartment: {payment.apartment.name}"
+        if payment.notes:
+            message += f"\n  Notes: {payment.notes}"
+        message += "\n"
+    
+    return message
 
 
 def my_cron_job():
@@ -19,6 +48,11 @@ def my_cron_job():
     telegram_chat_ids = os.environ["TELEGRAM_CHAT_ID"].split(",")
     telegram_token = os.environ["TELEGRAM_TOKEN"]
     
+    # Get pending payments message once
+    pending_payments_message = get_pending_payments_message()
+
+    for chat_id in telegram_chat_ids:
+        send_telegram_message(chat_id.strip(), telegram_token, pending_payments_message)
 
     for notification in notifications:
         message = f"{notification.notification_message}"
@@ -52,6 +86,9 @@ def my_cron_job():
                 message += f"\n- Status: {notification.cleaning.status}"
             if hasattr(notification.cleaning, 'cleaner'):
                 message += f"\n- Cleaner: {notification.cleaning.cleaner.name}"
+
+            # Add pending payments message to each notification
+            message += pending_payments_message
 
             for chat_id in telegram_chat_ids:
                 send_telegram_message(chat_id.strip(), telegram_token, message)

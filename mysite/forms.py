@@ -283,7 +283,7 @@ class CustomUserForm(forms.ModelForm):
 
     class Meta:
         model = User
-        fields = ['id', 'email', 'full_name',
+        fields = ['id', 'email', 'full_name', 'telegram_chat_id',
                   'password', 'phone', 'role', "notes"]
 
     def clean(self):
@@ -306,6 +306,10 @@ class CustomUserForm(forms.ModelForm):
                        ui_element="radio", _dropdown_options=lambda: get_dropdown_options("roles"))
     notes = CharFieldEx(required=False, initial="", isColumn=False,
                         isEdit=True, isCreate=True, ui_element="textarea")
+    telegram_chat_id = CharFieldEx(required=False, initial="", isColumn=False,
+                        isEdit=True, isCreate=True, ui_element="input")
+    is_active = BooleanFieldEx(required=False, initial=True, isColumn=True,
+                        isEdit=True, isCreate=True, ui_element="checkbox")
 
 
 class ApartmentForm(forms.ModelForm):
