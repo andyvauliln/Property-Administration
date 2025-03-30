@@ -18,7 +18,12 @@ from .utils import generate_weeks, DateEncoder, handle_post_request, stringify_k
 def apartment(request):
     apartment_id = request.GET.get('apartment.id', 22)
     year = request.GET.get('year')
-    apartments = Apartment.objects.all().order_by('name').values_list('id', 'name')
+    
+    # Get only apartments that the user has access to
+    if request.user.role == 'Manager':
+        apartments = Apartment.objects.filter(manager=request.user).order_by('name').values_list('id', 'name')
+    else:
+        apartments = Apartment.objects.all().order_by('name').values_list('id', 'name')
 
     if request.method == 'POST':
         handle_post_request(request, Booking, BookingForm)
@@ -47,6 +52,13 @@ def apartment(request):
 
     # Fetch data for the specified apartment
     apartment = Apartment.objects.get(id=apartment_id)
+    if request.user.role == 'Manager' and apartment.manager != request.user:
+        # If manager doesn't have access, redirect to their first available apartment
+        if apartments:
+            apartment = Apartment.objects.get(id=apartments[0][0])
+        else:
+            return HttpResponseBadRequest("You don't have access to any apartments.")
+
     bookings = Booking.objects.filter(
         start_date__lte=end_date, end_date__gte=start_date, apartment=apartment)
 
