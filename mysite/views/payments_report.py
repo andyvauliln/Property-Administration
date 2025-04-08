@@ -76,7 +76,7 @@ def paymentReport(request):
 
     if apartment_filter:
         if apartment_filter == "None_Booking":
-           payments_within_range = [
+            payments_within_range = [
                 payment for payment in payments_within_range
                 if not payment.booking
             ]
@@ -86,10 +86,26 @@ def paymentReport(request):
                 if (not payment.booking) and (not payment.apartment)
             ]
         else: 
-            payments_within_range = [
-                payment for payment in payments_within_range
-                if (payment.booking and payment.booking.apartment.name == apartment_filter)
-                or (payment.apartment and payment.apartment.name == apartment_filter)]
+            filtered_payments = []
+            for payment in payments_within_range:
+                print_info(f"Checking payment {payment.id}:")
+                print_info(f"- Has booking: {bool(payment.booking)}")
+                if payment.booking:
+                    print_info(f"- Booking apartment: {payment.booking.apartment.name}")
+                print_info(f"- Has direct apartment: {bool(payment.apartment)}")
+                if payment.apartment:
+                    print_info(f"- Direct apartment: {payment.apartment.name}")
+                
+                if payment.booking and payment.booking.apartment.name == apartment_filter:
+                    print_info(f"✓ Payment {payment.id} matched through booking")
+                    filtered_payments.append(payment)
+                elif payment.apartment and payment.apartment.name == apartment_filter:
+                    print_info(f"✓ Payment {payment.id} matched through direct apartment")
+                    filtered_payments.append(payment)
+                else:
+                    print_info(f"✗ Payment {payment.id} did not match filter {apartment_filter}")
+                
+            payments_within_range = filtered_payments
 
     if apartment_type_filter:
         payments_within_range = [payment for payment in payments_within_range if (
