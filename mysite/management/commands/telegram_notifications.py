@@ -1,6 +1,6 @@
 import requests
 from datetime import timedelta, date
-from mysite.models import Notification, Payment
+from mysite.models import Notification, Payment, Booking
 import os
 from django.core.management.base import BaseCommand
 from django.db.models import Q
@@ -46,6 +46,32 @@ def sent_pending_payments_message(chat_ids, token):
         message = ""
 
 
+def check_bookings_without_cleaning(chat_ids, token):
+    today = date.today()
+    three_days_from_now = today + timedelta(days=3)
+    
+    # Get bookings ending in next 3 days
+    upcoming_end_bookings = Booking.objects.filter(
+        end_date__gte=today,
+        end_date__lte=three_days_from_now
+    ).select_related('apartment', 'tenant')
+    
+    for booking in upcoming_end_bookings:
+        # Check if cleaning exists for this booking
+        if not hasattr(booking, 'cleaning') or not booking.cleaning.exists():
+            message = f"⚠️ WARNING: Booking ending soon without cleaning scheduled!\n"
+            message += f"Booking Details:\n"
+            message += f"- End Date: {booking.end_date}\n"
+            if booking.apartment:
+                message += f"- Apartment: {booking.apartment.name}\n"
+            if booking.tenant:
+                message += f"- Tenant: {booking.tenant.full_name}\n"
+            message += f"Please schedule cleaning ASAP!"
+            
+            for chat_id in chat_ids:
+                send_telegram_message(chat_id.strip(), token, message)
+
+
 def my_cron_job():
     next_day = date.today() + timedelta(days=1)
     notifications = Notification.objects.filter(date=next_day, send_in_telegram=True)
@@ -55,6 +81,9 @@ def my_cron_job():
     
     # Get pending payments message once
     sent_pending_payments_message(telegram_chat_ids, telegram_token)
+    
+    # Check for bookings without cleanings
+    check_bookings_without_cleaning(telegram_chat_ids, telegram_token)
    
     for notification in notifications:
         message = f"{notification.notification_message}"

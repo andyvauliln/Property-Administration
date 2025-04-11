@@ -97,6 +97,7 @@ def booking_availability(request):
                 'booked_days': 0,
                 'start_date': apartment.start_date,
                 'end_date': apartment.end_date,
+                'web_link': apartment.web_link,
             }
 
             bookings = [b for b in apartment.all_relevant_bookings 
