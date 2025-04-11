@@ -49,15 +49,13 @@ def sent_pending_payments_message(chat_id, token):
 def my_cron_job():
     next_day = date.today() + timedelta(days=1)
     notifications = Notification.objects.filter(date=next_day, send_in_telegram=True)
-    telegram_token = os.environ["TELEGRAM_HANDY_MAN_BOT_TOKEN"]
+    telegram_token = os.environ["TELEGRAM_TOKEN"]
 
     active_managers = User.objects.filter(role="Manager", is_active=True)
-
+    
     for manager in active_managers:
         if manager.telegram_chat_id:
-            sent_pending_payments_message(manager.telegram_chat_id, telegram_token)
-
-
+            send_telegram_message(manager.telegram_chat_id, telegram_token, "test")
 
             for notification in notifications:
                 if notification.payment and (notification.payment.payment_status == "Completed" or notification.payment.payment_status == "Merged"):

@@ -7,9 +7,10 @@ from datetime import date, timedelta
 from collections import defaultdict
 from ..decorators import user_has_role
 from .utils import handle_post_request
+from django.db.models import Q
 
 
-@user_has_role('Admin')
+@user_has_role('Admin', 'Manager')
 def notifications(request):
     page = int(request.GET.get('page', "0"))
     today = date.today()
@@ -26,6 +27,15 @@ def notifications(request):
     notifications = Notification.objects.filter(
         date__range=(start_date, end_date)).order_by('date').select_related(
         'cleaning', 'booking', "payment")
+
+    # Filter notifications for managers based on their apartments
+    if request.user.role == 'Manager':
+        notifications = notifications.filter(
+            Q(cleaning__booking__apartment__manager=request.user) |
+            Q(booking__apartment__manager=request.user) |
+            Q(payment__booking__apartment__manager=request.user) |
+            Q(payment__apartment__manager=request.user)
+        )
 
     grouped_notifications = defaultdict(list)
 

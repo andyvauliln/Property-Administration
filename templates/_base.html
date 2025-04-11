@@ -268,7 +268,7 @@
             </a>
           </li>
           {% endif %}
-          {% if user_role in 'Admin' %}
+          {% if user_role in 'Admin,Manager' %}
           <li>
             <a href="/notifications/"
               class="flex items-center p-2 text-base font-medium text-gray-900 rounded-lg dark:text-white hover:bg-gray-100 dark:hover:bg-gray-700 group {% if current_path == '/notifications/' %}bg-gray-100{% endif %}">

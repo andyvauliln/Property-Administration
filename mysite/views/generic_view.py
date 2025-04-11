@@ -1,11 +1,11 @@
-
+from calendar import month_name
 from django.shortcuts import render
 from mysite.forms import CustomUserForm, BookingForm, ApartmentForm, CleaningForm,  PaymentMethodForm, PaymentForm, PaymentTypeForm
 from django.core.paginator import Paginator
 import json
 from django.core import serializers
 from datetime import date
-from django.db.models import F, ExpressionWrapper, DateField, Value
+from django.db.models import F, ExpressionWrapper, DateField, Value, Q
 from ..decorators import user_has_role
 from .utils import handle_post_request, MODEL_MAP, get_related_fields, parse_query, get_model_fields
 from .utils import DateEncoder
@@ -96,7 +96,10 @@ def generic_view(request, model_name, form_class, template_name, pages=30):
     if request.user.role == 'Manager' and model_name.lower() == 'booking':
         items = items.filter(apartment__manager=request.user)
     if request.user.role == 'Manager' and model_name.lower() == 'payment':
-        items = items.filter(booking__apartment__manager=request.user)
+        items = items.filter(
+            Q(booking__apartment__manager=request.user) |
+            Q(apartment__manager=request.user)
+        ).distinct()
 
     # If there's a search query, apply the filters
     if search_query:

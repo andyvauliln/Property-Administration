@@ -111,8 +111,8 @@ def index(request):
                     day_data = {
                         'day': day,
                         'booking_ids': [booking.id for booking in bookings_for_day],
-                        'tenants': [booking.tenant.full_name for booking in bookings_for_day],
-                        'tenants_ids': [booking.tenant.id for booking in bookings_for_day],
+                        'tenants': [booking.tenant.full_name if booking.tenant else '' for booking in bookings_for_day],
+                        'tenants_ids': [booking.tenant.id if booking.tenant else None for booking in bookings_for_day],
                         'booking_statuses': [booking.status for booking in bookings_for_day],
                         'booking_starts': [booking.start_date for booking in bookings_for_day],
                         'booking_ends': [booking.end_date for booking in bookings_for_day],
