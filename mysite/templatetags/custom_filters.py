@@ -121,3 +121,26 @@ def filter_by_id(apartments, apartment_id):
     if not apartments:
         return []
     return [apt for apt in apartments if apt.get('id') == apartment_id]
+
+@register.filter(name='to_json')
+def to_json(value):
+    """Convert a value to JSON string, handling Django models and complex objects."""
+    try:
+        # For Django models, convert to dict first
+        if hasattr(value, '_meta'):  # Django model instance
+            return json.dumps({
+                'id': value.id if hasattr(value, 'id') else None,
+                'model': value._meta.model_name,
+                'fields': {field.name: getattr(value, field.name) 
+                          for field in value._meta.fields 
+                          if not field.is_relation}
+            })
+        # For model instances with __dict__
+        elif hasattr(value, '__dict__'):
+            obj_dict = {k: v for k, v in value.__dict__.items() 
+                       if not k.startswith('_') and not callable(v)}
+            return json.dumps(obj_dict)
+        # For other JSON-serializable objects
+        return json.dumps(value)
+    except (TypeError, ValueError):
+        return '{}'

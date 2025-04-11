@@ -8,14 +8,15 @@
                     {% for display in field_instance.display_field %}
                     {% if display == "apartment.name" and "booking.apartment.name" in field_instance.display_field %}
                             {# Skip this iteration #}
-                        {% else %}
+                        {% elif field_name != "invoice_url" %}
                             <th scope="col" class="px-4 py-4">{{ display|second_to_last|split_underscore }}</th>
                         {% endif %}
                     {% endfor %}
-                {% else %}
+                {% elif field_name != "invoice_url" %}
                     <th scope="col" class="px-4 py-4">{{ field_name|split_underscore }}</th>
                 {% endif %}
             {% endif %}
         {% endfor %}
+        <th scope="col" class="px-4 py-4">Actions</th>
     </tr>
 </thead>

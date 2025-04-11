@@ -5,7 +5,9 @@
     <tr class="border-b cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-800 dark:border-gray-700 {{model}}-row" data-id="{{ item|get_item:"id" }}">
         {% for field_name, field_instance in model_fields %}
             {% if field_instance.isColumn %}
-                {% if "status" in field_name %}
+                {% if field_name == "invoice_url" %}
+                    {# Skip invoice_url column as we'll handle it in the actions column #}
+                {% elif "status" in field_name %}
                     <td class="px-4 py-4">
                         {% if item|get_item:field_name == "Waiting Contract" %}
                             <span class="bg-yellow-200 text-yellow-500 px-2 py-1 rounded-full">{{ item|get_item:field_name }}</span>
@@ -54,6 +56,26 @@
                 {% endif %}
             {% endif %}
         {% endfor %}
+        <td class="px-4 py-4">
+            <div class="flex items-center space-x-2">
+                {% if item.booking %}
+                    {% if item.invoice_url %}
+                    <a href="{{payment.invoice_url}}" onclick="event.stopPropagation()">
+                        <svg class="w-6 h-6 text-gray-800 dark:text-white" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="currentColor" viewBox="0 0 24 24">
+                            <path fill-rule="evenodd" d="M9 7V2.2a2 2 0 0 0-.5.4l-4 3.9a2 2 0 0 0-.3.5H9Zm2 0V2h7a2 2 0 0 1 2 2v16a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V9h5a2 2 0 0 0 2-2Zm2-2a1 1 0 1 0 0 2h3a1 1 0 1 0 0-2h-3Zm0 3a1 1 0 1 0 0 2h3a1 1 0 1 0 0-2h-3Zm-6 4c0-.6.4-1 1-1h8c.6 0 1 .4 1 1v6c0 .6-.4 1-1 1H8a1 1 0 0 1-1-1v-6Zm8 1v1h-2v-1h2Zm0 3h-2v1h2v-1Zm-4-3v1H9v-1h2Zm0 3H9v1h2v-1Z" clip-rule="evenodd"/>
+                        </svg> 
+                    </a>
+                    {% else %}
+                    <a href="/generate-invoice/?id={{payment.id}}" onclick="event.stopPropagation()">
+                        <svg class="w-6 h-6 text-gray-800 dark:text-white" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="currentColor" viewBox="0 0 24 24">
+                            <path fill-rule="evenodd" d="M9 7V2.2a2 2 0 0 0-.5.4l-4 3.9a2 2 0 0 0-.3.5H9Zm2 0V2h7a2 2 0 0 1 2 2v6.4A7.5 7.5 0 1 0 10.5 22H6a2 2 0 0 1-2-2V9h5a2 2 0 0 0 2-2Z" clip-rule="evenodd"/>
+                            <path fill-rule="evenodd" d="M9 16a6 6 0 1 1 12 0 6 6 0 0 1-12 0Zm6-3c.6 0 1 .4 1 1v1h1a1 1 0 1 1 0 2h-1v1a1 1 0 1 1-2 0v-1h-1a1 1 0 1 1 0-2h1v-1c0-.6.4-1 1-1Z" clip-rule="evenodd"/>
+                        </svg>
+                    </a>
+                    {% endif %}
+                {% endif %}
+            </div>
+        </td>
     </tr>
     {% empty %}
     <tr>
@@ -61,6 +83,15 @@
     </tr>
     {% endfor %}
 </tbody>
+
+<script>
+function showJsonData(jsonStr) {
+    event.stopPropagation();
+    const data = JSON.parse(jsonStr);
+    const formattedJson = JSON.stringify(data, null, 2);
+    alert(formattedJson);
+}
+</script>
 
 
 

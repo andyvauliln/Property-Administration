@@ -547,6 +547,8 @@ class BookingForm(forms.ModelForm):
         cleaned_data = super().clean()
         status = cleaned_data.get('status')
 
+        tenant_email = cleaned_data["tenant_email"]
+
         if 'tenant' not in self.data:
             cleaned_data.pop('tenant', None)
 
@@ -572,6 +574,9 @@ class BookingForm(forms.ModelForm):
         if apartment.status == 'Unavailable':
             raise forms.ValidationError(
                 "The selected apartment is currently unavailable.")
+        if not tenant_email:
+            raise forms.ValidationError(
+                "Tenant is information is necessary for booking use temprorary genrated email if you don't know it")
 
         # Existing overlapping bookings check...
         overlapping_bookings = Booking.objects.filter(
@@ -593,6 +598,7 @@ class BookingForm(forms.ModelForm):
             raise forms.ValidationError(
                 "The start date cannot be later than the end date."
             )
+        
         parking_number = cleaned_data.get('parking_number')
         if parking_number:
             overlapping_parking_bookings = ParkingBooking.objects.filter(
@@ -613,7 +619,7 @@ class PaymentForm(forms.ModelForm):
     class Meta:
         model = Payment
         fields = ['payment_date', 'payment_method', 'bank', 'keywords', 'payment_status', 'tenant_notes', 'keywords',
-                  'amount', "number_of_months", 'payment_type', 'notes', 'booking', "apartment"]
+                  'amount', "number_of_months", 'payment_type', 'notes', 'booking', "apartment", "invoice_url"]
 
     def __init__(self, *args, **kwargs):
         self.request = kwargs.pop('request', None)
@@ -659,11 +665,15 @@ class PaymentForm(forms.ModelForm):
         _dropdown_options=lambda: get_dropdown_options("bookings"),
         display_field=["booking.apartment.name", "apartment.name", "booking.tenant.full_name"])
 
+    invoice_url = CharFieldEx(
+        isColumn=True, required=False, order=12, initial="",
+        isEdit=False, isCreate=False, ui_element="link")
+
     apartment = ModelChoiceFieldEx(
-        queryset=Apartment.objects.all().order_by('name'), order=4,
-        isColumn=False, isEdit=True, isCreate=True, ui_element="dropdown",
-        _dropdown_options=lambda: get_dropdown_options("apartments"),
-        required=False)
+        queryset=Apartment.objects.all(),
+        isColumn=True, isEdit=True, required=False, isCreate=True, ui_element="dropdown",
+        _dropdown_options=lambda: get_dropdown_options("apartments", False, request=None),
+        display_field=["booking.apartment.name", "apartment.name"])
 
     def clean(self):
         cleaned_data = super().clean()

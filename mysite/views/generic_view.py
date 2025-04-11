@@ -141,9 +141,15 @@ def generic_view(request, model_name, form_class, template_name, pages=30):
                     'date': payment.payment_date,  # Ensure date is in ISO format
                     'status': payment.payment_status,
                     'notes': payment.notes,
-                    'payment_type': payment.payment_type.id
+                    'payment_type': payment.payment_type.id,
+                    'invoice_url': payment.invoice_url if hasattr(payment, 'invoice_url') else None
                 } for payment in original_obj.payments.all()
             ]
+
+        # Add invoice_url for payment model
+        if model_name.lower() == 'payment':
+            item['invoice_url'] = original_obj.invoice_url if hasattr(original_obj, 'invoice_url') else None
+            item['booking_id'] = original_obj.booking.id if original_obj.booking else None
 
         # Format all date fields in the item
         items_list.append(item)
