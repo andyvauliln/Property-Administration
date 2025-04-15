@@ -62,6 +62,11 @@ def parking_calendar(request):
                 'id': parking.id,
                 'number': parking.number,
                 'building': parking.building,
+                'parking_room': next((booking.apartment.apartment_n for booking in ParkingBooking.objects.filter(
+                    Q(end_date__gt=timezone.now().date()),
+                    parking=parking,
+                    status='Booked'
+                ).select_related('apartment')), None),
                 'days': {},
             }
             bookings_for_parking = parking_bookings.filter(parking=parking)

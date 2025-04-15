@@ -1015,7 +1015,8 @@ class HandymanCalendar(models.Model):
 
 class Parking(models.Model):
     number = models.CharField(max_length=20, blank=True, null=False)
-    notes = models.CharField(max_length=255, blank=True, null=True)
+    notes = models.CharField(max_length=1000, blank=True, null=True)
+    associated_room = models.CharField(max_length=255, blank=True, null=True)
     building = models.CharField(max_length=255, blank=True, null=True)
     def __str__(self):
         return f"Building: {self.building}. #{self.number}"

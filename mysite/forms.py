@@ -488,7 +488,7 @@ class BookingForm(forms.ModelForm):
     assigned_cleaner = ModelChoiceFieldEx(
         queryset=User.objects.all(),
         order=11,
-        initial=17,
+        initial=None,
         isColumn=False, isEdit=True, isCreate=True, required=False, ui_element="radio",
         _dropdown_options=lambda: get_dropdown_options("cleaners"))
     
@@ -1130,7 +1130,7 @@ class ParkingBookingForm(forms.ModelForm):
 class ParkingForm(forms.ModelForm):
     class Meta:
         model = Parking
-        fields = ['building', 'number', 'notes']
+        fields = ['building', 'number', 'notes', 'associated_room']
 
     def __init__(self, *args, **kwargs):
         # Remove request from kwargs if it exists, since we don't need it
@@ -1148,6 +1148,15 @@ class ParkingForm(forms.ModelForm):
         order=1
     )
 
+    associated_room = CharFieldEx(
+        max_length=255,
+        isColumn=True,
+        isEdit=True,
+        isCreate=True,
+        required=False,
+        order=3
+    )
+
     number = CharFieldEx(
         max_length=255,
         isColumn=True,
@@ -1163,7 +1172,7 @@ class ParkingForm(forms.ModelForm):
         isEdit=True,
         isCreate=True,
         required=False,
-        order=3
+        order=4
     )
 
     def clean(self):

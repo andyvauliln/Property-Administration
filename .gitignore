@@ -48,3 +48,5 @@ README2.md
 gmail_oauth_token.json
 farid_oauth2.json
 cron_logs.json
+
+start.sh

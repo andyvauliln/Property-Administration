@@ -63,6 +63,7 @@
                         <tr>
                             <th scope="col" class="p-1 border-r border-gray-500 w-16">Building</th>
                             <th scope="col" class="p-1 border-r border-gray-500 w-16">Parking</th>
+                            <th scope="col" class="p-1 border-r border-gray-500 w-16">Room</th>
                             {% for month_data in monthly_data|slice:":3" %}
                                 <!-- Month Header -->
                                 <th scope="col" colspan="{{ month_data.days_in_month }}" class="p-4 border-r border-gray-500 bg-zinc-200">
@@ -73,6 +74,7 @@
                             {% endfor %}
                         </tr>
                         <tr>
+                            <th scope="col" class="p-1 border-r border-gray-500 w-16"></th>
                             <th scope="col" class="p-1 border-r border-gray-500 w-16"></th>
                             <th scope="col" class="p-1 border-r border-gray-500 w-16"></th>
                             {% for month_data in monthly_data|slice:":3" %}
@@ -94,7 +96,11 @@
                                             data-parking-id="{{ parking.id }}" 
                                             data-building="{{ parking.building }}" 
                                             data-number="{{ parking.number }}"
-                                            data-notes="{{ parking.notes|default:'' }}">{{ parking.number }}</span>
+                                            data-notes="{{ parking.notes|default:'' }}"
+                                            data-associated-room="{{ parking.associated_room|default:'' }}">{{ parking.number }}</span>
+                                    </td>
+                                    <td class="border-r border-gray-500 p-1 w-16 text-center">
+                                        <span class="text-gray-600 font-bold">{{ parking.parking_room|default:'-' }}</span>
                                     </td>
                                     {% for month_data in monthly_data %}
                                         {% with parking_data=month_data.parkings|filter_by_id:parking.id|first %}
@@ -164,6 +170,10 @@
                 <div>
                     <label class="block text-sm font-medium text-gray-700">Number</label>
                     <input type="text" id="number" name="number" required class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700">Associated Room</label>
+                    <input type="text" id="associated_room" name="associated_room" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
                 </div>
                 <div>
                     <label class="block text-sm font-medium text-gray-700">Notes</label>
@@ -395,6 +405,7 @@
             parkingIdInput.value = parkingData.id;
             buildingSelect.value = parkingData.building;
             numberInput.value = parkingData.number;
+            associatedRoomInput.value = parkingData.associated_room;
             console.log(parkingData, "Test", parkingData.notes);
             document.getElementById('notes').value = parkingData.notes || '';
             deleteButton.classList.remove('hidden');
@@ -473,7 +484,7 @@
     const deleteBookingButton = document.getElementById('deleteBooking');
     const createBookingButton = document.getElementById('createParkingBookingBtn');
     const cancelBookingButton = document.getElementById('cancelBooking');
-
+    const associatedRoomInput = document.getElementById('associated_room');
     // Parse the JSON data
     const parkings = {{ parking_data_json|safe }};
     const apartments = {{ apartments_json|safe }};
