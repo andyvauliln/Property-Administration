@@ -1020,6 +1020,10 @@ class Parking(models.Model):
     building = models.CharField(max_length=255, blank=True, null=True)
     def __str__(self):
         return f"Building: {self.building}. #{self.number}"
+    
+    def save(self, *args, **kwargs):
+        print(self.associated_room, "self.associated_room", self.notes, "self.notes")
+        super().save(*args, **kwargs)
 
 class ParkingBooking(models.Model):
     STATUS = [

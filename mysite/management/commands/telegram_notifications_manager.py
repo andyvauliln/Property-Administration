@@ -55,7 +55,6 @@ def my_cron_job():
     
     for manager in active_managers:
         if manager.telegram_chat_id:
-            send_telegram_message(manager.telegram_chat_id, telegram_token, "test")
 
             for notification in notifications:
                 if notification.payment and (notification.payment.payment_status == "Completed" or notification.payment.payment_status == "Merged"):

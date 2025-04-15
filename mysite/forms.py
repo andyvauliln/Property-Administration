@@ -1180,6 +1180,7 @@ class ParkingForm(forms.ModelForm):
         building = cleaned_data.get('building')
         number = cleaned_data.get('number')
         notes = cleaned_data.get('notes')
+        associated_room = cleaned_data.get('associated_room')
 
         if not building or not number:
             raise forms.ValidationError("Building and number are required")

@@ -97,10 +97,11 @@
                                             data-building="{{ parking.building }}" 
                                             data-number="{{ parking.number }}"
                                             data-notes="{{ parking.notes|default:'' }}"
-                                            data-associated-room="{{ parking.associated_room|default:'' }}">{{ parking.number }}</span>
+                                            data-associated-room="{{ parking.associated_room|default:'' }}">
+                                            {{ parking.number }}</span>
                                     </td>
                                     <td class="border-r border-gray-500 p-1 w-16 text-center">
-                                        <span class="text-gray-600 font-bold">{{ parking.parking_room|default:'-' }}</span>
+                                        <span class="text-gray-600 font-bold">{{ parking.associated_room|default:'-' }}</span>
                                     </td>
                                     {% for month_data in monthly_data %}
                                         {% with parking_data=month_data.parkings|filter_by_id:parking.id|first %}
@@ -374,7 +375,8 @@
     const parkingIdInput = document.getElementById('parkingId');
     const buildingSelect = document.getElementById('building');
     const numberInput = document.getElementById('number');
-    const notesInput = document.getElementById('notes');
+    const associatedRoomInput = document.getElementById('associated_room');
+    const notesTextarea = document.getElementById('notes');
     const deleteButton = document.getElementById('deleteParking');
     const createButton = document.getElementById('createParkingBtn');
     const cancelButton = document.getElementById('cancelParking');
@@ -399,15 +401,16 @@
         modal.classList.remove('hidden');
         populateBuildingSelect();
         const formAction = document.getElementById('formAction');
-        
+        console.log(parkingData, "parking data");
         if (isEdit && parkingData) {
             modalTitle.textContent = 'Edit Parking';
             parkingIdInput.value = parkingData.id;
             buildingSelect.value = parkingData.building;
             numberInput.value = parkingData.number;
-            associatedRoomInput.value = parkingData.associated_room;
+            associatedRoomInput.value = parkingData.associated_room || '';
             console.log(parkingData, "Test", parkingData.notes);
-            document.getElementById('notes').value = parkingData.notes || '';
+            notesTextarea.value = parkingData.notes || '';
+
             deleteButton.classList.remove('hidden');
             formAction.name = 'edit';
             formAction.value = 'true';
@@ -446,7 +449,8 @@
                 id: e.target.dataset.parkingId,
                 building: e.target.dataset.building,
                 number: e.target.dataset.number,
-                notes: e.target.dataset.notes
+                notes: e.target.dataset.notes,
+                associated_room: e.target.dataset.associatedRoom
             };
             showModal(true, parkingData);
         });
@@ -484,7 +488,6 @@
     const deleteBookingButton = document.getElementById('deleteBooking');
     const createBookingButton = document.getElementById('createParkingBookingBtn');
     const cancelBookingButton = document.getElementById('cancelBooking');
-    const associatedRoomInput = document.getElementById('associated_room');
     // Parse the JSON data
     const parkings = {{ parking_data_json|safe }};
     const apartments = {{ apartments_json|safe }};
