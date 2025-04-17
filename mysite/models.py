@@ -333,36 +333,10 @@ class Booking(models.Model):
                     message="End Booking"
                 ).update(date=self.end_date)
 
-            # if payments_data:
-            #     existing_payments = Payment.objects.filter(booking=self)
-            #     existing_payment_ids = set(str(payment.id) for payment in existing_payments)
-            #     new_payment_ids = set(filter(None, payments_data.get('payment_id', [])))
-                
-            #     for payment_id in new_payment_ids:
-            #         if payment_id not in existing_payment_ids:
-            #             contract_needs_update = True
-            #             break
-
-            #     # Check for new or modified payments
-            #     for i, payment_id in enumerate(new_payment_ids):
-            #         payment_date = convert_date_format(payments_data['payment_dates'][i])
-            #         amount = payments_data['amounts'][i]
-            #         payment_type_id = payments_data['payment_types'][i]
-
-            #         if payment_id:  # Existing payment
-            #             existing_payment = next((p for p in existing_payments if str(p.id) == payment_id), None)
-            #             if existing_payment:
-            #                 if (existing_payment.payment_date != payment_date or
-            #                     existing_payment.amount != Decimal(amount) or
-            #                     existing_payment.payment_type_id != int(payment_type_id)):
-            #                     contract_needs_update = True
-            #                     break
-            #         else:  # New payment
-            #             contract_needs_update = True
-            #             break
-
             # Create or update payments
             self.create_payments(payments_data)
+            if not self.cleaning:
+                self.schedule_cleaning(form_data)
 
             super().save(*args, **kwargs)
 
@@ -383,7 +357,8 @@ class Booking(models.Model):
             if form_data:
                 self.get_or_create_tenant(form_data)
                 super().save(*args, **kwargs)  # Save the booking instance first to get an ID
-                self.schedule_cleaning(form_data)
+                if not self.cleaning:
+                    self.schedule_cleaning(form_data)
                 self.create_booking_notifications()
                 
             if payments_data:

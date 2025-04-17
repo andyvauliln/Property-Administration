@@ -86,53 +86,56 @@
                     </thead>
                     <tbody>
                         {% for month_data in monthly_data|slice:":1" %}
-                            {% for parking in month_data.parkings %}
-                                <tr class="border-b dark:border-gray-700 hover:bg-gray-50">
-                                    <td class="border-r border-gray-500 p-1 w-16 text-center">
-                                        <span class="text-purple-600 font-bold">{{ parking.building }}</span>
-                                    </td>
-                                    <td class="border-r border-gray-500 p-1 w-16 text-center">
-                                        <span class="text-blue-500 font-bold cursor-pointer hover:underline edit-parking" 
-                                            data-parking-id="{{ parking.id }}" 
-                                            data-building="{{ parking.building }}" 
-                                            data-number="{{ parking.number }}"
-                                            data-notes="{{ parking.notes|default:'' }}"
-                                            data-associated-room="{{ parking.associated_room|default:'' }}">
-                                            {{ parking.number }}</span>
-                                    </td>
-                                    <td class="border-r border-gray-500 p-1 w-16 text-center">
-                                        <span class="text-gray-600 font-bold">{{ parking.associated_room|default:'-' }}</span>
-                                    </td>
-                                    {% for month_data in monthly_data %}
-                                        {% with parking_data=month_data.parkings|filter_by_id:parking.id|first %}
-                                            {% for day, day_data in parking_data.days.items %}
-                                                <td class="day border-r border-gray-500 relative p-0 w-3 h-3
-                                                    {% if day_data.status == 'Booked' %} bg-blue-600 text-white
-                                                    {% elif day_data.status == 'Unavailable' %} bg-red-500 text-white
-                                                    {% else %} bg-white text-black
-                                                    {% endif %}
-                                                    {% if day_data.is_start and day_data.is_end %} booking-start-end
-                                                    {% elif day_data.is_start %} booking-start
-                                                    {% elif day_data.is_end %} booking-end
-                                                    {% endif %}"
-                                                    data-day="{{ day_data.day }}"
-                                                    data-tenant-name="{{ day_data.tenant_name }}"
-                                                    data-notes="{{ day_data.notes }}"
-                                                    data-apartment-name="{{ day_data.apartment_name }}"
-                                                    data-status="{{ day_data.status }}"
-                                                    data-apartment-id="{{ day_data.apartment_id }}"
-                                                    data-booking-id="{{ day_data.booking_id }}"
-                                                    data-id="{{ day_data.id }}"
-                                                    data-start-date="{{ day_data.start_date }}"
-                                                    data-end-date="{{ day_data.end_date }}">
-                                                    <div class="text-center">
-                                                        {{ day }}
-                                                    </div>
-                                                </td>
-                                            {% endfor %}
-                                        {% endwith %}
-                                    {% endfor %}
-                                </tr>
+                            {% regroup month_data.parkings|dictsort:"building" by building as building_list %}
+                            {% for building in building_list %}
+                                {% for parking in building.list|dictsort:"number" %}
+                                    <tr class="border-b dark:border-gray-700 hover:bg-gray-50">
+                                        <td class="border-r border-gray-500 p-1 w-16 text-center">
+                                            <span class="text-purple-600 font-bold">{{ parking.building }}</span>
+                                        </td>
+                                        <td class="border-r border-gray-500 p-1 w-16 text-center">
+                                            <span class="text-blue-500 font-bold cursor-pointer hover:underline edit-parking" 
+                                                data-parking-id="{{ parking.id }}" 
+                                                data-building="{{ parking.building }}" 
+                                                data-number="{{ parking.number }}"
+                                                data-notes="{{ parking.notes|default:'' }}"
+                                                data-associated-room="{{ parking.associated_room|default:'' }}">
+                                                {{ parking.number }}</span>
+                                        </td>
+                                        <td class="border-r border-gray-500 p-1 w-16 text-center">
+                                            <span class="text-gray-600 font-bold">{{ parking.associated_room|default:'-' }}</span>
+                                        </td>
+                                        {% for month_data in monthly_data %}
+                                            {% with parking_data=month_data.parkings|filter_by_id:parking.id|first %}
+                                                {% for day, day_data in parking_data.days.items %}
+                                                    <td class="day border-r border-gray-500 relative p-0 w-3 h-3
+                                                        {% if day_data.status == 'Booked' %} bg-blue-600 text-white
+                                                        {% elif day_data.status == 'Unavailable' %} bg-red-500 text-white
+                                                        {% else %} bg-white text-black
+                                                        {% endif %}
+                                                        {% if day_data.is_start and day_data.is_end %} booking-start-end
+                                                        {% elif day_data.is_start %} booking-start
+                                                        {% elif day_data.is_end %} booking-end
+                                                        {% endif %}"
+                                                        data-day="{{ day_data.day }}"
+                                                        data-tenant-name="{{ day_data.tenant_name }}"
+                                                        data-notes="{{ day_data.notes }}"
+                                                        data-apartment-name="{{ day_data.apartment_name }}"
+                                                        data-status="{{ day_data.status }}"
+                                                        data-apartment-id="{{ day_data.apartment_id }}"
+                                                        data-booking-id="{{ day_data.booking_id }}"
+                                                        data-id="{{ day_data.id }}"
+                                                        data-start-date="{{ day_data.start_date }}"
+                                                        data-end-date="{{ day_data.end_date }}">
+                                                        <div class="text-center">
+                                                            {{ day }}
+                                                        </div>
+                                                    </td>
+                                                {% endfor %}
+                                            {% endwith %}
+                                        {% endfor %}
+                                    </tr>
+                                {% endfor %}
                             {% endfor %}
                         {% endfor %}
                     </tbody>
