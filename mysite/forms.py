@@ -774,7 +774,7 @@ class CleaningForm(forms.ModelForm):
 class NotificationForm(forms.ModelForm):
     class Meta:
         model = Notification
-        fields = ['date', 'message', "send_in_telegram"]
+        fields = ['date', 'message', 'apartment', "send_in_telegram"]
 
     date = DateFieldEx(isColumn=True, isEdit=True,
                        isCreate=True, ui_element="datepicker")
@@ -787,6 +787,12 @@ class NotificationForm(forms.ModelForm):
         isColumn=True, required=False, isEdit=False, isCreate=False, ui_element="dropdown",
         _dropdown_options=lambda: get_dropdown_options('bookings'),
         display_field=["booking.apartment.name"])
+    
+    apartment = ModelChoiceFieldEx(
+        queryset=Apartment.objects.all(),
+        isColumn=True, required=False, isEdit=False, initial=None, isCreate=False, ui_element="dropdown",
+        _dropdown_options=lambda: get_dropdown_options('apartments'),
+        display_field=["apartment.name"])
 
     def __init__(self, *args, **kwargs):
         self.request = kwargs.pop('request', None)
