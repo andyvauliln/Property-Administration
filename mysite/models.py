@@ -889,6 +889,8 @@ class Notification(models.Model):
                                 null=True, related_name='payment_notifications')
     cleaning = models.ForeignKey(Cleaning, db_index=True, blank=True, on_delete=models.CASCADE,
                                  null=True, related_name='cleaning_notifications')
+    apartment = models.ForeignKey(Apartment, db_index=True, blank=True, on_delete=models.CASCADE,
+                                 null=True, related_name='apartment_notifications')
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -910,6 +912,18 @@ class Notification(models.Model):
             return f"{self.message or 'Cleaning'}: {cleaning_date} by {self.cleaning.cleaner.full_name} {self.cleaning.booking.apartment.name} [{self.cleaning.status}]"
         else:
             return self.message
+    
+    def save(self, *args, **kwargs):
+        if self.apartment:
+            self.apartment = self.apartment
+        elif self.booking:
+            self.apartment = self.booking.apartment
+        elif self.payment:
+            self.apartment = self.payment.apartment
+        elif self.cleaning:
+            self.apartment = self.cleaning.booking.apartment
+            
+        super().save(*args, **kwargs)
 
     @property
     def links(self):
