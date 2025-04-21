@@ -734,7 +734,7 @@ class PaymentForm(forms.ModelForm):
 class CleaningForm(forms.ModelForm):
     class Meta:
         model = Cleaning
-        fields = ['date', 'booking', 'tasks', 'notes', 'status', "cleaner"]
+        fields = ['date', 'booking', 'tasks', 'notes', 'status', "cleaner", "apartment"]
 
     date = DateFieldEx(isColumn=True, isEdit=True,
                        isCreate=True, ui_element="datepicker")
@@ -754,7 +754,13 @@ class CleaningForm(forms.ModelForm):
         queryset=Booking.objects.all(),
         isColumn=True, isEdit=False, required=False, isCreate=True, ui_element="dropdown",
         _dropdown_options=lambda: get_dropdown_options("bookings"),
-        display_field=["booking.apartment.name"])
+        display_field=["booking.apartment.name", "apartment.name"])
+    
+    apartment = ModelChoiceFieldEx(
+        queryset=Apartment.objects.all(),
+        isColumn=True, isEdit=True, required=True, isCreate=True, ui_element="dropdown",
+        _dropdown_options=lambda: get_dropdown_options("apartments", False, request=None),
+        display_field=["apartment.name", "booking.apartment.name"])
 
     def __init__(self, *args, **kwargs):
         self.request = kwargs.pop('request', None)

@@ -314,8 +314,12 @@ class Booking(models.Model):
 
                 # Change cleaning date to the self.end_date
                 # Assuming Cleaning is a model related to Booking
+                
+                # First update just the date for all related cleanings
                 Cleaning.objects.filter(
                     booking=self).update(date=self.end_date)
+
+                # We'll handle the cleaner update separately in the code below
 
                 Notification.objects.filter(
                     payment__booking=self,
@@ -337,6 +341,31 @@ class Booking(models.Model):
             self.create_payments(payments_data)
             if not self.cleanings.exists():
                 self.schedule_cleaning(form_data)
+            else:
+                # Check if assigned_cleaner is present in form_data, even if it's None
+                if 'assigned_cleaner' in form_data:
+                    assigned_cleaner = form_data.get('assigned_cleaner')
+                    cleaning = self.cleanings.first()
+                    
+                    # If assigned_cleaner is None or empty, explicitly set cleaner to None
+                    if assigned_cleaner is None or assigned_cleaner == "" or assigned_cleaner == 0:
+                        cleaning.cleaner = None
+                        cleaning.save()
+                    else:
+                        # Handle the case where a cleaner is specified
+                        if isinstance(assigned_cleaner, int):
+                            try:
+                                assigned_cleaner = User.objects.get(id=assigned_cleaner)
+                            except User.DoesNotExist:
+                                assigned_cleaner = None
+                        elif isinstance(assigned_cleaner, str) and assigned_cleaner.isdigit():
+                            try:
+                                assigned_cleaner = User.objects.get(id=int(assigned_cleaner))
+                            except User.DoesNotExist:
+                                assigned_cleaner = None
+
+                        cleaning.cleaner = assigned_cleaner
+                        cleaning.save()
 
             super().save(*args, **kwargs)
 
@@ -372,8 +401,11 @@ class Booking(models.Model):
                 sendWelcomeMessageToTwilio(self)
 
             # Update apartment keywords
-            if self.apartment:
-                self.apartment.keywords += f", {self.tenant.full_name}"
+            if self.apartment and self.tenant and self.tenant.full_name:
+                if not self.apartment.keywords:
+                    self.apartment.keywords = self.tenant.full_name
+                else:
+                    self.apartment.keywords += f", {self.tenant.full_name}"
                 self.apartment.save()
         
         if parking_number:
@@ -489,14 +521,6 @@ class Booking(models.Model):
                 cleaning = Cleaning(date=cleaning_date,
                                     booking=self, cleaner=assigned_cleaner)
                 cleaning.save()
-
-                notification = Notification(
-                    date=cleaning_date,
-                    message="Cleaning",
-                    cleaning=cleaning,
-                )
-                notification.save()
-
 
     def create_payment(self, payment_type_id, amount, payment_date, payment_notes, number_of_months, payment_id, payment_status):
         payment_type_instance = PaymenType.objects.get(pk=payment_type_id)
@@ -837,6 +861,8 @@ class Cleaning(models.Model):
                                 related_name='cleanings', null=True, limit_choices_to={'role': 'Cleaner'})
     booking = models.ForeignKey(Booking, db_index=True, on_delete=models.CASCADE,
                                 blank=True, null=True, related_name='cleanings')
+    apartment = models.ForeignKey(Apartment, db_index=True, on_delete=models.CASCADE,
+                                blank=True, null=True, related_name='cleanings')
 
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -847,31 +873,40 @@ class Cleaning(models.Model):
             # Get the current Cleaning object from the database
             orig = Cleaning.objects.get(pk=self.pk)
             self.booking = orig.booking
+            
+            # Check if orig.booking exists before accessing its apartment
+            if orig.booking is not None:
+                self.apartment = orig.booking.apartment
 
             # If date has changed
             if orig.date != self.date:
                 # Update the related Notification
                 Notification.objects.filter(
                     cleaning=self).update(date=self.date)
-        
+            super().save(*args, **kwargs)
         else:
+            # For new cleaning objects
+            if not self.apartment and self.booking is not None:
+                self.apartment = self.booking.apartment
+            super().save(*args, **kwargs)
             notification = Notification(
                 date=self.date,
                 message="Cleaning",
                 cleaning=self,
             )
             notification.save()
-        super().save(*args, **kwargs)
-
+           
+       
     @property
     def links(self):
         links_list = []
 
         # Link to the booking associated with this cleaning
         if self.booking:
+            apartment_name = self.booking.apartment.name if self.booking.apartment else self.apartment.name
             links_list.append({
                 "name":
-                f"Booking: Apartment {self.booking.apartment.name} from {self.booking.start_date.strftime('%B %d %Y')} to {self.booking.end_date.strftime('%B %d %Y')}",
+                f"Booking: Apartment {apartment_name} from {self.booking.start_date.strftime('%B %d %Y')} to {self.booking.end_date.strftime('%B %d %Y')}",
                 "link": f"/bookings/?q=id={self.booking.id}"})
 
         return links_list
@@ -916,7 +951,13 @@ class Notification(models.Model):
             return f"{self.message or 'Payment'}: {self.payment.payment_type} {self.payment.amount}$ {payment_date} {apartment_name} {self.payment.notes or ''}{tenant_name}[{self.payment.payment_status}]"
         elif self.cleaning:
             cleaning_date = format_date(self.cleaning.date)
-            return f"{self.message or 'Cleaning'}: {cleaning_date} by {self.cleaning.cleaner.full_name} {self.cleaning.booking.apartment.name} [{self.cleaning.status}]"
+            cleaner_name = self.cleaning.cleaner.full_name if self.cleaning.cleaner else "No cleaner assigned"
+            apartment_name = ""
+            if self.cleaning.booking and self.cleaning.booking.apartment:
+                apartment_name = self.cleaning.booking.apartment.name
+            elif self.cleaning.apartment:
+                apartment_name = self.cleaning.apartment.name
+            return f"{self.message or 'Cleaning'}: {cleaning_date} by {cleaner_name} {apartment_name} [{self.cleaning.status}]"
         else:
             return self.message
     
@@ -928,7 +969,10 @@ class Notification(models.Model):
         elif self.payment:
             self.apartment = self.payment.apartment
         elif self.cleaning:
-            self.apartment = self.cleaning.booking.apartment
+            if self.cleaning.booking:
+                self.apartment = self.cleaning.booking.apartment
+            elif self.cleaning.apartment:
+                self.apartment = self.cleaning.apartment
             
         super().save(*args, **kwargs)
 
@@ -947,9 +991,10 @@ class Notification(models.Model):
                 f"Payment: {self.payment.payment_type} - {self.payment.amount}$ on {self.payment.payment_date} [{self.payment.payment_status}]",
                 "link": f"/payments/?q=id={self.payment.id}"})
         if self.cleaning:
+            cleaning_info = f"Cleaning: {self.cleaning.date} [{self.cleaning.status}]"
             links_list.append(
-                {"name": f"Cleaning: {self.cleaning.date} [{self.cleaning.status}]",
-                    "link": f"/cleanings/?q=id={self.cleaning.id}"})
+                {"name": cleaning_info,
+                 "link": f"/cleanings/?q=id={self.cleaning.id}"})
 
         return links_list
 
