@@ -300,7 +300,7 @@ class Booking(models.Model):
 
             # If end_date has changed
             if orig.end_date != self.end_date:
-                
+                contract_needs_update = True
                 if self.end_date < orig.end_date:
                     # delete all payments except return deposit
                     self.deletePayments()
@@ -335,7 +335,7 @@ class Booking(models.Model):
 
             # Create or update payments
             self.create_payments(payments_data)
-            if not self.cleaning:
+            if not self.cleanings.exists():
                 self.schedule_cleaning(form_data)
 
             super().save(*args, **kwargs)
@@ -357,7 +357,7 @@ class Booking(models.Model):
             if form_data:
                 self.get_or_create_tenant(form_data)
                 super().save(*args, **kwargs)  # Save the booking instance first to get an ID
-                if not self.cleaning:
+                if not self.cleanings.exists():
                     self.schedule_cleaning(form_data)
                 self.create_booking_notifications()
                 
@@ -853,7 +853,14 @@ class Cleaning(models.Model):
                 # Update the related Notification
                 Notification.objects.filter(
                     cleaning=self).update(date=self.date)
-
+        
+        else:
+            notification = Notification(
+                date=self.date,
+                message="Cleaning",
+                cleaning=self,
+            )
+            notification.save()
         super().save(*args, **kwargs)
 
     @property

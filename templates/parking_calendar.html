@@ -86,9 +86,8 @@
                     </thead>
                     <tbody>
                         {% for month_data in monthly_data|slice:":1" %}
-                            {% regroup month_data.parkings|dictsort:"building" by building as building_list %}
-                            {% for building in building_list %}
-                                {% for parking in building.list|dictsort:"number" %}
+                            {% with sorted_parkings=month_data.parkings|dictsortnatural:"number" %}
+                                {% for parking in sorted_parkings %}
                                     <tr class="border-b dark:border-gray-700 hover:bg-gray-50">
                                         <td class="border-r border-gray-500 p-1 w-16 text-center">
                                             <span class="text-purple-600 font-bold">{{ parking.building }}</span>
@@ -136,7 +135,7 @@
                                         {% endfor %}
                                     </tr>
                                 {% endfor %}
-                            {% endfor %}
+                            {% endwith %}
                         {% endfor %}
                     </tbody>
                 </table>

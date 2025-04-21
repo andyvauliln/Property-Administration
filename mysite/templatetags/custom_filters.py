@@ -4,9 +4,27 @@ import json
 from datetime import timedelta
 from datetime import datetime
 import locale
+import re
 
 register = template.Library()
 
+def natural_sort_key(s):
+    """Helper function to generate a key for natural sorting."""
+    return [int(text) if text.isdigit() else text.lower()
+            for text in re.split('([0-9]+)', str(s))]
+
+@register.filter(name='dictsortnatural')
+def dictsortnatural(value, arg):
+    """
+    Takes a list of dictionaries and returns that list sorted by the property given in the argument.
+    This handles numeric sorting properly (e.g., 2 comes before 10).
+    """
+    if value is None:
+        return []
+    
+    decorated = [(natural_sort_key(item[arg] if isinstance(item, dict) else getattr(item, arg, '')), item) for item in value]
+    decorated.sort(key=lambda x: x[0])
+    return [item[1] for item in decorated]
 
 @register.filter(name='split_underscore')
 def split_underscore(value):

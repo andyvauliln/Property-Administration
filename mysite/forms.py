@@ -790,8 +790,8 @@ class NotificationForm(forms.ModelForm):
     
     apartment = ModelChoiceFieldEx(
         queryset=Apartment.objects.all(),
-        isColumn=True, required=False, isEdit=False, initial=None, isCreate=False, ui_element="dropdown",
-        _dropdown_options=lambda: get_dropdown_options('apartments'),
+        isColumn=True, isEdit=True, required=False, isCreate=True, ui_element="dropdown",
+        _dropdown_options=lambda: get_dropdown_options("apartments", False, request=None),
         display_field=["apartment.name"])
 
     def __init__(self, *args, **kwargs):
