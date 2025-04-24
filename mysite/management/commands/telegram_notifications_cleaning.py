@@ -15,7 +15,7 @@ def send_telegram_message(chat_id, token, message):
 def my_cron_job():
     next_day = date.today() + timedelta(days=1)
     notifications = Notification.objects.filter(date=next_day, send_in_telegram=True, cleaning__isnull=False)
-
+    print(f"Found {len(notifications)} notifications for {next_day}")
     telegram_token = os.environ["TELEGRAM_TOKEN"]
     
    
@@ -26,8 +26,10 @@ def my_cron_job():
             cliner_chat_id = notification.cleaning.cleaner.telegram_chat_id
             message += f"\nCleaning Details:"
             message += f"\n- Date: {notification.cleaning.date}"
-            if hasattr(notification.cleaning, 'booking'):
+            if hasattr(notification.cleaning, 'booking') and notification.cleaning.booking and notification.cleaning.booking.apartment:
                 message += f"\n- Apartment: {notification.cleaning.booking.apartment.name}"
+            if hasattr(notification.cleaning, 'apartment') and notification.cleaning.apartment:
+                message += f"\n- Apartment: {notification.cleaning.apartment.name}"
             if hasattr(notification.cleaning, 'status'):
                 message += f"\n- Status: {notification.cleaning.status}"
             if hasattr(notification.cleaning, 'cleaner'):

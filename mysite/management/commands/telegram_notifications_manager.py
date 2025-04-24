@@ -57,7 +57,7 @@ def check_bookings_without_cleaning(chat_id, token):
     
     for booking in upcoming_end_bookings:
         # Check if cleaning exists for this booking
-        if not hasattr(booking, 'cleaning') or not booking.cleaning.exists():
+        if not hasattr(booking, 'cleanings') or not booking.cleanings.exists():
             # Only send to manager responsible for this apartment
             if booking.apartment and booking.apartment.manager:
                 if booking.apartment.manager.telegram_chat_id == chat_id:

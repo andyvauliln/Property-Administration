@@ -284,7 +284,7 @@
             console.log(filePayment.notes, 'filePayment.notes')
             const possible_keywords = payment_types_keywords.filter(keyword => filePayment.notes.toLowerCase().includes(keyword))
             console.log(possible_keywords, 'possible_keywords')
-            const payment_type_related_to_keywords = payment_types_json.filter(i => possible_keywords.some(keyword =>  i.keywords ? i.keywords.toLowerCase().includes(keyword) : false))
+            const payment_type_related_to_keywords = payment_types_json.filter(i => possible_keywords.some(keyword =>  i.keywords ? i.keywords.toLowerCase().includes(keyword) : false) && i.type === filePayment.payment_type_type)
             console.log(payment_type_related_to_keywords, 'payment_type_related_to_keywords')
             first_payment_type_from_keywords = payment_type_related_to_keywords[0] || null
             console.log(first_payment_type_from_keywords, 'first_payment_type_from_keywords')

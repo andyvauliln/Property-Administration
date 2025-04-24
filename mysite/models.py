@@ -147,8 +147,7 @@ class Apartment(models.Model):
     zip_index = models.CharField(max_length=10)
     bedrooms = models.IntegerField()
     bathrooms = models.IntegerField()
-    apartment_type = models.CharField(
-        max_length=15, db_index=True, choices=TYPES)
+    apartment_type = models.CharField(max_length=15, db_index=True, choices=TYPES)
     status = models.CharField(max_length=14, db_index=True, choices=STATUS)
     notes = models.TextField(blank=True, null=True)
     start_date = models.DateTimeField(blank=True, null=True, db_index=True)
@@ -156,6 +155,7 @@ class Apartment(models.Model):
     keywords = models.TextField(blank=True, null=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+    raiting = models.IntegerField(blank=True, null=True)
 
     manager = models.ForeignKey(User, on_delete=models.SET_NULL, blank=True, db_index=True,
                                 related_name='managed_apartments', null=True, limit_choices_to={'role': 'Manager'})

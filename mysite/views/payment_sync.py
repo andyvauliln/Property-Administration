@@ -256,6 +256,7 @@ def get_payment_data(request, csv_file, payment_methods, apartments, payment_typ
             'payment_date': datetime.strptime(date.strip(), '%m/%d/%Y'),
             'payment_type': payment_type.id,
             'payment_type_name': f'{payment_type.name} ({payment_type.type})',
+            'payment_type_type': payment_type.type,
             'notes': description.strip(),
             'amount': abs(amount_float),
             'payment_method': payment_method_to_assign.id if payment_method_to_assign else None,

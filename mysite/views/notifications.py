@@ -18,12 +18,20 @@ def notifications(request):
     if request.method == 'POST':
         handle_post_request(request, Notification, NotificationForm)
 
-    if page > 0:
-        start_date = today + timedelta(days=30 * (page - 1))
+    # Revised date range calculation
+    if page == 0:
+        # Current period (today and next 30 days)
+        start_date = today
+        end_date = today + timedelta(days=30)
+    elif page > 0:
+        # Future periods
+        start_date = today + timedelta(days=30 * page)
+        end_date = start_date + timedelta(days=30)
     else:
-        start_date = today - timedelta(days=30 * abs(page))
+        # Past periods
+        start_date = today + timedelta(days=30 * page)  # page is negative, so this subtracts
+        end_date = start_date + timedelta(days=30)
 
-    end_date = start_date + timedelta(days=30)
     notifications = Notification.objects.filter(
         date__range=(start_date, end_date)).order_by('date').select_related(
         'cleaning', 'booking', "payment")

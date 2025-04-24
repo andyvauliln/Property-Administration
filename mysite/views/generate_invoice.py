@@ -19,7 +19,7 @@ def print_info(message):
     logger_common.debug(message)
 
 
-@user_has_role('Admin')
+@user_has_role('Admin', 'Manager')
 def generate_invoice(request):
 
     try:

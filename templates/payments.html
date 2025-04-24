@@ -36,42 +36,18 @@
     }
     
     document.addEventListener('DOMContentLoaded', function() {
+        console.log("DOMContentLoaded");
         const urlParams = new URLSearchParams(window.location.search);
         const qValue = urlParams.get('q');
-        
-        const paymentStatus = qValue.split('=')[1];
-    
-        const paymentStatusDropdown = document.querySelector('[name="payment_status"]');
-        if (paymentStatus) {
-            paymentStatusDropdown.value = paymentStatus;
-        }
-
-        // Add invoice icons to the table
-        const tableRows = document.querySelectorAll('tr[data-id]');
-        tableRows.forEach(row => {
-            const rowData = JSON.parse(row.getAttribute('data-json'));
-            if (rowData.booking_id) {
-                const lastCell = row.querySelector('td:last-child');
-                if (lastCell) {
-                    if (rowData.invoice_url) {
-                        lastCell.innerHTML = `
-                            <a href="${rowData.invoice_url}" onclick="event.stopPropagation()">
-                                <svg class="w-6 h-6 text-gray-800 dark:text-white" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="currentColor" viewBox="0 0 24 24">
-                                    <path fill-rule="evenodd" d="M9 7V2.2a2 2 0 0 0-.5.4l-4 3.9a2 2 0 0 0-.3.5H9Zm2 0V2h7a2 2 0 0 1 2 2v16a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V9h5a2 2 0 0 0 2-2Zm2-2a1 1 0 1 0 0 2h3a1 1 0 1 0 0-2h-3Zm0 3a1 1 0 1 0 0 2h3a1 1 0 1 0 0-2h-3Zm-6 4c0-.6.4-1 1-1h8c.6 0 1 .4 1 1v6c0 .6-.4 1-1 1H8a1 1 0 0 1-1-1v-6Zm8 1v1h-2v-1h2Zm0 3h-2v1h2v-1Zm-4-3v1H9v-1h2Zm0 3H9v1h2v-1Z" clip-rule="evenodd"/>
-                                </svg>
-                            </a>`;
-                    } else {
-                        lastCell.innerHTML = `
-                            <a href="/generate-invoice/?id=${rowData.id}" onclick="event.stopPropagation()">
-                                <svg class="w-6 h-6 text-gray-800 dark:text-white" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="currentColor" viewBox="0 0 24 24">
-                                    <path fill-rule="evenodd" d="M9 7V2.2a2 2 0 0 0-.5.4l-4 3.9a2 2 0 0 0-.3.5H9Zm2 0V2h7a2 2 0 0 1 2 2v6.4A7.5 7.5 0 1 0 10.5 22H6a2 2 0 0 1-2-2V9h5a2 2 0 0 0 2-2Z" clip-rule="evenodd"/>
-                                    <path fill-rule="evenodd" d="M9 16a6 6 0 1 1 12 0 6 6 0 0 1-12 0Zm6-3c.6 0 1 .4 1 1v1h1a1 1 0 1 1 0 2h-1v1a1 1 0 1 1-2 0v-1h-1a1 1 0 1 1 0-2h1v-1c0-.6.4-1 1-1Z" clip-rule="evenodd"/>
-                                </svg>
-                            </a>`;
-                    }
-                }
+        if (qValue && qValue.includes('payment_status=')) {
+            const paymentStatusMatch = qValue.match(/payment_status=([^&\s]+)/);
+            const paymentStatus = paymentStatusMatch ? paymentStatusMatch[1] : '';
+            
+            const paymentStatusDropdown = document.querySelector('[name="payment_status"]');
+            if (paymentStatus) {
+                paymentStatusDropdown.value = paymentStatus;
             }
-        });
+        }
     });
 </script>
 

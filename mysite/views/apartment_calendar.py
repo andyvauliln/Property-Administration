@@ -155,6 +155,11 @@ def apartment(request):
                     'payment_notes': [payment.notes for payment in payments_for_day],
                     'notes': [booking.notes for booking in bookings_for_day],
                 }
+                # Mark days as blocked if the apartment is unavailable or if the date is outside of the apartment's availability range
+                apt_start_date = apartment.start_date.date() if apartment.start_date else None
+                apt_end_date = apartment.end_date.date() if apartment.end_date else None
+                if apartment.status != 'Available' or (apt_start_date and day < apt_start_date) or (apt_end_date and day > apt_end_date):
+                    day_data['booking_statuses'] = ['Blocked']
                 week_data.append(day_data)
                 # Calculate occupancy for the day
                 if day.month == month_date.month and len(bookings_for_day) > 0:

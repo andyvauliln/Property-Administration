@@ -58,7 +58,7 @@ def check_bookings_without_cleaning(chat_ids, token):
     
     for booking in upcoming_end_bookings:
         # Check if cleaning exists for this booking
-        if not hasattr(booking, 'cleaning') or not booking.cleaning.exists():
+        if not hasattr(booking, 'cleanings') or not booking.cleanings.exists():
             message = f"⚠️ WARNING: Booking ending soon without cleaning scheduled!\n"
             message += f"Booking Details:\n"
             message += f"- End Date: {booking.end_date}\n"

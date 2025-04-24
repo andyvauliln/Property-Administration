@@ -316,7 +316,7 @@ class ApartmentForm(forms.ModelForm):
     class Meta:
         model = Apartment
         fields = ['name', 'apartment_type', 'keywords', 'status', 'notes', 'web_link', 'building_n', 'street', 'apartment_n',
-                  'state', 'start_date', 'end_date', 'city', 'zip_index', 'bedrooms', 'bathrooms', 'manager', 'owner',]
+                  'state', 'start_date', 'end_date', 'city', 'zip_index', 'bedrooms', 'bathrooms', 'manager', 'owner', 'raiting']
 
     def __init__(self, *args, **kwargs):
         self.request = kwargs.pop('request', None)
@@ -325,6 +325,10 @@ class ApartmentForm(forms.ModelForm):
 
     def clean_name(self):
         name = self.cleaned_data.get('name')
+        raiting = int(self.cleaned_data.get('raiting', 0))
+        if raiting > 5:
+            raise forms.ValidationError("Raiting must be between 0 and 10")
+
         if name:
             existing_apartment = Apartment.objects.filter(name=name)
             if self.instance.id:
@@ -354,6 +358,8 @@ class ApartmentForm(forms.ModelForm):
 
     bedrooms = IntegerFieldEx(
         isColumn=False, isEdit=True, isCreate=True, initial="", ui_element="input")
+    raiting = IntegerFieldEx(
+        isColumn=False, isEdit=True, isCreate=True, required=False, initial=0, ui_element="input")
     bathrooms = IntegerFieldEx(
         isColumn=False, isEdit=True, isCreate=True, initial="", ui_element="input")
     apartment_type = ChoiceFieldEx(

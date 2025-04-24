@@ -93,6 +93,7 @@ def booking_availability(request):
                 'id': apartment.id,
                 'name': apartment.name,
                 'apartment_type': apartment.apartment_type,
+                'raiting': apartment.raiting,
                 'days': {},
                 'booked_days': 0,
                 'start_date': apartment.start_date,
@@ -127,6 +128,7 @@ def booking_availability(request):
                     'notes': [],  # List of notes
                     'booking_data': [],  # List of booking data strings
                     'booking_ids': [],  # List of booking IDs
+                    'raiting': apartment.raiting,
                 }
 
                 day_bookings = [b for b in bookings if b.start_date <= date_obj <= b.end_date]
