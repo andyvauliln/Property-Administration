@@ -16,7 +16,9 @@
         {% for day_data in week %}
             {% if day_data.day.month == month.month %}
                 <div class="relative day px-1 mb-1 w-10 flex justify-center items-center cursor-pointer rounded-sm hover:bg-gray-100
-                    {% if day_data.events %} 
+                    {% if day_data.is_fully_blocked %}
+                        bg-red-200 font-extrabold
+                    {% elif day_data.events %} 
                         bg-green-300 font-extrabold
                     {% endif %}
                     {% if day_data.day|date:'Y-m-d' < today|date:'Y-m-d' %}
@@ -24,6 +26,7 @@
                     {% endif %}" 
                     data-date="{{ day_data.day|date:"Y-m-d" }}"
                     data-has-bookings="{{ day_data.events|yesno:'true,false' }}"
+                    {% if day_data.is_fully_blocked %}data-fully-blocked="true"{% endif %}
                     onclick="openModalForDay('{{ day_data.day|date:"Y-m-d" }}')"
                     >
                     {{ day_data.day|date:"d" }}

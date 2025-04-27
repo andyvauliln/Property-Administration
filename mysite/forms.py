@@ -1,7 +1,7 @@
 # mysite/forms.py
 from django import forms
 from django.contrib.auth.forms import AuthenticationForm
-from mysite.models import Booking, User, Apartment, Payment, Cleaning, Notification, PaymentMethod, PaymenType, HandymanCalendar, Parking, ParkingBooking
+from mysite.models import Booking, User, Apartment, Payment, Cleaning, Notification, PaymentMethod, PaymenType, HandymanCalendar, Parking, ParkingBooking, HandymanBlockedSlot
 from datetime import date
 import requests
 import uuid
@@ -860,156 +860,55 @@ class PaymentTypeForm(forms.ModelForm):
 
 
 class HandymanCalendarForm(forms.ModelForm):
-    class Meta:
-        model = HandymanCalendar
-        fields = ['tenant_name', 'tenant_phone', 'apartment_name', 'date', 'start_time', 'end_time', 'notes']
-
     def __init__(self, *args, **kwargs):
+        # Remove request from kwargs if it exists, store it as an instance variable
         self.request = kwargs.pop('request', None)
+        # Get action parameter
         self.action = kwargs.pop('action', None)
+        # Initialize the form
         super(HandymanCalendarForm, self).__init__(*args, **kwargs)
 
-    tenant_name = CharFieldEx(
-        max_length=255, 
-        isColumn=True,
-        isEdit=True,
-        isCreate=True,
-        ui_element="input",
-        required=True,
-        order=1  # First field
-    )
+    class Meta:
+        model = HandymanCalendar
+        fields = ('tenant_name', 'tenant_phone', 'apartment_name',
+                  'date', 'start_time', 'end_time', 'notes')
     
-    tenant_phone = CharFieldEx(
-        max_length=20,
-        isColumn=True,
-        isEdit=True,
-        isCreate=True,
-        ui_element="input",
-        required=True,
-        order=2  # Second field
-    )
-    
-    apartment_name = CharFieldEx(
-        max_length=255,
-        isColumn=True,
-        isEdit=True,
-        isCreate=True,
-        ui_element="input",
-        required=True,
-        order=3  # Third field
-    )
-    
-    date = DateFieldEx(
-        isColumn=True,
-        isEdit=True,
-        isCreate=True,
-        ui_element="datepicker",
-        required=True,
-        order=4  # Fourth field
-    )
-    
-    start_time = forms.TimeField(
-        widget=forms.TimeInput(
-            attrs={
-                'type': 'time',
-                'order': 5  # Fifth field
-            },
-            format='%H:%M'
-        ),
-        input_formats=['%H:%M'],
-        required=True
-    )
-
-    end_time = forms.TimeField(
-        widget=forms.TimeInput(
-            attrs={
-                'type': 'time',
-                'order': 6  # Sixth field
-            },
-            format='%H:%M'
-        ),
-        input_formats=['%H:%M'],
-        required=True
-    )
-    
-    notes = CharFieldEx(
-        isColumn=False,
-        isEdit=True,
-        isCreate=True,
-        ui_element="textarea",
-        required=False,
-        order=7  # Last field
-    )
-
     def clean(self):
+        """Validate the form data."""
+        # For debugging: print all form data
+        print("HANDYMAN FORM DATA:", self.data)
+        
         cleaned_data = super().clean()
-        date = cleaned_data.get('date')
+        print("CLEANED DATA:", cleaned_data)
+        
+        # Validate required fields
+        required_fields = ['tenant_name', 'tenant_phone', 'apartment_name', 
+                          'date', 'start_time', 'end_time']
+        
+        for field in required_fields:
+            if not cleaned_data.get(field):
+                self.add_error(field, f'{field} is required')
+                
+        # Make sure time format is correct
         start_time = cleaned_data.get('start_time')
         end_time = cleaned_data.get('end_time')
-        apartment_name = cleaned_data.get('apartment_name')
-        tenant_name = cleaned_data.get('tenant_name')
-        tenant_phone = cleaned_data.get('tenant_phone')
-
-        # Check if required fields are set
-        required_fields = {
-            'apartment_name': apartment_name,
-            'tenant_name': tenant_name,
-            'tenant_phone': tenant_phone,
-            'date': date,
-            'start_time': start_time,
-            'end_time': end_time
-        }
-
-        missing_fields = [field for field, value in required_fields.items() if not value]
-        if missing_fields:
-            raise forms.ValidationError(
-                f"The following fields are required: {', '.join(missing_fields)}"
-            )
-
-        # Check if date is in the past (but allow today's date)
-        # Get the current date in UTC
-        today_utc = timezone.now().date()
         
-        # For debugging
-        print(f"DEBUG - Booking date: {date}, Today's date (UTC): {today_utc}")
-        
-        # Compare dates - only reject if the date is strictly before today's date in UTC
-        # This allows bookings for today's date in any timezone
-        # if date and date < today_utc:
-        #     # If the date is exactly one day before today, it might be a timezone issue
-        #     # Allow bookings for dates that are just one day before the server's date
-        #     if (today_utc - date).days > 1:
-        #         raise forms.ValidationError(
-        #             "Cannot create appointments for past dates"
-        #         )
-
-        # Check if end time is after start time
-        if start_time and end_time and start_time >= end_time:
-            raise forms.ValidationError(
-                "End time must be after start time"
-            )
-
-        if apartment_name and date:
-            # Check for existing appointments at the same date/time
-            existing_appointments = HandymanCalendar.objects.filter(
-                apartment_name=apartment_name,
-                date=date
-            ).exclude(
-                # Exclude appointments that end before this one starts or start after this one ends
-                end_time__lte=start_time
-            ).exclude(
-                start_time__gte=end_time
-            )
-            
-            if self.instance.id:
-                existing_appointments = existing_appointments.exclude(id=self.instance.id)
+        # If both time fields exist, ensure they're valid time objects
+        if start_time and end_time:
+            # They should already be time objects from the model field validation
+            if start_time >= end_time:
+                self.add_error('end_time', 'End time must be after start time')
                 
-            if existing_appointments.exists():
-                raise forms.ValidationError(
-                    f"There is already an appointment scheduled for {apartment_name} on {date} during this time period"
-                )
-
         return cleaned_data
+
+
+class HandymanBlockedSlotForm(forms.ModelForm):
+    def __init__(self, request=None, action=None, *args, **kwargs):
+        super(HandymanBlockedSlotForm, self).__init__(*args, **kwargs)
+
+    class Meta:
+        model = HandymanBlockedSlot
+        fields = ('date', 'start_time', 'end_time', 'is_full_day', 'reason', 'created_by')
 
 
 class ParkingBookingForm(forms.ModelForm):

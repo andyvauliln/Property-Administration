@@ -10,6 +10,8 @@ from mysite.docuseal_contract_managment import create_contract, sendWelcomeMessa
 from itertools import zip_longest
 import re
 import uuid
+import requests
+import os
 
 def convert_date_format(value):
     if isinstance(value, date):
@@ -155,7 +157,7 @@ class Apartment(models.Model):
     keywords = models.TextField(blank=True, null=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
-    raiting = models.IntegerField(blank=True, null=True)
+    raiting = models.DecimalField(blank=True, null=True, default=0, max_digits=2, decimal_places=1)
 
     manager = models.ForeignKey(User, on_delete=models.SET_NULL, blank=True, db_index=True,
                                 related_name='managed_apartments', null=True, limit_choices_to={'role': 'Manager'})
@@ -882,7 +884,12 @@ class Cleaning(models.Model):
             if orig.date != self.date:
                 # Update the related Notification
                 Notification.objects.filter(
-                    cleaning=self).update(date=self.date)
+                    cleaning=self).update(date=self.date, apartment=self.apartment)
+            
+            # Send telegram notification about changes
+            if (orig.date != self.date) or (orig.status != self.status) or (orig.cleaner != self.cleaner) or (orig.tasks != self.tasks) or (orig.notes != self.notes):
+                self.send_telegram_notification(orig)
+                
             super().save(*args, **kwargs)
         else:
             # For new cleaning objects
@@ -895,7 +902,71 @@ class Cleaning(models.Model):
                 cleaning=self,
             )
             notification.save()
-           
+            
+            # Send telegram notification for new cleanings if they're within 3 days
+            from datetime import date, timedelta
+            today = date.today()
+            days_until_cleaning = (self.date - today).days
+            
+            if days_until_cleaning <= 3 and days_until_cleaning >= 0 and self.cleaner and self.cleaner.telegram_chat_id:
+                self.send_new_cleaning_notification()
+       
+    def send_telegram_notification(self, orig):
+        changes = []
+        if orig.date != self.date:
+            changes.append(f"Date changed from {orig.date} to {self.date}")
+        if orig.status != self.status:
+            changes.append(f"Status changed from {orig.status} to {self.status}")
+        if orig.cleaner != self.cleaner:
+            old_cleaner = orig.cleaner.full_name if orig.cleaner else "No cleaner assigned"
+            new_cleaner = self.cleaner.full_name if self.cleaner else "No cleaner assigned"
+            changes.append(f"Cleaner changed from {old_cleaner} to {new_cleaner}")
+        if orig.notes != self.notes:
+            changes.append(f"Notes changed from '{orig.notes or 'None'}' to '{self.notes or 'None'}'")
+        if orig.tasks != self.tasks:
+            changes.append(f"Tasks changed from '{orig.tasks or 'None'}' to '{self.tasks or 'None'}'")
+        
+        if changes:
+            # Only send notifications if cleaning is less than 5 days from today
+            from datetime import date, timedelta
+            today = date.today()
+            days_until_cleaning = (self.date - today).days
+            
+            if days_until_cleaning <= 5 and days_until_cleaning >= 0:
+                message = "Cleaning Update:\n" + "\n".join(changes)
+                
+                # Add apartment and booking details
+                apartment_name = ""
+                if self.booking and self.booking.apartment:
+                    apartment_name = self.booking.apartment.name
+                elif self.apartment:
+                    apartment_name = self.apartment.name
+                    
+                if apartment_name:
+                    message += f"\nApartment: {apartment_name}"
+                    
+                if self.booking:
+                    message += f"\nBooking: {self.booking.start_date} - {self.booking.end_date}"
+                    if self.booking.tenant:
+                        message += f"\nTenant: {self.booking.tenant.full_name}"
+                
+                # Add notes if present
+                if self.notes:
+                    message += f"\nNotes: {self.notes}"
+                
+                # Add tasks if present
+                if self.tasks:
+                    message += f"\nTasks: {self.tasks}"
+                
+                # Send notification to the cleaner if one is assigned
+                telegram_token = os.environ.get("TELEGRAM_TOKEN")
+                if self.cleaner and self.cleaner.telegram_chat_id and telegram_token:
+                    send_telegram_message(self.cleaner.telegram_chat_id.strip(), telegram_token, message)
+                    
+                # If cleaner was changed, send notification to the previous cleaner as well
+                if orig.cleaner and orig.cleaner != self.cleaner and orig.cleaner.telegram_chat_id and telegram_token:
+                    reassigned_message = f"Cleaning reassigned: The cleaning for {apartment_name} on {self.date} has been reassigned to {new_cleaner}."
+                    send_telegram_message(orig.cleaner.telegram_chat_id.strip(), telegram_token, reassigned_message)
        
     @property
     def links(self):
@@ -910,6 +981,43 @@ class Cleaning(models.Model):
                 "link": f"/bookings/?q=id={self.booking.id}"})
 
         return links_list
+
+    def send_new_cleaning_notification(self):
+        # Create message for new cleaning
+        message = "🆕 New Cleaning Assigned:\n"
+        
+        # Add apartment details
+        apartment_name = ""
+        if self.booking and self.booking.apartment:
+            apartment_name = self.booking.apartment.name
+        elif self.apartment:
+            apartment_name = self.apartment.name
+            
+        if apartment_name:
+            message += f"Apartment: {apartment_name}\n"
+            
+        # Add booking and tenant details
+        if self.booking:
+            message += f"Booking period: {self.booking.start_date} - {self.booking.end_date}\n"
+            if self.booking.tenant:
+                message += f"Tenant: {self.booking.tenant.full_name}\n"
+        
+        # Add cleaning details
+        message += f"Cleaning date: {self.date}\n"
+        message += f"Status: {self.status}\n"
+        
+        # Add tasks if present
+        if self.tasks:
+            message += f"Tasks: {self.tasks}\n"
+        
+        # Add notes if present
+        if self.notes:
+            message += f"Notes: {self.notes}\n"
+        
+        # Send notification to the cleaner
+        telegram_token = os.environ.get("TELEGRAM_TOKEN")
+        if self.cleaner and self.cleaner.telegram_chat_id and telegram_token:
+            send_telegram_message(self.cleaner.telegram_chat_id.strip(), telegram_token, message)
 
 
 def format_date(date):
@@ -1046,6 +1154,9 @@ class HandymanCalendar(models.Model):
     start_time = models.TimeField()
     end_time = models.TimeField()
     notes = models.TextField()
+    created_by = models.CharField(max_length=100, blank=True, null=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
 
     def save(self, *args, **kwargs):
         print(self.start_time, "self.start_time")
@@ -1053,6 +1164,25 @@ class HandymanCalendar(models.Model):
 
     def __str__(self):
         return f"{self.apartment_name} - {self.date} {self.start_time} - {self.end_time}"
+
+class HandymanBlockedSlot(models.Model):
+    date = models.DateField(db_index=True)
+    start_time = models.TimeField(null=True, blank=True)
+    end_time = models.TimeField(null=True, blank=True)
+    is_full_day = models.BooleanField(default=False)
+    reason = models.TextField(blank=True, null=True)
+    created_by = models.CharField(max_length=100, blank=True, null=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        unique_together = ('date', 'start_time', 'end_time')
+        
+    def __str__(self):
+        if self.is_full_day:
+            return f"Blocked day: {self.date}"
+        else:
+            return f"Blocked slot: {self.date} {self.start_time} - {self.end_time}"
 
 class Parking(models.Model):
     number = models.CharField(max_length=20, blank=True, null=False)
@@ -1127,3 +1257,8 @@ class ParkingBooking(models.Model):
                 "link": f"/bookings/?q=id={self.booking.id}"
             })
         return links_list
+
+def send_telegram_message(chat_id, token, message):
+    if chat_id and token:
+        base_url = f"https://api.telegram.org/bot{token}/sendMessage?chat_id={chat_id}&text={message}"
+        requests.get(base_url)

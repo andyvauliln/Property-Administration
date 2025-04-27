@@ -13,14 +13,41 @@ def send_telegram_message(chat_id, token, message):
 
 
 def my_cron_job():
-    next_day = date.today() + timedelta(days=1)
-    notifications = Notification.objects.filter(date=next_day, send_in_telegram=True, cleaning__isnull=False)
-    print(f"Found {len(notifications)} notifications for {next_day}")
+    today = date.today()
+    next_day = today + timedelta(days=1)
+    
+    # Process today's notifications first
+    today_notifications = Notification.objects.filter(date=today, send_in_telegram=True, cleaning__isnull=False)
+    print(f"Found {len(today_notifications)} notifications for today ({today})")
+    
+    # Process tomorrow's notifications
+    tomorrow_notifications = Notification.objects.filter(date=next_day, send_in_telegram=True, cleaning__isnull=False)
+    print(f"Found {len(tomorrow_notifications)} notifications for tomorrow ({next_day})")
+    
     telegram_token = os.environ["TELEGRAM_TOKEN"]
     
-   
-    for notification in notifications:
-        message = f"{notification.notification_message}"
+    # Process today's notifications
+    for notification in today_notifications:
+        message = f"TODAY: {notification.notification_message}"
+        
+        if notification.cleaning and notification.cleaning.cleaner:
+            cliner_chat_id = notification.cleaning.cleaner.telegram_chat_id
+            message += f"\nCleaning Details:"
+            message += f"\n- Date: {notification.cleaning.date}"
+            if hasattr(notification.cleaning, 'booking') and notification.cleaning.booking and notification.cleaning.booking.apartment:
+                message += f"\n- Apartment: {notification.cleaning.booking.apartment.name}"
+            if hasattr(notification.cleaning, 'apartment') and notification.cleaning.apartment:
+                message += f"\n- Apartment: {notification.cleaning.apartment.name}"
+            if hasattr(notification.cleaning, 'status'):
+                message += f"\n- Status: {notification.cleaning.status}"
+            if hasattr(notification.cleaning, 'cleaner'):
+                message += f"\n- Cleaner: {notification.cleaning.cleaner.full_name}"
+
+            send_telegram_message(cliner_chat_id.strip(), telegram_token, message)
+    
+    # Process tomorrow's notifications
+    for notification in tomorrow_notifications:
+        message = f"TOMORROW: {notification.notification_message}"
         
         if notification.cleaning and notification.cleaning.cleaner:
             cliner_chat_id = notification.cleaning.cleaner.telegram_chat_id

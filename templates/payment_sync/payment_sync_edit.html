@@ -288,10 +288,14 @@
             console.log(payment_type_related_to_keywords, 'payment_type_related_to_keywords')
             first_payment_type_from_keywords = payment_type_related_to_keywords[0] || null
             console.log(first_payment_type_from_keywords, 'first_payment_type_from_keywords')
-            const apt_possible_keywords = apartments_keywords.filter(keyword => filePayment.notes.toLowerCase().includes(keyword))
-            const apt_related_to_keywords = apartments_json.filter(i => apt_possible_keywords.some(keyword =>  i.keywords ? i.keywords.toLowerCase().includes(keyword) : false))
-            first_apartment_from_keywords = apt_related_to_keywords[0] || null
-            console.log(first_apartment_from_keywords, 'first_apartment_from_keywords')
+            const apt_possible_keywords = apartments_keywords.filter(keyword => keyword && filePayment.notes.toLowerCase().includes(keyword))
+            console.log(apt_possible_keywords, 'apt_possible_keywords')
+            if(apt_possible_keywords &&apt_possible_keywords.length > 0){
+                const apt_related_to_keywords = apartments_json.filter(i => apt_possible_keywords.some(keyword =>  i.keywords ? i.keywords.toLowerCase().includes(keyword) : false))
+                console.log(apt_related_to_keywords, 'apt_related_to_keywords')
+                first_apartment_from_keywords = apt_related_to_keywords[0] || null
+                console.log(first_apartment_from_keywords, 'first_apartment_from_keywords')
+            }
         }
         payment = merge2Payments(db_payment_id, file_payment_id, mode === 'create')
         console.log(payment, 'payment')

@@ -25,6 +25,12 @@
         // Get URL parameters to check if user is admin
         const urlParams = new URLSearchParams(window.location.search);
         window.isAdmin = urlParams.get('user') === 'admin';
+        window.isManager = urlParams.get('user') === 'manager';
+        window.currentUser = urlParams.get('user') || 'anonymous';
+
+        // NEW: Add storage for selected slots
+        window.selectedSlots = {};
+        window.hasUnsavedChanges = false;
 
         // Initialize localStorage for bookings if not exists
         if (!localStorage.getItem('myBookings')) {
@@ -34,10 +40,15 @@
         // Fix JSON parsing by using a safer template variable interpolation
         const bookingsJsonStr = '{{ bookings_json|escapejs }}';
         const apartmentsJsonStr = '{{ apartments_json|escapejs }}';
+        const blockedSlotsJsonStr = '{{ blocked_slots_json|escapejs }}';
         
         console.log('Raw bookings_json:', bookingsJsonStr);
         const bookingsByDate = JSON.parse(bookingsJsonStr);
         console.log(bookingsByDate, "bookingsByDate");
+        
+        // Parse the blocked slots list and make it globally available
+        window.blockedSlotsByDate = JSON.parse(blockedSlotsJsonStr);
+        console.log('Blocked slots:', window.blockedSlotsByDate);
         
         // Parse the apartments list and make it globally available
         window.apartmentsList = JSON.parse(apartmentsJsonStr);
@@ -48,17 +59,210 @@
             return bookingsByDate[dateStr] || [];
         }
 
+        // Updated to use created_by from database
         window.isMyBooking = function(bookingId) {
-            return window.isAdmin || JSON.parse(localStorage.getItem('myBookings') || '[]').includes(bookingId);
+            if (window.isAdmin || window.isManager) return true;
+            
+            // Find the booking in all dates
+            for (const dateStr in bookingsByDate) {
+                const booking = bookingsByDate[dateStr].find(b => b.id === bookingId);
+                if (booking) {
+                    // Check if current user created this booking
+                    return booking.created_by === window.currentUser;
+                }
+            }
+            
+            return false;
         }
 
+        // No longer needed as created_by is set on the server
         window.addMyBooking = function(bookingId) {
-            if (!window.isAdmin) {
-                const myBookings = JSON.parse(localStorage.getItem('myBookings') || '[]');
-                if (!myBookings.includes(bookingId)) {
-                    myBookings.push(bookingId);
-                    localStorage.setItem('myBookings', JSON.stringify(myBookings));
+            // This function is kept for backward compatibility
+            // but doesn't need to do anything as created_by is 
+            // stored in the database
+            console.log('Booking created with ID:', bookingId);
+            // Nothing needed here - server stores the creator
+        }
+        
+        // Functions for server-side blocking management
+        window.getBlockedSlotsForDate = function(dateStr) {
+            return window.blockedSlotsByDate[dateStr] || [];
+        }
+        
+        window.isSlotBlocked = function(dateStr, timeSlot) {
+            const blockedSlots = window.getBlockedSlotsForDate(dateStr);
+            
+            // Check if the entire day is blocked
+            if (blockedSlots.some(slot => slot.is_full_day === true)) {
+                return true;
+            }
+            
+            // Check if this specific time slot is blocked
+            return blockedSlots.some(slot => 
+                !slot.is_full_day && 
+                slot.time_slot === timeSlot
+            );
+        }
+        
+        window.isDayFullyBlocked = function(dateStr) {
+            const blockedSlots = window.getBlockedSlotsForDate(dateStr);
+            return blockedSlots.some(slot => slot.is_full_day === true);
+        }
+        
+        window.blockSlot = async function(dateStr, timeSlot) {
+            if (!window.isManager) return false;
+            
+            try {
+                const [startTime, endTime] = timeSlot.split(' - ');
+                const formData = new FormData();
+                formData.append('block_slot', 'true');
+                formData.append('date', dateStr);
+                formData.append('start_time', startTime);
+                formData.append('end_time', endTime);
+                formData.append('reason', 'Blocked by manager');
+                
+                const response = await fetch('/handyman_calendar/?user=manager', {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                if (response.ok) {
+                    // Add the new blocked slot to our in-memory representation
+                    const data = await response.json();
+                    if (!window.blockedSlotsByDate[dateStr]) {
+                        window.blockedSlotsByDate[dateStr] = [];
+                    }
+                    
+                    window.blockedSlotsByDate[dateStr].push({
+                        id: data.id,
+                        is_full_day: false,
+                        start_time: startTime,
+                        end_time: endTime,
+                        time_slot: timeSlot,
+                        reason: 'Blocked by manager',
+                        created_by: 'manager'
+                    });
+                    
+                    return true;
+                } else {
+                    console.error('Failed to block slot:', await response.json());
+                    return false;
                 }
+            } catch (error) {
+                console.error('Error blocking slot:', error);
+                return false;
+            }
+        }
+        
+        window.unblockSlot = async function(dateStr, timeSlot) {
+            if (!window.isManager) return false;
+            
+            try {
+                const [startTime, endTime] = timeSlot.split(' - ');
+                const formData = new FormData();
+                formData.append('unblock_slot', 'true');
+                formData.append('date', dateStr);
+                formData.append('start_time', startTime);
+                formData.append('end_time', endTime);
+                
+                const response = await fetch('/handyman_calendar/?user=manager', {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                if (response.ok) {
+                    // Remove the blocked slot from our in-memory representation
+                    if (window.blockedSlotsByDate[dateStr]) {
+                        window.blockedSlotsByDate[dateStr] = window.blockedSlotsByDate[dateStr].filter(
+                            slot => !(slot.time_slot === timeSlot || 
+                                  (slot.start_time === startTime && slot.end_time === endTime))
+                        );
+                        
+                        if (window.blockedSlotsByDate[dateStr].length === 0) {
+                            delete window.blockedSlotsByDate[dateStr];
+                        }
+                    }
+                    
+                    return true;
+                } else {
+                    console.error('Failed to unblock slot:', await response.json());
+                    return false;
+                }
+            } catch (error) {
+                console.error('Error unblocking slot:', error);
+                return false;
+            }
+        }
+        
+        window.blockEntireDay = async function(dateStr) {
+            if (!window.isManager) return false;
+            
+            try {
+                const formData = new FormData();
+                formData.append('block_day', 'true');
+                formData.append('date', dateStr);
+                formData.append('reason', 'Entire day blocked by manager');
+                
+                const response = await fetch('/handyman_calendar/?user=manager', {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                if (response.ok) {
+                    // Add the blocked day to our in-memory representation
+                    const data = await response.json();
+                    if (!window.blockedSlotsByDate[dateStr]) {
+                        window.blockedSlotsByDate[dateStr] = [];
+                    }
+                    
+                    // Delete all specific time slot blocks for this day
+                    window.blockedSlotsByDate[dateStr] = window.blockedSlotsByDate[dateStr].filter(
+                        slot => slot.is_full_day
+                    );
+                    
+                    // Add the full day block
+                    window.blockedSlotsByDate[dateStr].push({
+                        id: data.id,
+                        is_full_day: true,
+                        reason: 'Entire day blocked by manager',
+                        created_by: 'manager'
+                    });
+                    
+                    return true;
+                } else {
+                    console.error('Failed to block day:', await response.json());
+                    return false;
+                }
+            } catch (error) {
+                console.error('Error blocking day:', error);
+                return false;
+            }
+        }
+        
+        window.unblockEntireDay = async function(dateStr) {
+            if (!window.isManager) return false;
+            
+            try {
+                const formData = new FormData();
+                formData.append('unblock_day', 'true');
+                formData.append('date', dateStr);
+                
+                const response = await fetch('/handyman_calendar/?user=manager', {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                if (response.ok) {
+                    // Remove this day from our in-memory blocked slots
+                    delete window.blockedSlotsByDate[dateStr];
+                    return true;
+                } else {
+                    console.error('Failed to unblock day:', await response.json());
+                    return false;
+                }
+            } catch (error) {
+                console.error('Error unblocking day:', error);
+                return false;
             }
         }
 
@@ -180,17 +384,62 @@
         const messagesList = document.getElementById('validationMessagesList');
         messagesList.innerHTML = '';
         
+        console.log('Validation errors received:', errors);
+        
+        // Add a fallback if no errors are visible
+        let errorDisplayed = false;
+        
         if (Array.isArray(errors)) {
             errors.forEach(error => {
                 const errorItem = document.createElement('div');
                 errorItem.className = 'mt-1';
                 errorItem.textContent = `• ${error}`;
                 messagesList.appendChild(errorItem);
+                errorDisplayed = true;
             });
+        } else if (typeof errors === 'object' && errors !== null) {
+            // Handle error object (likely from server validation)
+            if (errors.error && typeof errors.error === 'object') {
+                // Process form field errors
+                Object.entries(errors.error).forEach(([field, fieldErrors]) => {
+                    if (Array.isArray(fieldErrors)) {
+                        fieldErrors.forEach(error => {
+                            const errorItem = document.createElement('div');
+                            errorItem.className = 'mt-1';
+                            errorItem.textContent = `• ${field}: ${error}`;
+                            messagesList.appendChild(errorItem);
+                            errorDisplayed = true;
+                        });
+                    } else {
+                        const errorItem = document.createElement('div');
+                        errorItem.className = 'mt-1';
+                        errorItem.textContent = `• ${field}: ${fieldErrors}`;
+                        messagesList.appendChild(errorItem);
+                        errorDisplayed = true;
+                    }
+                });
+            } else {
+                // Display error message or stringified object if no better representation
+                const errorMessage = errors.error || JSON.stringify(errors);
+                const errorItem = document.createElement('div');
+                errorItem.className = 'mt-1';
+                errorItem.textContent = `• ${errorMessage}`;
+                messagesList.appendChild(errorItem);
+                errorDisplayed = true;
+            }
         } else {
             const errorItem = document.createElement('div');
             errorItem.className = 'mt-1';
             errorItem.textContent = `• ${errors}`;
+            messagesList.appendChild(errorItem);
+            errorDisplayed = true;
+        }
+        
+        // If no specific errors were displayed, show a generic message
+        if (!errorDisplayed) {
+            const errorItem = document.createElement('div');
+            errorItem.className = 'mt-1';
+            errorItem.textContent = `• Unable to process your request. Please check all fields and try again.`;
             messagesList.appendChild(errorItem);
         }
         
@@ -254,6 +503,11 @@
         const [startTime, endTime] = selectedSlot.split(' - ');
         console.log(startTime, endTime,selectedSlot, "startTime, endTime,selectedSlot");
 
+        // Check if slot is blocked by manager
+        if (window.isSlotBlocked(rawDate, selectedSlot)) {
+            errors.push('This time slot has been blocked by the manager and is not available for booking.');
+        }
+
         // Ensure times are in HH:MM format
         const formatTime = time => time.padStart(5, '0');
         formData.set('start_time', formatTime(startTime));
@@ -287,14 +541,32 @@
         }
         
         try {
+            // Log the form data being sent for debugging
+            const formDataObj = {};
+            formData.forEach((value, key) => {
+                formDataObj[key] = value;
+            });
+            console.log('Submitting form data:', formDataObj);
+
             const response = await fetch('/handyman_calendar/', {
                 method: 'POST',
                 body: formData
             });
 
+            const responseText = await response.text();
+            console.log('Raw response:', responseText);
+            
+            let data;
+            try {
+                data = JSON.parse(responseText);
+                console.log('Parsed response data:', data);
+            } catch (e) {
+                console.error('Error parsing JSON response:', e);
+                showValidationErrors('Server returned invalid response format');
+                return;
+            }
+
             if (response.ok) {
-                const data = await response.json();
-                console.log(data, "data");
                 if (data.id) {
                     addMyBooking(data.id);
                 }
@@ -303,12 +575,34 @@
                 closeModal();
                 window.location.reload();
             } else {
-                const data = await response.json();
-                showValidationErrors(data.error || 'Failed to process booking');
+                if (data.error) {
+                    // Try to log and display the specific error
+                    console.error('Server validation error:', data.error);
+                    
+                    if (typeof data.error === 'string') {
+                        showValidationErrors(data.error);
+                    } else if (typeof data.error === 'object') {
+                        // Check if it's an empty object
+                        if (Object.keys(data.error).length === 0) {
+                            showValidationErrors('Server validation failed. Please check all form fields and try again.');
+                        } else {
+                            // Create an array of error messages from the error object
+                            const errorMessages = [];
+                            Object.entries(data.error).forEach(([field, message]) => {
+                                errorMessages.push(`${field}: ${message}`);
+                            });
+                            showValidationErrors(errorMessages);
+                        }
+                    } else {
+                        showValidationErrors(data);
+                    }
+                } else {
+                    showValidationErrors('Server error: ' + (data.message || 'Unknown error'));
+                }
             }
         } catch (error) {
-            console.error('Error:', error);
-            showValidationErrors('Failed to process booking');
+            console.error('Request error:', error);
+            showValidationErrors('Failed to communicate with the server: ' + error.message);
         }
     }
 
@@ -384,7 +678,11 @@
     // Keep these functions outside but available globally
     function showPopover(event, dateStr) {
         const bookings = getBookingsForDate(dateStr);
-        if (!bookings || bookings.length === 0) return;
+        const blockedSlots = getBlockedSlotsForDate(dateStr);
+        const isFullDayBlocked = isDayFullyBlocked(dateStr);
+        
+        // Only show popover if there are bookings or blocked slots
+        if (!bookings || (bookings.length === 0 && blockedSlots.length === 0)) return;
 
         const popover = document.getElementById('dynamic-popover');
         const title = document.getElementById('popover-title');
@@ -403,22 +701,42 @@
             timeZone: 'UTC'  // Ensure consistent timezone handling
         }).format(date);
 
-        // Generate content - show all time slots and mark only the booked ones
+        if (isFullDayBlocked) {
+            content.innerHTML = `<div class="py-1 bg-gray-300">
+                <div class="text-gray-700 font-semibold">
+                    Entire day blocked by manager
+                </div>
+            </div>`;
+            
+            // Position popover
+            popover.style.left = `${event.pageX + 10}px`;
+            popover.style.top = `${event.pageY + 10}px`;
+            popover.classList.remove('hidden');
+            return;
+        }
+
+        // Generate content - show all time slots and mark booked and blocked ones
         content.innerHTML = generateTimeSlots().map(slot => {
+            const timeSlotStr = `${slot.start} - ${slot.end}`;
             const existingBooking = bookings.find(booking => 
                 booking.start_time === slot.start && booking.end_time === slot.end
             );
             const isBooked = existingBooking !== undefined;
             const isMyBookingSlot = existingBooking ? window.isMyBooking(existingBooking.id) : false;
-            const slotClass = isBooked ? 'bg-red-200' : 'bg-green-200';
+            const isBlocked = window.isSlotBlocked(dateStr, timeSlotStr);
             
-            let statusText = '(Available)';
-            if (isBooked) {
-                if (isMyBookingSlot) {
-                    statusText = '(Booked)(User Booking)';
-                } else {
-                    statusText = '(Booked)';
-                }
+            let slotClass = '';
+            let statusText = '';
+            
+            if (isBlocked) {
+                slotClass = 'bg-gray-300';
+                statusText = '(Blocked by Manager)';
+            } else if (isBooked) {
+                slotClass = 'bg-red-200';
+                statusText = isMyBookingSlot ? '(Booked)(User Booking)' : '(Booked)';
+            } else {
+                slotClass = 'bg-green-200';
+                statusText = '(Available)';
             }
             
             return `
@@ -444,7 +762,7 @@
     }
 
     function addPopoverListeners() {
-        const bookedDays = document.querySelectorAll('[data-has-bookings="true"]');
+        const bookedDays = document.querySelectorAll('[data-has-bookings="true"], [data-fully-blocked="true"]');
         bookedDays.forEach(day => {
             day.addEventListener('mouseenter', (e) => {
                 const dateStr = day.getAttribute('data-date');
@@ -458,9 +776,18 @@
     function openModalForDay(day) {
         clearValidationErrors();
         const bookings = getBookingsForDate(day);
+        const blockedSlots = getBlockedSlotsForDate(day);
+        const isFullDayBlocked = isDayFullyBlocked(day);
         const modal = document.getElementById('bookingsModal');
         const modalDate = document.getElementById('modalDate');
         const bookingsList = document.getElementById('bookingsList');
+        
+        // Initialize slot selection tracking for this day
+        window.selectedSlots[day] = window.selectedSlots[day] || {
+            toBlock: [],
+            toUnblock: []
+        };
+        window.hasUnsavedChanges = false;
         
         modalDate.setAttribute('data-date', day);
         
@@ -479,6 +806,76 @@
         modalDate.textContent = formattedDate;
         bookingsList.innerHTML = '';
         
+        // Add manager controls if user is manager
+        if (window.isManager) {
+            const managerControls = document.createElement('div');
+            managerControls.className = 'flex justify-between items-center mb-4 p-3 bg-blue-50 rounded-lg';
+            
+            const controlsTitle = document.createElement('h4');
+            controlsTitle.className = 'text-lg font-medium text-blue-800';
+            controlsTitle.textContent = 'Manager Controls';
+            
+            const buttonsContainer = document.createElement('div');
+            buttonsContainer.className = 'flex space-x-3';
+            
+            const selectAllBtn = document.createElement('button');
+            selectAllBtn.className = 'px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition';
+            selectAllBtn.textContent = 'Select All Slots';
+            selectAllBtn.setAttribute('data-selected', 'false');
+            selectAllBtn.onclick = function() {
+                const isSelected = this.getAttribute('data-selected') === 'true';
+                const timeSlots = document.querySelectorAll('[data-time-slot]');
+                
+                if (isSelected) {
+                    // Deselect all slots
+                    timeSlots.forEach(slotDiv => {
+                        const checkbox = slotDiv.querySelector('input[type="checkbox"]');
+                        if (checkbox && checkbox.checked) {
+                            checkbox.checked = false;
+                            checkbox.dispatchEvent(new Event('change'));
+                        }
+                    });
+                    this.textContent = 'Select All Slots';
+                    this.setAttribute('data-selected', 'false');
+                } else {
+                    // Select all slots
+                    timeSlots.forEach(slotDiv => {
+                        const checkbox = slotDiv.querySelector('input[type="checkbox"]');
+                        if (checkbox && !checkbox.checked) {
+                            checkbox.checked = true;
+                            checkbox.dispatchEvent(new Event('change'));
+                        }
+                    });
+                    this.textContent = 'Deselect All Slots';
+                    this.setAttribute('data-selected', 'true');
+                }
+                
+                // Update save button
+                window.hasUnsavedChanges = window.selectedSlots[day].toBlock.length > 0 || window.selectedSlots[day].toUnblock.length > 0;
+                updateSaveButton(day);
+            };
+            
+            buttonsContainer.appendChild(selectAllBtn);
+            
+            managerControls.appendChild(controlsTitle);
+            managerControls.appendChild(buttonsContainer);
+            
+            bookingsList.appendChild(managerControls);
+        }
+        
+        // If the whole day is blocked, show message and only allow unblocking
+        if (isFullDayBlocked && !window.isManager) {
+            const blockedDayMessage = document.createElement('div');
+            blockedDayMessage.className = 'p-4 bg-gray-200 rounded-lg text-center mb-4';
+            blockedDayMessage.innerHTML = `
+                <h3 class="text-xl font-semibold text-gray-700">Day Unavailable</h3>
+                <p class="text-gray-600 mt-2">This entire day has been blocked by the manager and is not available for bookings.</p>
+            `;
+            bookingsList.appendChild(blockedDayMessage);
+            modal.classList.remove('hidden');
+            return;
+        }
+        
         // Create form container for all bookings
         const formContainer = document.createElement('form');
         formContainer.onsubmit = handleSubmitBooking;
@@ -487,23 +884,45 @@
         // Display all time slots and mark booked ones
         const timeSlots = generateTimeSlots();
         timeSlots.forEach(slot => {
+            const timeSlotStr = `${slot.start} - ${slot.end}`;
             const existingBooking = bookings.find(booking => 
                 booking.start_time === slot.start && booking.end_time === slot.end
             );
             const isBooked = existingBooking !== undefined;
             const isMyBookingSlot = existingBooking ? window.isMyBooking(existingBooking.id) : false;
-            const slotClass = isBooked ? 
-                'bg-red-200 cursor-pointer hover:bg-red-300' : 
-                'bg-green-200 cursor-pointer hover:bg-green-300';
+            const isBlocked = window.isSlotBlocked(day, timeSlotStr);
+            
+            let slotClass = '';
+            if (isBlocked) {
+                slotClass = 'bg-gray-300 cursor-not-allowed';
+            } else if (isBooked) {
+                slotClass = 'bg-red-200 cursor-pointer hover:bg-red-300';
+            } else {
+                slotClass = 'bg-green-200 cursor-pointer hover:bg-green-300';
+            }
+            
+            // Check if this slot is selected for change
+            const isSelectedToBlock = window.selectedSlots[day].toBlock.includes(timeSlotStr);
+            const isSelectedToUnblock = window.selectedSlots[day].toUnblock.includes(timeSlotStr);
+            
+            if (isSelectedToBlock) {
+                slotClass = 'bg-red-400 cursor-pointer'; // Darker red for selected to block
+            } else if (isSelectedToUnblock) {
+                slotClass = 'bg-green-400 cursor-pointer'; // Darker green for selected to unblock
+            }
             
             const slotDiv = document.createElement('div');
             slotDiv.className = `flex justify-between items-center p-2 border rounded mb-2 ${slotClass}`;
+            slotDiv.setAttribute('data-time-slot', timeSlotStr);
             
             // Create the time slot display
             const timeDisplay = document.createElement('div');
             timeDisplay.className = 'text-gray-700';
+            
             let statusText = '(Available)';
-            if (isBooked) {
+            if (isBlocked) {
+                statusText = '(Blocked by Manager)';
+            } else if (isBooked) {
                 if (isMyBookingSlot) {
                     statusText = '(Booked)(User Booking)';
                 } else if (window.isAdmin) {
@@ -512,15 +931,99 @@
                     statusText = '(Booked)';
                 }
             }
+            
+            if (isSelectedToBlock) {
+                statusText += ' (Will be blocked)';
+            } else if (isSelectedToUnblock) {
+                statusText += ' (Will be unblocked)';
+            }
+            
             timeDisplay.textContent = `${slot.start} - ${slot.end} ${statusText}`;
             slotDiv.appendChild(timeDisplay);
-
-            // If it's available, admin, or user's booking, make it interactive
-            if (!isBooked || isMyBookingSlot || window.isAdmin) {
-                slotDiv.onclick = () => {
+            
+            // Add select checkbox for manager's multi-select functionality
+            if (window.isManager) {
+                const checkboxContainer = document.createElement('div');
+                checkboxContainer.className = 'flex items-center';
+                
+                const checkbox = document.createElement('input');
+                checkbox.type = 'checkbox';
+                checkbox.className = 'mr-2 h-4 w-4 text-blue-600';
+                checkbox.checked = isSelectedToBlock || isSelectedToUnblock;
+                
+                const selectLabel = document.createElement('label');
+                selectLabel.className = 'mr-3 text-sm';
+                selectLabel.textContent = 'Select';
+                
+                checkbox.addEventListener('change', function() {
+                    if (this.checked) {
+                        // Add to appropriate selection array
+                        if (isBlocked) {
+                            // Add to unblock list if not already there
+                            if (!window.selectedSlots[day].toUnblock.includes(timeSlotStr)) {
+                                window.selectedSlots[day].toUnblock.push(timeSlotStr);
+                                // Remove from block list if present
+                                window.selectedSlots[day].toBlock = window.selectedSlots[day].toBlock.filter(slot => slot !== timeSlotStr);
+                            }
+                        } else {
+                            // Add to block list if not already there
+                            if (!window.selectedSlots[day].toBlock.includes(timeSlotStr)) {
+                                window.selectedSlots[day].toBlock.push(timeSlotStr);
+                                // Remove from unblock list if present
+                                window.selectedSlots[day].toUnblock = window.selectedSlots[day].toUnblock.filter(slot => slot !== timeSlotStr);
+                            }
+                        }
+                    } else {
+                        // Remove from both lists
+                        window.selectedSlots[day].toBlock = window.selectedSlots[day].toBlock.filter(slot => slot !== timeSlotStr);
+                        window.selectedSlots[day].toUnblock = window.selectedSlots[day].toUnblock.filter(slot => slot !== timeSlotStr);
+                    }
+                    
+                    // Show save button if we have selections
+                    window.hasUnsavedChanges = window.selectedSlots[day].toBlock.length > 0 || window.selectedSlots[day].toUnblock.length > 0;
+                    updateSaveButton(day);
+                    
+                    // Update the display of this slot
+                    if (this.checked) {
+                        if (isBlocked) {
+                            slotDiv.className = slotDiv.className.replace('bg-gray-300', 'bg-green-400');
+                            timeDisplay.textContent = `${slot.start} - ${slot.end} (Blocked by Manager) (Will be unblocked)`;
+                        } else {
+                            slotDiv.className = slotDiv.className.replace(
+                                isBooked ? 'bg-red-200' : 'bg-green-200', 
+                                'bg-red-400'
+                            );
+                            timeDisplay.textContent = `${slot.start} - ${slot.end} ${isBooked ? '(Booked)' : '(Available)'} (Will be blocked)`;
+                        }
+                    } else {
+                        if (isBlocked) {
+                            slotDiv.className = slotDiv.className.replace('bg-green-400', 'bg-gray-300');
+                            timeDisplay.textContent = `${slot.start} - ${slot.end} (Blocked by Manager)`;
+                        } else {
+                            slotDiv.className = slotDiv.className.replace(
+                                'bg-red-400', 
+                                isBooked ? 'bg-red-200' : 'bg-green-200'
+                            );
+                            timeDisplay.textContent = `${slot.start} - ${slot.end} ${statusText.replace(' (Will be blocked)', '')}`;
+                        }
+                    }
+                });
+                
+                checkboxContainer.appendChild(checkbox);
+                checkboxContainer.appendChild(selectLabel);
+                slotDiv.prepend(checkboxContainer);
+            }
+            
+            // Move this click handler outside of the manager condition
+            // If it's available (not blocked, not booked) or it's user's booking or admin, make it interactive
+            if ((!isBlocked && !isBooked) || isMyBookingSlot || window.isAdmin) {
+                slotDiv.onclick = (e) => {
+                    // Skip if slot is blocked by manager or if clicking on checkbox
+                    if (isBlocked || e.target.type === 'checkbox') return;
+                    
                     // Remove any existing form for this time slot
                     const existingForm = document.querySelector(`[data-time-slot="${slot.start}-${slot.end}"]`);
-                    if (existingForm) {
+                    if (existingForm && existingForm !== slotDiv) {
                         existingForm.remove();
                         return;
                     }
@@ -543,8 +1046,99 @@
             formContainer.appendChild(slotDiv);
         });
 
+        // Add save changes button for manager
+        if (window.isManager) {
+            const saveButtonContainer = document.createElement('div');
+            saveButtonContainer.id = 'saveButtonContainer';
+            saveButtonContainer.className = 'sticky bottom-0 bg-white p-4 border-t border-gray-200 mt-4 flex justify-center';
+            
+            const saveButton = document.createElement('button');
+            saveButton.id = 'saveChangesButton';
+            saveButton.type = 'button';
+            saveButton.className = 'px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition hidden';
+            saveButton.textContent = 'Save Block/Unblock Changes';
+            saveButton.onclick = function() {
+                saveBlockChanges(day);
+            };
+            
+            saveButtonContainer.appendChild(saveButton);
+            formContainer.appendChild(saveButtonContainer);
+        }
+
         bookingsList.appendChild(formContainer);
         modal.classList.remove('hidden');
+        
+        // Update the save button visibility
+        updateSaveButton(day);
+    }
+
+    // Add new helper functions
+    function updateSaveButton(day) {
+        const saveButton = document.getElementById('saveChangesButton');
+        if (!saveButton) return;
+        
+        if (window.hasUnsavedChanges) {
+            saveButton.classList.remove('hidden');
+            const totalChanges = window.selectedSlots[day].toBlock.length + window.selectedSlots[day].toUnblock.length;
+            saveButton.textContent = `Save Block/Unblock Changes (${totalChanges} slot${totalChanges !== 1 ? 's' : ''})`;
+        } else {
+            saveButton.classList.add('hidden');
+        }
+    }
+
+    async function saveBlockChanges(day) {
+        // Get the slots to update
+        const toBlock = window.selectedSlots[day].toBlock;
+        const toUnblock = window.selectedSlots[day].toUnblock;
+        
+        if (toBlock.length === 0 && toUnblock.length === 0) {
+            return;
+        }
+        
+        // Show loading state
+        const saveButton = document.getElementById('saveChangesButton');
+        const originalText = saveButton.textContent;
+        saveButton.textContent = 'Saving...';
+        saveButton.disabled = true;
+        
+        try {
+            // Process all blocking requests
+            if (toBlock.length > 0) {
+                const blockPromises = toBlock.map(timeSlot => window.blockSlot(day, timeSlot));
+                await Promise.all(blockPromises);
+            }
+            
+            // Process all unblocking requests
+            if (toUnblock.length > 0) {
+                const unblockPromises = toUnblock.map(timeSlot => window.unblockSlot(day, timeSlot));
+                await Promise.all(unblockPromises);
+            }
+            
+            // Reset selections and refresh
+            window.selectedSlots[day] = { toBlock: [], toUnblock: [] };
+            window.hasUnsavedChanges = false;
+            
+            // Show success and refresh
+            saveButton.textContent = 'Saved Successfully!';
+            saveButton.className = saveButton.className.replace('bg-blue-600', 'bg-green-600');
+            
+            // Refresh the day view after a short delay
+            setTimeout(() => {
+                openModalForDay(day);
+            }, 1000);
+            
+        } catch (error) {
+            console.error('Error saving block/unblock changes:', error);
+            saveButton.textContent = 'Error Saving!';
+            saveButton.className = saveButton.className.replace('bg-blue-600', 'bg-red-600');
+            
+            // Reset button after a delay
+            setTimeout(() => {
+                saveButton.textContent = originalText;
+                saveButton.className = saveButton.className.replace('bg-red-600', 'bg-blue-600');
+                saveButton.disabled = false;
+            }, 2000);
+        }
     }
 </script>
 
