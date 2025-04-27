@@ -965,8 +965,9 @@ class Cleaning(models.Model):
                     
                 # If cleaner was changed, send notification to the previous cleaner as well
                 if orig.cleaner and orig.cleaner != self.cleaner and orig.cleaner.telegram_chat_id and telegram_token:
-                    reassigned_message = f"Cleaning reassigned: The cleaning for {apartment_name} on {self.date} has been reassigned to {new_cleaner}."
-                    send_telegram_message(orig.cleaner.telegram_chat_id.strip(), telegram_token, reassigned_message)
+                    # Simple cancellation message instead of reassignment message
+                    canceled_message = f"Cleaning canceled for apartment {apartment_name} on {self.date}."
+                    send_telegram_message(orig.cleaner.telegram_chat_id.strip(), telegram_token, canceled_message)
        
     @property
     def links(self):
