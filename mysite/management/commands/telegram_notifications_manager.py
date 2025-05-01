@@ -19,6 +19,9 @@ def sent_pending_payments_message(chat_id, token):
         payment_status='Pending',
         payment_date__lt=tomorrow,
         payment_date__gte=month_ago
+    ).filter(
+        ~Q(payment_type__name__icontains='mortgage') & 
+        ~Q(payment_type__name__icontains='mortage')
     ).order_by('payment_date')
     
     if not pending_payments.exists():
