@@ -20,8 +20,7 @@ def sent_pending_payments_message(chat_id, token):
         payment_date__lt=tomorrow,
         payment_date__gte=month_ago
     ).filter(
-        ~Q(payment_type__name__icontains='mortgage') & 
-        ~Q(payment_type__name__icontains='mortage')
+        ~Q(payment_type__name__icontains='Mortage')
     ).order_by('payment_date')
     
     if not pending_payments.exists():
@@ -88,6 +87,10 @@ def my_cron_job():
             check_bookings_without_cleaning(manager.telegram_chat_id, telegram_token)
 
             for notification in notifications:
+                # Skip mortgage payments
+                if notification.payment and notification.payment.payment_type and notification.payment.payment_type.name and 'Mortage' in notification.payment.payment_type.name:
+                    continue
+                    
                 if notification.payment and (notification.payment.payment_status == "Completed" or notification.payment.payment_status == "Merged"):
                     continue
                 elif notification.booking and notification.booking.apartment and notification.booking.apartment.manager and notification.booking.apartment.manager.phone == manager.phone:

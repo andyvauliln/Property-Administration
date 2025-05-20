@@ -920,7 +920,7 @@ class Cleaning(models.Model):
         if orig.cleaner != self.cleaner:
             old_cleaner = orig.cleaner.full_name if orig.cleaner else "No cleaner assigned"
             new_cleaner = self.cleaner.full_name if self.cleaner else "No cleaner assigned"
-            changes.append(f"Cleaner changed from {old_cleaner} to {new_cleaner}")
+            changes.append(f"Cleaner {new_cleaner}")
         if orig.notes != self.notes:
             changes.append(f"Notes changed from '{orig.notes or 'None'}' to '{self.notes or 'None'}'")
         if orig.tasks != self.tasks:
