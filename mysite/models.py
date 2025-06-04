@@ -339,6 +339,15 @@ class Booking(models.Model):
                     message="End Booking"
                 ).update(date=self.end_date)
 
+            # Update parking booking dates if start_date or end_date changed
+            if orig.start_date != self.start_date or orig.end_date != self.end_date:
+                ParkingBooking.objects.filter(
+                    booking=self
+                ).update(
+                    start_date=self.start_date,
+                    end_date=self.end_date
+                )
+
             # Create or update payments
             self.create_payments(payments_data)
             if not self.cleanings.exists():
@@ -434,6 +443,9 @@ class Booking(models.Model):
     def delete(self, *args, **kwargs):
         if self.contract_id != "" and self.contract_id != None:
             delete_contract(self.contract_id)
+
+        # Delete related parking bookings
+        ParkingBooking.objects.filter(booking=self).delete()
 
         super(Booking, self).delete(*args, **kwargs)
 
