@@ -1190,7 +1190,7 @@ class Parking(models.Model):
     associated_room = models.CharField(max_length=255, blank=True, null=True)
     building = models.CharField(max_length=255, blank=True, null=True)
     def __str__(self):
-        return f"Building: {self.building}. #{self.number}"
+        return f"Building: {self.building}-{self.associated_room}. P#{self.number}"
     
     def save(self, *args, **kwargs):
         print(self.associated_room, "self.associated_room", self.notes, "self.notes")

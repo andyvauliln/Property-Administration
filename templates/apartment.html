@@ -194,6 +194,11 @@
                 start_date.value = formatDate(date)
                 end_date.value = formatDate(date)
                 setSelectedOptionByText("apartment", day.dataset.apartmentId)
+                
+                // Also preselect parking based on the apartment selection
+                if (day.dataset.apartmentId && typeof handleApartmentChange === 'function') {
+                    handleApartmentChange(day.dataset.apartmentId);
+                }
             })
 
             day.addEventListener('mouseenter', function(event) {
