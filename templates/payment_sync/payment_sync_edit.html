@@ -100,7 +100,8 @@
 
 <script>
     function removeSavedPayment(id){
-        payments_for_save_to_db = payments_for_save_to_db.filter(i => i.id != id)
+        console.log(id, payments_for_save_to_db,'id')
+        payments_for_save_to_db = payments_for_save_to_db.filter(i => String(i.id) != String(id))
         updateSavedPayments()
     }
     function getAllFormData() {
@@ -196,7 +197,7 @@
                             $${payment.amount}
                         </div>
                         <div class="w-[100] flex-shrink-0 flex justify-center p-2">
-                           <button onclick="removeSavedPayment(${payment.id})" class="bg-red-500 hover:bg-red-700 text-white font-bold py-2 px-4 rounded">Delete</button>
+                           <button onclick="removeSavedPayment('${payment.id}')" class="bg-red-500 hover:bg-red-700 text-white font-bold py-2 px-4 rounded">Delete</button>
                         </div>
                     </div>`;
         });
@@ -244,30 +245,43 @@
     function merge2Payments(db_payment_id, file_payment_id, create_mode = false){
         const payment = {}
         let db_payment = {};
-        if(db_payment_id){
+        if(db_payment_id && !create_mode){
             if(typeof db_payment_id === 'string'){
                 db_payment_id = parseInt(db_payment_id)
             }
             db_payment = db_payments_json.find(i => i.id === db_payment_id)
         }
+        console.log("find db_payment for merge", db_payment, db_payment_id, file_payment_id)
         if(file_payment_id){
             const file_payment = file_payments_json.find(i => i.id === file_payment_id);
             payment.id = db_payment.id || file_payment.id
             payment.file_id = file_payment.id
             payment.apartment = db_payment.apartment || file_payment.apartment
+            payment.apartment_name  = db_payment.apartment_name || file_payment.apartment_name
             payment.payment_date = file_payment.payment_date
             payment.amount = Math.abs(file_payment.amount)
             payment.payment_method = file_payment.payment_method ? file_payment.payment_method : db_payment.payment_method ? db_payment.payment_method : null
             payment.payment_type = db_payment.payment_type ? db_payment.payment_type : file_payment.payment_type
             if(create_mode){
                 payment.notes = `${file_payment.notes}`
+                payment.id =  file_payment.id
+               
             }
             else{
                 payment.notes = (db_payment.notes || '') + ` [${file_payment.notes}]`
+                if(!payment.apartment && payment.apartment_name){
+                    const apt1 = apartments_json.filter(r=> r.name == payment.apartment_name)[0]
+                    payment.apartment = apt1.id
+                }
+                if(!payment.apartment_name && payment.apartment){
+                    const apt2 = apartments_json.filter(r=> r.id == payment.apartment)[0]
+                    payment.apartment_name = apt2.name
+                }
             }
             payment.payment_status = 'Merged'
             payment.bank = file_payment.bank
-            payment.apartment_name  = db_payment.apartment_name
+           
+            
           
         }
         return payment
@@ -418,6 +432,7 @@
        payment.file_amount = payment.amount;
        payment.file_notes = file_payment.notes;
        payment.file_date = file_payment.payment_date;
+       console.log(payment, "merged auto payment")
        payments_for_save_to_db.push(payment)
        updateSavedPayments()
        removePaymentFromList(file_payment_id)

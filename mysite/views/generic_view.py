@@ -5,11 +5,12 @@ from django.core.paginator import Paginator
 import json
 from django.core import serializers
 from datetime import date
-from django.db.models import F, ExpressionWrapper, DateField, Value, Q
+from django.db.models import F, ExpressionWrapper, DateField, Value, Q, Case, When, IntegerField
 from ..decorators import user_has_role
 from .utils import handle_post_request, MODEL_MAP, get_related_fields, parse_query, get_model_fields
 from .utils import DateEncoder
 from datetime import datetime
+from itertools import chain
 
 @user_has_role('Admin')
 def users(request):
@@ -108,17 +109,32 @@ def generic_view(request, model_name, form_class, template_name, pages=30):
 
     # Specific model logic: If the model is Cleaning, order by date proximity.
     if model_name == "cleaning":
-        difference = ExpressionWrapper(
-            F('date') - Value(today), output_field=DateField())
-        items = items.annotate(
-            date_difference=difference).order_by('date_difference')
+        # Apply Cleaner filter first if needed
         if request.user.role == 'Cleaner':
             items = items.filter(cleaner=request.user)
+        
+        # Split into today's, future, and past cleanings
+        today_cleanings = items.filter(date=today)
+        future_cleanings = items.filter(date__gt=today).order_by('date')
+        past_cleanings = items.filter(date__lt=today).order_by('-date')
+        
+        # Combine the querysets using itertools.chain
+        items = list(chain(today_cleanings, future_cleanings, past_cleanings))
+        
+        # Manual pagination for the combined results
+        paginator = Paginator(items, pages)
+        items_on_page = paginator.get_page(page)
+        
+        # Skip the default pagination as we've already paginated
+        paginator_already_applied = True
     else:
         items = items.order_by('-id')
+        paginator_already_applied = False
 
-    paginator = Paginator(items, pages)
-    items_on_page = paginator.get_page(page)
+    if not paginator_already_applied:
+        paginator = Paginator(items, pages)
+        items_on_page = paginator.get_page(page)
+        
     items_list = []
     for original_obj in items_on_page:
         item = {field.name: serialize_field(getattr(original_obj, field.name)) for field in original_obj._meta.fields}

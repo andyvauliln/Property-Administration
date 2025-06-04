@@ -40,9 +40,9 @@ def get_dropdown_options(identifier, isData=False, request=None):
     """
 
     if identifier == 'managers':
-        items = User.objects.filter(role='Manager')
+        items = User.objects.filter(role='Manager').order_by('full_name')
         if isData:
-            return User.objects.all()
+            return User.objects.all().order_by('full_name')
         return [{"value": item.id, "label": item.full_name} for item in items]
 
     elif identifier == 'apartments':
@@ -56,7 +56,7 @@ def get_dropdown_options(identifier, isData=False, request=None):
         return [{"value": item.id, "label": item.name} for item in items]
 
     elif identifier == 'cleaners':
-        items = User.objects.filter(role='Cleaner')
+        items = User.objects.filter(role='Cleaner').order_by('full_name')
         if isData:
             return items
         return [{"value": item.id, "label": item.full_name} for item in items]
@@ -74,13 +74,13 @@ def get_dropdown_options(identifier, isData=False, request=None):
         return [{"value": x[0], "label": x[1]} for x in Booking.VISIT_PURPOSE]
 
     elif identifier == 'owners':
-        items = User.objects.filter(role='Owner')
+        items = User.objects.filter(role='Owner').order_by('full_name')
         if isData:
             return items
         return [{"value": item.id, "label": item.full_name} for item in items]
 
     elif identifier == 'tenants':
-        items = User.objects.filter(role='Tenant')
+        items = User.objects.filter(role='Tenant').order_by('full_name')
         if isData:
             return items
         return [{"value": item.id, "label": item.full_name} for item in items]
@@ -325,7 +325,7 @@ class ApartmentForm(forms.ModelForm):
 
     def clean_name(self):
         name = self.cleaned_data.get('name')
-        raiting = int(self.cleaned_data.get('raiting', 0))
+        raiting = float(self.cleaned_data.get('raiting', 0))
         if raiting > 5:
             raise forms.ValidationError("Raiting must be between 0 and 10")
 
@@ -358,7 +358,7 @@ class ApartmentForm(forms.ModelForm):
 
     bedrooms = IntegerFieldEx(
         isColumn=False, isEdit=True, isCreate=True, initial="", ui_element="input")
-    raiting = IntegerFieldEx(
+    raiting = DecimalFieldEx(
         isColumn=False, isEdit=True, isCreate=True, required=False, initial=0, ui_element="input")
     bathrooms = IntegerFieldEx(
         isColumn=False, isEdit=True, isCreate=True, initial="", ui_element="input")
