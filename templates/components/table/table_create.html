@@ -57,7 +57,7 @@
                                     {% elif field_instance.ui_element == "checkbox" %}
                                         <input checked id="{{field_name}}" id="{{ field_name }}" type="checkbox" name="{{field_name}}" value="1" class="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 dark:focus:ring-blue-600 dark:ring-offset-gray-800 focus:ring-2 dark:bg-gray-700 dark:border-gray-600">
                                     {% elif field_instance.ui_element == "dropdown" %}
-                                        <select name="{{ field_name }}" id="{{ field_name }}" class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-primary-500 focus:border-primary-500 block w-full p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white dark:focus:ring-primary-500 dark:focus:border-primary-500">
+                                        <select name="{{ field_name }}" id="{{ field_name }}" {% if field_name == "apartment" %}onchange="handleApartmentChange(this.value)"{% endif %} class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-primary-500 focus:border-primary-500 block w-full p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white dark:focus:ring-primary-500 dark:focus:border-primary-500">
                                             <option value="">None</option>
                                             {% for option in field_instance.dropdown_options %}
                                                 <option value="{{ option.value }}" {% if option.value == field_instance.initial %}selected{% endif %}>{{ option.label }}</option>
@@ -93,6 +93,112 @@
 </div>
 
 <script>
+
+    // Global variables for apartments and parking data
+    let apartmentsData = [];
+    let parkingData = [];
+
+    // Extract apartment data from model_fields
+    {% for field_name, field_instance in model_fields %}
+        {% if field_name == "apartment" %}
+            apartmentsData = [
+                {% for option in field_instance.dropdown_options %}
+                    {
+                        "id": {{ option.value }},
+                        "name": "{{ option.label|escapejs }}"
+                    },
+                {% endfor %}
+            ];
+        {% endif %}
+        {% if field_name == "parking_number" %}
+            parkingData = [
+                {% for option in field_instance.dropdown_options %}
+                    {
+                        "id": {{ option.value }},
+                        "label": "{{ option.label|escapejs }}"
+                    },
+                {% endfor %}
+            ];
+        {% endif %}
+    {% endfor %}
+
+    function handleApartmentChange(apartmentId) {
+        console.log('handleApartmentChange', apartmentId);
+        const parkingSelect = document.getElementById('parking_number');
+        
+        if (!apartmentId || !parkingSelect) {
+            return;
+        }
+
+        // Find the selected apartment data
+        const selectedApartment = apartmentsData.find(apt => apt.id == apartmentId);
+        
+        if (!selectedApartment) {
+            return;
+        }
+
+        console.log('Selected apartment:', selectedApartment.name);
+
+        // Try different apartment name parsing strategies
+        let apartmentBuilding = null;
+        let apartmentNumber = null;
+
+        // Strategy 1: Format like "630-113" (building-apartment)
+        const dashParts = selectedApartment.name.split('-');
+        if (dashParts.length >= 2) {
+            apartmentBuilding = dashParts[0].trim();
+            apartmentNumber = dashParts[1].trim();
+        }
+        
+        // Strategy 2: If no dash, try to extract from apartment model fields
+        // We might need building_n and apartment_n fields separately
+        // For now, we'll work with the name field format
+
+        if (!apartmentBuilding || !apartmentNumber) {
+            console.log('Could not parse apartment building and number from name:', selectedApartment.name);
+            // Clear parking selection if we can't parse apartment info
+            parkingSelect.value = '';
+            return;
+        }
+
+        console.log('Parsed apartment - Building:', apartmentBuilding, 'Number:', apartmentNumber);
+
+        // Find matching parking spots
+        // Parking label format is "Building: {building}-{room}. P#{number}"
+        const matchingParking = parkingData.find(parking => {
+            console.log('Checking parking:', parking.label);
+            
+            // Extract building and room from parking label
+            const parkingLabelMatch = parking.label.match(/Building:\s*(.+?)-(.+?)\.\s*P#(.+)/);
+            
+            if (parkingLabelMatch) {
+                const parkingBuilding = parkingLabelMatch[1].trim();
+                const parkingRoom = parkingLabelMatch[2].trim();
+                
+                console.log('Parking parsed - Building:', parkingBuilding, 'Room:', parkingRoom);
+                
+                // Check if building matches and room/apartment number matches
+                const buildingMatch = parkingBuilding === apartmentBuilding;
+                const roomMatch = parkingRoom === apartmentNumber;
+                
+                console.log('Building match:', buildingMatch, 'Room match:', roomMatch);
+                
+                return buildingMatch && roomMatch;
+            }
+            
+            return false;
+        });
+
+        // Set the parking selection if a match is found
+        if (matchingParking) {
+            console.log('Found matching parking:', matchingParking.label);
+            parkingSelect.value = matchingParking.id;
+        } else {
+            console.log('No matching parking found for apartment:', selectedApartment.name);
+            // Clear parking selection if no match found
+            parkingSelect.value = '';
+        }
+    }
 
     document.addEventListener('DOMContentLoaded', function() {
         const createModal = document.getElementById('createModal');
