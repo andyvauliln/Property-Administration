@@ -294,7 +294,6 @@ class Booking(models.Model):
             # If start_date has changed
             if orig.start_date != self.start_date:
                 # Update the related Notification
-                contract_needs_update = True
                 Notification.objects.filter(
                     booking=self,
                     message="Start Booking"
@@ -302,7 +301,6 @@ class Booking(models.Model):
 
             # If end_date has changed
             if orig.end_date != self.end_date:
-                contract_needs_update = True
                 if self.end_date < orig.end_date:
                     # delete all payments except return deposit
                     self.deletePayments()
@@ -424,7 +422,7 @@ class Booking(models.Model):
             parking_booking = ParkingBooking.objects.create(
                 parking=parking,
                 booking=self,
-                status="Booked",
+                status= "Booked" if (self.is_rent_car or self.car_model or self.car_price or self.car_rent_days) else "No Car",
                 start_date=self.start_date,
                 end_date=self.end_date,
                 apartment=self.apartment
@@ -1213,6 +1211,7 @@ class ParkingBooking(models.Model):
     STATUS = [
         ('Unavailable', 'Unavailable'),
         ('Booked', 'Booked'),
+        ('No Car', 'No Car'),
     ]
     parking = models.ForeignKey(Parking, on_delete=models.SET_NULL, db_index=True,
                                 related_name='parking_bookings', null=True, blank=True)
@@ -1248,10 +1247,9 @@ class ParkingBooking(models.Model):
         if self.booking:
             self.start_date = self.start_date or self.booking.start_date
             self.end_date = self.end_date or self.booking.end_date
-            self.apartment = self.booking.apartment
-            self.status = 'Booked'
+            self.apartment = self.apartment or self.booking.apartment
         if not (self.start_date and self.end_date):
-            raise ValueError("Start date and end date are required when status is 'Booked' without a booking")
+            raise ValueError("Start date and end date are required")
 
         super().save(*args, **kwargs)
 
