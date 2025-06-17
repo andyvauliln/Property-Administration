@@ -8,7 +8,13 @@
         <div class="bg-white dark:bg-gray-800 relative shadow-md sm:rounded-lg overflow-hidden">
             
             <div class="flex items-start justify-between w-full">
-                <div class="grid grid-cols-3 gap-2 w-1/2 p-2">
+                <div class="w-1/2 p-2">
+                    <!-- Tenant Search Input spanning all columns -->
+                    <div class="mb-2">
+                        <input id="tenant_search" name="tenant_search" type="text" value="{{ current_tenant_search|default:'' }}" class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white dark:focus:ring-blue-500 dark:focus:border-blue-500" placeholder="Search by tenant name or email">
+                    </div>
+                    <!-- Filters Grid -->
+                    <div class="grid grid-cols-3 gap-2">
                     <div class="flex flex-col space-y-2">
                         <select id="apartment" name="apartment" class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-primary-500 focus:border-primary-500 block w-full p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white dark:focus:ring-primary-500 dark:focus:border-primary-500">
                             <option value="" {% if not current_apartment %}selected{% endif %}>All Apart Name</option>
@@ -24,6 +30,7 @@
                             <option value="Operating"  {% if current_payment_category == "Operating" %}selected{% endif %} >Operating</option>
                             <option value="None Operating" {% if current_payment_category == "None Operating" %}selected{% endif %}>None Operating</option>
                         </select>
+                        
                     </div>
                     <div class="flex flex-col space-y-2">
                         <select name="apartment_type" class=" bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-primary-500 focus:border-primary-500 block w-full p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white dark:focus:ring-primary-500 dark:focus:border-primary-500">
@@ -65,6 +72,7 @@
                             {% endfor %}
                         </select>
 
+                    </div>
                     </div>
                 </div>
             
@@ -247,6 +255,7 @@
         const paymentStatus = document.querySelector('[name="payment_status"]').value;
         const paymentCategory = document.querySelector('[name="payment_category"]').value;
         const paymentDirection = document.querySelector('[name="payment_direction"]').value;
+        const tenantSearch = document.getElementById('tenant_search').value;
         let url = '?';
         if (startDate) url += `start_date=${startDate}&`;
         if (endDate) url += `end_date=${endDate}&`;
@@ -257,6 +266,7 @@
         if (paymentStatus) url += `payment_status=${paymentStatus}&`;
         if (paymentCategory) url += `payment_category=${paymentCategory}&`;
         if (paymentDirection) url += `payment_direction=${paymentDirection}&`;
+        if (tenantSearch) url += `tenant_search=${encodeURIComponent(tenantSearch)}&`;
         if (isExcel){ 
             url += `isExcel=${isExcel}`;
             window.open(url, '_blank').focus();

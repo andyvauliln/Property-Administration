@@ -31,6 +31,7 @@ def paymentReport(request):
     payment_status_filter = request.GET.get('payment_status', None)
     payment_category_filter = request.GET.get('payment_category', None)
     payment_direction_filter = request.GET.get('payment_direction', None)
+    tenant_search = request.GET.get('tenant_search', None)
     isExcel = request.GET.get('isExcel', None)
 
     # Convert the date strings to datetime objects or set to the start and end of the current year
@@ -125,6 +126,14 @@ def paymentReport(request):
         payments_within_range = [payment for payment in payments_within_range
                                  if payment.payment_status == payment_status_filter]
 
+    if tenant_search:
+        tenant_search_lower = tenant_search.lower()
+        payments_within_range = [payment for payment in payments_within_range
+                                 if payment.booking and (
+                                     (payment.booking.tenant.full_name and tenant_search_lower in payment.booking.tenant.full_name.lower()) or
+                                     (payment.booking.tenant.email and tenant_search_lower in payment.booking.tenant.email.lower())
+                                 )]
+
     in_colors = [
         "text-emerald-300",
         "text-emerald-400", "text-emerald-500", "text-emerald-600",
@@ -198,6 +207,7 @@ def paymentReport(request):
         'current_payment_type': payment_type_filter,
         'current_payment_category': payment_category_filter,
         'current_payment_direction': payment_direction_filter,
+        'current_tenant_search': tenant_search,
         'title': "Payments Report",
     }
 
