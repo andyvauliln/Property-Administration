@@ -113,13 +113,37 @@ def generic_view(request, model_name, form_class, template_name, pages=30):
         if request.user.role == 'Cleaner':
             items = items.filter(cleaner=request.user)
         
-        # Split into today's, future, and past cleanings
-        today_cleanings = items.filter(date=today)
-        future_cleanings = items.filter(date__gt=today).order_by('date')
-        past_cleanings = items.filter(date__lt=today).order_by('-date')
+        # Apply apartment filter if provided
+        apartment_filter = request.GET.get('apartment')
+        if apartment_filter:
+            items = items.filter(
+                Q(apartment__id=apartment_filter) | 
+                Q(booking__apartment__id=apartment_filter)
+            )
         
-        # Combine the querysets using itertools.chain
-        items = list(chain(today_cleanings, future_cleanings, past_cleanings))
+        # Apply cleaner filter if provided
+        cleaner_filter = request.GET.get('cleaner')
+        if cleaner_filter:
+            items = items.filter(cleaner__id=cleaner_filter)
+        
+        # Get direction parameter for bidirectional paging
+        direction = request.GET.get('direction', 'both')  # 'both', 'future', 'past'
+        
+        if direction == 'future':
+            # Show only today and future cleanings
+            items = items.filter(date__gte=today).order_by('date')
+        elif direction == 'past':
+            # Show only past cleanings
+            items = items.filter(date__lt=today).order_by('-date')
+        else:
+            # Default: bidirectional starting from today
+            # Split into today's, future, and past cleanings
+            # today_cleanings = items.filter(date=today)
+            future_cleanings = items.filter(date__gt=today).order_by('date')
+            #past_cleanings = items.filter(date__lt=today).order_by('-date')
+            
+            # Combine the querysets using itertools.chain
+            items = list(chain(future_cleanings))
         
         # Manual pagination for the combined results
         paginator = Paginator(items, pages)
@@ -177,6 +201,27 @@ def generic_view(request, model_name, form_class, template_name, pages=30):
     # Get fields from the model's metadata
     model_fields = get_model_fields(form)
 
-    return render(
-        request, template_name,
-        {'items': items_on_page, "items_json": items_json, 'search_query': search_query, 'model_fields': model_fields, "title": model_name.capitalize()})
+    # Additional context for cleanings
+    context = {
+        'items': items_on_page, 
+        "items_json": items_json, 
+        'search_query': search_query, 
+        'model_fields': model_fields, 
+        "title": model_name.capitalize()
+    }
+    
+    # Add apartments and cleaners for cleaning filters
+    if model_name == "cleaning":
+        from mysite.models import User, Apartment
+        
+        if request.user.role == 'Manager':
+            apartments = Apartment.objects.filter(manager=request.user).order_by('name')
+        else:
+            apartments = Apartment.objects.all().order_by('name')
+        
+        cleaners = User.objects.filter(role='Cleaner').order_by('full_name')
+        
+        context['apartments'] = apartments
+        context['cleaners'] = cleaners
+
+    return render(request, template_name, context)

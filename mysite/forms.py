@@ -316,7 +316,7 @@ class ApartmentForm(forms.ModelForm):
     class Meta:
         model = Apartment
         fields = ['name', 'apartment_type', 'keywords', 'status', 'notes', 'web_link', 'building_n', 'street', 'apartment_n',
-                  'state', 'start_date', 'end_date', 'city', 'zip_index', 'bedrooms', 'bathrooms', 'manager', 'owner', 'raiting']
+                  'state', 'start_date', 'end_date', 'city', 'zip_index', 'bedrooms', 'bathrooms', 'manager', 'owner', 'raiting', 'price']
 
     def __init__(self, *args, **kwargs):
         self.request = kwargs.pop('request', None)
@@ -341,6 +341,8 @@ class ApartmentForm(forms.ModelForm):
                        isCreate=True, ui_element="input")
     web_link = URLFieldEx(isColumn=False, initial="", required=False,
                           isEdit=True, isCreate=True, ui_element="input")
+    
+    price = DecimalFieldEx(isColumn=False, isEdit=True, isCreate=True, required=False, initial=0, ui_element="input")
 
     # Address fields
     building_n = CharFieldEx(isColumn=False, isEdit=True, initial="",

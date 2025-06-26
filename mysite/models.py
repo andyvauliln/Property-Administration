@@ -163,6 +163,7 @@ class Apartment(models.Model):
                                 related_name='managed_apartments', null=True, limit_choices_to={'role': 'Manager'})
     owner = models.ForeignKey(User, on_delete=models.SET_NULL, blank=True, db_index=True,
                               related_name='owned_apartments', null=True, limit_choices_to={'role': 'Owner'})
+    price = models.DecimalField(max_digits=10, decimal_places=2, blank=True, null=True)
 
     @property
     def address(self):
@@ -416,7 +417,7 @@ class Booking(models.Model):
                 else:
                     self.apartment.keywords += f", {self.tenant.full_name}"
                 self.apartment.save()
-        
+        #update 
         if parking_number:
             parking = Parking.objects.get(id=parking_number)
             parking_booking = ParkingBooking.objects.create(
