@@ -61,6 +61,8 @@
 </div>
 {% endif %}
 <script>
+    // Separator for grouping multiple payment keys - must match Python constant
+    const PAYMENT_KEY_SEPARATOR = "###||###";
 
     document.addEventListener('DOMContentLoaded', function() {
         const fileSearchInput = document.getElementById('file_search_input');
@@ -304,6 +306,10 @@
             merged_payment.payment_type = merged_payment.payment_type || file_payment.payment_type;
             merged_payment.bank = merged_payment.bank || file_payment.bank;
             merged_payment.file_id += ` ${file_payment.id}`;
+            // Add separator between individual payment keys
+            if (merged_payment.merged_payment_key !== "") {
+                merged_payment.merged_payment_key += PAYMENT_KEY_SEPARATOR;
+            }
             merged_payment.merged_payment_key += formatDateTime(file_payment.payment_date)  + file_payment.amount + file_payment.notes;
             console.log(merged_payment.merged_payment_key, "merged_payment_key");
           
@@ -331,6 +337,10 @@
             merged_payment.bank = file_payment.bank || null;
             merged_payment.file_id += ` ${file_payment.id}`;
             merged_payment.id = "id_not_set";
+            // Add separator between individual payment keys
+            if (merged_payment.merged_payment_key !== "") {
+                merged_payment.merged_payment_key += PAYMENT_KEY_SEPARATOR;
+            }
             merged_payment.merged_payment_key += formatDateTime(file_payment.payment_date)  + file_payment.amount + file_payment.notes;
             
           

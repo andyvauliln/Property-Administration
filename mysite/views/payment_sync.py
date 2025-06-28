@@ -11,6 +11,9 @@ import csv
 from .utils import get_model_fields
 from django.core import serializers
 
+# Separator for grouping multiple payment keys
+PAYMENT_KEY_SEPARATOR = "###||###"
+
 
 @user_has_role('Admin')
 def sync_payments(request):
@@ -88,12 +91,22 @@ def sync_payments(request):
 #05/06/20244500Check 283
 def remove_handled_payments(db_payments, file_payments):
     # Collect merged_payment_keys from db_payments with status "Merged" and ensure they are not None
-    db_payment_keys = {payment.merged_payment_key for payment in db_payments if payment.payment_status == "Merged" and payment.merged_payment_key is not None}
+    db_payment_keys = set()
+    for payment in db_payments:
+        if payment.payment_status == "Merged" and payment.merged_payment_key is not None:
+            # Check if this is a grouped payment key (contains separator)
+            if PAYMENT_KEY_SEPARATOR in payment.merged_payment_key:
+                # Split the grouped key and add each individual key
+                individual_keys = payment.merged_payment_key.split(PAYMENT_KEY_SEPARATOR)
+                db_payment_keys.update(individual_keys)
+            else:
+                # Single payment key
+                db_payment_keys.add(payment.merged_payment_key)
     
     # Filter out db_payments with status "Merged"
     db_payments_cleaned = [payment for payment in db_payments if payment.payment_status != "Merged"]
     
-    # Filter out file_payments where merged_payment_key matches or is a substring of any in db_payment_keys
+    # Filter out file_payments where merged_payment_key matches any of the individual keys
     file_payments_cleaned = [
         payment for payment in file_payments 
         if not any(db_key in payment['merged_payment_key'] for db_key in db_payment_keys)
@@ -124,7 +137,8 @@ def get_json(db_model):
     items_json = json.dumps(items_list)
     return items_json
   
-
+01/02/2025240TILDA 01/01 PURCHASE ABU DHABI 00 DEBIT CARD *0731###||###01/02/2025380Zelle payment to JEIDY for Flamingo Dec 30"; Conf# ymthj7wx7" merged_payment_key
+240+380
 def preprocess_csv_line(line):
     splited = line.split(',')
     if len(splited) > 4:
