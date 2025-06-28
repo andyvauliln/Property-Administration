@@ -128,11 +128,34 @@ def paymentReport(request):
 
     if tenant_search:
         tenant_search_lower = tenant_search.lower()
-        payments_within_range = [payment for payment in payments_within_range
-                                 if payment.booking and (
-                                     (payment.booking.tenant.full_name and tenant_search_lower in payment.booking.tenant.full_name.lower()) or
-                                     (payment.booking.tenant.email and tenant_search_lower in payment.booking.tenant.email.lower())
-                                 )]
+        filtered_payments = []
+        
+        for payment in payments_within_range:
+            # Check tenant name and email (if booking exists)
+            tenant_match = False
+            if payment.booking:
+                if (payment.booking.tenant.full_name and tenant_search_lower in payment.booking.tenant.full_name.lower()) or \
+                   (payment.booking.tenant.email and tenant_search_lower in payment.booking.tenant.email.lower()):
+                    tenant_match = True
+            
+            # Check amount match
+            amount_match = False
+            if payment.amount:
+                try:
+                    # Try exact amount match
+                    search_amount = float(tenant_search)
+                    if float(payment.amount) == search_amount:
+                        amount_match = True
+                except ValueError:
+                    # If not a valid number, try partial string match in amount
+                    if tenant_search in str(payment.amount):
+                        amount_match = True
+            
+            # Include payment if it matches tenant info OR amount
+            if tenant_match or amount_match:
+                filtered_payments.append(payment)
+        
+        payments_within_range = filtered_payments
 
     in_colors = [
         "text-emerald-300",

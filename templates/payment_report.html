@@ -9,9 +9,9 @@
             
             <div class="flex items-start justify-between w-full">
                 <div class="w-1/2 p-2">
-                    <!-- Tenant Search Input spanning all columns -->
+                    <!-- Universal Search Input -->
                     <div class="mb-2">
-                        <input id="tenant_search" name="tenant_search" type="text" value="{{ current_tenant_search|default:'' }}" class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white dark:focus:ring-blue-500 dark:focus:border-blue-500" placeholder="Search by tenant name or email">
+                        <input id="tenant_search" name="tenant_search" type="text" value="{{ current_tenant_search|default:'' }}" class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white dark:focus:ring-blue-500 dark:focus:border-blue-500" placeholder="Search by tenant name, email, or amount">
                     </div>
                     <!-- Filters Grid -->
                     <div class="grid grid-cols-3 gap-2">

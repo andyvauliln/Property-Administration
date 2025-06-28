@@ -151,6 +151,28 @@ def generic_view(request, model_name, form_class, template_name, pages=30):
         
         # Skip the default pagination as we've already paginated
         paginator_already_applied = True
+    # Specific model logic: If the model is Payment, apply filters.
+    elif model_name == "payment":
+        # Apply apartment filter if provided
+        apartment_filter = request.GET.get('apartment')
+        if apartment_filter:
+            items = items.filter(
+                Q(apartment__id=apartment_filter) | 
+                Q(booking__apartment__id=apartment_filter)
+            )
+        
+        # Apply tenant filter if provided (search by name)
+        tenant_filter = request.GET.get('tenant')
+        if tenant_filter:
+            items = items.filter(booking__tenant__full_name__icontains=tenant_filter)
+        
+        # Apply payment status filter if provided
+        payment_status_filter = request.GET.get('payment_status_filter')
+        if payment_status_filter:
+            items = items.filter(payment_status=payment_status_filter)
+        
+        items = items.order_by('-id')
+        paginator_already_applied = False
     else:
         items = items.order_by('-id')
         paginator_already_applied = False
@@ -223,5 +245,16 @@ def generic_view(request, model_name, form_class, template_name, pages=30):
         
         context['apartments'] = apartments
         context['cleaners'] = cleaners
+    
+    # Add apartments for payment filters
+    if model_name == "payment":
+        from mysite.models import Apartment
+        
+        if request.user.role == 'Manager':
+            apartments = Apartment.objects.filter(manager=request.user).order_by('name')
+        else:
+            apartments = Apartment.objects.all().order_by('name')
+        
+        context['apartments'] = apartments
 
     return render(request, template_name, context)

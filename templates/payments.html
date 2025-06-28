@@ -2,55 +2,195 @@
 {% load slippers %}
 {% block content %}
 
+<!-- Custom Table for Payments with Integrated Filters -->
+<section class="bg-gray-50 dark:bg-gray-900 p-3 sm:p-5 antialiased">
+    <div class="mx-auto max-w-screen-xl px-4 lg:px-12">
+        <div class="bg-white dark:bg-gray-800 relative shadow-md sm:rounded-lg overflow-hidden">
+            
+            <!-- Integrated Filters and Controls -->
+            <div class="p-4 space-y-4">
+                <!-- Search Row -->
+                <div class="flex flex-col md:flex-row items-center justify-between space-y-3 md:space-y-0 md:space-x-4">
+                    <div class="w-full">
+                        <!-- Search Form -->
+                        <form method="GET" class="flex items-center">
+                            <label for="simple-search" class="sr-only">Search</label>
+                            <div class="relative w-full">
+                                <div class="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">
+                                    <svg aria-hidden="true" class="w-5 h-5 text-gray-500 dark:text-gray-400" fill="currentColor" viewbox="0 0 20 20" xmlns="http://www.w3.org/2000/svg">
+                                        <path fill-rule="evenodd" d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z" clip-rule="evenodd" />
+                                    </svg>
+                                </div>
+                                <input type="text" name="q" value="{{ request.GET.q }}" id="simple-search" class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-primary-500 focus:border-primary-500 block w-full pl-10 pr-10 p-2 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white dark:focus:ring-primary-500 dark:focus:border-primary-500" placeholder="Search by fields">
+                                <div class="absolute inset-y-0 right-0 flex items-center pr-3 cursor-pointer" onclick="clearSearch()">
+                                    <svg aria-hidden="true" class="w-5 h-5 text-gray-500 dark:text-gray-400" fill="currentColor" viewbox="0 0 20 20" xmlns="http://www.w3.org/2000/svg">
+                                        <path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd" />
+                                    </svg>
+                                </div>
+                            </div>
+                            <!-- Hidden fields to preserve filters -->
+                            <input type="hidden" name="apartment" value="{{ request.GET.apartment }}">
+                            <input type="hidden" name="tenant" value="{{ request.GET.tenant }}">
+                            <input type="hidden" name="payment_status_filter" value="{{ request.GET.payment_status_filter }}">
+                            <button type="submit" class="ml-2 text-white bg-primary-700 hover:bg-primary-800 focus:ring-4 focus:outline-none focus:ring-primary-300 font-medium rounded-lg text-sm px-4 py-2 dark:bg-primary-600 dark:hover:bg-primary-700 dark:focus:ring-primary-800">Search</button>
+                        </form>
+                    </div>
+                    
+                    <div class="w-full md:w-auto flex flex-col md:flex-row space-y-2 md:space-y-0 items-stretch md:items-center justify-end md:space-x-3 flex-shrink-0">
+                        <button type="button" id="createNewItem" data-modal-target="createModal" data-modal-toggle="createModal" class="flex items-center justify-center text-white bg-primary-700 hover:bg-primary-800 focus:ring-4 focus:ring-primary-300 font-medium rounded-lg text-sm px-4 py-2 dark:bg-primary-600 dark:hover:bg-primary-700 focus:outline-none dark:focus:ring-primary-800">
+                            <svg class="h-3.5 w-3.5 mr-2" fill="currentColor" viewbox="0 0 20 20" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+                                <path clip-rule="evenodd" fill-rule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" />
+                            </svg>
+                            Add Item
+                        </button>
+                    </div>
+                    <button onclick="refreshPage(event)" type="button" class="p-2">
+                        <svg class="w-6 h-6 text-gray-800 dark:text-white" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 18 20">
+                          <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 1v5h-5M2 19v-5h5m10-4a8 8 0 0 1-14.947 3.97M1 10a8 8 0 0 1 14.947-3.97"/>
+                        </svg>
+                    </button>
+                </div>
 
-{% #table  model_fields=model_fields items_json=items_json  model="payments" search_query=request.GET.q items=items %}
-<div class="flex flex-col md:flex-row items-center justify-between space-y-3 md:space-y-0 md:space-x-4 p-4">
-    <select onchange="updateSearchInput()" name="payment_status" class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-primary-500 focus:border-primary-500 block w-1/6 p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white dark:focus:ring-primary-500 dark:focus:border-primary-500">
-        <option value="">All Statuses</option>
-        <option value="Pending" {% if current_payment_status == 'Pending' %}selected{% endif %}>Pending</option>
-        <option value="Completed" {% if current_payment_status == 'Completed' %}selected{% endif %}>Completed</option>
-        <option value="Merged" {% if current_payment_status == 'Merged' %}selected{% endif %}>Merged</option>
-    </select>
-</div>
-<script>
-    function updateSearchInput() {
-        const paymentStatusDropdown = document.querySelector('[name="payment_status"]');
-        const paymentStatus = paymentStatusDropdown.value;
-        const searchInput = document.getElementById('simple-search');
-        
-        // Check if the search input contains values other than payment_status
-        const otherFiltersExist = searchInput.value && !searchInput.value.match(/^payment_status=[^&]+$/);
+                <!-- Filters Row -->
+                <div class="flex flex-col lg:flex-row items-start lg:items-end space-y-4 lg:space-y-0 lg:space-x-4">
+                    <!-- Apartment, Tenant and Payment Status Filters -->
+                    <div class="flex flex-col md:flex-row space-y-4 md:space-y-0 md:space-x-4 flex-1">
+                        <form method="GET" class="flex flex-col md:flex-row space-y-4 md:space-y-0 md:space-x-4 ml-[-10px] w-full">
+                            <!-- Keep existing search -->
+                            <input type="hidden" name="q" value="{{ request.GET.q }}">
+                            
+                            <!-- Apartment Filter -->
+                            <div class="flex-1">
+                                <label for="apartment_filter" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                                    Filter by Apartment
+                                </label>
+                                <select name="apartment" id="apartment_filter" class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-primary-500 focus:border-primary-500 block w-full p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white dark:focus:ring-primary-500 dark:focus:border-primary-500">
+                                    <option value="">All Apartments</option>
+                                    {% for apartment in apartments %}
+                                        <option value="{{ apartment.id }}" {% if request.GET.apartment == apartment.id|stringformat:"s" %}selected{% endif %}>
+                                            {{ apartment.name }}
+                                        </option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            
+                            <!-- Tenant Filter -->
+                            <div class="flex-1">
+                                <label for="tenant_filter" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                                    Search by Tenant Name
+                                </label>
+                                <input type="text" name="tenant" id="tenant_filter" value="{{ request.GET.tenant }}" placeholder="Enter tenant name..." class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-primary-500 focus:border-primary-500 block w-full p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white dark:focus:ring-primary-500 dark:focus:border-primary-500">
+                            </div>
 
-        if (paymentStatus) {
-            if (otherFiltersExist) {
-                // Remove existing payment_status if it exists
-                searchInput.value = searchInput.value.replace(/(AND\s*)?payment_status=[^&]+(&)?/g, '');
+                            <!-- Payment Status Filter -->
+                            <div class="flex-1">
+                                <label for="payment_status_filter" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                                    Filter by Status
+                                </label>
+                                <select name="payment_status_filter" id="payment_status_filter" class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-primary-500 focus:border-primary-500 block w-full p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white dark:focus:ring-primary-500 dark:focus:border-primary-500">
+                                    <option value="">All Statuses</option>
+                                    <option value="Pending" {% if request.GET.payment_status_filter == 'Pending' %}selected{% endif %}>Pending</option>
+                                    <option value="Completed" {% if request.GET.payment_status_filter == 'Completed' %}selected{% endif %}>Completed</option>
+                                    <option value="Merged" {% if request.GET.payment_status_filter == 'Merged' %}selected{% endif %}>Merged</option>
+                                </select>
+                            </div>
+                            
+                            <!-- Filter Buttons -->
+                            <div class="flex space-x-2 items-end">
+                                <button type="submit" class="text-white bg-primary-700 hover:bg-primary-800 focus:ring-4 focus:outline-none focus:ring-primary-300 font-medium rounded-lg text-sm px-4 py-2.5 dark:bg-primary-600 dark:hover:bg-primary-700 dark:focus:ring-primary-800">
+                                    Apply Filters
+                                </button>
+                                <a href="/payments/" class="text-gray-700 bg-gray-200 hover:bg-gray-300 focus:ring-4 focus:outline-none focus:ring-gray-300 font-medium rounded-lg text-sm px-4 py-2.5 dark:bg-gray-600 dark:hover:bg-gray-500 dark:focus:ring-gray-400">
+                                    Clear
+                                </a>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Table Content -->
+            <div class="overflow-x-auto">
+                <table class="w-full text-sm text-left text-gray-500 dark:text-gray-400">
+                    {% include "components/table/table_header.html" %}
+                    {% include "components/table/table_body.html" %}
+                </table>
+            </div>
+            
+            <!-- Custom Pagination Navigation -->
+            <nav class="flex flex-col md:flex-row justify-between items-start md:items-center space-y-3 md:space-y-0 p-4" aria-label="Table navigation">
+                <span class="text-sm font-normal text-gray-500 dark:text-gray-400">
+                    Showing
+                    <span class="font-semibold text-gray-900 dark:text-white">{{ items.start_index }}-{{ items.end_index }}</span>
+                    of
+                    <span class="font-semibold text-gray-900 dark:text-white">{{ items.paginator.count }}</span>
+                </span>
+               <ul class="inline-flex items-stretch -space-x-px">
+                <li>
+                    {% if items.has_previous %}
+                    <a href="/payments/?q={{ request.GET.q }}&page={{ items.previous_page_number }}{% if request.GET.apartment %}&apartment={{ request.GET.apartment }}{% endif %}{% if request.GET.tenant %}&tenant={{ request.GET.tenant }}{% endif %}{% if request.GET.payment_status_filter %}&payment_status_filter={{ request.GET.payment_status_filter }}{% endif %}" class="flex items-center justify-center h-full py-1.5 px-3 ml-0 text-gray-500 bg-white rounded-l-lg border border-gray-300 hover:bg-gray-100 hover:text-gray-700 dark:bg-gray-800 dark:border-gray-700 dark:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-white">
+                        <span class="sr-only">Previous</span>
+                        <svg class="w-5 h-5" aria-hidden="true" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg">
+                            <path fill-rule="evenodd" d="M12.707 5.293a1 1 0 010 1.414L9.414 10l3.293 3.293a1 1 0 01-1.414 1.414l-4-4a1 1 0 010-1.414l4-4a1 1 0 011.414 0z" clip-rule="evenodd"></path>
+                        </svg>
+                    </a>
+                    {% endif %}
+                </li>
+                {% load custom_filters %}
+                {% with num_pages_minus_5=items.paginator.num_pages|subtract:5 %}
+                {% with  page_rest=items.paginator.num_pages|subtract:4%}
+                    {% for page_num in items.paginator.page_range %}
+                        {% if page_num <= 5 or page_num > num_pages_minus_5 or page_num == items.number %}
+                            <li>
+                                <a href="/payments/?q={{ request.GET.q }}&page={{ page_num }}{% if request.GET.apartment %}&apartment={{ request.GET.apartment }}{% endif %}{% if request.GET.tenant %}&tenant={{ request.GET.tenant }}{% endif %}{% if request.GET.payment_status_filter %}&payment_status_filter={{ request.GET.payment_status_filter }}{% endif %}" 
+                                class="{% if page_num == items.number %}bg-primary-50 text-primary-600 border-primary-300{% else %} bg-white text-gray-500 border-gray-300 hover:bg-gray-100 hover:text-gray-700{% endif %} border flex items-center justify-center text-sm py-2 px-3 leading-tight ">
+                                    {{ page_num }}
+                                </a>
+                            </li>
+                            {% if page_num == page_rest %}
+                                <li>
+                                    <span class="border flex items-center justify-center text-sm py-2 px-3 leading-tight bg-white text-gray-500 border-gray-300">
+                                        ...
+                                    </span>
+                                </li>
+                            {% endif %}
+                        {% endif %}
                 
-                searchInput.value = (searchInput.value + " AND payment_status=" + paymentStatus).trim();
-            } else {
-                searchInput.value = "payment_status=" + paymentStatus;
-            }
-        } else {
-            searchInput.value = searchInput.value.replace(/(AND\s*)?payment_status=[^&]+(&)?/g, '').trim();
-        }
+                    {% endfor %}
+                {% endwith %}
+                {% endwith %}
+
+                <li>
+                    {% if items.has_next %}
+                    <a href="/payments/?q={{ request.GET.q }}&page={{ items.next_page_number }}{% if request.GET.apartment %}&apartment={{ request.GET.apartment }}{% endif %}{% if request.GET.tenant %}&tenant={{ request.GET.tenant }}{% endif %}{% if request.GET.payment_status_filter %}&payment_status_filter={{ request.GET.payment_status_filter }}{% endif %}" class="flex items-center justify-center h-full py-1.5 px-3 leading-tight text-gray-500 bg-white rounded-r-lg border border-gray-300 hover:bg-gray-100 hover:text-gray-700 dark:bg-gray-800 dark:border-gray-700 dark:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-white">
+                        <span class="sr-only">Next</span>
+                        <svg class="w-5 h-5" aria-hidden="true" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg">
+                            <path fill-rule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clip-rule="evenodd"></path>
+                        </svg>
+                    </a>
+                    {% endif %}
+                </li>
+            </ul>
+            </nav>
+        </div>
+    </div>
+</section>
+
+<script>
+    const items_json = {{ items_json|safe }}
+    console.log(items_json, "items_json")
+    
+    function refreshPage(event) {
+        window.location.href = window.location.href;
     }
     
-    document.addEventListener('DOMContentLoaded', function() {
-        console.log("DOMContentLoaded");
-        const urlParams = new URLSearchParams(window.location.search);
-        const qValue = urlParams.get('q');
-        if (qValue && qValue.includes('payment_status=')) {
-            const paymentStatusMatch = qValue.match(/payment_status=([^&\s]+)/);
-            const paymentStatus = paymentStatusMatch ? paymentStatusMatch[1] : '';
-            
-            const paymentStatusDropdown = document.querySelector('[name="payment_status"]');
-            if (paymentStatus) {
-                paymentStatusDropdown.value = paymentStatus;
-            }
-        }
-    });
+    function clearSearch() {
+        document.getElementById('simple-search').value = '';
+    }
 </script>
 
-{% /table %}
+{% include "components/table/table_edit.html" %}
+{% include "components/table/table_create.html" %}
+{% include "components/table/table_delete.html" %}
 
 {% endblock content %}
