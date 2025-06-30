@@ -137,8 +137,6 @@ def get_json(db_model):
     items_json = json.dumps(items_list)
     return items_json
   
-01/02/2025240TILDA 01/01 PURCHASE ABU DHABI 00 DEBIT CARD *0731###||###01/02/2025380Zelle payment to JEIDY for Flamingo Dec 30"; Conf# ymthj7wx7" merged_payment_key
-240+380
 def preprocess_csv_line(line):
     splited = line.split(',')
     if len(splited) > 4:
