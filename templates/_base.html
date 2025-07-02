@@ -281,6 +281,19 @@
             </a>
           </li>
           {% endif %}
+          {% if user_role in 'Admin,Manager' %}
+          <li>
+            <a href="/apartment-prices/"
+              class="flex items-center p-2 text-base font-medium text-gray-900 rounded-lg dark:text-white hover:bg-gray-100 dark:hover:bg-gray-700 group {% if current_path == '/notifications/' %}bg-gray-100{% endif %}">
+              <svg class="w-6 h-6 text-gray-800 dark:text-white" aria-hidden="true" xmlns="http://www.w3.org/2000/svg"
+                fill="none" viewBox="0 0 20 18">
+                <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                  d="M5 5h5M5 8h2m6-3h2m-5 3h6m2-7H2a1 1 0 0 0-1 1v9a1 1 0 0 0 1 1h3v5l5-5h8a1 1 0 0 0 1-1V2a1 1 0 0 0-1-1Z" />
+              </svg>
+              <span class="ml-3">Apartment Prices</span>
+            </a>
+          </li>
+          {% endif %}
         </ul>
       </div>
     </aside>

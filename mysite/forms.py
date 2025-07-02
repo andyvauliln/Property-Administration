@@ -316,12 +316,20 @@ class ApartmentForm(forms.ModelForm):
     class Meta:
         model = Apartment
         fields = ['name', 'apartment_type', 'keywords', 'status', 'notes', 'web_link', 'building_n', 'street', 'apartment_n',
-                  'state', 'start_date', 'end_date', 'city', 'zip_index', 'bedrooms', 'bathrooms', 'manager', 'owner', 'raiting']
+                  'state', 'start_date', 'end_date', 'city', 'zip_index', 'bedrooms', 'bathrooms', 'manager', 'owner', 'raiting', 'current_price_display']
 
     def __init__(self, *args, **kwargs):
         self.request = kwargs.pop('request', None)
         action = kwargs.pop('action', 'create')
         super(ApartmentForm, self).__init__(*args, **kwargs)
+        
+        # Add current price information if this is an existing apartment
+        if self.instance and self.instance.pk:
+            current_price = self.instance.current_price
+            if current_price:
+                self.fields['current_price_display'].initial = f"${current_price}"
+            else:
+                self.fields['current_price_display'].initial = "No current price set"
 
     def clean_name(self):
         name = self.cleaned_data.get('name')
@@ -341,6 +349,17 @@ class ApartmentForm(forms.ModelForm):
                        isCreate=True, ui_element="input")
     web_link = URLFieldEx(isColumn=False, initial="", required=False,
                           isEdit=True, isCreate=True, ui_element="input")
+    
+    current_price_display = CharFieldEx(
+        label="Current Price",
+        isColumn=True, 
+        isEdit=True, 
+        isCreate=False, 
+        required=False, 
+        initial="No price set", 
+        ui_element="input",
+        order=1.5
+    )
 
     # Address fields
     building_n = CharFieldEx(isColumn=False, isEdit=True, initial="",

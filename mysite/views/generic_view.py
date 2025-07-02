@@ -96,6 +96,10 @@ def generic_view(request, model_name, form_class, template_name, pages=30):
     today = date.today()
     items = model.objects.select_related(
         *fk_or_o2o_fields).prefetch_related(*m2m_fields)
+    
+    # For apartments, prefetch pricing data for better performance
+    if model_name.lower() == 'apartment':
+        items = items.prefetch_related('prices')
 
     if request.user.role == 'Manager' and model_name.lower() == 'apartment':
         items = items.filter(manager=request.user)
@@ -178,6 +182,37 @@ def generic_view(request, model_name, form_class, template_name, pages=30):
         
         items = items.order_by('-id')
         paginator_already_applied = False
+    # Specific model logic: If the model is ApartmentPrice, apply filters.
+    elif model_name == "apartmentprice":
+        # Apply apartment filter if provided
+        apartment_filter = request.GET.get('apartment')
+        if apartment_filter:
+            items = items.filter(apartment__id=apartment_filter)
+        
+        # Apply date range filters if provided
+        start_date = request.GET.get('start_date')
+        end_date = request.GET.get('end_date')
+        
+        if start_date:
+            try:
+                # Parse date from "July 03 2025" format
+                start_date_obj = datetime.strptime(start_date, '%B %d %Y').date()
+                items = items.filter(effective_date__gte=start_date_obj)
+            except ValueError:
+                # If date parsing fails, ignore the filter
+                pass
+        
+        if end_date:
+            try:
+                # Parse date from "July 03 2025" format
+                end_date_obj = datetime.strptime(end_date, '%B %d %Y').date()
+                items = items.filter(effective_date__lte=end_date_obj)
+            except ValueError:
+                # If date parsing fails, ignore the filter
+                pass
+        
+        items = items.order_by('-effective_date')
+        paginator_already_applied = False
     else:
         items = items.order_by('-id')
         paginator_already_applied = False
@@ -185,12 +220,24 @@ def generic_view(request, model_name, form_class, template_name, pages=30):
     if not paginator_already_applied:
         paginator = Paginator(items, pages)
         items_on_page = paginator.get_page(page)
+    
+    # Add computed fields to objects for template access
+    if model_name.lower() == 'apartment':
+        for apartment in items_on_page:
+            current_price = apartment.current_price
+            apartment.current_price_display = f"${current_price}" if current_price else "No price set"
         
     items_list = []
     for original_obj in items_on_page:
         item = {field.name: serialize_field(getattr(original_obj, field.name)) for field in original_obj._meta.fields}
         item['id'] = original_obj.id
         item['links'] = serialize_field(original_obj.links)
+        
+        # Add form fields that aren't model fields but are marked as columns
+        for field_name, field_instance in form.fields.items():
+            if hasattr(field_instance, 'isColumn') and field_instance.isColumn and field_name not in item:
+                # Initialize with empty value, will be populated below for specific models
+                item[field_name] = None
 
         if hasattr(original_obj, 'assigned_cleaner'):
             item['assigned_cleaner'] = original_obj.assigned_cleaner.id if original_obj.assigned_cleaner else None
@@ -212,6 +259,24 @@ def generic_view(request, model_name, form_class, template_name, pages=30):
                     'invoice_url': payment.invoice_url if hasattr(payment, 'invoice_url') else None
                 } for payment in original_obj.payments.all()
             ]
+
+        # Add pricing information for apartment model
+        if model_name.lower() == 'apartment':
+            # Add current price
+            current_price = original_obj.current_price
+            item['current_price'] = float(current_price) if current_price else None
+            item['current_price_display'] = f"${current_price}" if current_price else "No price set"
+            
+            # Add pricing history count
+            item['price_count'] = original_obj.prices.count()
+            
+            # Add future price changes count
+            future_prices_count = original_obj.get_future_prices().count()
+            item['future_prices_count'] = future_prices_count
+            
+            # Add latest price date
+            latest_price = original_obj.prices.first()  # Already ordered by -effective_date in model
+            item['latest_price_date'] = latest_price.effective_date if latest_price else None
 
         # Add invoice_url for payment model
         if model_name.lower() == 'payment':
@@ -253,6 +318,17 @@ def generic_view(request, model_name, form_class, template_name, pages=30):
     
     # Add apartments for payment filters
     if model_name == "payment":
+        from mysite.models import Apartment
+        
+        if request.user.role == 'Manager':
+            apartments = Apartment.objects.filter(manager=request.user).order_by('name')
+        else:
+            apartments = Apartment.objects.all().order_by('name')
+        
+        context['apartments'] = apartments
+    
+    # Add apartments for apartment prices filters
+    if model_name == "apartmentprice":
         from mysite.models import Apartment
         
         if request.user.role == 'Manager':

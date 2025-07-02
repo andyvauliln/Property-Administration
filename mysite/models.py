@@ -203,6 +203,24 @@ class Apartment(models.Model):
     @property
     def links(self):
         links_list = []
+        
+        # Pricing information
+        current_price = self.current_price
+        price_count = self.prices.count()
+        future_count = self.get_future_prices().count()
+        
+        if current_price:
+            price_status = f"Current: ${current_price}"
+            if future_count > 0:
+                price_status += f" ({future_count} future change{'s' if future_count != 1 else ''})"
+        else:
+            price_status = "No current price"
+        
+        links_list.append({
+            "name": f"Pricing: {price_status} ({price_count} total)", 
+            "link": f"/apartment-prices/?apartment={self.id}"
+        })
+        
         links_list.append({"name": "Booking Payments: Booking Payments",
                           "link": f"/payments/?q=booking.apartment.id={self.id}"})
         links_list.append({"name": "Apartment Payments: Apartment Payments",
