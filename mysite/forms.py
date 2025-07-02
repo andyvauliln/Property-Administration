@@ -1,7 +1,7 @@
 # mysite/forms.py
 from django import forms
 from django.contrib.auth.forms import AuthenticationForm
-from mysite.models import Booking, User, Apartment, Payment, Cleaning, Notification, PaymentMethod, PaymenType, HandymanCalendar, Parking, ParkingBooking, HandymanBlockedSlot
+from mysite.models import Booking, User, Apartment, ApartmentPrice, Payment, Cleaning, Notification, PaymentMethod, PaymenType, HandymanCalendar, Parking, ParkingBooking, HandymanBlockedSlot
 from datetime import date
 import requests
 import uuid
@@ -316,7 +316,7 @@ class ApartmentForm(forms.ModelForm):
     class Meta:
         model = Apartment
         fields = ['name', 'apartment_type', 'keywords', 'status', 'notes', 'web_link', 'building_n', 'street', 'apartment_n',
-                  'state', 'start_date', 'end_date', 'city', 'zip_index', 'bedrooms', 'bathrooms', 'manager', 'owner', 'raiting', 'price']
+                  'state', 'start_date', 'end_date', 'city', 'zip_index', 'bedrooms', 'bathrooms', 'manager', 'owner', 'raiting']
 
     def __init__(self, *args, **kwargs):
         self.request = kwargs.pop('request', None)
@@ -341,8 +341,6 @@ class ApartmentForm(forms.ModelForm):
                        isCreate=True, ui_element="input")
     web_link = URLFieldEx(isColumn=False, initial="", required=False,
                           isEdit=True, isCreate=True, ui_element="input")
-    
-    price = DecimalFieldEx(isColumn=False, isEdit=True, isCreate=True, required=False, initial=0, ui_element="input")
 
     # Address fields
     building_n = CharFieldEx(isColumn=False, isEdit=True, initial="",
@@ -388,6 +386,80 @@ class ApartmentForm(forms.ModelForm):
                              isEdit=True, isCreate=True, ui_element="datepicker")
     end_date = DateFieldEx(isColumn=False, required=False,
                            isEdit=True, isCreate=True, ui_element="datepicker")
+
+
+class ApartmentPriceForm(forms.ModelForm):
+    class Meta:
+        model = ApartmentPrice
+        fields = ['apartment', 'price', 'effective_date', 'notes']
+
+    def __init__(self, *args, **kwargs):
+        self.request = kwargs.pop('request', None)
+        action = kwargs.pop('action', 'create')
+        super(ApartmentPriceForm, self).__init__(*args, **kwargs)
+
+    apartment = ModelChoiceFieldEx(
+        queryset=Apartment.objects.all().order_by('name'),
+        isColumn=True,
+        isEdit=True,
+        isCreate=True,
+        ui_element="dropdown",
+        _dropdown_options=lambda: get_dropdown_options("apartments"),
+        display_field=["apartment.name"],
+        order=1
+    )
+
+    price = DecimalFieldEx(
+        isColumn=True,
+        isEdit=True,
+        isCreate=True,
+        required=True,
+        initial=0,
+        ui_element="input",
+        order=2
+    )
+
+    effective_date = DateFieldEx(
+        isColumn=True,
+        isEdit=True,
+        isCreate=True,
+        ui_element="datepicker",
+        order=3
+    )
+
+    notes = CharFieldEx(
+        isColumn=False,
+        isEdit=True,
+        isCreate=True,
+        required=False,
+        initial="",
+        ui_element="textarea",
+        order=4
+    )
+
+    def clean(self):
+        cleaned_data = super().clean()
+        apartment = cleaned_data.get('apartment')
+        effective_date = cleaned_data.get('effective_date')
+        
+        if apartment and effective_date:
+            # Check if there's already a price for this apartment on this date
+            existing_price = ApartmentPrice.objects.filter(
+                apartment=apartment,
+                effective_date=effective_date
+            )
+            
+            # If this is an update, exclude the current instance
+            if self.instance.pk:
+                existing_price = existing_price.exclude(pk=self.instance.pk)
+            
+            if existing_price.exists():
+                raise forms.ValidationError(
+                    f"A price for {apartment.name} already exists for {effective_date}. "
+                    "Only one price per apartment per date is allowed."
+                )
+        
+        return cleaned_data
 
 
 class BookingForm(forms.ModelForm):

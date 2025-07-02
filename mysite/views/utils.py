@@ -1,5 +1,5 @@
 from django.shortcuts import redirect
-from ..models import User, Apartment, Booking, Cleaning, Notification, PaymentMethod, Payment, PaymenType
+from ..models import User, Apartment, ApartmentPrice, Booking, Cleaning, Notification, PaymentMethod, Payment, PaymenType
 from mysite.forms import CustomFieldMixin
 from django.db.models import Q
 from django.db import models
@@ -127,6 +127,7 @@ class DateEncoder(DjangoJSONEncoder):
 MODEL_MAP = {
     'user': User,
     'apartment': Apartment,
+    'apartmentprice': ApartmentPrice,
     'booking': Booking,
     'cleaning': Cleaning,
     'notification': Notification,

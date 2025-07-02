@@ -163,13 +163,30 @@ class Apartment(models.Model):
                                 related_name='managed_apartments', null=True, limit_choices_to={'role': 'Manager'})
     owner = models.ForeignKey(User, on_delete=models.SET_NULL, blank=True, db_index=True,
                               related_name='owned_apartments', null=True, limit_choices_to={'role': 'Owner'})
-    price = models.DecimalField(max_digits=10, decimal_places=2, blank=True, null=True)
 
     @property
     def address(self):
         return f" {self.building_n} {self.street}, {self.apartment_n}, {self.state}, {self.city}, {self.zip_index}"
 
-    
+    @property
+    def current_price(self):
+        """Get the price that is effective on the current date"""
+        from datetime import date
+        today = date.today()
+        current_price_record = self.prices.filter(effective_date__lte=today).order_by('-effective_date').first()
+        return current_price_record.price if current_price_record else None
+
+    def get_price_on_date(self, target_date):
+        """Get the price that was effective on a specific date"""
+        price_record = self.prices.filter(effective_date__lte=target_date).order_by('-effective_date').first()
+        return price_record.price if price_record else None
+
+    def get_future_prices(self):
+        """Get all price changes scheduled for the future"""
+        from datetime import date
+        today = date.today()
+        return self.prices.filter(effective_date__gt=today).order_by('effective_date')
+
     def payment_revenue(self, start_date, end_date):
         if start_date and end_date:
             payments = self.payments.filter(payment_date__gte=start_date, payment_date__lte=end_date)
@@ -204,6 +221,32 @@ class Apartment(models.Model):
             links_list.append(
                 {"name": f"Owner: {self.owner.full_name}", "link": f"/users/?q=id={self.owner.id}"})
 
+        return links_list
+
+
+class ApartmentPrice(models.Model):
+    """Model to track apartment pricing history"""
+    
+    def __str__(self):
+        return f"{self.apartment.name} - ${self.price} (effective {self.effective_date})"
+
+    apartment = models.ForeignKey(Apartment, on_delete=models.CASCADE, db_index=True,
+                                  related_name='prices')
+    price = models.DecimalField(max_digits=10, decimal_places=2)
+    effective_date = models.DateField(db_index=True, help_text="Date when this price becomes effective")
+    notes = models.TextField(blank=True, null=True, help_text="Optional notes about this price change")
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-effective_date']
+        unique_together = ['apartment', 'effective_date']
+
+    @property
+    def links(self):
+        links_list = []
+        links_list.append({"name": f"Apartment: {self.apartment.name}",
+                          "link": f"/apartments/?q=id={self.apartment.id}"})
         return links_list
 
 

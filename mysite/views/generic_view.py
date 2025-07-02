@@ -1,6 +1,6 @@
 from calendar import month_name
 from django.shortcuts import render
-from mysite.forms import CustomUserForm, BookingForm, ApartmentForm, CleaningForm,  PaymentMethodForm, PaymentForm, PaymentTypeForm
+from mysite.forms import CustomUserForm, BookingForm, ApartmentForm, ApartmentPriceForm, CleaningForm,  PaymentMethodForm, PaymentForm, PaymentTypeForm
 from django.core.paginator import Paginator
 import json
 from django.core import serializers
@@ -20,6 +20,11 @@ def users(request):
 @user_has_role('Admin', "Manager")
 def apartments(request):
     return generic_view(request, 'apartment', ApartmentForm, 'apartments.html')
+
+
+@user_has_role('Admin', "Manager")
+def apartment_prices(request):
+    return generic_view(request, 'apartmentprice', ApartmentPriceForm, 'apartment_prices.html')
 
 
 @user_has_role('Admin', "Manager")
