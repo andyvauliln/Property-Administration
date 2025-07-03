@@ -149,12 +149,12 @@ def update_payments(request, payments_to_update):
     for payment_info in payments_to_update:
         payment_id = None
         try:
-            if payment_info['id'] and 'id_' not in payment_info['id']:
+            if payment_info['id'] and (isinstance(payment_info['id'], int) or (isinstance(payment_info['id'], str) and 'id_' not in payment_info['id'])):
                 payment = Payment.objects.get(id=payment_info['id'])
                 payment_id = payment.id
                 if payment:
                     payment.amount = float(payment_info['amount'])
-                    payment.payment_date = datetime.strptime(payment_info['payment_date'], '%B %d %Y').date()
+                    payment.payment_date = parse_payment_date(payment_info['payment_date'])
                     payment.payment_type_id = payment_info['payment_type']
                     payment.notes = payment_info['notes']
                     payment.payment_method_id = payment_info['payment_method']
@@ -194,6 +194,28 @@ def update_payments(request, payments_to_update):
 def remove_trailing_zeros_from_str(amount_str):
     amount_float = float(amount_str)
     return ('%f' % abs(amount_float)).rstrip('0').rstrip('.')
+
+def parse_payment_date(date_str):
+    """Parse date string into a date object, handling multiple formats"""
+    if not date_str:
+        return None
+        
+    # Try parsing with different formats
+    formats = [
+        '%Y-%m-%d %H:%M:%S',  # 2025-01-02 00:00:00
+        '%Y-%m-%d',           # 2025-01-02
+        '%B %d %Y',           # January 02 2025
+        '%m/%d/%Y',           # 01/02/2025
+    ]
+    
+    for fmt in formats:
+        try:
+            return datetime.strptime(date_str, fmt).date()
+        except ValueError:
+            continue
+    
+    # If none of the formats work, raise an error
+    raise ValueError(f"Date format for '{date_str}' is not supported. Expected formats: YYYY-MM-DD HH:MM:SS, YYYY-MM-DD, Month DD YYYY, or MM/DD/YYYY")
 
 def get_payment_data(request, csv_file, payment_methods, apartments, payment_types):
     file_data = csv_file.read().decode("utf-8")

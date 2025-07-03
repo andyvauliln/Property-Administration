@@ -124,8 +124,8 @@
             <!-- Table Content -->
             <div class="overflow-x-auto">
                 <table class="w-full text-sm text-left text-gray-500 dark:text-gray-400">
-                    {% include "components/table/table_header.html" %}
-                    {% include "components/table/table_body.html" %}
+                    {% include "components/table/table_header.html" with model="cleanings" %}
+                    {% include "components/table/table_body.html" with model="cleanings" %}
                 </table>
             </div>
             
@@ -201,8 +201,8 @@
     }
 </script>
 
-{% include "components/table/table_edit.html" %}
-{% include "components/table/table_create.html" %}
-{% include "components/table/table_delete.html" %}
+{% include "components/table/table_edit.html" with model="cleanings" %}
+{% include "components/table/table_create.html" with model="cleanings" %}
+{% include "components/table/table_delete.html" with model="cleanings" %}
 
 {% endblock content %}

@@ -218,7 +218,7 @@ class Apartment(models.Model):
         
         links_list.append({
             "name": f"Pricing: {price_status} ({price_count} total)", 
-            "link": f"/apartment-prices/?apartment={self.id}"
+            "link": f"/apartmentprice/?apartment={self.id}"
         })
         
         links_list.append({"name": "Booking Payments: Booking Payments",

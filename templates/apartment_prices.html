@@ -94,7 +94,7 @@
                                 <button type="submit" class="text-white bg-primary-700 hover:bg-primary-800 focus:ring-4 focus:outline-none focus:ring-primary-300 font-medium rounded-lg text-sm px-4 py-2.5 dark:bg-primary-600 dark:hover:bg-primary-700 dark:focus:ring-primary-800">
                                     Apply Filter
                                 </button>
-                                <a href="/apartment-prices/" class="text-gray-700 bg-gray-200 hover:bg-gray-300 focus:ring-4 focus:outline-none focus:ring-gray-300 font-medium rounded-lg text-sm px-4 py-2.5 dark:bg-gray-600 dark:hover:bg-gray-500 dark:focus:ring-gray-400">
+                                <a href="/apartmentprice/" class="text-gray-700 bg-gray-200 hover:bg-gray-300 focus:ring-4 focus:outline-none focus:ring-gray-300 font-medium rounded-lg text-sm px-4 py-2.5 dark:bg-gray-600 dark:hover:bg-gray-500 dark:focus:ring-gray-400">
                                     Clear
                                 </a>
                             </div>
@@ -106,8 +106,8 @@
             <!-- Table Content -->
             <div class="overflow-x-auto">
                 <table class="w-full text-sm text-left text-gray-500 dark:text-gray-400">
-                    {% include "components/table/table_header.html" %}
-                    {% include "components/table/table_body.html" %}
+                    {% include "components/table/table_header.html" with model="apartmentprice" %}
+                    {% include "components/table/table_body.html" with model="apartmentprice" %}
                 </table>
             </div>
             
@@ -122,7 +122,7 @@
                <ul class="inline-flex items-stretch -space-x-px">
                 <li>
                     {% if items.has_previous %}
-                    <a href="/apartment-prices/?q={{ request.GET.q }}&page={{ items.previous_page_number }}{% if request.GET.apartment %}&apartment={{ request.GET.apartment }}{% endif %}{% if request.GET.start_date %}&start_date={{ request.GET.start_date }}{% endif %}{% if request.GET.end_date %}&end_date={{ request.GET.end_date }}{% endif %}" class="flex items-center justify-center h-full py-1.5 px-3 ml-0 text-gray-500 bg-white rounded-l-lg border border-gray-300 hover:bg-gray-100 hover:text-gray-700 dark:bg-gray-800 dark:border-gray-700 dark:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-white">
+                    <a href="/apartmentprice/?q={{ request.GET.q }}&page={{ items.previous_page_number }}{% if request.GET.apartment %}&apartment={{ request.GET.apartment }}{% endif %}{% if request.GET.start_date %}&start_date={{ request.GET.start_date }}{% endif %}{% if request.GET.end_date %}&end_date={{ request.GET.end_date }}{% endif %}" class="flex items-center justify-center h-full py-1.5 px-3 ml-0 text-gray-500 bg-white rounded-l-lg border border-gray-300 hover:bg-gray-100 hover:text-gray-700 dark:bg-gray-800 dark:border-gray-700 dark:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-white">
                         <span class="sr-only">Previous</span>
                         <svg class="w-5 h-5" aria-hidden="true" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg">
                             <path fill-rule="evenodd" d="M12.707 5.293a1 1 0 010 1.414L9.414 10l3.293 3.293a1 1 0 01-1.414 1.414l-4-4a1 1 0 010-1.414l4-4a1 1 0 011.414 0z" clip-rule="evenodd"></path>
@@ -136,7 +136,7 @@
                     {% for page_num in items.paginator.page_range %}
                         {% if page_num <= 5 or page_num > num_pages_minus_5 or page_num == items.number %}
                             <li>
-                                <a href="/apartment-prices/?q={{ request.GET.q }}&page={{ page_num }}{% if request.GET.apartment %}&apartment={{ request.GET.apartment }}{% endif %}{% if request.GET.start_date %}&start_date={{ request.GET.start_date }}{% endif %}{% if request.GET.end_date %}&end_date={{ request.GET.end_date }}{% endif %}" 
+                                <a href="/apartmentprice/?q={{ request.GET.q }}&page={{ page_num }}{% if request.GET.apartment %}&apartment={{ request.GET.apartment }}{% endif %}{% if request.GET.start_date %}&start_date={{ request.GET.start_date }}{% endif %}{% if request.GET.end_date %}&end_date={{ request.GET.end_date }}{% endif %}" 
                                 class="{% if page_num == items.number %}bg-primary-50 text-primary-600 border-primary-300{% else %} bg-white text-gray-500 border-gray-300 hover:bg-gray-100 hover:text-gray-700{% endif %} border flex items-center justify-center text-sm py-2 px-3 leading-tight ">
                                     {{ page_num }}
                                 </a>
@@ -156,7 +156,7 @@
 
                 <li>
                     {% if items.has_next %}
-                    <a href="/apartment-prices/?q={{ request.GET.q }}&page={{ items.next_page_number }}{% if request.GET.apartment %}&apartment={{ request.GET.apartment }}{% endif %}{% if request.GET.start_date %}&start_date={{ request.GET.start_date }}{% endif %}{% if request.GET.end_date %}&end_date={{ request.GET.end_date }}{% endif %}" class="flex items-center justify-center h-full py-1.5 px-3 leading-tight text-gray-500 bg-white rounded-r-lg border border-gray-300 hover:bg-gray-100 hover:text-gray-700 dark:bg-gray-800 dark:border-gray-700 dark:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-white">
+                    <a href="/apartmentprice/?q={{ request.GET.q }}&page={{ items.next_page_number }}{% if request.GET.apartment %}&apartment={{ request.GET.apartment }}{% endif %}{% if request.GET.start_date %}&start_date={{ request.GET.start_date }}{% endif %}{% if request.GET.end_date %}&end_date={{ request.GET.end_date }}{% endif %}" class="flex items-center justify-center h-full py-1.5 px-3 leading-tight text-gray-500 bg-white rounded-r-lg border border-gray-300 hover:bg-gray-100 hover:text-gray-700 dark:bg-gray-800 dark:border-gray-700 dark:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-white">
                         <span class="sr-only">Next</span>
                         <svg class="w-5 h-5" aria-hidden="true" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg">
                             <path fill-rule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clip-rule="evenodd"></path>
@@ -183,8 +183,8 @@
     }
 </script>
 
-{% include "components/table/table_edit.html" %}
-{% include "components/table/table_create.html" %}
-{% include "components/table/table_delete.html" %}
+{% include "components/table/table_edit.html" with model="apartmentprice" %}
+{% include "components/table/table_create.html" with model="apartmentprice" %}
+{% include "components/table/table_delete.html" with model="apartmentprice" %}
 
 {% endblock content %} 

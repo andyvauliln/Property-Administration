@@ -212,7 +212,7 @@ curl -X POST "https://yourapi.com/api/update-single-apartment-price/" \
 
 ### Apartment Filtering
 - Apartment prices page now includes dropdown filtering by apartment
-- URL format: `/apartment-prices/?apartment=ID`
+- URL format: `/apartmentprice/?apartment=ID`
 - Links from apartment listings direct to filtered pricing pages
 
 ### Price Display

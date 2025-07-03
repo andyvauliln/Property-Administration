@@ -18,7 +18,7 @@ except ImportError:
     print("   Using environment variables or defaults")
 
 # Configuration
-BASE_URL = os.getenv('BASE_URL', 'http://localhost:8000')
+BASE_URL = os.getenv('BASE_URL', 'http://68.183.124.79')
 AUTH_TOKEN = os.getenv('API_AUTH_TOKEN', 'your_test_token_here')
 
 def make_request(method, endpoint, data=None, params=None):

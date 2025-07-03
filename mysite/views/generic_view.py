@@ -170,10 +170,16 @@ def generic_view(request, model_name, form_class, template_name, pages=30):
                 Q(booking__apartment__id=apartment_filter)
             )
         
-        # Apply tenant filter if provided (search by name)
+        # Apply tenant/amount filter if provided
         tenant_filter = request.GET.get('tenant')
         if tenant_filter:
-            items = items.filter(booking__tenant__full_name__icontains=tenant_filter)
+            try:
+                # Try to parse as decimal for amount search
+                amount_value = float(tenant_filter)
+                items = items.filter(amount=amount_value)
+            except (ValueError, TypeError):
+                # If not a valid decimal, search by tenant name
+                items = items.filter(booking__tenant__full_name__icontains=tenant_filter)
         
         # Apply payment status filter if provided
         payment_status_filter = request.GET.get('payment_status_filter')

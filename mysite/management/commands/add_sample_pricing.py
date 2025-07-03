@@ -94,5 +94,5 @@ class Command(BaseCommand):
             'You can now view apartments to see current pricing information,'
         )
         self.stdout.write(
-            'and visit /apartment-prices/ to manage all pricing data.'
+            'and visit /apartmentprice/ to manage all pricing data.'
         ) 

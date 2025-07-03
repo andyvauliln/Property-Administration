@@ -77,9 +77,9 @@
                             <!-- Tenant Filter -->
                             <div class="flex-1">
                                 <label for="tenant_filter" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                                    Search by Tenant Name
+                                    Search by Tenant Name Or Amount
                                 </label>
-                                <input type="text" name="tenant" id="tenant_filter" value="{{ request.GET.tenant }}" placeholder="Enter tenant name..." class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-primary-500 focus:border-primary-500 block w-full p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white dark:focus:ring-primary-500 dark:focus:border-primary-500">
+                                <input type="text" name="tenant" id="tenant_filter" value="{{ request.GET.tenant }}" placeholder="Enter tenant name or amount..." class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-primary-500 focus:border-primary-500 block w-full p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white dark:focus:ring-primary-500 dark:focus:border-primary-500">
                             </div>
 
                             <!-- Payment Status Filter -->
@@ -112,8 +112,8 @@
             <!-- Table Content -->
             <div class="overflow-x-auto">
                 <table class="w-full text-sm text-left text-gray-500 dark:text-gray-400">
-                    {% include "components/table/table_header.html" %}
-                    {% include "components/table/table_body.html" %}
+                    {% include "components/table/table_header.html" with model="payments" %}
+                    {% include "components/table/table_body.html" with model="payments" %}
                 </table>
             </div>
             
@@ -189,8 +189,8 @@
     }
 </script>
 
-{% include "components/table/table_edit.html" %}
-{% include "components/table/table_create.html" %}
-{% include "components/table/table_delete.html" %}
+{% include "components/table/table_edit.html" with model="payments" %}
+{% include "components/table/table_create.html" with model="payments" %}
+{% include "components/table/table_delete.html" with model="payments" %}
 
 {% endblock content %}
