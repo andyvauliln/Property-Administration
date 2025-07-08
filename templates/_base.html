@@ -430,6 +430,7 @@
           paymentTypeSelect.appendChild(option);
           
       });
+      console.log("paymentTypes", paymentTypes);
 
       const deleteButton = document.createElement('button');
       deleteButton.className = 'text-red-600 hover:text-red-800 focus:outline-none';
@@ -499,10 +500,50 @@
       // Set the text content of the textarea
       payments_notes.textContent = notes; 
       paymentRow.appendChild(payments_notes);
-  
+      console.log("paymentRow", paymentRow);
   
       // Append the payment row to the payments container
       paymentsContainer.appendChild(paymentRow);
+      
+      // Auto-show payment container and related elements when payment is added
+      if (modal === 'edit') {
+          const container = document.getElementById('paymentsContainer-edit');
+          const button = document.getElementById('toggle-payment-button');
+          const paymentTitle = document.getElementById('booking-payments-title');
+          const separator = document.getElementById('payment-separator');
+          const detailsTitle = document.getElementById('booking-details-title');
+          
+          // Show the container and update button text
+          if (container && container.style.display === 'none') {
+              container.style.display = 'block';
+          }
+          if (button) {
+              button.textContent = 'Hide Payments';
+          }
+          if (paymentTitle) {
+              paymentTitle.classList.remove('hidden');
+          }
+          if (separator) {
+              separator.classList.remove('hidden');
+          }
+          if (detailsTitle) {
+              detailsTitle.classList.remove('hidden');
+          }
+      } else if (modal === 'create') {
+          const paymentTitle = document.getElementById('booking-payments-title-create');
+          const separator = document.getElementById('payment-separator-create');
+          const detailsTitle = document.getElementById('booking-details-title-create');
+          
+          if (paymentTitle) {
+              paymentTitle.classList.remove('hidden');
+          }
+          if (separator) {
+              separator.classList.remove('hidden');
+          }
+          if (detailsTitle) {
+              detailsTitle.classList.remove('hidden');
+          }
+      }
 }
 function createDocusealForm(url){
   if(url){

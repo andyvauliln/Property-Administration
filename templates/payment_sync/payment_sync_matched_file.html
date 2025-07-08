@@ -109,7 +109,9 @@
                                 "<div class='text-green-500 font-bold'> $" + payment.amount} </div>
                                 <div class="font-bold"> ${payment_types_dictionary[payment.payment_type]} </div>
                             </div>
-                            
+                            ${listElement.id === 'db_payments_list' ? 
+                                `<div class="text-xs text-blue-600 font-medium">Apt: ${payment.apartment_name || 'N/A'}</div>` : 
+                                ''}
                             <div class="">${payment.notes}</div>
                         </label>
                     </div>

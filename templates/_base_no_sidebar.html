@@ -223,8 +223,48 @@
       paymentRow.appendChild(payments_notes);
   
   
-      // Append the payment row to the payments container
-      paymentsContainer.appendChild(paymentRow);
+        // Append the payment row to the payments container
+  paymentsContainer.appendChild(paymentRow);
+  
+  // Auto-show payment container and related elements when payment is added
+  if (modal === 'edit') {
+      const container = document.getElementById('paymentsContainer-edit');
+      const button = document.getElementById('toggle-payment-button');
+      const paymentTitle = document.getElementById('booking-payments-title');
+      const separator = document.getElementById('payment-separator');
+      const detailsTitle = document.getElementById('booking-details-title');
+      
+      // Show the container and update button text
+      if (container && container.style.display === 'none') {
+          container.style.display = 'block';
+      }
+      if (button) {
+          button.textContent = 'Hide Payments';
+      }
+      if (paymentTitle) {
+          paymentTitle.classList.remove('hidden');
+      }
+      if (separator) {
+          separator.classList.remove('hidden');
+      }
+      if (detailsTitle) {
+          detailsTitle.classList.remove('hidden');
+      }
+  } else if (modal === 'create') {
+      const paymentTitle = document.getElementById('booking-payments-title-create');
+      const separator = document.getElementById('payment-separator-create');
+      const detailsTitle = document.getElementById('booking-details-title-create');
+      
+      if (paymentTitle) {
+          paymentTitle.classList.remove('hidden');
+      }
+      if (separator) {
+          separator.classList.remove('hidden');
+      }
+      if (detailsTitle) {
+          detailsTitle.classList.remove('hidden');
+      }
+  }
 }
 function createDocusealForm(url){
   if(url){
