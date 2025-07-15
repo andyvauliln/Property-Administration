@@ -50,3 +50,5 @@ farid_oauth2.json
 cron_logs.json
 
 start.sh
+
+~/.ssh/

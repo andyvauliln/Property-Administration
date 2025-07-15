@@ -158,6 +158,7 @@ class Apartment(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     raiting = models.DecimalField(blank=True, null=True, default=0, max_digits=2, decimal_places=1)
+    default_price = models.DecimalField(blank=True, null=True, default=0, max_digits=10, decimal_places=2)
 
     manager = models.ForeignKey(User, on_delete=models.SET_NULL, blank=True, db_index=True,
                                 related_name='managed_apartments', null=True, limit_choices_to={'role': 'Manager'})
