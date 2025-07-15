@@ -167,6 +167,7 @@ class CustomFieldMixin:
         self.ui_element = kwargs.pop('ui_element', None)
         self.display_field = kwargs.pop('display_field', [])
         self.order = kwargs.pop('order', 100)
+        self.editable_by_user = kwargs.pop('editable_by_user', True)
         super().__init__(*args, **kwargs)
 
     @property
@@ -355,7 +356,8 @@ class ApartmentForm(forms.ModelForm):
         isColumn=True, 
         isEdit=True, 
         isCreate=False, 
-        required=False, 
+        required=False,
+        editable_by_user=False,
         initial="No price set", 
         ui_element="input",
         order=1.5

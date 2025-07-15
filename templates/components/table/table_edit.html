@@ -48,7 +48,7 @@
                                     <label for="{{ field_name }}" class="block mb-2 text-sm font-medium text-gray-900 dark:text-white">{{ field_name|split_underscore|title }}
                                         {% if field_instance.required %}<span class="text-red-600">*</span>{% endif %}
                                     </label>
-                                    <textarea id="{{field_name}}" name="{{field_name}}" rows="5" class="block p-2.5 w-full text-sm text-gray-900 bg-gray-50 rounded-lg border border-gray-300 focus:ring-primary-500 focus:border-primary-500 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white dark:focus:ring-primary-500 dark:focus:border-primary-500" placeholder=""></textarea>
+                                    <textarea id="{{field_name}}" name="{{field_name}}" rows="5" class="block p-2.5 w-full text-sm text-gray-900 bg-gray-50 rounded-lg border border-gray-300 focus:ring-primary-500 focus:border-primary-500 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white dark:focus:ring-primary-500 dark:focus:border-primary-500" placeholder="" {% if not field_instance.editable_by_user %}readonly disabled{% endif %}></textarea>
                                 </div>
                             {% else %}
                                 <div>
@@ -56,11 +56,11 @@
                                         {% if field_instance.required %}<span class="text-red-600">*</span>{% endif %}
                                     </label>
                                     {% if field_instance.ui_element == "datepicker" %}
-                                        <input name="{{field_name}}" id="{{field_name}}" datepicker datepicker-format="MM dd yyyy" type="text" value="" class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white dark:focus:ring-blue-500 dark:focus:border-blue-500" placeholder="Select date">
+                                        <input name="{{field_name}}" id="{{field_name}}" datepicker datepicker-format="MM dd yyyy" type="text" value="" class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white dark:focus:ring-blue-500 dark:focus:border-blue-500" placeholder="Select date" {% if not field_instance.editable_by_user %}readonly disabled{% endif %}>
                                     {% elif field_instance.ui_element == "checkbox" %}
-                                        <input checked id="{{field_name}}" type="checkbox" name="{{field_name}}" value="1" class="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 dark:focus:ring-blue-600 dark:ring-offset-gray-800 focus:ring-2 dark:bg-gray-700 dark:border-gray-600">
+                                        <input checked id="{{field_name}}" type="checkbox" name="{{field_name}}" value="1" class="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 dark:focus:ring-blue-600 dark:ring-offset-gray-800 focus:ring-2 dark:bg-gray-700 dark:border-gray-600" {% if not field_instance.editable_by_user %}disabled{% endif %}>
                                     {% elif field_instance.ui_element == "dropdown" %}
-                                        <select name="{{ field_name }}" id="{{ field_name }}" class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-primary-500 focus:border-primary-500 block w-full p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white dark:focus:ring-primary-500 dark:focus:border-primary-500">
+                                        <select name="{{ field_name }}" id="{{ field_name }}" class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-primary-500 focus:border-primary-500 block w-full p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white dark:focus:ring-primary-500 dark:focus:border-primary-500" {% if not field_instance.editable_by_user %}disabled{% endif %}>
                                             <option value="">None</option>
                                             {% for option in field_instance.dropdown_options %}
                                                 <option value="{{ option.value }}">{{ option.label }}</option>
@@ -69,18 +69,18 @@
                                     {% elif field_instance.ui_element == "radio" %}
                                         <div class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-primary-500 focus:border-primary-500 block w-full p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white dark:focus:ring-primary-500 dark:focus:border-primary-500">
                                             <div>
-                                                <input type="radio" id="{{ field_name }}_none" name="{{ field_name }}" value="" class="text-primary-600 border-gray-300 focus:ring-primary-500 dark:focus:ring-primary-500 dark:ring-offset-gray-800 focus:ring-2 dark:bg-gray-700 dark:border-gray-600">
+                                                <input type="radio" id="{{ field_name }}_none" name="{{ field_name }}" value="" class="text-primary-600 border-gray-300 focus:ring-primary-500 dark:focus:ring-primary-500 dark:ring-offset-gray-800 focus:ring-2 dark:bg-gray-700 dark:border-gray-600" {% if not field_instance.editable_by_user %}disabled{% endif %}>
                                                 <label for="{{ field_name }}_none" class="ml-2 text-sm font-medium text-gray-900 dark:text-gray-300">None</label>
                                             </div>
                                             {% for option in field_instance.dropdown_options %}
                                                 <div>
-                                                    <input type="radio" id="{{ field_name }}_{{ forloop.counter }}" name="{{ field_name }}" value="{{ option.value }}" class="text-primary-600 border-gray-300 focus:ring-primary-500 dark:focus:ring-primary-500 dark:ring-offset-gray-800 focus:ring-2 dark:bg-gray-700 dark:border-gray-600">
+                                                    <input type="radio" id="{{ field_name }}_{{ forloop.counter }}" name="{{ field_name }}" value="{{ option.value }}" class="text-primary-600 border-gray-300 focus:ring-primary-500 dark:focus:ring-primary-500 dark:ring-offset-gray-800 focus:ring-2 dark:bg-gray-700 dark:border-gray-600" {% if not field_instance.editable_by_user %}disabled{% endif %}>
                                                     <label for="{{ field_name }}_{{ forloop.counter }}" class="ml-2 text-sm font-medium text-gray-900 dark:text-gray-300">{{ option.label }}</label>
                                                 </div>
                                             {% endfor %}
                                         </div>
                                     {% else %}
-                                        <input type="text" name="{{ field_name }}" value="" class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-primary-600 focus:border-primary-600 block w-full p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white dark:focus:ring-primary-500 dark:focus:border-primary-500" placeholder="{{ field_name|split_underscore|title }}">
+                                        <input type="text" name="{{ field_name }}" value="" class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-primary-600 focus:border-primary-600 block w-full p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white dark:focus:ring-primary-500 dark:focus:border-primary-500" placeholder="{{ field_name|split_underscore|title }}" {% if not field_instance.editable_by_user %}readonly disabled{% endif %}>
                                     {% endif %}
                                 </div>
                             {% endif %}
