@@ -1101,12 +1101,14 @@ class ParkingBookingForm(forms.ModelForm):
         start_date = cleaned_data.get('start_date')
         end_date = cleaned_data.get('end_date')
 
-        # If booking is assigned, use booking dates and set status to 'Booked'
+        # If booking is assigned, use booking dates and apartment, but preserve user-selected status
         if booking:
             cleaned_data['start_date'] = booking.start_date
             cleaned_data['end_date'] = booking.end_date
             cleaned_data['apartment'] = booking.apartment
-            cleaned_data['status'] = 'Booked'
+            # Only set status to 'Booked' if no status was explicitly provided (for new bookings)
+            if not self.instance.pk and not status:
+                cleaned_data['status'] = 'Booked'
         else:
             # If no booking but status is 'Booked', require dates
             if status == 'Booked' and not (start_date and end_date):

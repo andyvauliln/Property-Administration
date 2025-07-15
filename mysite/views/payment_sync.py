@@ -160,7 +160,7 @@ def update_payments(request, payments_to_update):
                     payment.payment_method_id = payment_info['payment_method']
                     payment.bank_id = payment_info['bank']
                     payment.apartment_id = payment_info['apartment']
-                    payment.payment_status = payment_info['payment_status']
+                    payment.payment_status = "Merged"
                     merged_payment_key = payment_info.get('merged_payment_key') or (
                         parse_date(payment_info.get('file_date', '')) + 
                         remove_trailing_zeros_from_str(payment_info.get('file_amount', '')) + 
@@ -185,7 +185,7 @@ def update_payments(request, payments_to_update):
                         remove_trailing_zeros_from_str(payment_info.get('file_amount', '')) + 
                         payment_info.get('file_notes', '')
                     ),
-                    payment_status=payment_info['payment_status'],
+                    payment_status="Merged",
                 )
                 messages.success(request, f"Created new Payment: {payment.id}")
         except Exception as e:
