@@ -22,7 +22,6 @@ class ApartmentBookingDates(APIView):
             )
         
         today = date.today()
-        yesterday = today - timedelta(days=1)
         
         # Get apartment_ids from query parameters
         apartment_ids = request.GET.get('apartment_ids', '')
@@ -71,6 +70,7 @@ class ApartmentBookingDates(APIView):
                 pricing_data.append({
                     "price": float(current_active_price.price),
                     "effective_date": current_active_price.effective_date.strftime("%Y-%m-%d"),
+                    "default_price": float(apartment.default_price),
                     "notes": current_active_price.notes or ""
                 })
             
@@ -79,6 +79,7 @@ class ApartmentBookingDates(APIView):
                 pricing_data.append({
                     "price": float(price.price),
                     "effective_date": price.effective_date.strftime("%Y-%m-%d"),
+                    "default_price": float(apartment.default_price),
                     "notes": price.notes or ""
                 })
             
