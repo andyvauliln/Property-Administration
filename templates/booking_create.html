@@ -119,10 +119,14 @@
                 {% for option in field_instance.dropdown_options %}
                     {
                         "id": {{ option.value }},
-                        "name": "{{ option.label|escapejs }}"
+                        "name": "{{ option.label|escapejs }}",
+                        "manager_id": {{ option.manager_id|default:"null" }}
                     },
                 {% endfor %}
             ];
+            console.log('🏠 Apartment data loaded:', apartmentsData);
+            console.log('🏠 Number of apartments:', apartmentsData.length);
+            console.log('🏠 Apartments with managers:', apartmentsData.filter(apt => apt.manager_id !== null));
         {% endif %}
         {% if field_name == "parking_number" %}
             parkingData = [
@@ -137,18 +141,54 @@
     {% endfor %}
 
     function handleApartmentChange(apartmentId) {
-        console.log('handleApartmentChange', apartmentId);
+        console.log('🔄 handleApartmentChange called with ID:', apartmentId);
+        console.log('🔄 addPaymentRow function exists:', typeof addPaymentRow === 'function');
+        
         const parkingSelect = document.getElementById('parking_number');
         
-        if (!apartmentId || !parkingSelect) {
+        if (!apartmentId) {
+            console.log('❌ No apartment ID provided');
             return;
+        }
+        
+        if (!parkingSelect) {
+            console.log('❌ Parking select element not found');
         }
 
         // Find the selected apartment data
         const selectedApartment = apartmentsData.find(apt => apt.id == apartmentId);
+        console.log('🏠 Selected apartment:', selectedApartment);
         
-        if (!selectedApartment) {
-            return;
+         // Auto-add payment row if apartment has a manager
+         if (selectedApartment && selectedApartment.manager_id) {
+            console.log('✅ Apartment has manager (ID:', selectedApartment.manager_id, '), proceeding to add payment row');
+            
+            const startDateInput = document.getElementById("start_date");
+            console.log('📅 Start date input element:', startDateInput);
+            console.log('📅 Start date value:', startDateInput ? startDateInput.value : 'N/A');
+            
+            const startDate = startDateInput && startDateInput.value ? new Date(startDateInput.value) : new Date();
+            console.log('📅 Calculated start date:', startDate);
+            
+            const ownerPaymentDate = new Date(startDate);
+            ownerPaymentDate.setDate(startDate.getDate() + 4);
+            console.log('📅 Owner payment date (start + 4 days):', ownerPaymentDate);
+            
+            // Add payment row with payment type 2 (Other - Out) for apartments with managers
+            console.log('💰 About to call addPaymentRow("create", ownerPaymentDate, 0, 2)');
+            
+            if (typeof addPaymentRow === 'function') {
+                try {
+                    addPaymentRow("create", ownerPaymentDate, 1, 21, "Pending", "Payment for owner (will be set later)");
+                    console.log('✅ addPaymentRow called successfully');
+                } catch (error) {
+                    console.error('❌ Error calling addPaymentRow:', error);
+                }
+            } else {
+                console.error('❌ addPaymentRow is not a function:', typeof addPaymentRow);
+            }
+        } else {
+            console.log('❌ Apartment has no manager (manager_id:', selectedApartment.manager_id, '), skipping auto-payment');
         }
 
         console.log('Selected apartment:', selectedApartment.name);
@@ -212,6 +252,8 @@
             // Clear parking selection if no match found
             parkingSelect.value = '';
         }
+
+       
     }
 
     function filterUsers(users, searchValue) {
@@ -247,6 +289,11 @@
     }
 
     document.addEventListener('DOMContentLoaded', function() {
+        console.log('🚀 Page loaded - Debug info:');
+        console.log('🚀 addPaymentRow function available:', typeof addPaymentRow === 'function');
+        console.log('🚀 handleApartmentChange function available:', typeof handleApartmentChange === 'function');
+        console.log('🚀 Apartment dropdown element exists:', !!document.getElementById('apartment'));
+        
         var currentUrl = window.location.href;
         const usersSearchInput = document.getElementById('users_search_input');
         const userList = document.getElementById('user_list');
@@ -280,6 +327,21 @@
     function openCreateModal(){
         const createModal = document.getElementById('createModal');
         createModal.style.display = 'flex';
+    }
+    
+    // DEBUG: Test function to manually add a payment row
+    function testAddPayment() {
+        console.log('🧪 Testing addPaymentRow function...');
+        if (typeof addPaymentRow === 'function') {
+            try {
+                addPaymentRow("create", new Date(), 100, 2);
+                console.log('✅ Test payment row added successfully');
+            } catch (error) {
+                console.error('❌ Error in test payment row:', error);
+            }
+        } else {
+            console.error('❌ addPaymentRow function not available');
+        }
     }
     
 </script>

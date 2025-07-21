@@ -8,7 +8,7 @@ from django.views.decorators.http import require_http_methods
 import logging
 import traceback
 
-logger_common = logging.getLogger('mysite.common')
+logger_common = logging.getLogger('mysite.docuseal')
 
 
 def print_info(message, type="info"):
@@ -44,6 +44,7 @@ def docuseal_callback(request):
                         booking.car_model = form_fields_dict["car_model"]
                         print_info(form_fields_dict['car_model'], "car_model")
                     booking.save()
+                    print_info(booking.status, "booking status")
                     print_info("Booking Saved")
                     tenant = booking.tenant
                     print_info(tenant, "tenant object before update")

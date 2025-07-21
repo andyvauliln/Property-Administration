@@ -167,15 +167,15 @@
                                             
                                         {% endif %}
                                     </td>
-                                    <td class="px-4 py-4">{% if payment.payment_method %}{{ payment.payment_method.name }}{% else %}{% endif %}</td>
+                                    <td class="px-4 py-4 {% if payment.payment_method.name == 'Cash' %}text-red-500 font-bold{% endif %}">{% if payment.payment_method %}{{ payment.payment_method.name }}{% else %}{% endif %}</td>
                                     <td class="px-4 py-4">{% if payment.bank %}{{ payment.bank.name }}{% else %}{% endif %}</td>
                                     <td class="px-4 py-4">
                                         {% if payment.booking and payment.booking.apartment %}
-                                            <a href="/apartments/?q=id={{ payment.booking.apartment.id }}" target="_blank" onclick="event.stopPropagation();" class="font-bold text-blue-500 underline">
+                                            <a href="javascript:void(0)" onclick="event.stopPropagation(); filterByApartment('{{ payment.booking.apartment.name }}');" class="font-bold text-blue-500 underline cursor-pointer">
                                                 {{ payment.booking.apartment.name }}
                                             </a>
                                         {% elif payment.apartment %}
-                                            <a href="/apartments/?q=id={{ payment.apartment.id }}" target="_blank" onclick="event.stopPropagation();" class="font-bold text-blue-500 underline">
+                                            <a href="javascript:void(0)" onclick="event.stopPropagation(); filterByApartment('{{ payment.apartment.name }}');" class="font-bold text-blue-500 underline cursor-pointer">
                                                 {{ payment.apartment.name }}
                                             </a>
                                         {% else %}
@@ -277,6 +277,13 @@
       
        
       }
+
+    function filterByApartment(apartmentName) {
+        // Set the apartment dropdown value
+        document.getElementById('apartment').value = apartmentName;
+        // Reload the report with the new filter
+        getReport();
+    }
     document.addEventListener('DOMContentLoaded', function() {
         // Get all table rows
         const rows = document.querySelectorAll('[data-id]');

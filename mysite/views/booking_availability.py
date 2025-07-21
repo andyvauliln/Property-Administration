@@ -134,7 +134,7 @@ def booking_availability(request):
                 day_bookings = [b for b in bookings if b.start_date <= date_obj <= b.end_date]
                 
                 # Check if the apartment is available on this date
-                if apartment.start_date and date_obj < apartment.start_date.date():
+                if (apartment.start_date and date_obj <= apartment.start_date.date()) or (apartment.end_date and date_obj >= apartment.end_date.date()):
                     apartment_data['days'][day]['status'] = 'Blocked'
                     month_data['blocked_days'] += 1
                 elif day_bookings:
@@ -162,13 +162,15 @@ def booking_availability(request):
                                 apartment_data['days'][day]['tenant_names'].append(booking.tenant.full_name)
                             if booking.status == 'Confirmed':
                                 apartment_data['booked_days'] += 1
-                                month_data['month_occupancy'] += 1
+                                
                         if booking.status == 'Blocked':
                             month_data['blocked_days'] += 1
                         if booking.status == 'Pending':
                             month_data['pending_days'] += 1
                         if booking.status == 'Problem Booking':
                             month_data['problem_booking_days'] += 1
+
+                        month_data['month_occupancy'] += 1    
 
                         # Add notes and booking data
                         apartment_data['days'][day]['notes'].append(booking.notes)
@@ -222,6 +224,9 @@ def booking_availability(request):
         # Calculate occupancy percentage
         total_days = len(apartments) * days_in_month - month_data['blocked_days']
         month_data['month_occupancy'] = (month_data['month_occupancy'] / total_days) * 100 if total_days > 0 else 0
+
+        
+        month_data['month_potential_profit'] = month_data['month_occupancy'] - month_data['blocked_days']
 
         monthly_data.append(month_data)
         current_month += relativedelta(months=1)

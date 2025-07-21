@@ -219,7 +219,7 @@
             db_payment.file_date = file_payment.payment_date;
             db_payment.file_amount = file_payment.amount;
             db_payment.file_notes = file_payment.notes;
-            db_payment.payment_date = formatDate(db_payment.payment_date);
+            db_payment.payment_date = formatDate(file_payment.payment_date);
             db_payment.id = String(db_payment.id);
         });
     
@@ -296,7 +296,13 @@
     function mergeMultipleFilePayments(file_payments_list, db_payment) {
         const merged_payment = { ...db_payment };
         merged_payment.amount = 0;
-        merged_payment.payment_date = formatDate(merged_payment.payment_date);
+        
+        // Find the earliest file payment date
+        const earliest_file_date = file_payments_list.reduce((earliest, file_payment) => {
+            return !earliest || new Date(file_payment.payment_date) < new Date(earliest) ? file_payment.payment_date : earliest;
+        }, null);
+        
+        merged_payment.payment_date = formatDate(earliest_file_date);
         merged_payment.payment_status = 'Merged';
         merged_payment.merged_payment_key = ""
 
@@ -324,7 +330,13 @@
     function mergeMultipleFilePaymentsInNewPayment(file_payments_list) {
         const merged_payment = { };
         merged_payment.amount = 0;
-        merged_payment.payment_date = formatDate(merged_payment.payment_date);
+        
+        // Find the earliest file payment date
+        const earliest_file_date = file_payments_list.reduce((earliest, file_payment) => {
+            return !earliest || new Date(file_payment.payment_date) < new Date(earliest) ? file_payment.payment_date : earliest;
+        }, null);
+        
+        merged_payment.payment_date = formatDate(earliest_file_date);
         merged_payment.payment_status = 'Merged';
         merged_payment.merged_payment_key = ""
         merged_payment.notes = ""

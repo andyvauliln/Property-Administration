@@ -105,7 +105,8 @@
                 {% for option in field_instance.dropdown_options %}
                     {
                         "id": {{ option.value }},
-                        "name": "{{ option.label|escapejs }}"
+                        "name": "{{ option.label|escapejs }}",
+                        "manager_id": {{ option.manager_id|default:"null" }}
                     },
                 {% endfor %}
             ];
@@ -124,6 +125,7 @@
 
     function handleApartmentChange(apartmentId) {
         console.log('handleApartmentChange', apartmentId);
+        console.log('Available apartments data:', apartmentsData);
         const parkingSelect = document.getElementById('parking_number');
         
         if (!apartmentId || !parkingSelect) {
@@ -133,8 +135,21 @@
         // Find the selected apartment data
         const selectedApartment = apartmentsData.find(apt => apt.id == apartmentId);
         
-        if (!selectedApartment) {
-            return;
+         // Auto-add payment row if apartment has a manager
+         if (!selectedApartment && selectedApartment.manager_id) {
+            console.log('Apartment has manager (ID:', selectedApartment.manager_id, '), adding payment row');
+            
+            const startDateInput = document.getElementById("start_date");
+            const startDate = startDateInput.value ? new Date(startDateInput.value) : new Date();
+            
+            const ownerPaymentDate = new Date(startDate);
+            ownerPaymentDate.setDate(startDate.getDate() + 4);
+            
+            // Add payment row with payment type 2 (Other - Out) for apartments with managers
+            console.log('Adding payment row with date:', ownerPaymentDate, 'payment type: 2');
+            addPaymentRow("create", ownerPaymentDate, 1, 21, "Pending", "Payment for owner (will be set later)");
+        } else {
+            console.log('Apartment has no manager, skipping auto-payment');
         }
 
         console.log('Selected apartment:', selectedApartment.name);
@@ -197,6 +212,23 @@
             console.log('No matching parking found for apartment:', selectedApartment.name);
             // Clear parking selection if no match found
             parkingSelect.value = '';
+        }
+
+        // Auto-add payment row if apartment has a manager
+        if (selectedApartment.manager_id) {
+            console.log('Apartment has manager (ID:', selectedApartment.manager_id, '), adding payment row');
+            
+            const startDateInput = document.getElementById("start_date");
+            const startDate = startDateInput.value ? new Date(startDateInput.value) : new Date();
+            
+            const ownerPaymentDate = new Date(startDate);
+            ownerPaymentDate.setDate(startDate.getDate() + 4);
+            
+            // Add payment row with payment type 2 (Other - Out) for apartments with managers
+            console.log('Adding payment row with date:', ownerPaymentDate, 'payment type: 2');
+            addPaymentRow("create", ownerPaymentDate, 0, 2);
+        } else {
+            console.log('Apartment has no manager, skipping auto-payment');
         }
     }
 

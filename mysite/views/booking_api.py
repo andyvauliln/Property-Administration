@@ -32,14 +32,14 @@ class ApartmentBookingDates(APIView):
                 status='Available'
             ).filter(
                 Q(end_date__isnull=True) | Q(end_date__gte=today)
-            ).prefetch_related('prices')
+            ).prefetch_related('prices').order_by('id')
         else:
             # giving all apartments
             apartments = Apartment.objects.filter(
                 Q(end_date__isnull=True) | Q(end_date__gte=today),
                 status='Available',
 
-            ).prefetch_related('prices')
+            ).prefetch_related('prices').order_by('id')
             return Response({"apartments": []}, content_type='application/json')
         
         # Prepare response data
@@ -70,7 +70,7 @@ class ApartmentBookingDates(APIView):
                 pricing_data.append({
                     "price": float(current_active_price.price),
                     "effective_date": current_active_price.effective_date.strftime("%Y-%m-%d"),
-                    "default_price": float(apartment.default_price),
+                    # "default_price": float(apartment.default_price),
                     "notes": current_active_price.notes or ""
                 })
             
@@ -79,13 +79,17 @@ class ApartmentBookingDates(APIView):
                 pricing_data.append({
                     "price": float(price.price),
                     "effective_date": price.effective_date.strftime("%Y-%m-%d"),
-                    "default_price": float(apartment.default_price),
+                    # "default_price": float(apartment.default_price),
                     "notes": price.notes or ""
                 })
             
+            # Sort pricing data by effective_date to ensure chronological order
+            pricing_data.sort(key=lambda x: x["effective_date"])
+            
             apartment_data = {
                 "apartment_id": apartment.id,
-                "current_price": float(current_price) if current_price else None,
+                # "current_price": float(current_price) if current_price else None,
+                "default_price": float(apartment.default_price),
                 "apartment_name": apartment.name,
                 "pricing_history": pricing_data,
                 "bookings": []
@@ -95,7 +99,7 @@ class ApartmentBookingDates(APIView):
             bookings = Booking.objects.filter(
                 apartment=apartment,
                 end_date__gte=today
-            )
+            ).order_by('start_date')
             
             # For each booking, add its period and status
             for booking in bookings:
@@ -203,6 +207,9 @@ class UpdateSingleApartmentPrice(APIView):
                 "effective_date": price.effective_date.strftime("%Y-%m-%d"),
                 "notes": price.notes or ""
             })
+        
+        # Sort pricing data by effective_date to ensure chronological order
+        pricing_data.sort(key=lambda x: x["effective_date"])
         
         response_data = {
             "message": f"Successfully {action} price for apartment {apartment.name}",

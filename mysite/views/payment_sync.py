@@ -51,12 +51,13 @@ def sync_payments(request):
                     possible_matches_db_to_file = []
                 else:
                     if with_confirmed:
-                        db_payments = Payment.objects.filter(payment_date__range=(start_date - timedelta(days=10), end_date + timedelta(days=10)))
+                        db_payments = Payment.objects.filter(payment_date__range=(start_date - timedelta(days=45), end_date + timedelta(days=45)))
                         db_payments, file_payments = remove_handled_payments(db_payments, file_payments)
                     else:
-                        db_payments = Payment.objects.filter(payment_date__range=(start_date - timedelta(days=10), end_date + timedelta(days=10)), payment_status='Pending')
+                        db_payments = Payment.objects.filter(payment_date__range=(start_date - timedelta(days=45), end_date + timedelta(days=45)), payment_status='Pending')
                         db_payments, file_payments = remove_handled_payments(db_payments, file_payments)
-                    possible_matches_db_to_file = find_possible_matches_db_to_file(db_payments, file_payments, amount_delta, date_delta)
+                    lessDataForMatching = [payment for payment in db_payments if (start_date - timedelta(days=10)).date() <= payment.payment_date <= (end_date + timedelta(days=10)).date()]
+                    possible_matches_db_to_file = find_possible_matches_db_to_file(lessDataForMatching, file_payments, amount_delta, date_delta)
 
                 db_payments_json = get_json(db_payments)
                 file_payments_json = json.dumps(file_payments, default=str)

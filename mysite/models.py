@@ -415,7 +415,7 @@ class Booking(models.Model):
                 self.schedule_cleaning(form_data)
             else:
                 # Check if assigned_cleaner is present in form_data, even if it's None
-                if 'assigned_cleaner' in form_data:
+                if form_data and 'assigned_cleaner' in form_data:
                     assigned_cleaner = form_data.get('assigned_cleaner')
                     cleaning = self.cleanings.first()
                     
@@ -577,7 +577,7 @@ class Booking(models.Model):
     def schedule_cleaning(self, form_data):
         # Schedule a cleaning for the day after the booking ends
         cleaning_date = self.end_date
-        assigned_cleaner = form_data.get('assigned_cleaner')
+        assigned_cleaner = form_data.get('assigned_cleaner') if form_data else None
         
         if assigned_cleaner:
             # Check if assigned_cleaner is an ID (integer)
