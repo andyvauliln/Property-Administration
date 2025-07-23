@@ -52,3 +52,5 @@ cron_logs.json
 start.sh
 
 ~/.ssh/
+
+*.log

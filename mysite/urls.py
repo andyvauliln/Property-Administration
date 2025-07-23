@@ -25,6 +25,7 @@ urlpatterns = [
     path('docuseal-callback/', views.docuseal_callback, name='docuseal_callback'),
     path('payment-report/', views.paymentReport, name='paymentReport'),
     path('conversation-webhook/', views.conversation_webhook, name='conversation_webhook'),
+    path('conversation-created-webhook/', views.conversation_created_webhook, name='conversation_created_webhook'),
     path('generate-invoice/', views.generate_invoice, name='generateInvoice'),
     path('booking-report/', views.booking_report, name='booking_report'),
     path('payments-sync/', views.sync_payments, name='sync_payments'),

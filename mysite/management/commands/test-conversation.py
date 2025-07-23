@@ -20,15 +20,16 @@ class Command(BaseCommand):
         farid = "+15614603904"
         client = Client(account_sid, auth_token)
 
-        self.delete_conversation("CHcf22935e48934c5891d360b4f54b2f1a")
-
+        self.delete_conversation("CH2a48e62ac98847e4944126bbcb0b3174")
+        # self.delete_conversation("CHe67d8573ecdc455c971e527dc7c1f06e")
+        # self.delete_conversation("CHf1ffa5738a2c4147b7d11c1455a5adff")
         return
         time.sleep(10)
         self.stdout.write(self.style.SUCCESS(f'Deleted conversations'))
         time.sleep(10)
         # Step 1: Create the Conversation
         conversation = client.conversations.v1.conversations.create(
-            friendly_name="Home-buying journey 2"
+            friendly_name="TEST_GROUP_CONVERSATION"
         )
         conversation_sid = conversation.sid
         self.stdout.write(self.style.SUCCESS(f'Created conversation: {conversation_sid}'))
@@ -48,14 +49,14 @@ class Command(BaseCommand):
         participant = client.conversations.v1.conversations(
             conversation_sid
         ).participants.create(messaging_binding_address=farid)
-        self.stdout.write(self.style.SUCCESS(f'Added first homebuyer: {participant.sid}'))
+        self.stdout.write(self.style.SUCCESS(f'Added first farid number: {participant.sid}'))
         time.sleep(30)
 
         # Step 4: Send a 1:1 Message
         message = client.conversations.v1.conversations(
             conversation_sid
         ).messages.create(
-            body="Hi there. What did you think of the listing I sent?",
+            body="TEST:Hi there. What did you think of the listing I sent?",
             author="realEstateAgent",
         )
         self.stdout.write(self.style.SUCCESS(f'Sent message: {message.sid}'))
@@ -64,15 +65,15 @@ class Command(BaseCommand):
         # Step 5: Add the Second Homebuyer
         participant = client.conversations.v1.conversations(
             conversation_sid
-        ).participants.create(messaging_binding_address=second_manager_phone)
-        self.stdout.write(self.style.SUCCESS(f'Added second homebuyer: {participant.sid}'))
+        ).participants.create(messaging_binding_address=farid_secondary)
+        self.stdout.write(self.style.SUCCESS(f'Added second farid number: {participant.sid}'))
         time.sleep(30)
 
         # Step 6: Send Another Message
         message = client.conversations.v1.conversations(
             conversation_sid
         ).messages.create(
-            body="Glad you could join us, homebuyer 2. I really love these granite countertops and think you will as well.",
+            body="TEST:Glad you could join us, homebuyer 2. I really love these granite countertops and think you will as well.",
             author="realEstateAgent",
         )
         self.stdout.write(self.style.SUCCESS(f'Sent message: {message.sid}'))
@@ -83,13 +84,13 @@ class Command(BaseCommand):
         participant = client.conversations.v1.conversations(
             conversation_sid
         ).participants.create(messaging_binding_address=farid_wife)
-        self.stdout.write(self.style.SUCCESS(f'Added third homebuyer: {participant.sid}'))
+        self.stdout.write(self.style.SUCCESS(f'Added third farid wife number: {participant.sid}'))
         time.sleep(30)
 
         message = client.conversations.v1.conversations(
             conversation_sid
         ).messages.create(
-            body="Hi. I'm homebuyer 3. I'm looking for a house.",
+            body="TEST:Hi. I'm homebuyer 3. I'm looking for a house.",
             author="realEstateAgent",
         )
         self.stdout.write(self.style.SUCCESS(f'Sent message: {message.sid}'))
