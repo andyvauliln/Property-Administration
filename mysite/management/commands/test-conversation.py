@@ -20,20 +20,28 @@ class Command(BaseCommand):
         farid = "+15614603904"
         client = Client(account_sid, auth_token)
 
-        self.delete_conversation("CH2a48e62ac98847e4944126bbcb0b3174")
+        #self.delete_conversation("CHa927d92acb3346b39579fd1e02cdb33e")
+        self.delete_conversation("CHcdd1b3669fef45d4b7e566f2fb911c25")
+        #self.delete_conversation("CHc4d5ec36833f4eb58e4d05077fa32eb2")
+        # self.delete_conversation("CH610df99021544633a22449f0033d0b7c")
+        # self.delete_conversation("CHa2fa227c8b4f4e8dade78bb604d30b68")
+        # self.delete_conversation("CHc6b7f581a22841948daa06b39eb9f401")
+        # self.delete_conversation("CHd42c436d877a442983e9b5fb5fb55ee1")
+        return
+        # self.delete_conversation("CH6fe35dee51db481c966828a861e36252")
         # self.delete_conversation("CHe67d8573ecdc455c971e527dc7c1f06e")
         # self.delete_conversation("CHf1ffa5738a2c4147b7d11c1455a5adff")
-        return
-        time.sleep(10)
+        #return
+        time.sleep(2)
         self.stdout.write(self.style.SUCCESS(f'Deleted conversations'))
-        time.sleep(10)
+
         # Step 1: Create the Conversation
         conversation = client.conversations.v1.conversations.create(
-            friendly_name="TEST_GROUP_CONVERSATION"
+            friendly_name="TEST_GROUP_CONVERSATION2"
         )
         conversation_sid = conversation.sid
         self.stdout.write(self.style.SUCCESS(f'Created conversation: {conversation_sid}'))
-        time.sleep(10)
+        time.sleep(2)
 
         # Step 2: Add the Real Estate Agent
         participant = client.conversations.v1.conversations(
@@ -43,14 +51,14 @@ class Command(BaseCommand):
             messaging_binding_projected_address=twilio_phone_secondary,
         )
         self.stdout.write(self.style.SUCCESS(f'Added real estate agent: {participant.sid}'))
-        time.sleep(10)
+        time.sleep(2)
 
         # Step 3: Add the First Homebuyer
         participant = client.conversations.v1.conversations(
             conversation_sid
         ).participants.create(messaging_binding_address=farid)
         self.stdout.write(self.style.SUCCESS(f'Added first farid number: {participant.sid}'))
-        time.sleep(30)
+        time.sleep(2)
 
         # Step 4: Send a 1:1 Message
         message = client.conversations.v1.conversations(
@@ -60,14 +68,14 @@ class Command(BaseCommand):
             author="realEstateAgent",
         )
         self.stdout.write(self.style.SUCCESS(f'Sent message: {message.sid}'))
-        time.sleep(10)
+        time.sleep(2)
 
-        # Step 5: Add the Second Homebuyer
-        participant = client.conversations.v1.conversations(
-            conversation_sid
-        ).participants.create(messaging_binding_address=farid_secondary)
-        self.stdout.write(self.style.SUCCESS(f'Added second farid number: {participant.sid}'))
-        time.sleep(30)
+        # # Step 5: Add the Second Homebuyer
+        # participant = client.conversations.v1.conversations(
+        #     conversation_sid
+        # ).participants.create(messaging_binding_address=farid_secondary)
+        # self.stdout.write(self.style.SUCCESS(f'Added second farid number: {participant.sid}'))
+        # time.sleep(2)
 
         # Step 6: Send Another Message
         message = client.conversations.v1.conversations(
@@ -77,7 +85,7 @@ class Command(BaseCommand):
             author="realEstateAgent",
         )
         self.stdout.write(self.style.SUCCESS(f'Sent message: {message.sid}'))
-        time.sleep(30)
+        time.sleep(2)
 
 
         #Step 5: Add the Third Homebuyer
@@ -85,7 +93,7 @@ class Command(BaseCommand):
             conversation_sid
         ).participants.create(messaging_binding_address=farid_wife)
         self.stdout.write(self.style.SUCCESS(f'Added third farid wife number: {participant.sid}'))
-        time.sleep(30)
+        time.sleep(2)
 
         message = client.conversations.v1.conversations(
             conversation_sid
@@ -94,7 +102,7 @@ class Command(BaseCommand):
             author="realEstateAgent",
         )
         self.stdout.write(self.style.SUCCESS(f'Sent message: {message.sid}'))
-        time.sleep(30)
+        time.sleep(2)
 
     def delete_conversation(self, conversation_sid):
         account_sid = os.environ["TWILIO_ACCOUNT_SID"]

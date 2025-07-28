@@ -44,17 +44,6 @@ def booking_availability(request):
     if request.user.role == 'Manager':
         apartments = apartments.filter(manager=request.user)
 
-    apartments = apartments.prefetch_related(
-        prefetch_bookings,
-        Prefetch('payments',  # Apartment payments
-                queryset=Payment.objects.filter(
-                    payment_date__gte=start_date,
-                    payment_date__lte=end_date
-                ).select_related('payment_type'),
-                to_attr='all_relevant_apartment_payments'
-        )
-    )
-
     if current_apartment_type:
         apartments = apartments.filter(apartment_type=current_apartment_type)
 
@@ -68,6 +57,17 @@ def booking_availability(request):
         Q(end_date__isnull=True) | Q(end_date__gte=start_date)
     )
     apartments = apartments.filter(availability_query)
+
+    apartments = apartments.prefetch_related(
+        prefetch_bookings,
+        Prefetch('payments',  # Apartment payments
+                queryset=Payment.objects.filter(
+                    payment_date__gte=start_date,
+                    payment_date__lte=end_date
+                ).select_related('payment_type'),
+                to_attr='all_relevant_apartment_payments'
+        )
+    )
     
     # Prepare monthly data
     monthly_data = []
@@ -121,8 +121,8 @@ def booking_availability(request):
                     print(f"  SKIPPING {apartment.name}: ended before month start")
                     continue
 
-            apartment_payments = [p for p in apartment.all_relevant_apartment_payments 
-                        if month_start <= p.payment_date <= month_end]
+            # apartment_payments = [p for p in apartment.pa 
+            #             if month_start <= p.payment_date <= month_end]
 
             # Calculate available days for this apartment in this month
             apartment_available_days = 0
@@ -233,23 +233,20 @@ def booking_availability(request):
                 if booking.status == 'Confirmed':
                     booking_payments = [p for p in booking.payments.all() 
                                         if month_start <= p.payment_date <= month_end]
-                    apartment_revenue += sum(p.amount if p.payment_type.type == "In" else -p.amount 
+                    apartment_revenue += sum(p.amount if p.payment_type.type == "In" else 0 
                                             for p in booking_payments)
 
-            # Add apartment payments
-            apartment_revenue += sum(p.amount if p.payment_type.type == "In" else -p.amount 
-                                    for p in apartment_payments)
 
             # Calculate max revenue with 100% occupancy using default_price
             apartment_max_revenue = 0
             if apartment.default_price:
-                apartment_max_revenue = float(apartment.default_price) * apartment_available_days
+                apartment_max_revenue = float(apartment.default_price/30) * apartment_available_days
 
             # Calculate current price revenue with 100% occupancy using current price
             apartment_current_price_revenue = 0
             current_price = apartment.get_price_on_date(month_start)
             if current_price:
-                apartment_current_price_revenue = float(current_price) * apartment_available_days
+                apartment_current_price_revenue = float(current_price/30) * apartment_available_days
 
             month_data['month_revenue'] += apartment_revenue
             month_data['month_max_revenue'] += apartment_max_revenue
