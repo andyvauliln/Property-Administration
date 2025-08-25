@@ -12,6 +12,15 @@ import re
 import uuid
 import requests
 import os
+import logging
+
+logger_sms = logging.getLogger('mysite.sms_webhooks')
+
+
+
+def print_info(message):
+    print(message)
+    logger_sms.debug(message)
 
 def convert_date_format(value):
     if isinstance(value, date):
@@ -447,10 +456,36 @@ class Booking(models.Model):
             if self.contract_id:
                 update_contract(self)
             # SEND CONTRACT
-            if form_data and form_data["send_contract"] and form_data["send_contract"] != 0 and form_data["send_contract"] != None and form_data["send_contract"] != "None":
-                create_contract(self, template_id=form_data["send_contract"], send_sms=form_data["create_chat"]
-                )
-            elif form_data and form_data["create_chat"]:
+            raw_send_contract = form_data.get("send_contract") if form_data else None
+            raw_create_chat = form_data.get("create_chat") if form_data else None
+
+            # Normalize template id to expected string values or None
+            template_id = None
+            if raw_send_contract not in (None, "", 0, "0", "None"):
+                candidate = str(raw_send_contract).strip()
+                try:
+                    candidate = str(int(candidate))
+                except ValueError:
+                    pass
+                template_id = candidate if candidate in {"118378", "120946"} else None
+
+            # Normalize create_chat to boolean
+            create_chat_bool = False
+            if isinstance(raw_create_chat, bool):
+                create_chat_bool = raw_create_chat
+            elif isinstance(raw_create_chat, (int, float)):
+                create_chat_bool = int(raw_create_chat) == 1
+            elif isinstance(raw_create_chat, str):
+                create_chat_bool = raw_create_chat.strip().lower() in {"true", "1", "yes", "on"}
+
+            print_info(f"SEND CONTRACT 1: {template_id} + TYPE: {type(template_id)}")
+            print_info(f"CREATE CHAT 1: {create_chat_bool} + TYPE: {type(create_chat_bool)}")
+
+            if template_id:
+                print_info("SEND CONTRACT 1")
+                create_contract(self, template_id=template_id, send_sms=create_chat_bool)
+            elif create_chat_bool:
+                print_info("SEND WELCOME MESSAGE 1")
                 sendWelcomeMessageToTwilio(self)
         else:
             form_data = kwargs.pop('form_data', None)
@@ -467,9 +502,36 @@ class Booking(models.Model):
 
             super().save(*args, **kwargs)
              # SEND CONTRACT
-            if form_data and form_data["send_contract"] and form_data["send_contract"] != 0 and form_data["send_contract"] != None and form_data["send_contract"] != "None":
-                create_contract(self, template_id=form_data["send_contract"], send_sms=form_data["create_chat"])
-            elif form_data and form_data["create_chat"]:
+            raw_send_contract = form_data.get("send_contract") if form_data else None
+            raw_create_chat = form_data.get("create_chat") if form_data else None
+
+            # Normalize template id to expected string values or None
+            template_id = None
+            if raw_send_contract not in (None, "", 0, "0", "None"):
+                candidate = str(raw_send_contract).strip()
+                try:
+                    candidate = str(int(candidate))
+                except ValueError:
+                    pass
+                template_id = candidate if candidate in {"118378", "120946"} else None
+
+            # Normalize create_chat to boolean
+            create_chat_bool = False
+            if isinstance(raw_create_chat, bool):
+                create_chat_bool = raw_create_chat
+            elif isinstance(raw_create_chat, (int, float)):
+                create_chat_bool = int(raw_create_chat) == 1
+            elif isinstance(raw_create_chat, str):
+                create_chat_bool = raw_create_chat.strip().lower() in {"true", "1", "yes", "on"}
+
+            print_info(f"SEND CONTRACT 2: {template_id} + TYPE: {type(template_id)}")
+            print_info(f"CREATE CHAT 2: {create_chat_bool} + TYPE: {type(create_chat_bool)}")
+
+            if template_id:
+                print_info("SEND CONTRACT 2")
+                create_contract(self, template_id=template_id, send_sms=create_chat_bool)
+            elif create_chat_bool:
+                print_info("SEND WELCOME MESSAGE 2")
                 sendWelcomeMessageToTwilio(self)
 
             # Update apartment keywords

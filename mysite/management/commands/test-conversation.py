@@ -20,8 +20,11 @@ class Command(BaseCommand):
         farid = "+15614603904"
         client = Client(account_sid, auth_token)
 
-        #self.delete_conversation("CHa927d92acb3346b39579fd1e02cdb33e")
-        self.delete_conversation("CHcdd1b3669fef45d4b7e566f2fb911c25")
+        self.delete_conversation("CH7f9f3c4fb6e0450eb0a1a67792b8e9c7")
+        #self.delete_conversation("CHec8d322c153c49f2b0b1936282f1a322")
+        # self.delete_conversation("CHa5166359ebe04cc6a6a18bca6f79c097")
+        # self.delete_conversation("CH83d26f6e4c434b45bc0dddc25128b57a")
+        # self.delete_conversation("CH9eb2a8329a24445e9e376c831ca062e5")
         #self.delete_conversation("CHc4d5ec36833f4eb58e4d05077fa32eb2")
         # self.delete_conversation("CH610df99021544633a22449f0033d0b7c")
         # self.delete_conversation("CHa2fa227c8b4f4e8dade78bb604d30b68")

@@ -155,7 +155,11 @@ def update_payments(request, payments_to_update):
                 payment_id = payment.id
                 if payment:
                     payment.amount = float(payment_info['amount'])
-                    payment.payment_date = parse_payment_date(payment_info['payment_date'])
+                    # Determine payment_date, fallback to file_date, error if both empty
+                    date_str = payment_info.get('payment_date') or payment_info.get('file_date', '')
+                    if not date_str:
+                        raise ValueError("Payment date is required (payment_date or file_date)")
+                    payment.payment_date = parse_payment_date(date_str)
                     payment.payment_type_id = payment_info['payment_type']
                     payment.notes = payment_info['notes']
                     payment.payment_method_id = payment_info['payment_method']
@@ -173,9 +177,13 @@ def update_payments(request, payments_to_update):
                 else:
                     messages.error(request, f"Cand Find in DB Payment with Id: {payment.id}")
             else:
+                # Determine payment_date, fallback to file_date, error if both empty
+                date_str = payment_info.get('payment_date') or payment_info.get('file_date', '')
+                if not date_str:
+                    raise ValueError("Payment date is required (payment_date or file_date)")
                 payment = Payment.objects.create(
                     amount=float(payment_info['amount']),
-                    payment_date=datetime.strptime(payment_info['payment_date'], '%B %d %Y').date(),
+                    payment_date= parse_payment_date(date_str),
                     payment_type_id=payment_info['payment_type'],
                     notes=payment_info['notes'],
                     payment_method_id=payment_info['payment_method'] or None,
@@ -316,6 +324,10 @@ def get_start_end_dates(request, payment_data):
     return start_date, end_date
 
 def parse_date(date_str):
+    # Handle empty strings
+    if not date_str:
+        return ""
+        
     # Try parsing with the format '2024-07-01 00:00:00'
     try:
         return datetime.strptime(date_str, '%Y-%m-%d %H:%M:%S').strftime('%m/%d/%Y')

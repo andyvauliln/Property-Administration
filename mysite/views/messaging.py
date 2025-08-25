@@ -1,3 +1,4 @@
+from sys import int_info
 from ..models import Booking, Chat, User
 import json
 from django.views.decorators.http import require_http_methods
@@ -12,16 +13,14 @@ import re
 import logging
 from django.http import JsonResponse
 import time
+import twilio
+
+# Debug: Check Twilio version at runtime
+
 
 logger_sms = logging.getLogger('mysite.sms_webhooks')
-# twilio_phone = os.environ["TWILIO_PHONE"]
-#http://68.183.124.79/conversation-webhook/
 account_sid = os.environ["TWILIO_ACCOUNT_SID"]
 auth_token = os.environ["TWILIO_AUTH_TOKEN"]
-# manager_phone = os.environ["MANAGER_PHONE"]
-# manager_phone2 = os.environ["MANAGER_PHONE2"]
-# twilio_phone_secondary = os.environ["TWILIO_PHONE_SECONDARY"]
-# farid_secondary = "+17282001917"
 client = Client(account_sid, auth_token)
 
 
@@ -29,96 +28,332 @@ def print_info(message):
     print(message)
     logger_sms.debug(message)
 
-def get_sender_name_from_phone(phone_number):
-    """Map phone numbers to display names"""
-    phone_mapping = {
-        "+13153524379": "ASSISTANT",
-        "+15614603904": "FARID", 
-        "+17282001917": "FARID",
-        "+12403584373": "TWILIO",
-        "+13055400481": "CUSTOMER",
-        # Add your manager phones
-        os.environ.get("MANAGER_PHONE", ""): "MANAGER1",
-        os.environ.get("MANAGER_PHONE2", ""): "MANAGER2",
-    }
-    return phone_mapping.get(phone_number, "UNKNOWN")
+print_info(f"=== TWILIO VERSION DEBUG 2 ===")
+print_info(f"Twilio version: {twilio.__version__}")
+print_info(f"Twilio path: {twilio.__file__}")
+print_info(f"===========================")
 
-def get_sender_name_from_author_and_participant(author, participant_phone, conversation_sid):
-    """Get sender name from author identity or phone number"""
-    if author:
-        # If author is set (like "ASSISTANT"), use that
-        if author in ["ASSISTANT", "GPT BOT", "realEstateAgent"]:
-            return "ASSISTANT"
-        elif author in ["FARID", "CUSTOMER"]:
-            return author
+
+def validate_phone_number(phone):
+    """
+    Validate and format phone number for Twilio
+    Returns None if invalid, formatted phone if valid
+    """
+    if not phone:
+        return None
+   
+    # Remove any whitespace
+    phone = str(phone).strip()
+   
+    # If it's already in E.164 format, validate it
+    if phone.startswith('+'):
+        # Must be + followed by 1-15 digits
+        if re.match(r'^\+[1-9]\d{1,14}$', phone):
+            return phone
         else:
-            return author
-    
-    # If no author, try to identify by phone number
-    if participant_phone:
-        return get_sender_name_from_phone(participant_phone)
-    
-    return "UNKNOWN"
+            return None
+   
+    # If it's a US number without +1, add it
+    # Remove any non-digit characters first
+    digits_only = re.sub(r'\D', '', phone)
+   
+    # If it's 10 digits, assume US number
+    if len(digits_only) == 10:
+        return f"+1{digits_only}"
+   
+    # If it's 11 digits and starts with 1, assume US number
+    if len(digits_only) == 11 and digits_only.startswith('1'):
+        return f"+{digits_only}"
+   
+    # Otherwise, return None as invalid
+    return None
 
-# NEW PRE-EVENT WEBHOOK [Events types: onMessageAdd - PRE-HOOK]
+
+# def get_customer_phone_from_webhook(author, messaging_binding_address):
+#     """
+#     Extract valid customer phone number from webhook data
+#     """
+#     # Try author field first
+#     customer_phone = validate_phone_number(author)
+#     if customer_phone:
+#         print_info(f"Using author as customer phone: {customer_phone}")
+#         return customer_phone
+    
+#     # Try messaging binding address as fallback
+#     customer_phone = validate_phone_number(messaging_binding_address)
+#     if customer_phone:
+#         print_info(f"Using messaging binding address as customer phone: {customer_phone}")
+#         return customer_phone
+    
+#     print_info(f"No valid customer phone found - Author: {author}, Messaging Address: {messaging_binding_address}")
+#     return None
+
+
+def create_conversation_with_participants(friendly_name, participants_config):
+    """
+    Create a conversation with multiple participants in a single API call
+    
+    Args:
+        friendly_name (str): Name for the conversation
+        participants_config (list): List of participant configurations
+            Each participant can be:
+            - {"phone": "+1234567890"} for phone number participants
+            - {"identity": "ASSISTANT", "projected_address": "+1234567890"} for identity-based participants
+    
+    Returns:
+        str: conversation_sid of the created conversation
+    """
+    try:
+        participant_list = []
+        
+        for config in participants_config:
+            # Validate phone numbers before creating JSON
+            if "phone" in config:
+                validated_phone = validate_phone_number(config["phone"])
+                if not validated_phone:
+                    print_info(f"Invalid phone number in config: {config}")
+                    continue
+                config["phone"] = validated_phone
+            
+            if "projected_address" in config:
+                validated_projected = validate_phone_number(config["projected_address"])
+                if not validated_projected:
+                    print_info(f"Invalid projected address in config: {config}")
+                    continue
+                config["projected_address"] = validated_projected
+            
+            if "identity" in config and "projected_address" in config:
+                # Identity-based participant with projected address
+                participant_json = f'{{"identity": "{config["identity"]}", "messaging_binding": {{"projected_address": "{config["projected_address"]}"}}}}'
+            elif "phone" in config:
+                # Phone number participant
+                participant_json = f'{{"messaging_binding": {{"address": "{config["phone"]}"}}}}'
+            else:
+                print_info(f"Invalid participant config: {config}")
+                continue
+                
+            participant_list.append(participant_json)
+        
+        print_info(f"Participant list: {participant_list}")
+        if not participant_list:
+            raise ValueError("No valid participants provided")
+        
+        conversation_with_participant = client.conversations.v1.conversation_with_participants.create(
+            friendly_name=friendly_name,
+            participant=participant_list,
+        )
+        
+        conversation_sid = conversation_with_participant.sid
+        print_info(f'Created conversation "{friendly_name}" with {len(participant_list)} participants: {conversation_sid}')
+        return conversation_sid
+        
+    except Exception as e:
+        print_info(f"Error creating conversation with participants: {e}")
+        raise
+
+
+def check_author_in_group_conversations(author_phone):
+    """
+    Check if the author exists in any conversation with more than 2 participants
+    
+    Args:
+        author_phone (str): Phone number to check
+    
+    Returns:
+        bool: True if author exists in group conversations (>2 participants)
+    """
+    try:
+        validated_phone = validate_phone_number(author_phone)
+        if not validated_phone:
+            print_info(f"Invalid phone number for group check: {author_phone}")
+            return False
+            
+        print_info(f"Checking if {validated_phone} exists in group conversations")
+        
+        # Get all conversations
+        conversations = client.conversations.v1.conversations.list()
+        
+        for conv in conversations:
+            try:
+                # Get participants for this conversation
+                participants = client.conversations.v1.conversations(conv.sid).participants.list()
+                participant_count = len(participants)
+                
+                print_info(f"Conversation {conv.sid} has {participant_count} participants")
+                
+                # Check if this conversation has more than 2 participants
+                if participant_count > 2:
+                    # Check if our author is in this conversation
+                    for participant in participants:
+                        if hasattr(participant, 'messaging_binding') and participant.messaging_binding:
+                            binding = participant.messaging_binding
+                            participant_address = binding.get('address', '')
+                            if participant_address == validated_phone:
+                                print_info(f"Found author {validated_phone} in group conversation {conv.sid}")
+                                return True
+                                
+            except Exception as e:
+                print_info(f"Error checking conversation {conv.sid}: {e}")
+                continue
+                
+        print_info(f"Author {validated_phone} not found in any group conversations")
+        return False
+        
+    except Exception as e:
+        print_info(f"Error in check_author_in_group_conversations: {e}")
+        return False
+
+
+def forward_message_to_conversation(conversation_sid, author, message):
+    """
+    Forward a message to a specific conversation with formatted text
+    
+    Args:
+        conversation_sid (str): Target conversation SID
+        author (str): Original message author
+        message (str): Original message content
+    """
+    try:
+        formatted_message = f">>Customer: {author} - {message}"
+        
+        # Send message to conversation using ASSISTANT identity
+        message_response = client.conversations.v1.conversations(conversation_sid).messages.create(
+            author='ASSISTANT',
+            body=formatted_message
+        )
+        
+        print_info(f"Forwarded message to conversation {conversation_sid}: {formatted_message}")
+        return message_response.sid
+        
+    except Exception as e:
+        print_info(f"Error forwarding message to conversation {conversation_sid}: {e}")
+        raise
+
+
+def delete_conversation(conversation_sid):
+    """
+    Delete a conversation
+    
+    Args:
+        conversation_sid (str): Conversation SID to delete
+    """
+    try:
+        client.conversations.v1.conversations(conversation_sid).delete()
+        print_info(f"Deleted conversation: {conversation_sid}")
+        
+    except Exception as e:
+        print_info(f"Error deleting conversation {conversation_sid}: {e}")
+        raise
+
+
 @csrf_exempt
 @require_http_methods(["POST", "GET"])
-def conversation_pre_webhook(request):
-    print_info("**********MESSAGE_PRE_WEBHOOK **********")
+def conversation_created_webhook(request):
+    print_info("**********CONVERSATION_CREATED_WEBHOOK **********")
     try:
         if request.method == 'POST':
             data = request.POST
-            event_type = data.get('EventType')
-            conversation_sid = data.get('ConversationSid')
+            print_info(f"Data: {data}")
+            event_type = data.get('EventType', None)
+            webhook_sid = data.get('WebhookSid', None)
+            conversation_sid = data.get('ConversationSid', None)
             author = data.get('Author', None)
             body = data.get('Body', None)
-            participant_sid = data.get('ParticipantSid', None)
-            
-            print_info(f"Pre-webhook Data: {data}")
+            messaging_binding_address = data.get('MessagingBinding.Address', None)
+            messaging_binding_proxy_address = data.get('MessagingBinding.ProxyAddress', None)
+            print_info(f"Body: {body}")
+            print_info(f"WebhookSid: {webhook_sid}")
+            print_info(f"ConversationSid: {conversation_sid}")
             print_info(f"EventType: {event_type}")
             print_info(f"Author: {author}")
-            print_info(f"Body: {body}")
-            print_info(f"ConversationSid: {conversation_sid}")
-            print_info(f"ParticipantSid: {participant_sid}")
+            print_info(f"Messaging Binding Address: {messaging_binding_address}")
+            print_info(f"Messaging Binding Proxy Address: {messaging_binding_proxy_address}")
+            twilio_phone = "+13153524379"
+            manager_phone = "+17282001917"
             
-            # Handle pre-message event
-            if event_type == 'onMessageAdd':
-                if body and not body.startswith(('ASSISTANT:', 'FARID:', 'CUSTOMER:', 'MANAGER1:', 'MANAGER2:', 'UNKNOWN:')):
-                    # Get participant info to determine sender
-                    participant_phone = None
-                    if participant_sid and conversation_sid:
-                        try:
-                            participant = client.conversations.v1.conversations(
-                                conversation_sid
-                            ).participants(participant_sid).fetch()
-                            
-                            if hasattr(participant, 'messaging_binding') and participant.messaging_binding:
-                                participant_phone = participant.messaging_binding.get('address')
-                                print_info(f"Participant phone: {participant_phone}")
-                        except Exception as e:
-                            print_info(f"Error fetching participant: {e}")
-                    
-                    # Determine sender name
-                    sender_name = get_sender_name_from_author_and_participant(author, participant_phone, conversation_sid)
-                    
-                    # Add prefix to message
-                    modified_body = f"{sender_name}: {body}"
-                    print_info(f"Modified message: {modified_body}")
-                    
-                    # Return the modified message
-                    return JsonResponse({
-                        'body': modified_body,
-                        'status': 'success'
-                    })
+            
+            if event_type == 'onMessageAdded':
+                print_info(f"Event type is onMessageAdded: {event_type}")
                 
-                # If message already has prefix, don't modify
-                print_info("Message already has prefix or no body - not modifying")
-                return JsonResponse({'status': 'success'})
+                # Check if author is not twilio_phone and not manager_phone
+                author_is_customer = (author != twilio_phone and author != manager_phone)
+                
+                if author_is_customer:
+                    print_info(f"Author {author} is a customer, checking for existing group conversations")
+                    
+                    # Check if author exists in any group conversation (>2 participants)
+                    author_in_group = check_author_in_group_conversations(author)
+                    
+                    if not author_in_group:
+                        print_info(f"Author {author} not found in group conversations, creating new group conversation and forwarding message")
+                        
+                        # Create new group conversation with all participants
+                        participants_config = []
+                        
+                        # Add customer
+                        participants_config.append({
+                            "phone": author
+                        })
+                        
+                        # Add manager  
+                        participants_config.append({
+                            "phone": manager_phone
+                        })
+                        
+                        # Add assistant
+                        participants_config.append({
+                            "identity": "ASSISTANT",
+                            "projected_address": twilio_phone
+                        })
+                        
+                        print_info(f"Creating new group conversation with participants: {participants_config}")
+                        
+                        new_conversation_sid = create_conversation_with_participants(
+                            f"Customer Support Group - {author}", 
+                            participants_config
+                        )
+                        
+                        # Forward the message to the new group conversation
+                        time.sleep(6)
+                        if body:
+                            forward_message_to_conversation(new_conversation_sid, author, body)
+                        
+                        # Delete the old conversation (the one that triggered this webhook)
+                        if conversation_sid:
+                            try:
+                                delete_conversation(conversation_sid)
+                                print_info(f"Deleted old conversation: {conversation_sid}")
+                            except Exception as e:
+                                print_info(f"Warning: Could not delete old conversation {conversation_sid}: {e}")
+                        
+                        # Print final participant list
+                        print_participants(new_conversation_sid, "New Group Conversation Created")
+                        return JsonResponse({'status': 'success', 'new_conversation_sid': new_conversation_sid}, status=200)
+                
+                # Print final participant list
+                print_participants(conversation_sid, "Conversation Created with All Participants")
+                return JsonResponse({'status': 'success', 'conversation_sid': conversation_sid}, status=200)
             
+            
+    #         if event_type == 'onParticipantAdded':
+    #             print_participants(conversation_sid, "WEBHOOK ON PARTICIPANT ADDED")
+                
+    #             return JsonResponse({'status': 'success'}, status=200)
+    #         if event_type == 'onConversationUpdated':
+    #             print_info(f"Event type is onConversationUpdated: {event_type}")
+    #             return JsonResponse({'status': 'success'}, status=200)
+
+           
+
+    #         if event_type == 'onConversationAdded' and conversation_sid:
+    #             print_info(f"Event type is onConversationAdded: {event_type}")
+
         return JsonResponse({'status': 'success'}, status=200)
     except Exception as e:
-        print_info(f"Error in conversation_pre_webhook: {e}")
+        print_info(f"Error in conversation_created_webhook: {e}")
         return JsonResponse({'status': 'error', 'message': str(e)}, status=500)
+
+
 
 def print_participants(conversation_sid, label="Participants"):
     """Helper function to print all participants in a conversation"""
@@ -145,281 +380,3 @@ def print_participants(conversation_sid, label="Participants"):
         
     except Exception as e:
         print_info(f"Error printing participants: {e}")
-
-# TWILIO WEBHOOK [Events types: onMessageAdded]
-@csrf_exempt
-@require_http_methods(["POST", "GET"])
-def conversation_webhook(request):
-    print_info("**********MESSAGE_ADDED_WEBHOOK **********")
-    try:
-        if request.method == 'POST':
-            data = request.POST
-            event_type = data.get('EventType')
-            webhook_sid = data.get('WebhookSid', None)
-            conversation_sid = data.get('ConversationSid')
-            print_info(f"Data: {data}")
-            print_info(f"Body: {data.get('Body', None)}")
-            print_info(f"WebhookSid: {webhook_sid}")
-            print_info(f"ConversationSid: {conversation_sid}")
-            print_info(f"EventType: {event_type}")
-            twilio_phone_secondary = "+13153524379"
-            farid = "+15614603904"
-            farid_secondary = "+17282001917"
-            twilio_phone_additional = "+12403584373"
-
-            
-
-            # This webhook should handle regular message events, not conversation creation
-            # The conversation_created_webhook handles initial setup when conversations are auto-created
-            if event_type == 'onMessageAdded' and webhook_sid:
-                # Handle regular message processing here if needed
-                # For now, just log and return success
-                print_info("Regular message event processed")
-                pass
-            if event_type == 'onMessageAdded' and  not conversation_sid:
-                conversation = client.conversations.v1.conversations.create(
-                    friendly_name="TEST_GROUP_CONVERSATION"
-                )
-                conversation_sid = conversation.sid
-                print_info(f'Created conversation: {conversation_sid}')
-                print_participants(conversation_sid, "After Creating Conversation")
-                time.sleep(1)
-
-                # Step 2: Add the Real Estate Agent
-                participant = client.conversations.v1.conversations(
-                    conversation_sid
-                ).participants.create(
-                    identity="ASSISTANT",
-                    messaging_binding_projected_address=twilio_phone_secondary,
-                )
-                print_info(f'Added real estate agent: {participant.sid}')
-                print_participants(conversation_sid, "After Adding Real Estate Agent")
-                time.sleep(1)
-
-                # Step 3: Add the First Homebuyer
-                participant = client.conversations.v1.conversations(
-                    conversation_sid
-                ).participants.create(messaging_binding_address=twilio_phone_additional)
-                print_info(f'Added first farid number: {participant.sid}')
-                print_participants(conversation_sid, "After Adding Twilio Phone Number")
-                time.sleep(1)
-
-                # Step 4: Send a 1:1 Message
-                message = client.conversations.v1.conversations(
-                    conversation_sid
-                ).messages.create(
-                    body="TEST:Hi there. What did you think of the listing I sent?",
-                    author="ASSISTANT",
-                )
-                print_info(f'Sent message: {message.sid}')
-                time.sleep(1)
-
-                # Step 5: Add the Second Homebuyer
-                participant = client.conversations.v1.conversations(
-                    conversation_sid
-                ).participants.create(messaging_binding_address=farid_secondary)
-                print_info(f'Added second farid number: {participant.sid}')
-                print_participants(conversation_sid, "After Adding Second Farid Number - Final Group")
-                time.sleep(1)
-                # Step 5: Add the Second Homebuyer
-                participant = client.conversations.v1.conversations(
-                    conversation_sid
-                ).participants.create(messaging_binding_address=farid)
-                print_info(f'Added second farid number: {participant.sid}')
-                print_participants(conversation_sid, "After Adding Second Farid Number - Final Group")
-                time.sleep(1)
-
-                # Step 6: Send a 1:1 Message
-                message = client.conversations.v1.conversations(
-                    conversation_sid
-                ).messages.create(
-                    body="TEST2:Hi there 2. What did you think of the listing I sent?",
-                    author="ASSISTANT",
-                )
-                print_info(f'Sent message: {message.sid}')
-                time.sleep(1)
-                
-            return JsonResponse({'status': 'success'})
-
-        return JsonResponse({'status': 'success'}, status=200)
-    except Exception as e:
-        print_info(f"Error in conversation_webhook: {e}")
-        return JsonResponse({'status': 'error', 'message': str(e)}, status=500)
-
-def find_existing_conversation_with_participants(customer_phone, manager_phone):
-    """Find if customer and manager already have a conversation together"""
-    try:
-        conversations = client.conversations.v1.conversations.list(limit=50)
-        
-        for conv in conversations:
-            participants = client.conversations.v1.conversations(conv.sid).participants.list()
-            
-            has_customer = False
-            has_manager = False
-            
-            for p in participants:
-                if p.messaging_binding:
-                    address = p.messaging_binding.get('address')
-                    projected_address = p.messaging_binding.get('projected_address')
-                    
-                    if address == customer_phone or projected_address == customer_phone:
-                        has_customer = True
-                    if address == manager_phone or projected_address == manager_phone:
-                        has_manager = True
-            
-            if has_customer and has_manager:
-                return conv.sid
-                
-        return None
-    except Exception as e:
-        print_info(f"Error checking existing conversations: {e}")
-        return None
-
-@csrf_exempt
-@require_http_methods(["POST", "GET"])
-def conversation_created_webhook(request):
-    print_info("**********CONVERSATION_CREATED_WEBHOOK **********")
-    try:
-        if request.method == 'POST':
-            data = request.POST
-            print_info(f"Data: {data}")
-            event_type = data.get('EventType', None)
-            webhook_sid = data.get('WebhookSid', None)
-            conversation_sid = data.get('ConversationSid', None)
-            author = data.get('Author', None)
-            body = data.get('Body', None)
-            messaging_binding_address = data.get('MessagingBinding.Address', None)
-            messaging_binding_proxy_address = data.get('MessagingBinding.ProxyAddress', None)
-            print_info(f"Body: {body}")
-            print_info(f"WebhookSid: {webhook_sid}")
-            print_info(f"ConversationSid: {conversation_sid}")
-            print_info(f"EventType: {event_type}")
-            print_info(f"Author: {author}")
-            print_info(f"Messaging Binding Address: {messaging_binding_address}")
-            print_info(f"Messaging Binding Proxy Address: {messaging_binding_proxy_address}")
-            twilio_phone_secondary = "+13153524379"
-            farid_secondary = "+17282001917"
-            
-            
-            if event_type == 'onMessageAdded' and conversation_sid:
-                print_info(f"Event type is onMessageAdded: {event_type}")
-                time.sleep(5)
-                try:
-                     # Add customer phone to conversation attributes to make it unique
-                    conversation_attributes = {
-                        "customer_phone": author,
-                        "created_timestamp": str(int(time.time())),
-                        "conversation_type": "customer_support"
-                    }
-                    
-                    client.conversations.v1.conversations(conversation_sid).update(
-                        friendly_name="TEST_GROUP_CONVERSATION123",
-                        attributes=json.dumps(conversation_attributes)
-                    )
-                    print_info(f"Updated conversation attributes: {conversation_attributes}")
-                except Exception as e:
-                     print_info(f"Error updating conversation attributes: {e}")
-                
-                existing_participants = client.conversations.v1.conversations(
-                    conversation_sid
-                ).participants.list()
-                time.sleep(3)
-
-                print_info(f"Existing participants {len(existing_participants)}: {existing_participants}")
-                
-               
-                
-                customer_exists = any(
-                    participant.messaging_binding and 
-                    participant.messaging_binding.get('address') == author
-                    for participant in existing_participants
-                )
-                if not customer_exists and author:
-                    print_info(f"Adding customer: {author}")
-                    try:
-                        participant = client.conversations.v1.conversations(
-                            conversation_sid
-                        ).participants.create(messaging_binding_address=author)
-                        print_info(f'Added customer: {participant.sid}')
-                    except Exception as e:
-                        print_info(f"Error adding customer: {e} {author, event_type, conversation_sid, messaging_binding_address, messaging_binding_proxy_address}")
-                else:
-                    print_info('Customer already exists in the conversation.')
-            
-                existing_conversation_sid = find_existing_conversation_with_participants(author, farid_secondary)
-                if existing_conversation_sid:
-                    print_info(f"Existing conversation found: {existing_conversation_sid}")
-                    return JsonResponse({'status': 'success'}, status=200)
-
-
-                farid_secondary_exists = any(
-                    participant.messaging_binding and 
-                    participant.messaging_binding.get('address') == farid_secondary
-                    for participant in existing_participants
-                )
-
-                if (not farid_secondary_exists):
-                    print_info(f"Adding second farid number: {farid_secondary}")
-                    try:
-                        participant = client.conversations.v1.conversations(
-                            conversation_sid
-                        ).participants.create(messaging_binding_address=farid_secondary, identity="MANAGER")
-                        print_info(f'Added second farid number: {participant.sid}')
-                        print_participants(conversation_sid, "After Adding Second Farid Number - Final Group")
-                        time.sleep(1)
-                    except Exception as e:
-                        print_info(f"Error adding second farid number: {e} {author, event_type, conversation_sid, messaging_binding_address, messaging_binding_proxy_address}")
-                else:
-                    print_info('Second Farid number already exists in the conversation.')
-
-                exist_assistant = any(
-                    participant.identity == "ASSISTANT3"
-                    for participant in existing_participants
-                )
-                if not exist_assistant:
-                    assistant_participant = client.conversations.v1.conversations(
-                        conversation_sid
-                    ).participants.create(
-                        identity="ASSISTANT3",
-                        messaging_binding_projected_address=twilio_phone_secondary,
-                    )
-                    print_info(f'Added ASSISTANT: {assistant_participant.sid}')
-                    print_participants(conversation_sid, "After Adding Real Estate Agent")
-                    
-                return JsonResponse({'status': 'success'}, status=200)
-            
-            if event_type == 'onParticipantAdded':
-                print_participants(conversation_sid, "WEBHOOK ON PARTICIPANT ADDED")
-                
-                return JsonResponse({'status': 'success'}, status=200)
-            if event_type == 'onConversationUpdated':
-                print_info(f"Event type is onConversationUpdated: {event_type}")
-                return JsonResponse({'status': 'success'}, status=200)
-
-           
-
-            if event_type == 'onConversationAdded' and conversation_sid:
-                print_info(f"Event type is onConversationAdded: {event_type}")
-
-        return JsonResponse({'status': 'success'}, status=200)
-    except Exception as e:
-        print_info(f"Error in conversation_created_webhook: {e}")
-        return JsonResponse({'status': 'error', 'message': str(e)}, status=500)
-
-
-
-# def create_db_message(sender_phone, receiver_phone, message, booking=None, context=None, sender_type='GPT BOT', message_type='NO_NEED_ACTION', message_status="SENDED"):
-#     chat = Chat.objects.create(
-#         booking=booking,
-#         sender_phone=sender_phone,
-#         receiver_phone=receiver_phone,
-#         message=message,
-#         context=context,
-#         sender_type=sender_type,
-#         message_type=message_type,
-#         message_status=message_status,
-#     )
-#     chat.save()
-#     print_info(
-#         f"\n Message Saved to DB. Sender: {chat.sender_phone} Receiver: {chat.receiver_phone}. Message Status: {message_status}, Message Type: {message_type} Context: {context}  Sender Type: {sender_type} \n{message}\n")
-#     return chat
