@@ -15,3 +15,4 @@ from .one_link_contract import create_booking_by_link
 from .handmade_calendar import handyman_calendar
 from .parking_calendar import parking_calendar
 from .booking_api import ApartmentBookingDates, UpdateApartmentPriceByRooms, UpdateSingleApartmentPrice
+from .chat import chat_list, chat_detail, send_message, load_more_messages

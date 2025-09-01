@@ -488,6 +488,10 @@ class Booking(models.Model):
                 print_info("SEND WELCOME MESSAGE 1")
                 from mysite.views.messaging import sendWelcomeMessageToTwilio
                 sendWelcomeMessageToTwilio(self)
+            
+            # Update any existing conversation links for this tenant
+            if self.tenant and self.tenant.phone:
+                self.update_conversation_links()
         else:
             form_data = kwargs.pop('form_data', None)
             payments_data = kwargs.pop('payments_data', None)
@@ -535,6 +539,10 @@ class Booking(models.Model):
                 print_info("SEND WELCOME MESSAGE 2")
                 from mysite.views.messaging import sendWelcomeMessageToTwilio
                 sendWelcomeMessageToTwilio(self)
+            
+            # Update any existing conversation links for this tenant
+            if self.tenant and self.tenant.phone:
+                self.update_conversation_links()
 
             # Update apartment keywords
             if self.apartment and self.tenant and self.tenant.full_name:
@@ -734,6 +742,125 @@ class Booking(models.Model):
             else:
                 revenue -= payment.amount
         return revenue
+    
+    def update_conversation_links(self):
+        """
+        Update existing Twilio conversations to link to this booking if more contextually relevant
+        This handles both unlinked conversations and conversations linked to older bookings
+        """
+        try:
+            if not self.tenant or not self.tenant.phone:
+                return
+                
+            # Find ALL conversations that involve this tenant (linked and unlinked)
+            all_tenant_conversations = TwilioConversation.objects.filter(
+                messages__author=self.tenant.phone
+            ).distinct()
+            
+            updated_count = 0
+            relinked_count = 0
+            
+            for conversation in all_tenant_conversations:
+                
+                current_booking = conversation.booking
+                should_link_to_new = self._should_link_conversation_to_booking(conversation)
+                
+                if not current_booking:
+                    # Case 1: Unlinked conversation
+                    if should_link_to_new:
+                        conversation.booking = self
+                        conversation.apartment = self.apartment
+                        conversation.save()
+                        updated_count += 1
+                        print_info(f"Linked unlinked conversation {conversation.conversation_sid} to booking {self}")
+                
+                elif current_booking != self:
+                    # Case 2: Conversation linked to different booking
+                    if should_link_to_new:
+                        # Check if this new booking is more contextually relevant than current
+                        should_keep_current = current_booking._should_link_conversation_to_booking(conversation)
+                        
+                        if should_link_to_new and not should_keep_current:
+                            # New booking is more relevant, relink
+                            old_booking = current_booking
+                            conversation.booking = self
+                            conversation.apartment = self.apartment
+                            conversation.save()
+                            relinked_count += 1
+                            print_info(f"Relinked conversation {conversation.conversation_sid} from booking {old_booking} to booking {self}")
+                        
+                        elif should_link_to_new and should_keep_current:
+                            # Both bookings are contextually relevant - check timing to decide
+                            if self._is_more_recent_booking_than(current_booking):
+                                old_booking = current_booking
+                                conversation.booking = self
+                                conversation.apartment = self.apartment
+                                conversation.save()
+                                relinked_count += 1
+                                print_info(f"Relinked conversation {conversation.conversation_sid} from older booking {old_booking} to newer booking {self}")
+                            else:
+                                print_info(f"Kept conversation {conversation.conversation_sid} linked to more recent booking {current_booking}")
+                        else:
+                            print_info(f"Kept conversation {conversation.conversation_sid} linked to more contextually relevant booking {current_booking}")
+                
+                # Case 3: Already linked to this booking - no action needed
+            
+            if updated_count > 0 or relinked_count > 0:
+                print_info(f"Updated conversation links for booking {self}: {updated_count} new links, {relinked_count} relinks")
+            
+        except Exception as e:
+            print_info(f"Error updating conversation links for booking {self}: {e}")
+    
+    def _is_more_recent_booking_than(self, other_booking):
+        """
+        Check if this booking is more recent than another booking
+        """
+        if not other_booking:
+            return True
+            
+        # Compare by start date first, then by creation date
+        if self.start_date != other_booking.start_date:
+            return self.start_date > other_booking.start_date
+        
+        # If same start date, compare by creation time
+        return self.created_at > other_booking.created_at
+    
+    def _should_link_conversation_to_booking(self, conversation):
+        """
+        Determine if a conversation should be linked to this booking
+        based on timing and context
+        """
+        try:
+            from datetime import timedelta
+            
+            # Get the earliest message in the conversation
+            earliest_message = conversation.messages.order_by('message_timestamp').first()
+            if not earliest_message:
+                return True  # No messages, safe to link
+            
+            # If conversation started around the time of this booking, it's likely related
+            booking_start_buffer = self.start_date - timedelta(days=30)  # 30 days before booking
+            booking_end_buffer = self.end_date + timedelta(days=7)       # 7 days after booking
+            
+            conversation_start = earliest_message.message_timestamp.date()
+            
+            # Link if conversation started in the booking timeframe
+            if booking_start_buffer <= conversation_start <= booking_end_buffer:
+                print_info(f"Conversation started {conversation_start} is within booking timeframe {booking_start_buffer} to {booking_end_buffer}")
+                return True
+            
+            # If conversation is very recent (last 3 days), link to most recent booking
+            from datetime import date
+            if (date.today() - conversation_start).days <= 3:
+                print_info(f"Conversation is very recent ({conversation_start}), linking to current booking")
+                return True
+            
+            print_info(f"Conversation started {conversation_start} is outside booking timeframe")
+            return False
+            
+        except Exception as e:
+            print_info(f"Error checking conversation context: {e}")
+            return True  # Default to linking if we can't determine context
     
     @property
     def payment_str_for_contract(self):

@@ -29,15 +29,16 @@ print_info(f"Twilio path: {twilio.__file__}")
 print_info(f"===========================")
 
 
-def save_conversation_to_db(conversation_sid, friendly_name, booking=None, apartment=None):
+def save_conversation_to_db(conversation_sid, friendly_name, booking=None, apartment=None, author=None):
     """
-    Save or get Twilio conversation in database
+    Save or get Twilio conversation in database with smart booking/apartment linking
     
     Args:
         conversation_sid (str): Twilio conversation SID
         friendly_name (str): Conversation friendly name
         booking (Booking): Optional booking object
         apartment (Apartment): Optional apartment object
+        author (str): Optional message author for smart linking
     
     Returns:
         TwilioConversation: The conversation object
@@ -56,6 +57,25 @@ def save_conversation_to_db(conversation_sid, friendly_name, booking=None, apart
         
         if created:
             print_info(f"Saved new conversation to DB: {conversation_sid}")
+            
+            # Try to link booking/apartment for new customer conversations only
+            if not booking and not apartment and author:
+                # Only try to link if author is a customer (not system phones)
+                twilio_phone = "+13153524379"
+                manager_phone = "+17282001917"
+                
+                if author not in [twilio_phone, 'ASSISTANT', manager_phone]:
+                    print_info(f"Attempting to link conversation to booking for customer: {author}")
+                    booking = get_booking_from_phone(author)
+                    if booking:
+                        conversation.booking = booking
+                        conversation.apartment = booking.apartment
+                        conversation.save()
+                        print_info(f"Linked conversation to booking: {booking} and apartment: {booking.apartment}")
+                    else:
+                        print_info(f"No booking found for customer: {author} - conversation can be linked later")
+                else:
+                    print_info(f"Author {author} is system user - skipping booking lookup")
         else:
             print_info(f"Found existing conversation in DB: {conversation_sid}")
             
@@ -64,6 +84,90 @@ def save_conversation_to_db(conversation_sid, friendly_name, booking=None, apart
     except Exception as e:
         print_info(f"Error saving conversation to DB: {e}")
         return None
+
+
+def update_conversation_booking_link(conversation_sid, phone_number):
+    """
+    Update an existing conversation with booking/apartment relationship
+    Useful when booking is created after the conversation
+    
+    Args:
+        conversation_sid (str): Twilio conversation SID
+        phone_number (str): Phone number to find booking for
+        
+    Returns:
+        bool: True if successfully updated, False otherwise
+    """
+    try:
+        from mysite.models import TwilioConversation
+        
+        conversation = TwilioConversation.objects.filter(conversation_sid=conversation_sid).first()
+        if not conversation:
+            print_info(f"Conversation not found: {conversation_sid}")
+            return False
+            
+        # Skip if already linked
+        if conversation.booking and conversation.apartment:
+            print_info(f"Conversation already linked to booking: {conversation.booking}")
+            return True
+            
+        # Try to find booking
+        booking = get_booking_from_phone(phone_number)
+        if booking:
+            conversation.booking = booking
+            conversation.apartment = booking.apartment
+            conversation.save()
+            print_info(f"Updated conversation {conversation_sid} with booking: {booking} and apartment: {booking.apartment}")
+            return True
+        else:
+            print_info(f"No booking found for phone: {phone_number}")
+            return False
+            
+    except Exception as e:
+        print_info(f"Error updating conversation booking link: {e}")
+        return False
+
+
+def check_author_in_group_conversations_for_apartment(author_phone, apartment_id=None):
+    """
+    Check if the author exists in any group conversation for a specific apartment
+    This helps handle multiple bookings for the same tenant
+    
+    Args:
+        author_phone (str): Phone number to check
+        apartment_id (int): Optional apartment ID to filter conversations
+    
+    Returns:
+        bool: True if author exists in group conversations for this apartment
+    """
+    try:
+        validated_phone = validate_phone_number(author_phone)
+        if not validated_phone:
+            print_info(f"Invalid phone number for group check: {author_phone}")
+            return False
+            
+        print_info(f"Checking if {validated_phone} exists in group conversations for apartment {apartment_id}")
+        
+        # If apartment_id provided, check database first for more efficient lookup
+        if apartment_id:
+            from mysite.models import TwilioConversation
+            
+            # Check if there's already a conversation linked to this apartment with this tenant
+            existing_conversation = TwilioConversation.objects.filter(
+                apartment_id=apartment_id,
+                messages__author=validated_phone
+            ).first()
+            
+            if existing_conversation:
+                print_info(f"Found existing conversation {existing_conversation.conversation_sid} for apartment {apartment_id}")
+                return True
+        
+        # Fallback to original Twilio API check for all group conversations
+        return check_author_in_group_conversations(author_phone)
+        
+    except Exception as e:
+        print_info(f"Error in check_author_in_group_conversations_for_apartment: {e}")
+        return check_author_in_group_conversations(author_phone)
 
 
 def save_message_to_db(message_sid, conversation_sid, author, body, direction='inbound', 
@@ -256,9 +360,6 @@ def create_conversation_with_participants(friendly_name, participants_config):
         conversation_sid = conversation_with_participant.sid
         print_info(f'Created conversation "{friendly_name}" with {len(participant_list)} participants: {conversation_sid}')
         
-        # Save conversation to database
-        save_conversation_to_db(conversation_sid, friendly_name)
-        
         return conversation_sid
         
     except Exception as e:
@@ -404,6 +505,14 @@ def twilio_webhook(request):
                     # Determine direction based on author
                     direction = 'inbound' if author not in [twilio_phone, 'ASSISTANT', manager_phone] else 'outbound'
                     
+                    # Ensure conversation exists in database with smart linking
+                    if conversation_sid:
+                        save_conversation_to_db(
+                            conversation_sid=conversation_sid,
+                            friendly_name=f"Conversation {conversation_sid}",
+                            author=author  # Pass author for smart linking logic
+                        )
+                    
                     save_message_to_db(
                         message_sid=webhook_sid,  # Using webhook_sid as message identifier
                         conversation_sid=conversation_sid,
@@ -421,8 +530,12 @@ def twilio_webhook(request):
                 if author_is_customer:
                     print_info(f"Author {author} is a customer, checking for existing group conversations")
                     
-                    # Check if author exists in any group conversation (>2 participants)
-                    author_in_group = check_author_in_group_conversations(author)
+                    # Get customer's current booking context to determine if we need a new conversation
+                    customer_booking = get_booking_from_phone(author)
+                    apartment_id = customer_booking.apartment.id if customer_booking and customer_booking.apartment else None
+                    
+                    # Check if author exists in group conversation for this specific apartment
+                    author_in_group = check_author_in_group_conversations_for_apartment(author, apartment_id)
                     
                     if not author_in_group:
                         print_info(f"Author {author} not found in group conversations, creating new group conversation and forwarding message")
@@ -454,10 +567,12 @@ def twilio_webhook(request):
                             participants_config
                         )
                         
-                        # Try to associate with booking/apartment
-                        booking = get_booking_from_phone(author)
-                        apartment = booking.apartment if booking else None
-                        save_conversation_to_db(new_conversation_sid, friendly_name, booking=booking, apartment=apartment)
+                        # Save new group conversation with smart linking for customer
+                        save_conversation_to_db(
+                            conversation_sid=new_conversation_sid,
+                            friendly_name=friendly_name,
+                            author=author  # Pass customer phone for smart linking
+                        )
                         
                         # Forward the message to the new group conversation
                         time.sleep(6)

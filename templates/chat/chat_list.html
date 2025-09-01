@@ -1,0 +1,148 @@
+{% extends '_base.html' %}
+
+{% block content %}
+<div class="h-full flex flex-col bg-white dark:bg-gray-800">
+    <!-- Header -->
+    <div class="flex-shrink-0 p-4 bg-white border-b border-gray-200 dark:bg-gray-800 dark:border-gray-700">
+        <div class="flex items-center justify-between">
+            <div>
+                <h1 class="text-xl font-semibold text-gray-900 dark:text-white">Chat Interface</h1>
+                <p class="text-sm text-gray-500 dark:text-gray-400">Manage customer conversations</p>
+            </div>
+            
+            <!-- Search Bar -->
+            <div class="w-80 xl:w-[28rem]">
+                <form action="{% url 'chat_list' %}" method="GET" class="flex space-x-2">
+                    <label for="chat-search" class="sr-only">Search</label>
+                    <div class="flex-1">
+                        <input type="text" name="q" id="chat-search" 
+                               value="{{ search_query|default:'' }}"
+                               class="bg-gray-50 border border-gray-300 text-gray-900 sm:text-sm rounded-lg focus:ring-primary-500 focus:border-primary-500 block w-full p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white dark:focus:ring-primary-500 dark:focus:border-primary-500" 
+                               placeholder="Search by tenant name, phone, apartment">
+                    </div>
+                    <button type="submit" class="px-4 py-2.5 text-sm font-medium text-white bg-primary-700 rounded-lg border border-primary-700 hover:bg-primary-800 focus:ring-4 focus:outline-none focus:ring-primary-300 dark:bg-primary-600 dark:hover:bg-primary-700 dark:focus:ring-primary-800">
+                        <svg class="w-4 h-4" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 20 20">
+                            <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m19 19-4-4m0-7A7 7 0 1 1 1 8a7 7 0 0 1 14 0Z"/>
+                        </svg>
+                        <span class="sr-only">Search</span>
+                    </button>
+                    {% if search_query %}
+                    <a href="{% url 'chat_list' %}" class="px-4 py-2.5 text-sm font-medium text-gray-500 bg-white border border-gray-300 rounded-lg hover:bg-gray-100 focus:ring-4 focus:outline-none focus:ring-gray-200 dark:bg-gray-800 dark:text-gray-400 dark:border-gray-600 dark:hover:bg-gray-700 dark:focus:ring-gray-700">
+                        Clear
+                    </a>
+                    {% endif %}
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Conversations Content -->
+    <div class="flex-1 overflow-y-auto">
+        <div class="h-full">
+                <!-- Conversations List -->
+                {% if conversations %}
+                    <div class="divide-y divide-gray-200 dark:divide-gray-600">
+                        {% for conv_data in conversations %}
+                        <div class="p-4 hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer" 
+                             onclick="window.location.href='{% url 'chat_detail' conv_data.conversation.conversation_sid %}'">
+                            <div class="flex items-center justify-between">
+                                <div class="flex-1 min-w-0">
+                                    <div class="flex items-center">
+                                        <div class="flex-shrink-0">
+                                            <!-- Avatar -->
+                                            <div class="flex items-center justify-center w-10 h-10 bg-blue-500 rounded-full">
+                                                <span class="text-sm font-medium text-white">
+                                                    {{ conv_data.display_info.name|slice:":1"|upper }}
+                                                </span>
+                                            </div>
+                                        </div>
+                                        <div class="ml-4 flex-1 min-w-0">
+                                            <div class="text-sm font-medium text-gray-900 dark:text-white truncate">
+                                                {{ conv_data.display_info.name }}
+                                            </div>
+                                            
+                                            {% if conv_data.display_info.apartment %}
+                                            <div class="text-sm text-gray-500 dark:text-gray-400">
+                                                📍 {{ conv_data.display_info.apartment }}
+                                            </div>
+                                            {% endif %}
+                                            
+                                            {% if conv_data.display_info.booking_dates %}
+                                            <div class="text-xs text-gray-400 dark:text-gray-500">
+                                                📅 {{ conv_data.display_info.booking_dates.start|date:"M d" }} - {{ conv_data.display_info.booking_dates.end|date:"M d, Y" }}
+                                            </div>
+                                            {% elif conv_data.display_info.phone %}
+                                            <div class="text-xs text-gray-400 dark:text-gray-500">
+                                                📞 {{ conv_data.display_info.phone }}
+                                            </div>
+                                            {% endif %}
+                                            
+                                            {% if conv_data.latest_message %}
+                                            <div class="text-sm text-gray-600 dark:text-gray-300 truncate mt-1">
+                                                <span class="{% if conv_data.latest_message.direction == 'outbound' %}text-blue-600{% else %}text-gray-600{% endif %}">
+                                                    {% if conv_data.latest_message.direction == 'outbound' %}→{% else %}←{% endif %}
+                                                </span>
+                                                {{ conv_data.latest_message.body|truncatechars:50 }}
+                                            </div>
+                                            {% endif %}
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <div class="flex flex-col items-end ml-4">
+                                    {% if conv_data.latest_message %}
+                                    <div class="text-xs text-gray-500 dark:text-gray-400">
+                                        {{ conv_data.latest_message.message_timestamp|timesince }} ago
+                                    </div>
+                                    {% endif %}
+                                    
+                                    <div class="text-xs text-gray-400 dark:text-gray-500 mt-1">
+                                        {{ conv_data.message_count }} message{{ conv_data.message_count|pluralize }}
+                                    </div>
+                                    
+                                    {% if conv_data.display_info.has_booking %}
+                                    <a href="/bookings/?q=id={{ conv_data.conversation.booking.id }}" 
+                                       onclick="event.stopPropagation();"
+                                       class="inline-flex items-center px-2 py-1 mt-2 text-xs font-medium text-green-800 bg-green-100 hover:bg-green-200 rounded-full dark:bg-green-900 dark:text-green-300 dark:hover:bg-green-800 transition-colors duration-200">
+                                        📋 Booking #{{ conv_data.conversation.booking.id }}
+                                    </a>
+                                    {% else %}
+                                    <span class="inline-flex items-center px-2 py-1 mt-2 text-xs font-medium text-yellow-800 bg-yellow-100 rounded-full dark:bg-yellow-900 dark:text-yellow-300">
+                                        Unlinked
+                                    </span>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                {% else %}
+                    <div class="p-8 text-center">
+                        <div class="text-gray-500 dark:text-gray-400">
+                            {% if search_query %}
+                                No conversations found for "{{ search_query }}"
+                            {% else %}
+                                No conversations found
+                            {% endif %}
+                        </div>
+                        {% if search_query %}
+                        <a href="{% url 'chat_list' %}" class="text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-200">
+                            Show all conversations
+                        </a>
+                        {% endif %}
+                    </div>
+                {% endif %}
+        </div>
+    </div>
+</div>
+
+<script>
+// Allow Enter key to submit search form
+document.getElementById('chat-search').addEventListener('keydown', function(e) {
+    if (e.key === 'Enter') {
+        e.preventDefault();
+        e.target.form.submit();
+    }
+});
+</script>
+{% endblock %}

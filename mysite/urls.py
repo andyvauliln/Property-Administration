@@ -38,6 +38,11 @@ urlpatterns = [
     path('api/apartment-booking-dates/', views.ApartmentBookingDates.as_view(), name='apartment_booking_dates'),
     path('api/update-apartment-price-by-rooms/', views.UpdateApartmentPriceByRooms.as_view(), name='update_apartment_price_by_rooms'),
     path('api/update-single-apartment-price/', views.UpdateSingleApartmentPrice.as_view(), name='update_single_apartment_price'),
-    # path('telegram_webhook/', views.forward_telegram, name='telegram_webhook'),
+    # Chat interface URLs
+    path('chat/', views.chat_list, name='chat_list'),
+    path('chat/<str:conversation_sid>/', views.chat_detail, name='chat_detail'),
+    path('chat/<str:conversation_sid>/send/', views.send_message, name='send_message'),
+    path('chat/<str:conversation_sid>/load-more/', views.load_more_messages, name='load_more_messages'),
+
 ]
 
