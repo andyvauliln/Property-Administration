@@ -6,7 +6,7 @@ from django.contrib.auth.hashers import make_password
 from dateutil.relativedelta import relativedelta
 from datetime import datetime
 from datetime import datetime, date
-from mysite.docuseal_contract_managment import create_contract, sendWelcomeMessageToTwilio, update_contract, delete_contract
+from mysite.docuseal_contract_managment import create_contract, update_contract, delete_contract
 from itertools import zip_longest
 import re
 import uuid
@@ -152,7 +152,7 @@ class Apartment(models.Model):
     building_n = models.CharField(max_length=10)
     street = models.CharField(max_length=255)
     apartment_n = models.CharField(
-        max_length=10, blank=True, null=True)  # optional
+    max_length=10, blank=True, null=True)  # optional
     state = models.CharField(max_length=100)
     city = models.CharField(max_length=100)
     zip_index = models.CharField(max_length=10)
@@ -486,6 +486,7 @@ class Booking(models.Model):
                 create_contract(self, template_id=template_id, send_sms=create_chat_bool)
             elif create_chat_bool:
                 print_info("SEND WELCOME MESSAGE 1")
+                from mysite.views.messaging import sendWelcomeMessageToTwilio
                 sendWelcomeMessageToTwilio(self)
         else:
             form_data = kwargs.pop('form_data', None)
@@ -532,6 +533,7 @@ class Booking(models.Model):
                 create_contract(self, template_id=template_id, send_sms=create_chat_bool)
             elif create_chat_bool:
                 print_info("SEND WELCOME MESSAGE 2")
+                from mysite.views.messaging import sendWelcomeMessageToTwilio
                 sendWelcomeMessageToTwilio(self)
 
             # Update apartment keywords
@@ -1243,42 +1245,6 @@ class Notification(models.Model):
         return links_list
 
 
-class Chat(models.Model):
-    SENDER_TYPE = [
-        ('USER', 'USER'),
-        ('MANAGER1', 'MANAGER1'),
-        ('MANAGER2', 'MANAGER2'),
-        ('GPT BOT', 'GPT BOT'),
-    ]
-    MESSAGE_TYPE = [
-        ('NO_NEED_ACTION', 'NO_NEED_ACTION'),
-        ('NEED_ACTION', 'NEED_ACTION'),
-        ('DB', 'DB'),
-        ('KNOWLEDGE_BASE', 'KNOWLEDGE_BASE'),
-        ('NOTIFICATION', 'NOTIFICATION'),
-        ('CONTRACT', 'CONTRACT'),
-    ]
-    MESSAGE_STATUS = [
-        ('ERROR', 'ERROR'),
-        ('SENDED', 'SENDED'),
-    ]
-    twilio_conversation_sid = models.CharField(max_length=100, blank=True, null=True)
-    twilio_message_sid = models.CharField(max_length=100, blank=True, null=True)
-    sender_phone = models.CharField(max_length=20, blank=True, null=True)
-    receiver_phone = models.CharField(max_length=20, blank=True, null=True)
-    timestamp = models.DateTimeField(auto_now_add=True, db_index=True)
-    booking = models.ForeignKey(Booking, on_delete=models.SET_NULL, db_index=True,
-                                related_name='chat', null=True, blank=True)
-    message = models.TextField()
-    sender_type = models.CharField(
-        max_length=32, db_index=True, choices=SENDER_TYPE, null=True, blank=True)
-    context = models.TextField(null=True, blank=True)
-    message_type = models.CharField(
-        max_length=32, db_index=True, choices=MESSAGE_TYPE, default='NO_NEED_ACTION', null=True, blank=True)
-    message_status = models.CharField(
-        max_length=32, db_index=True, choices=MESSAGE_STATUS, default='SENDED')
-
-
 # Models
 class HandymanCalendar(models.Model):
     tenant_name = models.CharField(max_length=255)
@@ -1393,6 +1359,94 @@ class ParkingBooking(models.Model):
                 "link": f"/bookings/?q=id={self.booking.id}"
             })
         return links_list
+
+class TwilioConversation(models.Model):
+    """Model to store Twilio conversation metadata"""
+    
+    def __str__(self):
+        return f"{self.friendly_name} ({self.conversation_sid})"
+    
+    conversation_sid = models.CharField(max_length=100, unique=True, db_index=True)
+    friendly_name = models.CharField(max_length=255)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    # Optional relationships
+    booking = models.ForeignKey(
+        Booking, 
+        on_delete=models.SET_NULL, 
+        null=True, 
+        blank=True,
+        related_name='twilio_conversations'
+    )
+    apartment = models.ForeignKey(
+        Apartment,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='twilio_conversations'
+    )
+    
+    @property
+    def links(self):
+        links_list = []
+        if self.booking:
+            links_list.append({
+                "name": f"Booking: {self.booking.apartment.name} ({self.booking.start_date} - {self.booking.end_date})",
+                "link": f"/bookings/?q=id={self.booking.id}"
+            })
+        if self.apartment:
+            links_list.append({
+                "name": f"Apartment: {self.apartment.name}",
+                "link": f"/apartments/?q=id={self.apartment.id}"
+            })
+        return links_list
+
+
+class TwilioMessage(models.Model):
+    """Model to store individual Twilio messages"""
+    
+    def __str__(self):
+        return f"{self.author}: {self.body[:50]}..." if len(self.body) > 50 else f"{self.author}: {self.body}"
+    
+    MESSAGE_DIRECTION = [
+        ('inbound', 'Inbound'),
+        ('outbound', 'Outbound'),
+    ]
+    
+    message_sid = models.CharField(max_length=100, unique=True, db_index=True)
+    conversation = models.ForeignKey(
+        TwilioConversation,
+        on_delete=models.CASCADE,
+        related_name='messages'
+    )
+    conversation_sid = models.CharField(max_length=100, db_index=True)
+    author = models.CharField(max_length=50)  # Phone number or identity like "ASSISTANT"
+    body = models.TextField()
+    direction = models.CharField(max_length=10, choices=MESSAGE_DIRECTION, default='inbound')
+    
+    # Twilio metadata
+    webhook_sid = models.CharField(max_length=100, blank=True, null=True)
+    messaging_binding_address = models.CharField(max_length=20, blank=True, null=True)
+    messaging_binding_proxy_address = models.CharField(max_length=20, blank=True, null=True)
+    
+    # Timestamps
+    message_timestamp = models.DateTimeField(auto_now_add=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        ordering = ['-message_timestamp']
+    
+    @property
+    def links(self):
+        links_list = []
+        links_list.append({
+            "name": f"Conversation: {self.conversation.friendly_name}",
+            "link": f"/twilio-conversations/?q=id={self.conversation.id}"
+        })
+        return links_list
+
 
 def send_telegram_message(chat_id, token, message):
     if chat_id and token:

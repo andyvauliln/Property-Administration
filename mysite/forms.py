@@ -639,7 +639,7 @@ class BookingForm(forms.ModelForm):
     create_chat = ChoiceFieldEx( choices=[
         (True, "Create Chat"),
     ],
-        required=False, isEdit=True, isCreate=True, initial=None, ui_element="radio", 
+        required=False, isEdit=True, isCreate=True, initial=True, ui_element="radio", 
         _dropdown_options=[
             {"value": True, "label": "Create Chat"},
             ],
@@ -681,6 +681,14 @@ class BookingForm(forms.ModelForm):
         if not tenant_email:
             raise forms.ValidationError(
                 "Tenant is information is necessary for booking use temprorary genrated email if you don't know it")
+
+        # Check if phone is required when create_chat is True
+        create_chat = cleaned_data.get('create_chat')
+        tenant_phone = cleaned_data.get('tenant_phone')
+        
+        if create_chat and (not tenant_phone or tenant_phone.strip() == ""):
+            raise forms.ValidationError(
+                "Phone number is required when 'Create Chat' is selected.")
 
         # Existing overlapping bookings check...
         overlapping_bookings = Booking.objects.filter(

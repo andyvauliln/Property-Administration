@@ -1,14 +1,9 @@
 
-from mysite.models import Booking, Chat
-import json
-from django.views.decorators.http import require_http_methods
+from mysite.models import Booking
 import os
-import requests
 from django.http import HttpResponse, HttpResponseServerError
-from twilio.twiml.messaging_response import MessagingResponse
 from twilio.base.exceptions import TwilioException
 from twilio.rest import Client
-from django.views.decorators.csrf import csrf_exempt
 import re
 from django.core.management.base import BaseCommand
 
@@ -47,21 +42,15 @@ def forward_message():
             recipient, message = get_phone_number_from_message(
                 incoming_message)
             booking = getBookingByPhone(recipient)
-            db_message = create_db_message(
-                twilio_phone, recipient, message, booking)
 
-            return send_sms(message, recipient, db_message)
+            return send_sms(message, recipient)
 
         elif current_customer_phone == None:
             message = 'Current customer has not been set. Pls provide phone number before message in format: +13525413455 message'
-            db_message = create_db_message(
-                twilio_phone, manager_phone, message, None, None, "SYSTEM")
-            return send_sms(message, manager_phone, db_message)
+            return send_sms(message, manager_phone)
         else:
             booking = getBookingByPhone(current_customer_phone)
-            db_message = create_db_message(
-                twilio_phone, current_customer_phone, message, booking)
-            return send_sms(incoming_message, current_customer_phone, db_message)
+            return send_sms(incoming_message, current_customer_phone)
 
     else:  # message came from a User
         current_customer_phone = from_phone
@@ -73,17 +62,13 @@ def forward_message():
                 Booking: {booking.start_date} - { booking.end_date}. [{booking.apartment.name}].
                 \n {incoming_message}
             '''
-            db_message = create_db_message(
-                twilio_phone, manager_phone, booking_info_message, booking, None, "USER")
-            return send_sms(booking_info_message, manager_phone, db_message)
+            return send_sms(booking_info_message, manager_phone)
         else:
             message = f'{from_phone} {incoming_message}'
-            db_message = create_db_message(
-                twilio_phone, manager_phone, message, None, None, "USER")
-            return send_sms(message, manager_phone, db_message)
+            return send_sms(message, manager_phone)
 
 
-def send_sms(message, recipient, db_message: Chat, count=0):
+def send_sms(message, recipient, count=0):
     account_sid = os.environ["TWILIO_ACCOUNT_SID"]
     auth_token = os.environ["TWILIO_AUTH_TOKEN"]
     twilio_phone = os.environ["TWILIO_PHONE"]
@@ -112,13 +97,10 @@ def send_sms(message, recipient, db_message: Chat, count=0):
         if (count == 0):
             print(
                 f"Try send message one more time to {recipient} \n {message}")
-            return send_sms(manager_phone, context, db_message, 1)
+            return send_sms(manager_phone, context, 1)
         else:
             print(
                 f"SMS can't be sent to {recipient} \n {message} after {count} attempt")
-            db_message.message_status = "ERROR"
-            db_message.context = context
-            db_message.save()
             return HttpResponseServerError(f"Error: {str(e)}")
 
 
@@ -155,19 +137,3 @@ def is_phone_number(text):
     # if the text starts with a phone number
     return re.match(r'^\+\d+', text) is not None
 
-
-def create_db_message(sender_phone, receiver_phone, message, booking=None, context=None, sender_type='MANAGER', message_type='NO_NEED_ACTION', message_status="SENDED"):
-    chat = Chat.objects.create(
-        booking=booking,
-        sender_phone=sender_phone,
-        receiver_phone=receiver_phone,
-        message=message,
-        context=context,
-        sender_type=sender_type,
-        message_type=message_type,
-        message_status=message_status,
-    )
-    chat.save()
-    print(
-        f"\n Message Saved to DB. Sender: {chat.sender_phone} Receiver: {chat.receiver_phone}. Message Status: {message_status}, Message Type: {message_type} Context: {context}  Sender Type: {sender_type} \n{message}\n")
-    return chat

@@ -4,7 +4,7 @@ from django.core.management.base import BaseCommand
 from datetime import datetime, timedelta
 from django.utils import timezone
 from twilio.rest import Client
-from mysite.models import Booking, Chat
+from mysite.models import Booking
 import os
 from twilio.base.exceptions import TwilioException
 from twilio.twiml.messaging_response import MessagingResponse
@@ -165,8 +165,6 @@ class Command(BaseCommand):
         client = Client(account_sid, auth_token)
 
         try:
-            chat = create_notification(
-                twilio_phone_number, booking.tenant.phone, booking, message)
 
             message = client.messages.create(
                 from_=twilio_phone_number,
@@ -179,10 +177,7 @@ class Command(BaseCommand):
         except TwilioException as e:
             context = f'Error sending SMS notification to {booking.tenant.full_name}({booking.tenant.phone}). Apt: {booking.apartment.name} \n Error: {str(e)}, '
             print_info(context)
-            send_to_manager(context, booking)  # TODO remove it later
-            chat.message_status = "ERROR"
-            chat.context = context
-            chat.save()
+            send_to_manager(context, booking)
 
 
 def send_sms_test_version(booking: Booking, message):
@@ -203,11 +198,6 @@ def send_to_manager(message, booking, message_status="SENDED"):
     client = Client(account_sid, auth_token)
     try:
 
-        chat1 = create_notification(
-            twilio_phone_number, twilio_manager_number, booking, message, None, message_status)
-        chat2 = create_notification(
-            twilio_phone_number, twilio_manager_number2, booking, message, None, message_status)
-
         message1 = client.messages.create(
             from_=twilio_phone_number,
             to=twilio_manager_number,
@@ -224,29 +214,5 @@ def send_to_manager(message, booking, message_status="SENDED"):
             f'\nMessage Sent from Twilio: {twilio_phone_number} to Manager: {twilio_manager_number2} Status: {message2.status} SID: {message2.sid} \n {message2} \n')
 
     except TwilioException as e:
-        context = f'\nError sending SMS notification to manager \n Error: {str(e)} \n '
-        chat1.message_status = "ERROR"
-        chat1.context = context
-        chat1.save()
-        chat2.message_status = "ERROR"
-        chat2.context = context
-        chat2.save()
-        print_info(context)
+        print_info(f'\nError sending SMS notification to manager \n Error: {str(e)} \n ')
 
-
-def create_notification(sender_phone, receiver_phone, booking, message, context=None, message_status="SENDED", sender_type='SYSTEM', message_type='NOTIFICATION'):
-
-    chat = Chat.objects.create(
-        booking=booking,
-        sender_phone=sender_phone,
-        receiver_phone=receiver_phone,
-        message=message,
-        context=context,
-        sender_type=sender_type,
-        message_type=message_type,
-        message_status=message_status,
-    )
-    chat.save()
-    print_info(
-        f"\n Message Saved to DB. Sender: {chat.sender_phone} Receiver: {chat.receiver_phone}. Message Status: {message_status}, Message Type: {message_type} Context: {context}  Sender Type: {sender_type} \n{message}\n")
-    return chat

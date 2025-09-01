@@ -1,12 +1,6 @@
-from sys import int_info
-from ..models import Booking, Chat, User
-import json
+
 from django.views.decorators.http import require_http_methods
 import os
-import requests
-from django.http import HttpResponse, HttpResponseServerError
-from twilio.twiml.messaging_response import MessagingResponse
-from twilio.base.exceptions import TwilioException
 from twilio.rest import Client
 from django.views.decorators.csrf import csrf_exempt
 import re
@@ -14,6 +8,7 @@ import logging
 from django.http import JsonResponse
 import time
 import twilio
+from django.utils import timezone
 
 # Debug: Check Twilio version at runtime
 
@@ -32,6 +27,140 @@ print_info(f"=== TWILIO VERSION DEBUG 2 ===")
 print_info(f"Twilio version: {twilio.__version__}")
 print_info(f"Twilio path: {twilio.__file__}")
 print_info(f"===========================")
+
+
+def save_conversation_to_db(conversation_sid, friendly_name, booking=None, apartment=None):
+    """
+    Save or get Twilio conversation in database
+    
+    Args:
+        conversation_sid (str): Twilio conversation SID
+        friendly_name (str): Conversation friendly name
+        booking (Booking): Optional booking object
+        apartment (Apartment): Optional apartment object
+    
+    Returns:
+        TwilioConversation: The conversation object
+    """
+    try:
+        from mysite.models import TwilioConversation
+        
+        conversation, created = TwilioConversation.objects.get_or_create(
+            conversation_sid=conversation_sid,
+            defaults={
+                'friendly_name': friendly_name,
+                'booking': booking,
+                'apartment': apartment
+            }
+        )
+        
+        if created:
+            print_info(f"Saved new conversation to DB: {conversation_sid}")
+        else:
+            print_info(f"Found existing conversation in DB: {conversation_sid}")
+            
+        return conversation
+        
+    except Exception as e:
+        print_info(f"Error saving conversation to DB: {e}")
+        return None
+
+
+def save_message_to_db(message_sid, conversation_sid, author, body, direction='inbound', 
+                      webhook_sid=None, messaging_binding_address=None, 
+                      messaging_binding_proxy_address=None):
+    """
+    Save Twilio message to database
+    
+    Args:
+        message_sid (str): Twilio message SID
+        conversation_sid (str): Twilio conversation SID
+        author (str): Message author
+        body (str): Message content
+        direction (str): 'inbound' or 'outbound'
+        webhook_sid (str): Optional webhook SID
+        messaging_binding_address (str): Optional messaging binding address
+        messaging_binding_proxy_address (str): Optional proxy address
+    
+    Returns:
+        TwilioMessage: The message object or None if error
+    """
+    try:
+        from mysite.models import TwilioConversation, TwilioMessage
+        
+        # Get or create conversation first
+        conversation = TwilioConversation.objects.filter(conversation_sid=conversation_sid).first()
+        if not conversation:
+            # Create a basic conversation if it doesn't exist
+            conversation = save_conversation_to_db(conversation_sid, f"Conversation {conversation_sid}")
+            
+        if conversation:
+            message, created = TwilioMessage.objects.get_or_create(
+                message_sid=message_sid,
+                defaults={
+                    'conversation': conversation,
+                    'conversation_sid': conversation_sid,
+                    'author': author,
+                    'body': body,
+                    'direction': direction,
+                    'webhook_sid': webhook_sid,
+                    'messaging_binding_address': messaging_binding_address,
+                    'messaging_binding_proxy_address': messaging_binding_proxy_address,
+                    'message_timestamp': timezone.now()
+                }
+            )
+            
+            if created:
+                print_info(f"Saved message to DB: {message_sid} from {author}")
+            else:
+                print_info(f"Message already exists in DB: {message_sid}")
+                
+            return message
+        else:
+            print_info(f"Could not find or create conversation for message: {message_sid}")
+            return None
+            
+    except Exception as e:
+        print_info(f"Error saving message to DB: {e}")
+        return None
+
+
+def get_booking_from_phone(phone_number):
+    """
+    Try to find an active booking based on tenant phone number
+    
+    Args:
+        phone_number (str): Phone number to search for
+        
+    Returns:
+        Booking: Most recent booking or None
+    """
+    try:
+        from mysite.models import Booking, User
+        from datetime import date, timedelta
+        
+        # Validate and format phone number
+        validated_phone = validate_phone_number(phone_number)
+        if not validated_phone:
+            return None
+            
+        # Find user with this phone number
+        user = User.objects.filter(phone=validated_phone, role='Tenant').first()
+        if not user:
+            return None
+            
+        # Find most recent booking for this tenant (within last 90 days or future)
+        cutoff_date = date.today() - timedelta(days=90)
+        booking = Booking.objects.filter(
+            tenant=user,
+            end_date__gte=cutoff_date
+        ).order_by('-start_date').first()
+        
+        return booking
+        
+    except Exception as e:
+        print_info(f"Error finding booking from phone {phone_number}: {e}")
+        return None
 
 
 def validate_phone_number(phone):
@@ -68,25 +197,6 @@ def validate_phone_number(phone):
     # Otherwise, return None as invalid
     return None
 
-
-# def get_customer_phone_from_webhook(author, messaging_binding_address):
-#     """
-#     Extract valid customer phone number from webhook data
-#     """
-#     # Try author field first
-#     customer_phone = validate_phone_number(author)
-#     if customer_phone:
-#         print_info(f"Using author as customer phone: {customer_phone}")
-#         return customer_phone
-    
-#     # Try messaging binding address as fallback
-#     customer_phone = validate_phone_number(messaging_binding_address)
-#     if customer_phone:
-#         print_info(f"Using messaging binding address as customer phone: {customer_phone}")
-#         return customer_phone
-    
-#     print_info(f"No valid customer phone found - Author: {author}, Messaging Address: {messaging_binding_address}")
-#     return None
 
 
 def create_conversation_with_participants(friendly_name, participants_config):
@@ -145,6 +255,10 @@ def create_conversation_with_participants(friendly_name, participants_config):
         
         conversation_sid = conversation_with_participant.sid
         print_info(f'Created conversation "{friendly_name}" with {len(participant_list)} participants: {conversation_sid}')
+        
+        # Save conversation to database
+        save_conversation_to_db(conversation_sid, friendly_name)
+        
         return conversation_sid
         
     except Exception as e:
@@ -223,6 +337,16 @@ def forward_message_to_conversation(conversation_sid, author, message):
         )
         
         print_info(f"Forwarded message to conversation {conversation_sid}: {formatted_message}")
+        
+        # Save outbound forwarded message to database
+        save_message_to_db(
+            message_sid=message_response.sid,
+            conversation_sid=conversation_sid,
+            author='ASSISTANT',
+            body=formatted_message,
+            direction='outbound'
+        )
+        
         return message_response.sid
         
     except Exception as e:
@@ -248,7 +372,7 @@ def delete_conversation(conversation_sid):
 
 @csrf_exempt
 @require_http_methods(["POST", "GET"])
-def conversation_created_webhook(request):
+def twilio_webhook(request):
     print_info("**********CONVERSATION_CREATED_WEBHOOK **********")
     try:
         if request.method == 'POST':
@@ -274,6 +398,22 @@ def conversation_created_webhook(request):
             
             if event_type == 'onMessageAdded':
                 print_info(f"Event type is onMessageAdded: {event_type}")
+                
+                # Save incoming message to database
+                if body:  # Only save if there's actual message content
+                    # Determine direction based on author
+                    direction = 'inbound' if author not in [twilio_phone, 'ASSISTANT', manager_phone] else 'outbound'
+                    
+                    save_message_to_db(
+                        message_sid=webhook_sid,  # Using webhook_sid as message identifier
+                        conversation_sid=conversation_sid,
+                        author=author,
+                        body=body,
+                        direction=direction,
+                        webhook_sid=webhook_sid,
+                        messaging_binding_address=messaging_binding_address,
+                        messaging_binding_proxy_address=messaging_binding_proxy_address
+                    )
                 
                 # Check if author is not twilio_phone and not manager_phone
                 author_is_customer = (author != twilio_phone and author != manager_phone)
@@ -308,10 +448,16 @@ def conversation_created_webhook(request):
                         
                         print_info(f"Creating new group conversation with participants: {participants_config}")
                         
+                        friendly_name = f"Customer Support Group - {author}"
                         new_conversation_sid = create_conversation_with_participants(
-                            f"Customer Support Group - {author}", 
+                            friendly_name, 
                             participants_config
                         )
+                        
+                        # Try to associate with booking/apartment
+                        booking = get_booking_from_phone(author)
+                        apartment = booking.apartment if booking else None
+                        save_conversation_to_db(new_conversation_sid, friendly_name, booking=booking, apartment=apartment)
                         
                         # Forward the message to the new group conversation
                         time.sleep(6)
@@ -350,9 +496,145 @@ def conversation_created_webhook(request):
 
         return JsonResponse({'status': 'success'}, status=200)
     except Exception as e:
-        print_info(f"Error in conversation_created_webhook: {e}")
+        print_info(f"Error in twilio_webhook: {e}")
         return JsonResponse({'status': 'error', 'message': str(e)}, status=500)
 
+
+
+def create_conversation_config(friendly_name, tenant_phone):
+    """
+    Create a conversation with all participants in a single API call
+    
+    Args:
+        friendly_name (str): Name for the conversation
+        tenant_phone (str): Tenant's phone number
+    
+    Returns:
+        str: conversation_sid of the created conversation
+    """
+    try:
+         # Create new group conversation with all participants
+        participants_config = []
+        twilio_phone = "+13153524379"
+        manager_phone = "+17282001917"
+        
+        # Add customer
+        participants_config.append({
+            "phone": tenant_phone
+        })
+        
+        # Add manager  
+        participants_config.append({
+            "phone": manager_phone
+        })
+        
+        # Add assistant
+        participants_config.append({
+            "identity": "ASSISTANT",
+            "projected_address": twilio_phone
+        })
+        
+        conversation_sid = create_conversation_with_participants(friendly_name, participants_config)
+        
+        # Try to find booking from tenant phone for database relationship
+        booking = get_booking_from_phone(tenant_phone)
+        apartment = booking.apartment if booking else None
+        
+        # Save conversation to database with booking/apartment relationship
+        save_conversation_to_db(conversation_sid, friendly_name, booking=booking, apartment=apartment)
+        
+        print_info(f'Created conversation "{friendly_name}" with {len(participants_config)} participants: {conversation_sid}')
+        return conversation_sid
+        
+    except Exception as e:
+        print_info(f"Error creating conversation with participants: {e}")
+        raise
+
+
+def send_messsage_by_sid(conversation_sid, author, message, sender_phone, receiver_phone):
+    try:
+        # Retry sending in case the conversation is still initializing
+        max_attempts = 6
+        delay_seconds = 0.5
+        for attempt in range(1, max_attempts + 1):
+            try:
+                twilio_message = client.conversations.v1.conversations(
+                    conversation_sid
+                ).messages.create(
+                    body=message,
+                    author=author,
+                )
+                print_info(f"Message sent via Twilio: {twilio_message.sid}")
+                
+                # Save outbound message to database
+                save_message_to_db(
+                    message_sid=twilio_message.sid,
+                    conversation_sid=conversation_sid,
+                    author=author,
+                    body=message,
+                    direction='outbound'
+                )
+                
+                break
+            except Exception as e:
+                from twilio.base.exceptions import TwilioRestException
+                is_initializing = (getattr(e, "status", None) == 409) or ("initializing" in str(e).lower())
+                if is_initializing and attempt < max_attempts:
+                    print_info(
+                        f"Conversation {conversation_sid} is initializing; retrying in {delay_seconds}s (attempt {attempt}/{max_attempts})"
+                    )
+                    time.sleep(delay_seconds)
+                    delay_seconds = min(delay_seconds * 2, 4.0)
+                    continue
+                else:
+                    print_info(f"Error sending message via Twilio (attempt {attempt}): {e}")
+                    raise
+        
+    except Exception as e:
+        print_info(f"Error sending message via Twilio: {e}")
+        raise Exception(f"Error sending message via Twilio: {e}")
+
+
+def sendContractToTwilio(booking, contract_url):
+    try:
+        twilio_phone_secondary = os.environ.get("TWILIO_PHONE_SECONDARY")
+        conversation_sid = create_conversation_config(
+            f" {booking.tenant.full_name or 'Tenant'} Chat Apt: {booking.apartment.name}",
+            booking.tenant.phone
+        )
+        
+        if conversation_sid:
+            print_info(f"Conversation created: {conversation_sid}")
+            send_messsage_by_sid(conversation_sid, "ASSISTANT", f"Hi, {booking.tenant.full_name or 'Dear guest'}, this is your contract for booking apartment {booking.apartment.name}. from {booking.start_date} to {booking.end_date}. Please sign it here: {contract_url}", twilio_phone_secondary, booking.tenant.phone)
+        else:
+            print_info("Conversation wasn't created")
+    except Exception as e:
+        from twilio.base.exceptions import TwilioException
+        print_info(f"Error sending contract message: {e}")
+        raise Exception(f"Error sending contract message: {e}")
+
+
+def sendWelcomeMessageToTwilio(booking):
+    try:
+        twilio_phone_secondary = os.environ.get("TWILIO_PHONE_SECONDARY")
+        if booking.tenant.phone and booking.tenant.phone.startswith("+1"):
+            conversation_sid = create_conversation_config(
+                f" {booking.tenant.full_name or 'Tenant'} Chat Apt: {booking.apartment.name}",
+                booking.tenant.phone
+            )
+            
+            if conversation_sid:
+                print_info(f"Conversation created: {conversation_sid}")
+                send_messsage_by_sid(conversation_sid, "ASSISTANT", f"Hi, {booking.tenant.full_name or 'Dear guest'}, This chat for renting apartment {booking.apartment.name}. from {booking.start_date} to {booking.end_date}.", twilio_phone_secondary, booking.tenant.phone)
+            else:
+                print_info("Conversation wasn't created")
+        else:
+            print_info("Tenant phone is not valid")
+            raise Exception("Tenant phone is not valid")
+    except Exception as e:
+        from twilio.base.exceptions import TwilioException
+        print_info(f"Error sending contract message: {e}")
+        raise Exception(f"Error sending contract message: {e}")
 
 
 def print_participants(conversation_sid, label="Participants"):
