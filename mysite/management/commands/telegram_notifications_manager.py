@@ -58,11 +58,11 @@ def check_bookings_without_cleaning(chat_id, token):
     today = date.today()
     three_days_from_now = today + timedelta(days=3)
     
-    # Get bookings ending in next 3 days
+    # Get bookings ending in next 3 days (excluding blocked bookings)
     upcoming_end_bookings = Booking.objects.filter(
         end_date__gte=today,
         end_date__lte=three_days_from_now
-    ).select_related('apartment', 'tenant')
+    ).exclude(status='Blocked').select_related('apartment', 'tenant')
     
     for booking in upcoming_end_bookings:
         # Check if cleaning exists for this booking
@@ -84,7 +84,7 @@ def check_bookings_without_cleaning(chat_id, token):
 
 def my_cron_job():
     next_day = date.today() + timedelta(days=1)
-    notifications = Notification.objects.filter(date=next_day, send_in_telegram=True)
+    notifications = Notification.objects.filter(date=next_day, send_in_telegram=True).exclude(booking__status='Blocked').exclude(cleaning__booking__status='Blocked')
     telegram_token = os.environ["TELEGRAM_TOKEN"]
 
     active_managers = User.objects.filter(role="Manager", is_active=True)
