@@ -30,6 +30,7 @@ urlpatterns = [
     # path('conversation-pre-webhook/', views.conversation_pre_webhook, name='conversation_pre_webhook'),
     path('generate-invoice/', views.generate_invoice, name='generateInvoice'),
     path('booking-report/', views.booking_report, name='booking_report'),
+    path('apartment-report/', views.apartment_report, name='apartment_report'),
     path('payments-sync/', views.sync_payments, name='sync_payments'),
     path('booking-availability/', views.booking_availability, name='booking_availability'),
     path('create-booking/', views.create_booking_by_link, name='create_booking_by_link'),

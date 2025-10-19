@@ -53,7 +53,7 @@ def get_dropdown_options(identifier, isData=False, request=None):
             items = Apartment.objects.all().order_by('name')
         if isData:
             return items
-        return [{"value": item.id, "label": item.name, "manager_id": item.manager.id if item.manager else None} for item in items]
+        return [{"value": item.id, "label": item.name, "manager_id": item.manager.id if item.manager else None, "notes": item.notes or ""} for item in items]
 
     elif identifier == 'cleaners':
         items = User.objects.filter(role='Cleaner').order_by('full_name')

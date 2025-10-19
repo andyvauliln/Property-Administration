@@ -17,6 +17,7 @@
                 <input id="report_start_date" name="report_start_date" datepicker datepicker-format="MM dd yyyy" type="text" value="{{ report_start_date }}" class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white dark:focus:ring-blue-500 dark:focus:border-blue-500" placeholder="Start Date">
                 <input id="report_end_date" name="report_end_date" datepicker datepicker-format="MM dd yyyy" type="text" value="{{ report_end_date }}" class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white dark:focus:ring-blue-500 dark:focus:border-blue-500" placeholder="End Date">
                 <button onclick="getBookingReport()" class="w-full bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded">Get Booking Report</button>
+                <button onclick="getApartmentReport()" class="w-full bg-emerald-500 hover:bg-emerald-700 text-white font-bold py-2 px-4 rounded">Get Apartment Report</button>
             </div>
         </div>
         <div class="flex justify-center items-center mb-6">
@@ -94,6 +95,14 @@
         const url = `/booking-report/?report_start_date=${report_start_date}&report_end_date=${report_end_date}`
         console.log(url, "url")
         window.location.href = url
+    }
+
+    function getApartmentReport(){
+        const report_start_date = document.getElementById('report_start_date').value;
+        const report_end_date = document.getElementById('report_end_date').value;
+        const url = `/apartment-report/?report_start_date=${report_start_date}&report_end_date=${report_end_date}`
+        console.log(url, "url")
+        window.open(url, '_blank')
     }
 
     function formatNullableDate(dateString) {

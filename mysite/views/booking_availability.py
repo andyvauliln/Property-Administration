@@ -104,7 +104,12 @@ def booking_availability(request):
                 'start_date': apartment.start_date,
                 'end_date': apartment.end_date,
                 'web_link': apartment.web_link,
+                'notes': apartment.notes or '',
             }
+            
+            # Debug: Check if apartment has notes
+            if apartment.notes:
+                print(f"  DEBUG: Apartment {apartment.name} has notes: {apartment.notes[:50]}...")
 
             bookings = [b for b in apartment.all_relevant_bookings 
                 if b.start_date <= month_end and b.end_date >= month_start]

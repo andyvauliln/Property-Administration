@@ -63,6 +63,9 @@
                                                 <option value="{{ option.value }}" {% if option.value == field_instance.initial %}selected{% endif %}>{{ option.label }}</option>
                                             {% endfor %}
                                         </select>
+                                        {% if field_name == "apartment" %}
+                                        <div id="apartment-notes-display" class="mt-2 p-2 text-xs text-red-600 bg-red-50 rounded border border-red-200 dark:bg-red-900 dark:text-red-200 dark:border-red-700 hidden whitespace-pre-wrap"></div>
+                                        {% endif %}
                                     {% elif field_instance.ui_element == "radio" %}
                                         <div class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-primary-500 focus:border-primary-500 block w-full p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white dark:focus:ring-primary-500 dark:focus:border-primary-500">
                                             <div>
@@ -106,10 +109,13 @@
                     {
                         "id": {{ option.value }},
                         "name": "{{ option.label|escapejs }}",
-                        "manager_id": {{ option.manager_id|default:"null" }}
+                        "manager_id": {{ option.manager_id|default:"null" }},
+                        "notes": "{{ option.notes|default:""|escapejs }}"
                     },
                 {% endfor %}
             ];
+            console.log('🏠 Apartment data loaded:', apartmentsData);
+            console.log('🏠 Apartments with notes:', apartmentsData.filter(apt => apt.notes));
         {% endif %}
         {% if field_name == "parking_number" %}
             parkingData = [
@@ -127,13 +133,34 @@
         console.log('handleApartmentChange', apartmentId);
         console.log('Available apartments data:', apartmentsData);
         const parkingSelect = document.getElementById('parking_number');
+        const apartmentNotesDisplay = document.getElementById('apartment-notes-display');
         
-        if (!apartmentId || !parkingSelect) {
+        if (!apartmentId) {
+            // Hide notes display when no apartment selected
+            if (apartmentNotesDisplay) {
+                apartmentNotesDisplay.classList.add('hidden');
+            }
             return;
+        }
+        
+        if (!parkingSelect) {
+            console.log('Parking select not found');
         }
 
         // Find the selected apartment data
         const selectedApartment = apartmentsData.find(apt => apt.id == apartmentId);
+        
+        // Display apartment notes if they exist
+        if (apartmentNotesDisplay && selectedApartment) {
+            if (selectedApartment.notes && selectedApartment.notes.trim() !== '') {
+                apartmentNotesDisplay.textContent = selectedApartment.notes;
+                apartmentNotesDisplay.classList.remove('hidden');
+                console.log('📝 Showing apartment notes:', selectedApartment.notes);
+            } else {
+                apartmentNotesDisplay.classList.add('hidden');
+                console.log('📝 No notes for this apartment');
+            }
+        }
         
          // Auto-add payment row if apartment has a manager
          if (selectedApartment && selectedApartment.manager_id) {

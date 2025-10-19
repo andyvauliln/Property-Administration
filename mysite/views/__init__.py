@@ -1,5 +1,5 @@
 from .apartment_calendar import apartment
-from .apartments_report import apartments_analytics
+from .apartments_report import apartments_analytics, apartment_report
 from .dashboard import index
 from .generate_invoice import generate_invoice
 from .booking_report import booking_report
