@@ -171,47 +171,24 @@
         
         // Display apartment notes if they exist
         if (apartmentNotesDisplay && selectedApartment) {
+            console.log('📝 Checking notes for apartment:', selectedApartment);
+            console.log('📝 Notes value:', selectedApartment.notes);
+            console.log('📝 Notes trimmed:', selectedApartment.notes ? selectedApartment.notes.trim() : 'no notes');
+            
             if (selectedApartment.notes && selectedApartment.notes.trim() !== '') {
                 apartmentNotesDisplay.textContent = selectedApartment.notes;
                 apartmentNotesDisplay.classList.remove('hidden');
-                console.log('📝 Showing apartment notes:', selectedApartment.notes);
+                console.log('📝 ✅ SHOWING apartment notes:', selectedApartment.notes);
             } else {
                 apartmentNotesDisplay.classList.add('hidden');
-                console.log('📝 No notes for this apartment');
-            }
-        }
-        
-         // Auto-add payment row if apartment has a manager
-         if (selectedApartment && selectedApartment.manager_id) {
-            console.log('✅ Apartment has manager (ID:', selectedApartment.manager_id, '), proceeding to add payment row');
-            
-            const startDateInput = document.getElementById("start_date");
-            console.log('📅 Start date input element:', startDateInput);
-            console.log('📅 Start date value:', startDateInput ? startDateInput.value : 'N/A');
-            
-            const startDate = startDateInput && startDateInput.value ? new Date(startDateInput.value) : new Date();
-            console.log('📅 Calculated start date:', startDate);
-            
-            const ownerPaymentDate = new Date(startDate);
-            ownerPaymentDate.setDate(startDate.getDate() + 4);
-            console.log('📅 Owner payment date (start + 4 days):', ownerPaymentDate);
-            
-            // Add payment row with payment type 2 (Other - Out) for apartments with managers
-            console.log('💰 About to call addPaymentRow("create", ownerPaymentDate, 0, 2)');
-            
-            if (typeof addPaymentRow === 'function') {
-                try {
-                    addPaymentRow("create", ownerPaymentDate, 1, 21, "Pending", "Payment for owner (will be set later)");
-                    console.log('✅ addPaymentRow called successfully');
-                } catch (error) {
-                    console.error('❌ Error calling addPaymentRow:', error);
-                }
-            } else {
-                console.error('❌ addPaymentRow is not a function:', typeof addPaymentRow);
+                console.log('📝 ❌ No notes for this apartment');
             }
         } else {
-            console.log('❌ Apartment has no manager (manager_id:', selectedApartment.manager_id, '), skipping auto-payment');
+            console.log('📝 apartmentNotesDisplay or selectedApartment not found');
         }
+        
+        // REMOVED: Auto-add payment row feature
+        // The auto-payment feature has been disabled per user request
 
         console.log('Selected apartment:', selectedApartment.name);
 
