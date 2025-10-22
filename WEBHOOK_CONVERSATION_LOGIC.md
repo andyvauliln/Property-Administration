@@ -33,7 +33,7 @@ The system now uses smart linking based on the message author:
 
 These are considered system users (not customers):
 - `+13153524379` - Twilio phone
-- `+17282001917` - Manager phone  
+- `+15612205252` - Manager phone  
 - `ASSISTANT` - Assistant identity
 
 ## Code Flow

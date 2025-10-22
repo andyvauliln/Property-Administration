@@ -100,6 +100,7 @@
     // Global variables for apartments and parking data
     let apartmentsData = [];
     let parkingData = [];
+    let bookingsData = [];
 
     // Extract apartment data from model_fields
     {% for field_name, field_instance in model_fields %}
@@ -127,13 +128,99 @@
                 {% endfor %}
             ];
         {% endif %}
+        {% if field_name == "booking" %}
+            bookingsData = [
+                {% for option in field_instance.dropdown_options %}
+                    {
+                        "id": {{ option.value }},
+                        "label": "{{ option.label|escapejs }}",
+                        "apartment_id": {{ option.apartment_id|default:"null" }}
+                    },
+                {% endfor %}
+            ];
+            console.log('📅 Booking data loaded:', bookingsData);
+            console.log('📅 First booking sample:', bookingsData[0]);
+            console.log('📅 Bookings with apartment_id:', bookingsData.map(b => ({id: b.id, apartment_id: b.apartment_id})));
+        {% endif %}
     {% endfor %}
+
+    function handleApartmentChangeForPayments(apartmentId) {
+        console.log('🔍 handleApartmentChangeForPayments called with apartmentId:', apartmentId);
+        console.log('📊 Total bookingsData available:', bookingsData ? bookingsData.length : 'undefined');
+        
+        // Make sure we get the booking select from within the create modal
+        const createModal = document.getElementById('createModal');
+        const bookingSelect = createModal ? createModal.querySelector('[name="booking"]') : document.getElementById('booking');
+        
+        if (!bookingSelect) {
+            console.log('❌ Booking select not found');
+            return;
+        }
+        
+        console.log('✅ Booking select found:', bookingSelect);
+        console.log('✅ Booking select ID:', bookingSelect.id);
+        console.log('✅ Current options count:', bookingSelect.options.length);
+        
+        // Store current selection
+        const currentSelection = bookingSelect.value;
+        console.log('💾 Current booking selection:', currentSelection);
+        
+        // Clear existing options - use removeChild to ensure proper removal
+        console.log('🗑️ Clearing dropdown...');
+        while (bookingSelect.options.length > 0) {
+            bookingSelect.remove(0);
+        }
+        
+        // Add None option
+        const noneOption = document.createElement('option');
+        noneOption.value = '';
+        noneOption.textContent = 'None';
+        bookingSelect.appendChild(noneOption);
+        
+        console.log('🗑️ After clearing, options count:', bookingSelect.options.length);
+        
+        // Filter bookings based on apartment
+        let filteredBookings = bookingsData;
+        if (apartmentId) {
+            filteredBookings = bookingsData.filter(booking => {
+                return booking.apartment_id == apartmentId;
+            });
+            console.log(`🔎 Filtered ${filteredBookings.length} bookings for apartment ${apartmentId}:`, filteredBookings);
+        } else {
+            console.log('📋 Showing all', filteredBookings.length, 'bookings');
+        }
+        
+        // Populate dropdown with filtered bookings
+        console.log('➕ Adding', filteredBookings.length, 'options to dropdown...');
+        filteredBookings.forEach(booking => {
+            const option = document.createElement('option');
+            option.value = booking.id;
+            option.textContent = booking.label;
+            if (booking.id == currentSelection) {
+                option.selected = true;
+            }
+            bookingSelect.appendChild(option);
+        });
+        
+        console.log('✅ Booking dropdown populated. Final options count:', bookingSelect.options.length);
+        console.log('📋 All options in dropdown:', Array.from(bookingSelect.options).map(o => ({value: o.value, text: o.textContent})));
+        
+        // Force refresh the select element
+        bookingSelect.dispatchEvent(new Event('change'));
+    }
 
     function handleApartmentChange(apartmentId) {
         console.log('handleApartmentChange', apartmentId);
         console.log('Available apartments data:', apartmentsData);
         const parkingSelect = document.getElementById('parking_number');
         const apartmentNotesDisplay = document.getElementById('apartment-notes-display');
+        const bookingSelect = document.getElementById('booking');
+        
+        // Handle payments model apartment change - check if booking dropdown exists
+        if (bookingSelect && typeof bookingsData !== 'undefined') {
+            console.log('Calling handleApartmentChangeForPayments with apartmentId:', apartmentId);
+            handleApartmentChangeForPayments(apartmentId);
+        }
         
         if (!apartmentId) {
             // Hide notes display when no apartment selected
@@ -144,7 +231,8 @@
         }
         
         if (!parkingSelect) {
-            console.log('Parking select not found');
+            console.log('Parking select not found - this is normal for payments model');
+            return; // Exit early if no parking select (payments model)
         }
 
         // Find the selected apartment data
@@ -191,7 +279,9 @@
         if (!apartmentBuilding || !apartmentNumber) {
             console.log('Could not parse apartment building and number from name:', selectedApartment.name);
             // Clear parking selection if we can't parse apartment info
-            parkingSelect.value = '';
+            if (parkingSelect) {
+                parkingSelect.value = '';
+            }
             return;
         }
 
@@ -250,6 +340,15 @@
 
         createNewItemButton.addEventListener('click', function() {
             createModal.style.display = 'flex';
+            
+            // Initialize booking dropdown for payments model
+            if (typeof bookingsData !== 'undefined' && bookingsData.length > 0) {
+                const bookingSelect = document.getElementById('booking');
+                if (bookingSelect) {
+                    console.log('Initializing booking dropdown with all bookings');
+                    handleApartmentChangeForPayments(''); // Show all bookings initially
+                }
+            }
         });
         window.addEventListener('keydown', function(event) {
             if (event.key === 'Escape' && createModal.style.display === 'flex') {

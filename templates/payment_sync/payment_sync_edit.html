@@ -20,6 +20,78 @@
     console.log("payment_types_keywords", payment_types_keywords)
     console.log("apartments_keywords", apartments_keywords)
     let payments_for_save_to_db = []
+    
+    // Extract bookings data for filtering
+    let bookingsDataSync = [];
+    {% for field_name, field_instance in data.model_fields %}
+        {% if field_name == "booking" %}
+            bookingsDataSync = [
+                {% for option in field_instance.dropdown_options %}
+                    {
+                        "id": {{ option.value }},
+                        "label": "{{ option.label|escapejs }}",
+                        "apartment_id": {{ option.apartment_id|default:"null" }}
+                    },
+                {% endfor %}
+            ];
+            console.log('📅 Booking data loaded for payment sync:', bookingsDataSync);
+        {% endif %}
+    {% endfor %}
+    
+    function handleApartmentChangeForPaymentSync(apartmentId) {
+        console.log('🔍 handleApartmentChangeForPaymentSync called with apartmentId:', apartmentId);
+        
+        if (!bookingsDataSync || bookingsDataSync.length === 0) {
+            console.log('⚠️ No bookings data available');
+            return;
+        }
+        
+        const updateModal = document.getElementById('updateModal');
+        const bookingSelect = updateModal ? updateModal.querySelector('[name="booking"]') : null;
+        
+        if (!bookingSelect) {
+            console.log('❌ Booking select not found in payment sync modal');
+            return;
+        }
+        
+        console.log('✅ Booking select found, current options:', bookingSelect.options.length);
+        
+        // Store current selection
+        const currentSelection = bookingSelect.value;
+        
+        // Clear existing options
+        while (bookingSelect.options.length > 0) {
+            bookingSelect.remove(0);
+        }
+        
+        // Add None option
+        const noneOption = document.createElement('option');
+        noneOption.value = '';
+        noneOption.textContent = 'None';
+        bookingSelect.appendChild(noneOption);
+        
+        // Filter bookings based on apartment
+        let filteredBookings = bookingsDataSync;
+        if (apartmentId) {
+            filteredBookings = bookingsDataSync.filter(booking => booking.apartment_id == apartmentId);
+            console.log(`🔎 Filtered ${filteredBookings.length} bookings for apartment ${apartmentId}`);
+        } else {
+            console.log('📋 Showing all', filteredBookings.length, 'bookings');
+        }
+        
+        // Populate dropdown with filtered bookings
+        filteredBookings.forEach(booking => {
+            const option = document.createElement('option');
+            option.value = booking.id;
+            option.textContent = booking.label;
+            if (booking.id == currentSelection) {
+                option.selected = true;
+            }
+            bookingSelect.appendChild(option);
+        });
+        
+        console.log('✅ Booking dropdown populated with', filteredBookings.length, 'options');
+    }
 </script>
 {% endif %}
 
@@ -60,7 +132,7 @@
                                     {% elif field_instance.ui_element == "checkbox" %}
                                         <input checked id="{{field_name}}" type="checkbox" name="{{field_name}}" value="1" class="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 dark:focus:ring-blue-600 dark:ring-offset-gray-800 focus:ring-2 dark:bg-gray-700 dark:border-gray-600">
                                     {% elif field_instance.ui_element == "dropdown" %}
-                                        <select name="{{ field_name }}" id="{{ field_name }}" class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-primary-500 focus:border-primary-500 block w-full p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white dark:focus:ring-primary-500 dark:focus:border-primary-500">
+                                        <select name="{{ field_name }}" id="{{ field_name }}" {% if field_name == "apartment" %}onchange="handleApartmentChangeForPaymentSync(this.value)"{% endif %} class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-primary-500 focus:border-primary-500 block w-full p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white dark:focus:ring-primary-500 dark:focus:border-primary-500">
                                             <option value="">None</option>
                                             {% for option in field_instance.dropdown_options %}
                                                 <option value="{{ option.value }}">{{ option.label }}</option>
@@ -417,6 +489,15 @@
                         inputField.value = fieldValue;
                     }
                 })
+            }
+            
+            // Filter bookings based on selected apartment
+            if (bookingsDataSync && bookingsDataSync.length > 0) {
+                const apartmentSelect = updateModal.querySelector('[name="apartment"]');
+                if (apartmentSelect && apartmentSelect.value) {
+                    console.log('🔄 Filtering bookings for apartment:', apartmentSelect.value);
+                    handleApartmentChangeForPaymentSync(apartmentSelect.value);
+                }
             }
         }
 

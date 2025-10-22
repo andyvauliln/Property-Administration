@@ -198,7 +198,7 @@ class Command(BaseCommand):
         """Find the best booking match for a conversation based on context and timing"""
         try:
             # Get all unique customer authors from this conversation
-            system_phones = ["+13153524379", "+17282001917"]
+            system_phones = ["+13153524379", "+15612205252"]
             system_identities = ["ASSISTANT"]
             
             customer_authors = conversation.messages.exclude(

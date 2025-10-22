@@ -60,7 +60,7 @@ class Command(BaseCommand):
         
         # Phone numbers for direction detection
         self.twilio_phone = "+13153524379"
-        self.manager_phone = "+17282001917"
+        self.manager_phone = "+15612205252"
         
         # Sync conversations and messages
         try:

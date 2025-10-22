@@ -123,7 +123,7 @@ def send_message(request, conversation_sid):
         
         # Send message via Twilio
         # Using manager phone as sender since this is from the interface
-        manager_phone = "+17282001917"
+        manager_phone = "+15612205252"
         
         # Send message using existing function
         try:

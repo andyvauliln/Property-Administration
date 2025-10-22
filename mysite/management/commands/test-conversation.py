@@ -15,7 +15,7 @@ class Command(BaseCommand):
         manager_phone = os.environ["MANAGER_PHONE"]
         second_manager_phone = os.environ["MANAGER_PHONE2"]
         twilio_phone_secondary = "+13153524379"
-        farid_secondary = "+17282001917"
+        farid_secondary = "+15612205252"
         farid_wife = "+15618438867"
         farid = "+15614603904"
         client = Client(account_sid, auth_token)

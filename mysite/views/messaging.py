@@ -62,7 +62,7 @@ def save_conversation_to_db(conversation_sid, friendly_name, booking=None, apart
             if not booking and not apartment and author:
                 # Only try to link if author is a customer (not system phones)
                 twilio_phone = "+13153524379"
-                manager_phone = "+17282001917"
+                manager_phone = "+15612205252"
                 
                 if author not in [twilio_phone, 'ASSISTANT', manager_phone]:
                     print_info(f"Attempting to link conversation to booking for customer: {author}")
@@ -494,7 +494,7 @@ def twilio_webhook(request):
             print_info(f"Messaging Binding Address: {messaging_binding_address}")
             print_info(f"Messaging Binding Proxy Address: {messaging_binding_proxy_address}")
             twilio_phone = "+13153524379"
-            manager_phone = "+17282001917"
+            manager_phone = "+15612205252"
             
             
             if event_type == 'onMessageAdded':
@@ -631,7 +631,7 @@ def create_conversation_config(friendly_name, tenant_phone):
          # Create new group conversation with all participants
         participants_config = []
         twilio_phone = "+13153524379"
-        manager_phone = "+17282001917"
+        manager_phone = "+15612205252"
         
         # Add customer
         participants_config.append({

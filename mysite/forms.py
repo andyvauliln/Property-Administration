@@ -104,11 +104,19 @@ def get_dropdown_options(identifier, isData=False, request=None):
         return [{"value": item.id, "label": item.name} for item in items]
 
     elif identifier == 'bookings':
+        from datetime import timedelta
         today = date.today()
-        items = Booking.objects.filter(end_date__gte=today)
+        one_month_ago = today - timedelta(days=30)
+        items = Booking.objects.filter(
+            start_date__gte=one_month_ago
+        ).select_related('tenant', 'apartment').order_by('start_date')
         if isData:
             return items
-        return [{"value": item.id, "label": f'{item.apartment.name}:[{item.start_date} - {item.end_date}]'} for item in items]
+        return [{
+            "value": item.id, 
+            "label": f'{item.apartment.name if item.apartment else "No Apartment"} - {item.tenant.full_name if item.tenant else "No Tenant"} ({item.start_date} - {item.end_date})',
+            "apartment_id": item.apartment.id if item.apartment else None
+        } for item in items]
 
     elif identifier == 'apart_types':
         return [{"value": x[0], "label": x[1]} for x in Apartment.TYPES]
@@ -773,9 +781,10 @@ class PaymentForm(forms.ModelForm):
                         isEdit=True, isCreate=True, ui_element="textarea")
     booking = ModelChoiceFieldEx(
         queryset=Booking.objects.all(),
-        isColumn=True, isEdit=False, required=False, isCreate=False, ui_element="dropdown",
+        isColumn=False, isEdit=True, required=False, isCreate=True, ui_element="dropdown",
         _dropdown_options=lambda: get_dropdown_options("bookings"),
-        display_field=["booking.apartment.name", "apartment.name", "booking.tenant.full_name"])
+        display_field=["booking.apartment.name", "apartment.name", "booking.tenant.full_name"],
+        order=14)
 
     invoice_url = CharFieldEx(
         isColumn=True, required=False, order=12, initial="",
@@ -783,7 +792,7 @@ class PaymentForm(forms.ModelForm):
 
     apartment = ModelChoiceFieldEx(
         queryset=Apartment.objects.all(),
-        isColumn=True, isEdit=True, required=False, isCreate=True, ui_element="dropdown",
+        isColumn=True, isEdit=True, required=False, isCreate=True, order=13, ui_element="dropdown",
         _dropdown_options=lambda: get_dropdown_options("apartments", False, request=None),
         display_field=["booking.apartment.name", "apartment.name"])
 
