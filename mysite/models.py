@@ -14,7 +14,7 @@ import requests
 import os
 import logging
 
-logger_sms = logging.getLogger('mysite.sms_webhooks')
+logger_sms = logging.getLogger('mysite.debug')
 
 
 
@@ -700,9 +700,10 @@ class Booking(models.Model):
                 damage_deposit_return_type = PaymenType.objects.get(
                     name="Damage Deposit", type="Out")
                 if damage_deposit_return_type:
-                    deposit_payment = Payment.objects.create(
+                    deposit_payment = Payment(
                         payment_type=damage_deposit_return_type, amount=amount, booking=self, notes="Damage Deposit Return",
                     payment_date=self.end_date)
+                    deposit_payment.save()
                 else:
                     error_message = "Damage Deposit Return type not found"
                     raise Exception(error_message)
@@ -1010,13 +1011,103 @@ class Payment(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
 
     def save(self, *args, **kwargs):
+        import traceback
+        
         number_of_months = kwargs.pop('number_of_months', 0)
+        is_creating = self.pk is None
+
+        # Log all payment saves
+        action = "Creating" if is_creating else "Updating"
+        print_info(f"\n{'*' * 60}")
+        print_info(f"{action} Payment")
+        
+        if not is_creating:
+            print_info(f"Payment ID: {self.pk}")
+        
+        print_info(f"Payment Date: {self.payment_date}")
+        print_info(f"Amount: {self.amount}")
+        print_info(f"Payment Type: {self.payment_type.name if self.payment_type else 'N/A'} ({self.payment_type.type if self.payment_type else 'N/A'})")
+        print_info(f"Payment Status: {self.payment_status}")
+        
+        if self.booking:
+            print_info(f"Booking ID: {self.booking.id}")
+            if self.booking.apartment:
+                print_info(f"Apartment: {self.booking.apartment.name}")
+            if self.booking.tenant:
+                print_info(f"Tenant: {self.booking.tenant.full_name}")
+        elif self.apartment:
+            print_info(f"Apartment: {self.apartment.name}")
+        
+        if self.payment_method:
+            print_info(f"Payment Method: {self.payment_method.name}")
+        if self.bank:
+            print_info(f"Bank: {self.bank.name}")
+        if self.merged_payment_key:
+            print_info(f"Merged Payment Key: {self.merged_payment_key}")
+        
+        # Show call stack (simplified - just last 3 frames)
+        stack = traceback.extract_stack()
+        caller_info = []
+        for frame in stack[-4:-1]:  # Get last 3 frames before this one
+            # Shorten the path for readability
+            path = frame.filename.split('/')[-2:] if '/' in frame.filename else [frame.filename]
+            caller_info.append(f"  {'/'.join(path)}:{frame.lineno} in {frame.name}")
+        
+        print_info("Call from:")
+        for frame_info in caller_info:
+            print_info(frame_info)
 
         # Check if it's an update
         if self.pk is not None:
             # Get the current Payment object from the database
             orig = Payment.objects.get(pk=self.pk)
             self.booking = orig.booking
+
+            # Track what changed
+            changes = []
+            if orig.payment_status != self.payment_status:
+                changes.append(f"Status: {orig.payment_status} -> {self.payment_status}")
+            if orig.amount != self.amount:
+                changes.append(f"Amount: {orig.amount} -> {self.amount}")
+            if orig.payment_date != self.payment_date:
+                changes.append(f"Date: {orig.payment_date} -> {self.payment_date}")
+            if orig.payment_type_id != self.payment_type_id:
+                changes.append(f"Type: {orig.payment_type.name if orig.payment_type else 'N/A'} -> {self.payment_type.name if self.payment_type else 'N/A'}")
+            
+            if changes:
+                print_info("Changes:")
+                for change in changes:
+                    print_info(f"  - {change}")
+        
+            # Log status change from Merged to Completed (detailed version)
+            if orig.payment_status == 'Merged' and self.payment_status == 'Completed':
+                
+                # Get the call stack to identify who is making this change
+                stack = traceback.extract_stack()
+                caller_info = []
+                for frame in stack[-6:-1]:  # Get last 5 frames before this one
+                    caller_info.append(f"  {frame.filename}:{frame.lineno} in {frame.name}")
+                
+                print_info("=" * 80)
+                print_info(f"Payment Status Change: Merged -> Completed")
+                print_info(f"Payment ID: {self.pk}")
+                print_info(f"Payment Date: {self.payment_date}")
+                print_info(f"Amount: {self.amount}")
+                print_info(f"Payment Type: {self.payment_type.name if self.payment_type else 'N/A'} ({self.payment_type.type if self.payment_type else 'N/A'})")
+                print_info(f"Booking ID: {self.booking.id if self.booking else 'N/A'}")
+                if self.booking:
+                    print_info(f"Apartment: {self.booking.apartment.name if self.booking.apartment else 'N/A'}")
+                    print_info(f"Tenant: {self.booking.tenant.full_name if self.booking.tenant else 'N/A'}")
+                elif self.apartment:
+                    print_info(f"Apartment: {self.apartment.name}")
+                print_info(f"Payment Method: {self.payment_method.name if self.payment_method else 'N/A'}")
+                print_info(f"Bank: {self.bank.name if self.bank else 'N/A'}")
+                print_info(f"Merged Payment Key: {self.merged_payment_key}")
+                print_info(f"Notes: {self.notes}")
+                print_info(f"\nCall Stack:")
+                for frame_info in caller_info:
+                    print_info(frame_info)
+                print_info("=" * 80)
 
             # If payment_date has changed
             if orig.payment_date != self.payment_date:
@@ -1038,6 +1129,8 @@ class Payment(models.Model):
                 Notification.objects.filter(
                     payment=self).update(date=payment_date_str)
 
+        print_info('*' * 60 + '\n')
+
         if number_of_months and number_of_months > 0:
             self.create_payments(number_of_months)
         else:
@@ -1048,7 +1141,7 @@ class Payment(models.Model):
             payment_date = convert_date_format(
                 self.payment_date) + relativedelta(months=i)
 
-            payment = Payment.objects.create(
+            payment = Payment(
                 payment_type=self.payment_type,
                 amount=self.amount,
                 booking=self.booking,
@@ -1059,6 +1152,7 @@ class Payment(models.Model):
                 payment_method=self.payment_method,
                 payment_date=payment_date
             )
+            payment.save()
 
             notification = Notification(
                 date=payment_date,

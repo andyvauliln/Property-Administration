@@ -75,6 +75,12 @@ LOGGING = {
             'filename': 'common.log',
             'formatter': 'verbose',
         },
+        'debug': {
+            'level': 'DEBUG',
+            'class': 'logging.FileHandler',
+            'filename': 'debug.log',
+            'formatter': 'verbose',
+        },
     },
     'loggers': {
         'mysite.sms_nofitications': {
@@ -90,7 +96,12 @@ LOGGING = {
         'mysite.docuseal': {
             'handlers': ['docuseal'],
             'level': 'DEBUG',
-            'propagate': True,
+            'propagate': False,
+        },
+        'mysite.debug': {
+            'handlers': ['debug'],
+            'level': 'DEBUG',
+            'propagate': False,
         },
     },
     'root': {
