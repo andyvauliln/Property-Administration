@@ -31,16 +31,14 @@ class ApartmentBookingDates(APIView):
                 id__in=apartment_ids,
                 status='Available'
             ).filter(
-                Q(end_date__isnull=True) | Q(end_date__gte=today)
+                Q(end_date__isnull=True) | Q(end_date__date__gte=today)
             ).prefetch_related('prices')
         else:
             # giving all apartments
             apartments = Apartment.objects.filter(
-                Q(end_date__isnull=True) | Q(end_date__gte=today),
+                Q(end_date__isnull=True) | Q(end_date__date__gte=today),
                 status='Available',
-
             ).prefetch_related('prices')
-            return Response({"apartments": []}, content_type='application/json')
         
         # Prepare response data
         response_data = {
