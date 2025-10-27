@@ -106,7 +106,7 @@ def get_dropdown_options(identifier, isData=False, request=None):
     elif identifier == 'bookings':
         from datetime import timedelta
         today = date.today()
-        one_month_ago = today - timedelta(days=30)
+        one_month_ago = today - timedelta(days=365)
         items = Booking.objects.filter(
             start_date__gte=one_month_ago
         ).select_related('tenant', 'apartment').order_by('start_date')
