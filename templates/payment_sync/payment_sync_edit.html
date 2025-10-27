@@ -386,7 +386,7 @@
         payment = merge2Payments(db_payment_id, file_payment_id, mode === 'create')
         console.log(payment, 'payment')
         if (payment) {
-            payment.status = 'Completed'
+            payment.status = 'Merged'
             id_input = document.getElementById('editId')
             file_id_input = document.getElementById('fileId')
             id_input.value = payment.id

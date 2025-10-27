@@ -181,7 +181,7 @@ def update_payments(request, payments_to_update):
                 date_str = payment_info.get('payment_date') or payment_info.get('file_date', '')
                 if not date_str:
                     raise ValueError("Payment date is required (payment_date or file_date)")
-                payment = Payment.objects.create(
+                payment = Payment(
                     amount=float(payment_info['amount']),
                     payment_date= parse_payment_date(date_str),
                     payment_type_id=payment_info['payment_type'],
@@ -196,6 +196,7 @@ def update_payments(request, payments_to_update):
                     ),
                     payment_status="Merged",
                 )
+                payment.save()
                 messages.success(request, f"Created new Payment: {payment.id}")
         except Exception as e:
             messages.error(request, f"Failed to {'update' if payment_id else 'create'}  payment: {payment_id or ''} due  {str(e)}")
