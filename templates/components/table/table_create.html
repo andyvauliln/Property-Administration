@@ -63,6 +63,9 @@
                                                 <option value="{{ option.value }}" {% if option.value == field_instance.initial %}selected{% endif %}>{{ option.label }}</option>
                                             {% endfor %}
                                         </select>
+                                        {% if field_name == "apartment" %}
+                                        <div id="apartment-notes-display" class="mt-2 p-2 text-xs text-red-600 bg-red-50 rounded border border-red-200 dark:bg-red-900 dark:text-red-200 dark:border-red-700 hidden whitespace-pre-wrap"></div>
+                                        {% endif %}
                                     {% elif field_instance.ui_element == "radio" %}
                                         <div class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-primary-500 focus:border-primary-500 block w-full p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white dark:focus:ring-primary-500 dark:focus:border-primary-500">
                                             <div>
@@ -97,6 +100,7 @@
     // Global variables for apartments and parking data
     let apartmentsData = [];
     let parkingData = [];
+    let bookingsData = [];
 
     // Extract apartment data from model_fields
     {% for field_name, field_instance in model_fields %}
@@ -105,10 +109,14 @@
                 {% for option in field_instance.dropdown_options %}
                     {
                         "id": {{ option.value }},
-                        "name": "{{ option.label|escapejs }}"
+                        "name": "{{ option.label|escapejs }}",
+                        "manager_id": {{ option.manager_id|default:"null" }},
+                        "notes": "{{ option.notes|default:""|escapejs }}"
                     },
                 {% endfor %}
             ];
+            console.log('🏠 Apartment data loaded:', apartmentsData);
+            console.log('🏠 Apartments with notes:', apartmentsData.filter(apt => apt.notes));
         {% endif %}
         {% if field_name == "parking_number" %}
             parkingData = [
@@ -120,22 +128,136 @@
                 {% endfor %}
             ];
         {% endif %}
+        {% if field_name == "booking" %}
+            bookingsData = [
+                {% for option in field_instance.dropdown_options %}
+                    {
+                        "id": {{ option.value }},
+                        "label": "{{ option.label|escapejs }}",
+                        "apartment_id": {{ option.apartment_id|default:"null" }}
+                    },
+                {% endfor %}
+            ];
+            console.log('📅 Booking data loaded:', bookingsData);
+            console.log('📅 First booking sample:', bookingsData[0]);
+            console.log('📅 Bookings with apartment_id:', bookingsData.map(b => ({id: b.id, apartment_id: b.apartment_id})));
+        {% endif %}
     {% endfor %}
+
+    function handleApartmentChangeForPayments(apartmentId) {
+        console.log('🔍 handleApartmentChangeForPayments called with apartmentId:', apartmentId);
+        console.log('📊 Total bookingsData available:', bookingsData ? bookingsData.length : 'undefined');
+        
+        // Make sure we get the booking select from within the create modal
+        const createModal = document.getElementById('createModal');
+        const bookingSelect = createModal ? createModal.querySelector('[name="booking"]') : document.getElementById('booking');
+        
+        if (!bookingSelect) {
+            console.log('❌ Booking select not found');
+            return;
+        }
+        
+        console.log('✅ Booking select found:', bookingSelect);
+        console.log('✅ Booking select ID:', bookingSelect.id);
+        console.log('✅ Current options count:', bookingSelect.options.length);
+        
+        // Store current selection
+        const currentSelection = bookingSelect.value;
+        console.log('💾 Current booking selection:', currentSelection);
+        
+        // Clear existing options - use removeChild to ensure proper removal
+        console.log('🗑️ Clearing dropdown...');
+        while (bookingSelect.options.length > 0) {
+            bookingSelect.remove(0);
+        }
+        
+        // Add None option
+        const noneOption = document.createElement('option');
+        noneOption.value = '';
+        noneOption.textContent = 'None';
+        bookingSelect.appendChild(noneOption);
+        
+        console.log('🗑️ After clearing, options count:', bookingSelect.options.length);
+        
+        // Filter bookings based on apartment
+        let filteredBookings = bookingsData;
+        if (apartmentId) {
+            filteredBookings = bookingsData.filter(booking => {
+                return booking.apartment_id == apartmentId;
+            });
+            console.log(`🔎 Filtered ${filteredBookings.length} bookings for apartment ${apartmentId}:`, filteredBookings);
+        } else {
+            console.log('📋 Showing all', filteredBookings.length, 'bookings');
+        }
+        
+        // Populate dropdown with filtered bookings
+        console.log('➕ Adding', filteredBookings.length, 'options to dropdown...');
+        filteredBookings.forEach(booking => {
+            const option = document.createElement('option');
+            option.value = booking.id;
+            option.textContent = booking.label;
+            if (booking.id == currentSelection) {
+                option.selected = true;
+            }
+            bookingSelect.appendChild(option);
+        });
+        
+        console.log('✅ Booking dropdown populated. Final options count:', bookingSelect.options.length);
+        console.log('📋 All options in dropdown:', Array.from(bookingSelect.options).map(o => ({value: o.value, text: o.textContent})));
+        
+        // Force refresh the select element
+        bookingSelect.dispatchEvent(new Event('change'));
+    }
 
     function handleApartmentChange(apartmentId) {
         console.log('handleApartmentChange', apartmentId);
+        console.log('Available apartments data:', apartmentsData);
         const parkingSelect = document.getElementById('parking_number');
+        const apartmentNotesDisplay = document.getElementById('apartment-notes-display');
+        const bookingSelect = document.getElementById('booking');
         
-        if (!apartmentId || !parkingSelect) {
+        // Handle payments model apartment change - check if booking dropdown exists
+        if (bookingSelect && typeof bookingsData !== 'undefined') {
+            console.log('Calling handleApartmentChangeForPayments with apartmentId:', apartmentId);
+            handleApartmentChangeForPayments(apartmentId);
+        }
+        
+        if (!apartmentId) {
+            // Hide notes display when no apartment selected
+            if (apartmentNotesDisplay) {
+                apartmentNotesDisplay.classList.add('hidden');
+            }
             return;
+        }
+        
+        if (!parkingSelect) {
+            console.log('Parking select not found - this is normal for payments model');
+            return; // Exit early if no parking select (payments model)
         }
 
         // Find the selected apartment data
         const selectedApartment = apartmentsData.find(apt => apt.id == apartmentId);
         
-        if (!selectedApartment) {
-            return;
+        // Display apartment notes if they exist
+        if (apartmentNotesDisplay && selectedApartment) {
+            console.log('📝 Checking notes for apartment:', selectedApartment);
+            console.log('📝 Notes value:', selectedApartment.notes);
+            console.log('📝 Notes trimmed:', selectedApartment.notes ? selectedApartment.notes.trim() : 'no notes');
+            
+            if (selectedApartment.notes && selectedApartment.notes.trim() !== '') {
+                apartmentNotesDisplay.textContent = selectedApartment.notes;
+                apartmentNotesDisplay.classList.remove('hidden');
+                console.log('📝 ✅ SHOWING apartment notes:', selectedApartment.notes);
+            } else {
+                apartmentNotesDisplay.classList.add('hidden');
+                console.log('📝 ❌ No notes for this apartment');
+            }
+        } else {
+            console.log('📝 apartmentNotesDisplay or selectedApartment not found');
         }
+        
+        // REMOVED: Auto-add payment row feature
+        // The auto-payment feature has been disabled per user request
 
         console.log('Selected apartment:', selectedApartment.name);
 
@@ -157,7 +279,9 @@
         if (!apartmentBuilding || !apartmentNumber) {
             console.log('Could not parse apartment building and number from name:', selectedApartment.name);
             // Clear parking selection if we can't parse apartment info
-            parkingSelect.value = '';
+            if (parkingSelect) {
+                parkingSelect.value = '';
+            }
             return;
         }
 
@@ -216,6 +340,15 @@
 
         createNewItemButton.addEventListener('click', function() {
             createModal.style.display = 'flex';
+            
+            // Initialize booking dropdown for payments model
+            if (typeof bookingsData !== 'undefined' && bookingsData.length > 0) {
+                const bookingSelect = document.getElementById('booking');
+                if (bookingSelect) {
+                    console.log('Initializing booking dropdown with all bookings');
+                    handleApartmentChangeForPayments(''); // Show all bookings initially
+                }
+            }
         });
         window.addEventListener('keydown', function(event) {
             if (event.key === 'Escape' && createModal.style.display === 'flex') {

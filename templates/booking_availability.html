@@ -108,9 +108,15 @@
                                 <th scope="col" colspan="{{ month_data.days_in_month }}" class="p-4 border-r border-gray-500 bg-zinc-200">
                                     <div class="flex items-center justify-between">
                                         <div class="flex items-center text-lg font-bold text-blue-500 underline">{{ month_data.month_name }}</div>
-                                        <div class="flex space-x-4">
-                                            <div class="mr-4 text-blue-500"><span class="font-bold">Revenue:</span> ${{ month_data.month_revenue|default:0|format_number }}</div>
-                                            <div class="text-yellow-500"><span class="font-bold">Occupancy:</span> {{ month_data.month_occupancy|default:0|format_number }}%</div>
+                                        <div class="flex flex-col space-y-1">
+                                            <div class="flex space-x-4">
+                                                <div class="mr-4 text-blue-500"><span class="font-bold">Actual Revenue:</span> ${{ month_data.month_revenue|default:0|format_number }}</div>
+                                                <div class="text-yellow-500"><span class="font-bold">Occupancy:</span> {{ month_data.month_occupancy|default:0|format_number }}%</div>
+                                            </div>
+                                            <div class="flex space-x-4">
+                                                <div class="mr-4 text-green-600"><span class="font-bold">Max Revenue (Default):</span> ${{ month_data.month_max_revenue|default:0|format_number }}</div>
+                                                <div class="text-purple-600"><span class="font-bold">Max Revenue (Current):</span> ${{ month_data.month_current_price_revenue|default:0|format_number }}</div>
+                                            </div>
                                         </div>
                                     </div>
                                 </th>
@@ -130,10 +136,18 @@
                         {% with first_month=monthly_data|first %}
                             {% for apartment in first_month.apartments %}
                                 <tr class="border-b cursor-pointer dark:border-gray-700" data-id="{{ apartment.id }}">
-                                    <td class="border-r border-gray-500 p-1 font-bold w-20 truncate {% if apartment.apartment_type == 'In Ownership' %}text-purple-500{% elif apartment.apartment_type == '2' %}text-yellow-500{% elif apartment.apartment_type == '3' %}text-red-500{% else %}text-gray-500{% endif %}">
+                                    <td class="apartment-name border-r border-gray-500 p-1 font-bold w-20 truncate {% if apartment.apartment_type == 'In Ownership' %}text-purple-500{% elif apartment.apartment_type == '2' %}text-yellow-500{% elif apartment.apartment_type == '3' %}text-red-500{% else %}text-gray-500{% endif %}"
+                                        {% with apt=first_month.apartments|filter_by_id:apartment.id|first %}
+                                        data-apartment-notes="{{ apt.notes|default:'' }}"
+                                        {% endwith %}>
                                         <a href="/apartment/?apartment.id={{ apartment.id }}" class="hover:underline hover:text-blue-500">
                                             {{ apartment.name|default:'' }}
                                         </a>
+                                        {% with apt=first_month.apartments|filter_by_id:apartment.id|first %}
+                                        {% if apt.notes %}
+                                        <span class="text-red-500 font-bold text-base" title="This apartment has notes">*</span>
+                                        {% endif %}
+                                        {% endwith %}
                                         {% if apartment.web_link %}
                                         <a href="{{ apartment.web_link }}" target="_blank" class="ml-1 text-blue-500 hover:text-blue-700">
                                             <svg class="w-3 h-3 inline" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
@@ -154,6 +168,7 @@
                                                 data-tenant-names="{{ apt.days|get_dic_item:number|get_dic_item:'tenant_names'|join:', ' }}"
                                                 data-notes="{{ apt.days|get_dic_item:number|get_dic_item:'notes'|join:', ' }}"
                                                 data-booking-data="{{ apt.days|get_dic_item:number|get_dic_item:'booking_data'|join:', ' }}"
+                                                data-apartment-notes="{{ apt.notes|default:'' }}"
                                                 class="day border-r border-gray-500 relative p-0 w-3 h-3
                                                     {% if apt.days|get_dic_item:number|get_dic_item:'status' == 'Confirmed' %} bg-green-500 text-white
                                                     {% elif apt.days|get_dic_item:number|get_dic_item:'status' == 'Pending' %} bg-green-300 text-white
@@ -170,12 +185,12 @@
                                                     {% endif %}">
                                                 {% if apt.days|get_dic_item:number|get_dic_item:'booking_ids' %}
                                                     <a href="/bookings/?q=id={{ apt.days|get_dic_item:number|get_dic_item:'booking_ids'|first }}" target="_blank"
-                                                       class="block w-full h-full p-0 text-center align-middle">
-                                                        {{ number }}
+                                                       class="block w-full h-full p-0 text-center align-middle relative">
+                                                        {{ number }}{% if apt.notes %}<sup class="text-red-500 font-bold text-[10px] absolute top-0 right-0">*</sup>{% endif %}
                                                     </a>
                                                 {% else %}
-                                                    <div class="text-center">
-                                                        {{ number }}
+                                                    <div class="text-center relative">
+                                                        {{ number }}{% if apt.notes %}<sup class="text-red-500 font-bold text-[10px] absolute top-0 right-0">*</sup>{% endif %}
                                                     </div>
                                                 {% endif %}
                                             </td>
@@ -256,12 +271,30 @@
             const tenantNames = day.dataset.tenantNames ? day.dataset.tenantNames.split(', ') : [];
             const notes = day.dataset.notes ? day.dataset.notes.split(', ') : [];
             const bookingData = day.dataset.bookingData ? day.dataset.bookingData.split(', ') : [];
+            const apartmentNotes = day.dataset.apartmentNotes || '';
+            
+            // Debug: Log all data attributes
+            console.log('=== DAY CELL DEBUG ===');
+            console.log('Date:', date);
+            console.log('Apartment Notes (raw):', day.dataset.apartmentNotes);
+            console.log('Apartment Notes (processed):', apartmentNotes);
+            console.log('Apartment Notes length:', apartmentNotes.length);
+            console.log('Apartment Notes truthy?:', !!apartmentNotes);
+            console.log('=====================');
 
             // Set the title of the popover with the date
             popoverTitle.textContent = date;
 
             // Prepare the content for the popover
             let content = '';
+
+            // Display apartment notes if they exist
+            if (apartmentNotes && apartmentNotes.trim() !== '') {
+                console.log('ADDING APARTMENT NOTES TO POPUP');
+                content += `<div class="mb-3"><strong class="text-red-500">Apartment Notes:</strong><div class="pl-5 whitespace-pre-wrap">${apartmentNotes}</div></div>`;
+            } else {
+                console.log('NO APARTMENT NOTES TO ADD');
+            }
 
             if (bookingData.length > 0 && bookingData[0]) {
                 content += `<strong>Booking Data:</strong><div class="pl-5">`;
@@ -277,6 +310,7 @@
         
 
             // Update the popover content
+            console.log('Final popup content:', content);
             popoverContent.innerHTML = content || 'No events for this day';
 
             // Display the popover off-screen to get accurate dimensions
@@ -327,6 +361,77 @@
 
         // Hide the popover when the mouse leaves the day cell
         day.addEventListener('mouseleave', function(event) {
+            popover.classList.add('hidden');
+        });
+    });
+
+    // Add hover functionality for apartment name cells
+    const apartmentNames = document.querySelectorAll('td.apartment-name');
+    
+    apartmentNames.forEach(function(nameCell) {
+        nameCell.addEventListener('mouseenter', function(event) {
+            const apartmentNotes = nameCell.dataset.apartmentNotes || '';
+            
+            console.log('=== APARTMENT NAME HOVER ===');
+            console.log('Apartment Notes:', apartmentNotes);
+            console.log('============================');
+            
+            if (apartmentNotes && apartmentNotes.trim() !== '') {
+                // Set the title
+                popoverTitle.textContent = 'Apartment Notes';
+                
+                // Set the content
+                popoverContent.innerHTML = `<div class="whitespace-pre-wrap">${apartmentNotes}</div>`;
+                
+                // Display the popover off-screen to get accurate dimensions
+                popover.style.left = '-9999px';
+                popover.style.top = '-9999px';
+                popover.classList.remove('hidden');
+
+                // Get tooltip dimensions
+                const tooltipWidth = popover.offsetWidth;
+                const tooltipHeight = popover.offsetHeight;
+
+                // Get window dimensions
+                const windowWidth = window.innerWidth;
+                const windowHeight = window.innerHeight;
+
+                // Calculate desired position
+                let leftPos, topPos;
+
+                // Check if there is enough space to the right of the cursor
+                if (event.clientX + tooltipWidth + 15 < windowWidth) {
+                    // Position tooltip to the right of the cursor
+                    leftPos = event.clientX + 15;
+                } else {
+                    // Position tooltip to the left of the cursor
+                    leftPos = event.clientX - tooltipWidth - 15;
+                }
+
+                // Prevent tooltip from going off the left edge
+                if (leftPos < 0) {
+                    leftPos = 0;
+                }
+
+                // Calculate vertical position to center the tooltip relative to the cursor
+                topPos = event.clientY - tooltipHeight / 2;
+
+                // Prevent tooltip from going off the top or bottom of the viewport
+                if (topPos + tooltipHeight > windowHeight) {
+                    topPos = windowHeight - tooltipHeight - 10;
+                }
+                if (topPos < 0) {
+                    topPos = 10;
+                }
+
+                // Position the popover
+                popover.style.left = `${leftPos}px`;
+                popover.style.top = `${topPos}px`;
+            }
+        });
+
+        // Hide the popover when the mouse leaves the apartment name cell
+        nameCell.addEventListener('mouseleave', function(event) {
             popover.classList.add('hidden');
         });
     });

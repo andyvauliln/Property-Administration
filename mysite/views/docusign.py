@@ -8,7 +8,7 @@ from django.views.decorators.http import require_http_methods
 import logging
 import traceback
 
-logger_common = logging.getLogger('mysite.common')
+logger_common = logging.getLogger('mysite.docuseal')
 
 
 def print_info(message, type="info"):
@@ -34,9 +34,31 @@ def docuseal_callback(request):
                 print_info(form_fields_dict, "form_fields_dict")
                 if booking and len(values) > 0:
                     booking.status = 'Waiting Payment'
-                    if 'visit_purpose' in form_fields_dict:
+                    
+                    # Handle visit_purpose with default value if missing or empty
+                    if 'visit_purpose' in form_fields_dict and form_fields_dict['visit_purpose']:
                         booking.visit_purpose = form_fields_dict['visit_purpose']
                         print_info(form_fields_dict['visit_purpose'], "visit_purpose_updated")
+                    elif not booking.visit_purpose:  # Only set default if current value is empty/null
+                        booking.visit_purpose = 'Other'  # Default value from VISIT_PURPOSE choices
+                        print_info('Other', "visit_purpose_set_to_default")
+                    
+                    # Handle animals field with default value if missing or empty
+                    if 'animals' in form_fields_dict and form_fields_dict['animals']:
+                        booking.animals = form_fields_dict['animals']
+                        print_info(form_fields_dict['animals'], "animals_updated")
+                    elif not booking.animals:  # Only set default if current value is empty/null
+                        booking.animals = ''  # Empty string is allowed for this field
+                        print_info('', "animals_set_to_empty")
+                    
+                    # Handle source field with default value if missing or empty  
+                    if 'source' in form_fields_dict and form_fields_dict['source']:
+                        booking.source = form_fields_dict['source']
+                        print_info(form_fields_dict['source'], "source_updated")
+                    elif not booking.source:  # Only set default if current value is empty/null
+                        booking.source = 'Other'  # Default value from SOURCE choices
+                        print_info('Other', "source_set_to_default")
+                    
                     if 'car_info' in form_fields_dict:
                         booking.is_rent_car = True if form_fields_dict["car_info"] == "Rent" else False
                         print_info(form_fields_dict['car_info'], "car_info")
@@ -44,6 +66,7 @@ def docuseal_callback(request):
                         booking.car_model = form_fields_dict["car_model"]
                         print_info(form_fields_dict['car_model'], "car_model")
                     booking.save()
+                    print_info(booking.status, "booking status")
                     print_info("Booking Saved")
                     tenant = booking.tenant
                     print_info(tenant, "tenant object before update")

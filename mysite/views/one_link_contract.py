@@ -13,10 +13,11 @@ import uuid
 from datetime import datetime
 from django.http import JsonResponse
 
-#http://68.183.124.79/create-booking/?months=3&apartment=630-113&hold_deposit=100&damage_deposit=100&rent_payment=200&contract_type=1&start_date=2024-08-02&end_date=2024-08-09&phone=+15175681163&name=John%20Doe
+#http://68.183.124.79/create-booking/?months=3&apartment=630-113&hold_deposit=100&damage_deposit=100&rent_payment=200&&start_date=2024-08-02&end_date=2024-08-09&phone=+15175681163&name=John%20Doe
 def create_booking_by_link(request):
     try:
         apartment_name = request.GET.get('apartment', None)
+        apartment_id = request.GET.get('apartment_id', None)
         hold_deposit = request.GET.get('hold_deposit', None)
         damage_deposit = request.GET.get('damage_deposit', None)
         rent_payment = request.GET.get('rent_payment', None)
@@ -27,10 +28,26 @@ def create_booking_by_link(request):
         name = request.GET.get('name', None)
         number_of_months = int(request.GET.get('months', 1))
 
-        try:
-            apartment = Apartment.objects.get(name=apartment_name)
-        except Apartment.DoesNotExist:
-            return JsonResponse({'error': f"Apartment with name '{apartment_name}' does not exist."}, status=400)
+        if contract_type == 1:
+            contract_type = "120946"
+        elif contract_type == 2:
+            contract_type = "118378"
+        else:
+            contract_type = None
+
+        apartment = None
+        if apartment_id:
+            try:
+                apartment = Apartment.objects.get(id=int(apartment_id))
+            except (ValueError, Apartment.DoesNotExist):
+                return JsonResponse({'error': f"Apartment with id '{apartment_id}' does not exist."}, status=400)
+        elif apartment_name:
+            try:
+                apartment = Apartment.objects.get(name=apartment_name)
+            except Apartment.DoesNotExist:
+                return JsonResponse({'error': f"Apartment with name '{apartment_name}' does not exist."}, status=400)
+        else:
+            return JsonResponse({'error': "Missing 'apartment_id' or 'apartment' parameter."}, status=400)
         
 
         # Check for existing tenant with the same phone number
@@ -55,11 +72,11 @@ def create_booking_by_link(request):
             source="Other"
         )
         form_data = {
-            'send_contract':  "120946" if contract_type == 1 else "118378",
+            'send_contract':  contract_type,
             'tenant_email': tenant_email,
             'tenant_full_name': name,
             'tenant_phone': phone,
-            'assigned_cleaner': 17,
+            'assigned_cleaner': None,
         }
         payments_data = {
             'payment_dates': [start_date, timezone.now().date(), start_date],
@@ -78,8 +95,7 @@ def create_booking_by_link(request):
             'start_date': booking.start_date,
             'end_date': booking.end_date,
             'status': booking.status,
-            'source': booking.source,
-            'tenant_email': form_data['tenant_email'],
+            # 'tenant_email': form_data['tenant_email'],
             'tenant_full_name': form_data['tenant_full_name'],
             'tenant_phone': form_data['tenant_phone'],
         }

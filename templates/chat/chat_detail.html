@@ -1,0 +1,291 @@
+{% extends '_base.html' %}
+
+{% block content %}
+<div class="flex h-full bg-white dark:bg-gray-800">
+    <!-- Left Sidebar - Conversations List -->
+    <div class="w-80 border-r border-gray-200 dark:border-gray-700 flex flex-col">
+        <!-- Sidebar Header -->
+        <div class="p-4 border-b border-gray-200 dark:border-gray-700">
+            <h2 class="text-lg font-semibold text-gray-900 dark:text-white">Conversations</h2>
+            <a href="{% url 'chat_list' %}" class="text-sm text-blue-600 hover:text-blue-800 dark:text-blue-400">
+                ← Back to full list
+            </a>
+        </div>
+        
+        <!-- Conversations List -->
+        <div class="flex-1 overflow-y-auto">
+            {% for conv_data in sidebar_conversations %}
+            <div class="p-3 border-b border-gray-100 dark:border-gray-700 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700 {% if conv_data.is_active %}bg-blue-50 dark:bg-blue-900/20{% endif %}"
+                 onclick="window.location.href='{% url 'chat_detail' conv_data.conversation.conversation_sid %}'">
+                <div class="flex items-start space-x-3">
+                    <!-- Avatar -->
+                    <div class="flex-shrink-0">
+                        <div class="flex items-center justify-center w-8 h-8 bg-blue-500 rounded-full">
+                            <span class="text-xs font-medium text-white">
+                                {{ conv_data.display_info.name|slice:":1"|upper }}
+                            </span>
+                        </div>
+                    </div>
+                    
+                    <div class="flex-1 min-w-0">
+                        <div class="text-sm font-medium text-gray-900 dark:text-white truncate">
+                            {{ conv_data.display_info.name }}
+                        </div>
+                        
+                        {% if conv_data.display_info.apartment %}
+                        <div class="text-xs text-gray-500 dark:text-gray-400 truncate">
+                            📍 {{ conv_data.display_info.apartment }}
+                        </div>
+                        {% endif %}
+                        
+                        {% if conv_data.display_info.booking_dates %}
+                        <div class="text-xs text-gray-400 dark:text-gray-500">
+                            📅 {{ conv_data.display_info.booking_dates.start|date:"M d" }} - {{ conv_data.display_info.booking_dates.end|date:"M d" }}
+                        </div>
+                        {% elif conv_data.display_info.phone %}
+                        <div class="text-xs text-gray-400 dark:text-gray-500 truncate">
+                            📞 {{ conv_data.display_info.phone }}
+                        </div>
+                        {% endif %}
+                        
+                        {% if conv_data.latest_message %}
+                        <div class="text-xs text-gray-600 dark:text-gray-300 truncate mt-1">
+                            {{ conv_data.latest_message.body|truncatechars:30 }}
+                        </div>
+                        {% endif %}
+                    </div>
+                    
+                    <div class="flex-shrink-0">
+                        {% if conv_data.display_info.has_booking %}
+                        <div class="w-2 h-2 bg-green-400 rounded-full"></div>
+                        {% else %}
+                        <div class="w-2 h-2 bg-yellow-400 rounded-full"></div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    
+    <!-- Right Side - Chat Area -->
+    <div class="flex-1 flex flex-col">
+        <!-- Chat Header -->
+        <div class="p-4 border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800">
+            <div class="flex items-center justify-between">
+                <div class="flex items-center space-x-3">
+                    <!-- Avatar -->
+                    <div class="flex items-center justify-center w-10 h-10 bg-blue-500 rounded-full">
+                        <span class="text-sm font-medium text-white">
+                            {{ display_info.name|slice:":1"|upper }}
+                        </span>
+                    </div>
+                    
+                    <div>
+                        <h3 class="text-lg font-semibold text-gray-900 dark:text-white">
+                            {{ display_info.name }}
+                        </h3>
+                        
+                        <div class="flex items-center space-x-4 text-sm text-gray-500 dark:text-gray-400">
+                            {% if display_info.apartment %}
+                            <span>📍 {{ display_info.apartment }}</span>
+                            {% endif %}
+                            
+                            {% if display_info.booking_dates %}
+                            <span>📅 {{ display_info.booking_dates.start|date:"M d" }} - {{ display_info.booking_dates.end|date:"M d, Y" }}</span>
+                            {% elif display_info.phone %}
+                            <span>📞 {{ display_info.phone }}</span>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="flex items-center space-x-2">
+                    {% if display_info.has_booking %}
+                    <a href="/bookings/?q=id={{ conversation.booking.id }}" 
+                       class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800 hover:bg-green-200 dark:bg-green-900 dark:text-green-300 dark:hover:bg-green-800 transition-colors duration-200">
+                        📋 Linked to Booking #{{ conversation.booking.id }}
+                    </a>
+                    {% else %}
+                    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-300">
+                        No Booking Link
+                    </span>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+        
+        <!-- Messages Area -->
+        <div id="messages-container" class="flex-1 overflow-y-auto p-4 space-y-4 bg-gray-50 dark:bg-gray-900">
+            {% for message in chat_messages %}
+            <div class="flex {% if message.direction == 'outbound' %}justify-end{% else %}justify-start{% endif %}">
+                <div class="max-w-xs lg:max-w-md xl:max-w-lg">
+                    <div class="{% if message.direction == 'outbound' %}bg-blue-500 text-white{% else %}bg-white dark:bg-gray-700 text-gray-900 dark:text-white{% endif %} rounded-lg px-4 py-2 shadow">
+                        <div class="text-sm">{{ message.body }}</div>
+                        <div class="text-xs {% if message.direction == 'outbound' %}text-blue-100{% else %}text-gray-500 dark:text-gray-400{% endif %} mt-1">
+                            <span class="font-medium">
+                                {% if message.direction == 'outbound' %}
+                                    {% if message.author == 'ASSISTANT' %}Assistant{% else %}{{ message.author }}{% endif %}
+                                {% else %}
+                                    {{ message.author }}
+                                {% endif %}
+                            </span>
+                            • {{ message.message_timestamp|date:"M d, Y H:i" }}
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+            
+            <!-- Loading indicator for pagination -->
+            <div id="loading-indicator" class="hidden text-center py-4">
+                <div class="text-gray-500 dark:text-gray-400">Loading more messages...</div>
+            </div>
+        </div>
+        
+        <!-- Message Input Area -->
+        <div class="p-4 border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800">
+            <form id="message-form" class="flex space-x-4">
+                <div class="flex-1">
+                    <textarea id="message-input" 
+                              name="message" 
+                              rows="2" 
+                              class="block w-full rounded-lg border border-gray-300 bg-gray-50 p-2.5 text-sm text-gray-900 focus:border-blue-500 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white dark:placeholder-gray-400 dark:focus:border-blue-500 dark:focus:ring-blue-500" 
+                              placeholder="Type your message..."
+                              required></textarea>
+                </div>
+                <div class="flex items-end">
+                    <button type="submit" 
+                            id="send-button"
+                            class="inline-flex items-center px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 focus:ring-4 focus:ring-blue-300 disabled:opacity-50 disabled:cursor-not-allowed dark:bg-blue-600 dark:hover:bg-blue-700 dark:focus:ring-blue-800">
+                        <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"></path>
+                        </svg>
+                        Send
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const messageForm = document.getElementById('message-form');
+    const messageInput = document.getElementById('message-input');
+    const sendButton = document.getElementById('send-button');
+    const messagesContainer = document.getElementById('messages-container');
+    
+    // Auto-scroll to bottom
+    function scrollToBottom() {
+        messagesContainer.scrollTop = messagesContainer.scrollHeight;
+    }
+    
+    // Initial scroll to bottom
+    scrollToBottom();
+    
+    // Handle form submission
+    messageForm.addEventListener('submit', async function(e) {
+        e.preventDefault();
+        
+        const message = messageInput.value.trim();
+        if (!message) return;
+        
+        // Disable form while sending
+        sendButton.disabled = true;
+        messageInput.disabled = true;
+        sendButton.textContent = 'Sending...';
+        
+        try {
+            const response = await fetch('{% url "send_message" conversation.conversation_sid %}', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ message: message })
+            });
+            
+            const data = await response.json();
+            
+            if (response.ok) {
+                // Clear input
+                messageInput.value = '';
+                
+                // Add message to chat (optimistic update)
+                addMessageToChat({
+                    author: 'Assistant',
+                    body: message,
+                    direction: 'outbound',
+                    timestamp: new Date().toISOString()
+                });
+                
+                // Scroll to bottom
+                scrollToBottom();
+            } else {
+                alert('Error sending message: ' + (data.error || 'Unknown error'));
+            }
+        } catch (error) {
+            console.error('Error:', error);
+            alert('Error sending message: ' + error.message);
+        } finally {
+            // Re-enable form
+            sendButton.disabled = false;
+            messageInput.disabled = false;
+            sendButton.innerHTML = '<svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"></path></svg>Send';
+            messageInput.focus();
+        }
+    });
+    
+    // Handle Enter key to send message (Ctrl+Enter for new line)
+    messageInput.addEventListener('keydown', function(e) {
+        if (e.key === 'Enter' && !e.ctrlKey && !e.shiftKey) {
+            e.preventDefault();
+            messageForm.dispatchEvent(new Event('submit'));
+        }
+    });
+    
+    // Function to add message to chat UI
+    function addMessageToChat(message) {
+        const messageDiv = document.createElement('div');
+        messageDiv.className = `flex ${message.direction === 'outbound' ? 'justify-end' : 'justify-start'}`;
+        
+        const timestamp = new Date(message.timestamp);
+        const formattedTime = timestamp.toLocaleDateString('en-US', { 
+            month: 'short', 
+            day: 'numeric', 
+            year: 'numeric', 
+            hour: '2-digit', 
+            minute: '2-digit' 
+        });
+        
+        messageDiv.innerHTML = `
+            <div class="max-w-xs lg:max-w-md xl:max-w-lg">
+                <div class="${message.direction === 'outbound' ? 'bg-blue-500 text-white' : 'bg-white dark:bg-gray-700 text-gray-900 dark:text-white'} rounded-lg px-4 py-2 shadow">
+                    <div class="text-sm">${escapeHtml(message.body)}</div>
+                    <div class="text-xs ${message.direction === 'outbound' ? 'text-blue-100' : 'text-gray-500 dark:text-gray-400'} mt-1">
+                        <span class="font-medium">${escapeHtml(message.author)}</span>
+                        • ${formattedTime}
+                    </div>
+                </div>
+            </div>
+        `;
+        
+        messagesContainer.appendChild(messageDiv);
+    }
+    
+    // Helper function to escape HTML
+    function escapeHtml(text) {
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+    }
+    
+    // Auto-refresh messages every 10 seconds
+    setInterval(function() {
+        // You could implement real-time message checking here
+        // For now, we'll reload the page to get new messages
+        // In production, consider WebSockets or Server-Sent Events
+    }, 30000); // 30 seconds
+});
+</script>
+{% endblock %}

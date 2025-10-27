@@ -1,11 +1,14 @@
-from django.shortcuts import render
+from django.shortcuts import render, redirect
 from ..models import Apartment, Booking, Payment
-from django.db.models import Q
+from django.db.models import Q, Sum
 import json
 from datetime import date, timedelta
 from dateutil.relativedelta import relativedelta
 from ..decorators import user_has_role
 from .utils import calculate_unique_booked_days, aggregate_profit_by_category, calculate_total_booked_days, aggregate_data, stringify_keys
+from .booking_report import get_google_sheets_service, share_document_with_user
+import logging
+from datetime import datetime
 
 
 @user_has_role('Admin')
@@ -302,3 +305,127 @@ def apartments_analytics(request):
     }
 
     return render(request, 'apartments_analytics.html', context)
+
+
+logger_common = logging.getLogger('mysite.common')
+
+
+def print_info(message):
+    print(message)
+    logger_common.debug(message)
+
+
+@user_has_role('Admin', 'Manager')
+def apartment_report(request):
+    if request.user.role == 'Manager':
+        bookings = Booking.objects.filter(apartment__manager=request.user)
+    else:
+        bookings = Booking.objects.all()
+
+    try:
+        referer_url = request.META.get('HTTP_REFERER', '/')
+        report_start_date = request.GET.get('report_start_date', None)
+        report_end_date = request.GET.get('report_end_date', None)
+        if report_start_date and report_end_date:
+            start_date = datetime.strptime(report_start_date, "%B %d %Y").date()
+            end_date = datetime.strptime(report_end_date, "%B %d %Y").date()
+            # Include bookings that overlap the period
+            bookings = bookings.filter(start_date__lte=end_date, end_date__gte=start_date)
+            if bookings.exists():
+                report_url = generate_apartment_excel(bookings, start_date, end_date)
+                print_info(f'Apartment report created {report_url}')
+                return redirect(report_url)
+        return redirect(referer_url)
+    except Exception as e:
+        print_info(f"Error: Generating Apartment Report Error, {str(e)}")
+        return redirect(request.META.get('HTTP_REFERER', '/'))
+
+
+def generate_apartment_excel(bookings, start_date, end_date):
+    sheets_service, drive_service = get_google_sheets_service()
+
+    title_start = start_date.strftime('%B %d %Y')
+    title_end = end_date.strftime('%B %d %Y')
+
+    spreadsheet_body = {
+        'properties': {
+            'title': f"Apartment Report: {title_start} - {title_end}"
+        },
+        'sheets': [{
+            'properties': {
+                'title': 'Apartment Report'
+            }
+        }]
+    }
+    spreadsheet = sheets_service.create(body=spreadsheet_body).execute()
+    spreadsheet_id = spreadsheet.get('spreadsheetId')
+
+    rows = prepare_apartment_rows(bookings, start_date, end_date)
+    insert_apartment_rows(sheets_service, spreadsheet_id, rows)
+
+    share_document_with_user(drive_service, spreadsheet_id)
+
+    return f'https://docs.google.com/spreadsheets/d/{spreadsheet_id}/edit'
+
+
+def prepare_apartment_rows(bookings, period_start, period_end):
+    rows = []
+    for booking in bookings:
+        apartment_name = booking.apartment.name if booking.apartment else ''
+        # Clamp booking dates to requested period
+        clamped_start = max(booking.start_date, period_start)
+        clamped_end = min(booking.end_date, period_end)
+
+        days = (clamped_end - clamped_start).days if (clamped_start and clamped_end) else 0
+        days = days if days > 0 else 0
+
+        # Sum payments: Rent + Hold Deposit (In), linked to this booking, within clamped period
+        total_payment = booking.payments.filter(
+            payment_type__type='In',
+            payment_type__name__in=['Rent', 'Hold Deposit'],
+            payment_date__gte=clamped_start,
+            payment_date__lte=clamped_end,
+        ).aggregate(total=Sum('amount'))['total'] or 0
+
+        adr_payments = float(total_payment) / days if days > 0 else 0
+
+        # Price ADR: weighted average per-day price across the clamped period
+        price_sum = 0.0
+        if booking.apartment and days > 0:
+            current = clamped_start
+            while current < clamped_end:
+                price_for_day = booking.apartment.get_price_on_date(current)
+                if price_for_day is None:
+                    price_for_day = booking.apartment.default_price or 0
+                price_sum += float(price_for_day)
+                current = current + timedelta(days=1)
+        adr_price = (price_sum / days) if days > 0 else 0
+
+        renter = booking.tenant.full_name if booking.tenant else ''
+
+        rows.append([
+            apartment_name,
+            clamped_start.isoformat() if days > 0 else '',
+            clamped_end.isoformat() if days > 0 else '',
+            days,
+            float(total_payment),
+            round(adr_payments, 2),
+            round(adr_price, 2),
+            renter,
+        ])
+    return rows
+
+
+def insert_apartment_rows(sheets_service, spreadsheet_id, rows):
+    headers = [
+        'Apartment', 'Start Date', 'End Date', 'Days',
+        'Total Rent Payment', 'ADR (Payments)', 'ADR (Price)', 'Renter Name'
+    ]
+    values = [headers] + rows
+    data_range = 'Apartment Report!A1'
+    sheets_service.values().update(
+        spreadsheetId=spreadsheet_id,
+        range=data_range,
+        valueInputOption='USER_ENTERED',
+        body={'values': values}
+    ).execute()

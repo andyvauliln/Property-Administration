@@ -101,6 +101,20 @@
                     <div class="flex w-full justify-center items-center">
                         <button class="mt-2 w-1/2 block bg-blue-500 mr-2 text-white rounded p-2" onclick="getReport()">Get Report</button>
                         <button class="mt-2 w-1/2 block bg-blue-500 ml-2 text-white rounded p-2" onclick="getReport(true)">Generate Excel</button>
+                    </div>
+                    
+                    <!-- Sorting Controls -->
+                    <div class="flex w-full justify-center items-center mt-2 space-x-2">
+                        <span class="text-sm font-medium">Sort by:</span>
+                        <button id="sortByDate" class="px-3 py-1 bg-gray-200 text-gray-700 rounded hover:bg-gray-300 transition-colors" onclick="toggleSorting('date')">
+                            Date <span id="dateSortIcon">↕</span>
+                        </button>
+                        <button id="sortByApartment" class="px-3 py-1 bg-gray-200 text-gray-700 rounded hover:bg-gray-300 transition-colors" onclick="toggleSorting('apartment')">
+                            Apartment <span id="apartmentSortIcon">↕</span>
+                        </button>
+                        <button class="px-3 py-1 bg-gray-500 text-white rounded hover:bg-gray-600 transition-colors" onclick="resetSorting()">
+                            Reset
+                        </button>
                     </div>  
                 </div> 
             </div>
@@ -167,15 +181,15 @@
                                             
                                         {% endif %}
                                     </td>
-                                    <td class="px-4 py-4">{% if payment.payment_method %}{{ payment.payment_method.name }}{% else %}{% endif %}</td>
+                                    <td class="px-4 py-4 {% if payment.payment_method.name == 'Cash' %}text-red-500 font-bold{% endif %}">{% if payment.payment_method %}{{ payment.payment_method.name }}{% else %}{% endif %}</td>
                                     <td class="px-4 py-4">{% if payment.bank %}{{ payment.bank.name }}{% else %}{% endif %}</td>
                                     <td class="px-4 py-4">
                                         {% if payment.booking and payment.booking.apartment %}
-                                            <a href="/apartments/?q=id={{ payment.booking.apartment.id }}" target="_blank" onclick="event.stopPropagation();" class="font-bold text-blue-500 underline">
+                                            <a href="javascript:void(0)" onclick="event.stopPropagation(); filterByApartment('{{ payment.booking.apartment.name }}');" class="font-bold text-blue-500 underline cursor-pointer">
                                                 {{ payment.booking.apartment.name }}
                                             </a>
                                         {% elif payment.apartment %}
-                                            <a href="/apartments/?q=id={{ payment.apartment.id }}" target="_blank" onclick="event.stopPropagation();" class="font-bold text-blue-500 underline">
+                                            <a href="javascript:void(0)" onclick="event.stopPropagation(); filterByApartment('{{ payment.apartment.name }}');" class="font-bold text-blue-500 underline cursor-pointer">
                                                 {{ payment.apartment.name }}
                                             </a>
                                         {% else %}
@@ -245,6 +259,130 @@
 </div>
 
 <script>
+    // Sorting state
+    let currentSort = {
+        primary: null,  // 'date' or 'apartment'
+        secondary: null,
+        dateDirection: 'asc',    // 'asc' or 'desc'
+        apartmentDirection: 'asc'
+    };
+
+    function toggleSorting(sortType) {
+        if (currentSort.primary === sortType) {
+            // Toggle direction for current primary sort
+            if (sortType === 'date') {
+                currentSort.dateDirection = currentSort.dateDirection === 'asc' ? 'desc' : 'asc';
+            } else {
+                currentSort.apartmentDirection = currentSort.apartmentDirection === 'asc' ? 'desc' : 'asc';
+            }
+        } else {
+            // Set new primary sort, make old primary the secondary
+            if (currentSort.primary) {
+                currentSort.secondary = currentSort.primary;
+            }
+            currentSort.primary = sortType;
+        }
+        
+        applySorting();
+        updateSortButtons();
+    }
+
+    function resetSorting() {
+        // Reset to original order by reloading the page without losing filters
+        location.reload();
+    }
+
+    function updateSortButtons() {
+        // Reset all buttons
+        document.getElementById('sortByDate').className = 'px-3 py-1 bg-gray-200 text-gray-700 rounded hover:bg-gray-300 transition-colors';
+        document.getElementById('sortByApartment').className = 'px-3 py-1 bg-gray-200 text-gray-700 rounded hover:bg-gray-300 transition-colors';
+        
+        // Update icons
+        document.getElementById('dateSortIcon').textContent = '↕';
+        document.getElementById('apartmentSortIcon').textContent = '↕';
+        
+        // Highlight active sorts
+        if (currentSort.primary === 'date') {
+            document.getElementById('sortByDate').className = 'px-3 py-1 bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors';
+            document.getElementById('dateSortIcon').textContent = currentSort.dateDirection === 'asc' ? '↑' : '↓';
+        }
+        if (currentSort.primary === 'apartment') {
+            document.getElementById('sortByApartment').className = 'px-3 py-1 bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors';
+            document.getElementById('apartmentSortIcon').textContent = currentSort.apartmentDirection === 'asc' ? '↑' : '↓';
+        }
+        
+        // Show secondary sort indicators
+        if (currentSort.secondary === 'date' && currentSort.primary !== 'date') {
+            document.getElementById('dateSortIcon').textContent = currentSort.dateDirection === 'asc' ? '↑²' : '↓²';
+        }
+        if (currentSort.secondary === 'apartment' && currentSort.primary !== 'apartment') {
+            document.getElementById('apartmentSortIcon').textContent = currentSort.apartmentDirection === 'asc' ? '↑²' : '↓²';
+        }
+    }
+
+    function applySorting() {
+        // Get all payment rows across all months
+        const allRows = [];
+        const monthContainers = document.querySelectorAll('tbody');
+        
+        monthContainers.forEach(tbody => {
+            const rows = Array.from(tbody.querySelectorAll('tr[data-id]'));
+            rows.forEach(row => {
+                allRows.push({
+                    element: row,
+                    container: tbody,
+                    date: row.querySelector('td:first-child').textContent.trim(),
+                    apartment: row.querySelector('td:nth-child(7)').textContent.trim(),
+                    originalParent: tbody
+                });
+            });
+        });
+
+        // Sort the rows
+        allRows.sort((a, b) => {
+            let primaryCompare = 0;
+            let secondaryCompare = 0;
+
+            // Primary sort
+            if (currentSort.primary === 'date') {
+                const dateA = new Date(a.date);
+                const dateB = new Date(b.date);
+                primaryCompare = currentSort.dateDirection === 'asc' ? dateA - dateB : dateB - dateA;
+            } else if (currentSort.primary === 'apartment') {
+                primaryCompare = currentSort.apartmentDirection === 'asc' 
+                    ? a.apartment.localeCompare(b.apartment)
+                    : b.apartment.localeCompare(a.apartment);
+            }
+
+            // Secondary sort (if primary values are equal)
+            if (primaryCompare === 0 && currentSort.secondary) {
+                if (currentSort.secondary === 'date') {
+                    const dateA = new Date(a.date);
+                    const dateB = new Date(b.date);
+                    secondaryCompare = currentSort.dateDirection === 'asc' ? dateA - dateB : dateB - dateA;
+                } else if (currentSort.secondary === 'apartment') {
+                    secondaryCompare = currentSort.apartmentDirection === 'asc' 
+                        ? a.apartment.localeCompare(b.apartment)
+                        : b.apartment.localeCompare(a.apartment);
+                }
+            }
+
+            return primaryCompare || secondaryCompare;
+        });
+
+        // Clear all tbody elements
+        monthContainers.forEach(tbody => {
+            const rows = tbody.querySelectorAll('tr[data-id]');
+            rows.forEach(row => row.remove());
+        });
+
+        // Redistribute rows back to their original month containers
+        // but in the new sorted order
+        allRows.forEach(rowData => {
+            rowData.originalParent.appendChild(rowData.element);
+        });
+    }
+
     function getReport(isExcel) {
         const startDate = document.getElementById('start_date').value;
         const endDate = document.getElementById('end_date').value;
@@ -277,6 +415,34 @@
       
        
       }
+
+    function filterByApartment(apartmentName) {
+        // Build URL with apartment filter
+        const startDate = document.getElementById('start_date').value;
+        const endDate = document.getElementById('end_date').value;
+        const apartmentType = document.querySelector('[name="apartment_type"]').value;
+        const paymentType = document.querySelector('[name="payment_type"]').value;
+        const paymentMethod = document.querySelector('[name="payment_method"]').value;
+        const paymentStatus = document.querySelector('[name="payment_status"]').value;
+        const paymentCategory = document.querySelector('[name="payment_category"]').value;
+        const paymentDirection = document.querySelector('[name="payment_direction"]').value;
+        const tenantSearch = document.getElementById('tenant_search').value;
+        
+        let url = '?';
+        if (startDate) url += `start_date=${startDate}&`;
+        if (endDate) url += `end_date=${endDate}&`;
+        url += `apartment=${apartmentName}&`; // Always add the apartment filter
+        if (apartmentType) url += `apartment_type=${apartmentType}&`;
+        if (paymentType) url += `payment_type=${paymentType}&`;
+        if (paymentMethod) url += `payment_method=${paymentMethod}&`;
+        if (paymentStatus) url += `payment_status=${paymentStatus}&`;
+        if (paymentCategory) url += `payment_category=${paymentCategory}&`;
+        if (paymentDirection) url += `payment_direction=${paymentDirection}&`;
+        if (tenantSearch) url += `tenant_search=${encodeURIComponent(tenantSearch)}&`;
+        
+        // Open filtered report in new tab
+        window.open(url, '_blank');
+    }
     document.addEventListener('DOMContentLoaded', function() {
         // Get all table rows
         const rows = document.querySelectorAll('[data-id]');

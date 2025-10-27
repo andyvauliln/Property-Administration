@@ -170,7 +170,7 @@ def generic_view(request, model_name, form_class, template_name, pages=30):
                 Q(booking__apartment__id=apartment_filter)
             )
         
-        # Apply tenant/amount filter if provided
+        # Apply tenant/amount/notes filter if provided
         tenant_filter = request.GET.get('tenant')
         if tenant_filter:
             try:
@@ -178,8 +178,11 @@ def generic_view(request, model_name, form_class, template_name, pages=30):
                 amount_value = float(tenant_filter)
                 items = items.filter(amount=amount_value)
             except (ValueError, TypeError):
-                # If not a valid decimal, search by tenant name
-                items = items.filter(booking__tenant__full_name__icontains=tenant_filter)
+                # If not a valid decimal, search by tenant name or notes
+                items = items.filter(
+                    Q(booking__tenant__full_name__icontains=tenant_filter) |
+                    Q(notes__icontains=tenant_filter)
+                )
         
         # Apply payment status filter if provided
         payment_status_filter = request.GET.get('payment_status_filter')
@@ -324,14 +327,23 @@ def generic_view(request, model_name, form_class, template_name, pages=30):
     
     # Add apartments for payment filters
     if model_name == "payment":
-        from mysite.models import Apartment
+        from mysite.models import Apartment, Booking
+        from datetime import timedelta
         
         if request.user.role == 'Manager':
             apartments = Apartment.objects.filter(manager=request.user).order_by('name')
         else:
             apartments = Apartment.objects.all().order_by('name')
         
+        # Add bookings data for dropdown filtering
+        one_month_ago = today - timedelta(days=30)
+        bookings = Booking.objects.filter(start_date__gte=one_month_ago).select_related('tenant', 'apartment').order_by('start_date')
+        
+        if request.user.role == 'Manager':
+            bookings = bookings.filter(apartment__manager=request.user)
+        
         context['apartments'] = apartments
+        context['bookings'] = bookings
     
     # Add apartments for apartment prices filters
     if model_name == "apartmentprice":

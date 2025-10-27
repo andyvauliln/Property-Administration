@@ -63,6 +63,12 @@ LOGGING = {
             'filename': 'sms_webhooks.log',
             'formatter': 'verbose',
         },
+        'docuseal': {
+            'level': 'DEBUG',
+            'class': 'logging.FileHandler',
+            'filename': 'docuseal.log',
+            'formatter': 'verbose',
+        },
         'common': {
             'level': 'DEBUG',
             'class': 'logging.FileHandler',
@@ -81,8 +87,8 @@ LOGGING = {
             'level': 'DEBUG',
             'propagate': False,
         },
-        'mysite.common': {
-            'handlers': ['common'],
+        'mysite.docuseal': {
+            'handlers': ['docuseal'],
             'level': 'DEBUG',
             'propagate': True,
         },

@@ -1,15 +1,22 @@
+import logging
 import requests
 from datetime import timedelta, date
 from mysite.models import Notification, Payment, User, Booking
 import os
 from django.core.management.base import BaseCommand
-from django.db.models import Q
-
+from django.db.models import Q    
 
 def send_telegram_message(chat_id, token, message):
+    print_info(f"Sending telegram message to {chat_id}: {message}")
     base_url = f"https://api.telegram.org/bot{token}/sendMessage?chat_id={chat_id}&text={message}"
     requests.get(base_url)
 
+logger_sms = logging.getLogger('mysite.sms_notifications')
+
+
+def print_info(message):
+    print(message)
+    logger_sms.debug(message)
 
 def sent_pending_payments_message(chat_id, token):
     tomorrow = date.today() + timedelta(days=1)
@@ -24,9 +31,9 @@ def sent_pending_payments_message(chat_id, token):
     ).order_by('payment_date')
     
     if not pending_payments.exists():
-        print("No pending payments found")
+        print_info("No pending payments found")
         return ""
-        
+    print_info(f"FOUND Pending payments: {pending_payments.count()}")    
     message = "\n\n🚨 PENDING PAYMENTS FROM PAST PERIODS:"
     for payment in pending_payments:
         message += f"\n- Amount: ${payment.amount}"
@@ -51,16 +58,17 @@ def check_bookings_without_cleaning(chat_id, token):
     today = date.today()
     three_days_from_now = today + timedelta(days=3)
     
-    # Get bookings ending in next 3 days
+    # Get bookings ending in next 3 days (excluding blocked bookings)
     upcoming_end_bookings = Booking.objects.filter(
         end_date__gte=today,
         end_date__lte=three_days_from_now
-    ).select_related('apartment', 'tenant')
+    ).exclude(status='Blocked').select_related('apartment', 'tenant')
     
     for booking in upcoming_end_bookings:
         # Check if cleaning exists for this booking
         if not hasattr(booking, 'cleanings') or not booking.cleanings.exists():
             # Only send to manager responsible for this apartment
+            print_info(f"Found Booking: {booking.id} without cleaning")
             if booking.apartment and booking.apartment.manager:
                 if booking.apartment.manager.telegram_chat_id == chat_id:
                     message = f"⚠️ WARNING: Booking ending soon without cleaning scheduled!\n"
@@ -76,12 +84,13 @@ def check_bookings_without_cleaning(chat_id, token):
 
 def my_cron_job():
     next_day = date.today() + timedelta(days=1)
-    notifications = Notification.objects.filter(date=next_day, send_in_telegram=True)
+    notifications = Notification.objects.filter(date=next_day, send_in_telegram=True).exclude(booking__status='Blocked').exclude(cleaning__booking__status='Blocked')
     telegram_token = os.environ["TELEGRAM_TOKEN"]
 
     active_managers = User.objects.filter(role="Manager", is_active=True)
     
     for manager in active_managers:
+        print_info(f"Manager {manager.full_name}: {manager.telegram_chat_id}")
         if manager.telegram_chat_id:
             # Check for bookings without cleanings for this manager
             check_bookings_without_cleaning(manager.telegram_chat_id, telegram_token)

@@ -102,6 +102,61 @@
 
 <script>
 
+    // Global variables for bookings data (for payments model)
+    let bookingsDataEdit = [];
+    
+    // Extract booking data from model_fields
+    {% for field_name, field_instance in model_fields %}
+        {% if field_name == "booking" %}
+            bookingsDataEdit = [
+                {% for option in field_instance.dropdown_options %}
+                    {
+                        "id": {{ option.value }},
+                        "label": "{{ option.label|escapejs }}",
+                        "apartment_id": {{ option.apartment_id|default:"null" }}
+                    },
+                {% endfor %}
+            ];
+            console.log('📅 Booking data loaded for edit modal:', bookingsDataEdit);
+        {% endif %}
+    {% endfor %}
+
+    function handleApartmentChangeForPaymentsEdit(apartmentId) {
+        console.log('handleApartmentChangeForPaymentsEdit', apartmentId);
+        const bookingSelect = document.querySelector('#updateModal [name="booking"]');
+        
+        if (!bookingSelect) {
+            console.log('Booking select not found in edit modal');
+            return;
+        }
+        
+        // Store current selection
+        const currentSelection = bookingSelect.value;
+        
+        // Clear existing options
+        bookingSelect.innerHTML = '<option value="">None</option>';
+        
+        // Filter bookings based on apartment
+        let filteredBookings = bookingsDataEdit;
+        if (apartmentId) {
+            filteredBookings = bookingsDataEdit.filter(booking => booking.apartment_id == apartmentId);
+            console.log('Filtered bookings for apartment', apartmentId, ':', filteredBookings);
+        } else {
+            console.log('Showing all bookings');
+        }
+        
+        // Populate dropdown with filtered bookings
+        filteredBookings.forEach(booking => {
+            const option = document.createElement('option');
+            option.value = booking.id;
+            option.textContent = booking.label;
+            if (booking.id == currentSelection) {
+                option.selected = true;
+            }
+            bookingSelect.appendChild(option);
+        });
+    }
+
     document.addEventListener('DOMContentLoaded', function() {
         const rows = document.querySelectorAll('.{{ model|lower }}-row');
         const updateModal = document.getElementById('updateModal');
@@ -189,6 +244,12 @@
                     })
                 }
     
+                // Handle apartment change for payments model
+                if (bookingsDataEdit.length > 0 && item.apartment) {
+                    // Filter bookings based on the current apartment
+                    handleApartmentChangeForPaymentsEdit(item.apartment);
+                }
+    
                 const linksContainer = document.querySelector('#updateModal .related-links');
                 linksContainer.innerHTML = ''; 
     
@@ -249,6 +310,16 @@
         if (qValue && qValue.startsWith('id=')) {
             const itemId = parseInt(qValue.split('=')[1]);
             openModalForItemId(itemId);
+        }
+    
+        // Add event listener for apartment change in edit modal (for payments model)
+        if (bookingsDataEdit.length > 0) {
+            const apartmentSelect = document.querySelector('#updateModal [name="apartment"]');
+            if (apartmentSelect) {
+                apartmentSelect.addEventListener('change', function() {
+                    handleApartmentChangeForPaymentsEdit(this.value);
+                });
+            }
         }
     
     });

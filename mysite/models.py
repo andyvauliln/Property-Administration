@@ -6,12 +6,21 @@ from django.contrib.auth.hashers import make_password
 from dateutil.relativedelta import relativedelta
 from datetime import datetime
 from datetime import datetime, date
-from mysite.docuseal_contract_managment import create_contract, sendWelcomeMessageToTwilio, update_contract, delete_contract
+from mysite.docuseal_contract_managment import create_contract, update_contract, delete_contract
 from itertools import zip_longest
 import re
 import uuid
 import requests
 import os
+import logging
+
+logger_sms = logging.getLogger('mysite.sms_webhooks')
+
+
+
+def print_info(message):
+    print(message)
+    logger_sms.debug(message)
 
 def convert_date_format(value):
     if isinstance(value, date):
@@ -143,7 +152,7 @@ class Apartment(models.Model):
     building_n = models.CharField(max_length=10)
     street = models.CharField(max_length=255)
     apartment_n = models.CharField(
-        max_length=10, blank=True, null=True)  # optional
+    max_length=10, blank=True, null=True)  # optional
     state = models.CharField(max_length=100)
     city = models.CharField(max_length=100)
     zip_index = models.CharField(max_length=10)
@@ -415,7 +424,7 @@ class Booking(models.Model):
                 self.schedule_cleaning(form_data)
             else:
                 # Check if assigned_cleaner is present in form_data, even if it's None
-                if 'assigned_cleaner' in form_data:
+                if form_data and 'assigned_cleaner' in form_data:
                     assigned_cleaner = form_data.get('assigned_cleaner')
                     cleaning = self.cleanings.first()
                     
@@ -447,11 +456,42 @@ class Booking(models.Model):
             if self.contract_id:
                 update_contract(self)
             # SEND CONTRACT
-            if form_data and form_data["send_contract"] and form_data["send_contract"] != 0 and form_data["send_contract"] != None and form_data["send_contract"] != "None":
-                create_contract(self, template_id=form_data["send_contract"], send_sms=form_data["create_chat"]
-                )
-            elif form_data and form_data["create_chat"]:
+            raw_send_contract = form_data.get("send_contract") if form_data else None
+            raw_create_chat = form_data.get("create_chat") if form_data else None
+
+            # Normalize template id to expected string values or None
+            template_id = None
+            if raw_send_contract not in (None, "", 0, "0", "None"):
+                candidate = str(raw_send_contract).strip()
+                try:
+                    candidate = str(int(candidate))
+                except ValueError:
+                    pass
+                template_id = candidate if candidate in {"118378", "120946"} else None
+
+            # Normalize create_chat to boolean
+            create_chat_bool = False
+            if isinstance(raw_create_chat, bool):
+                create_chat_bool = raw_create_chat
+            elif isinstance(raw_create_chat, (int, float)):
+                create_chat_bool = int(raw_create_chat) == 1
+            elif isinstance(raw_create_chat, str):
+                create_chat_bool = raw_create_chat.strip().lower() in {"true", "1", "yes", "on"}
+
+            print_info(f"SEND CONTRACT 1: {template_id} + TYPE: {type(template_id)}")
+            print_info(f"CREATE CHAT 1: {create_chat_bool} + TYPE: {type(create_chat_bool)}")
+
+            if template_id:
+                print_info("SEND CONTRACT 1")
+                create_contract(self, template_id=template_id, send_sms=create_chat_bool)
+            elif create_chat_bool:
+                print_info("SEND WELCOME MESSAGE 1")
+                from mysite.views.messaging import sendWelcomeMessageToTwilio
                 sendWelcomeMessageToTwilio(self)
+            
+            # Update any existing conversation links for this tenant
+            if self.tenant and self.tenant.phone:
+                self.update_conversation_links()
         else:
             form_data = kwargs.pop('form_data', None)
             payments_data = kwargs.pop('payments_data', None)
@@ -467,10 +507,42 @@ class Booking(models.Model):
 
             super().save(*args, **kwargs)
              # SEND CONTRACT
-            if form_data and form_data["send_contract"] and form_data["send_contract"] != 0 and form_data["send_contract"] != None and form_data["send_contract"] != "None":
-                create_contract(self, template_id=form_data["send_contract"], send_sms=form_data["create_chat"])
-            elif form_data and form_data["create_chat"]:
+            raw_send_contract = form_data.get("send_contract") if form_data else None
+            raw_create_chat = form_data.get("create_chat") if form_data else None
+
+            # Normalize template id to expected string values or None
+            template_id = None
+            if raw_send_contract not in (None, "", 0, "0", "None"):
+                candidate = str(raw_send_contract).strip()
+                try:
+                    candidate = str(int(candidate))
+                except ValueError:
+                    pass
+                template_id = candidate if candidate in {"118378", "120946"} else None
+
+            # Normalize create_chat to boolean
+            create_chat_bool = False
+            if isinstance(raw_create_chat, bool):
+                create_chat_bool = raw_create_chat
+            elif isinstance(raw_create_chat, (int, float)):
+                create_chat_bool = int(raw_create_chat) == 1
+            elif isinstance(raw_create_chat, str):
+                create_chat_bool = raw_create_chat.strip().lower() in {"true", "1", "yes", "on"}
+
+            print_info(f"SEND CONTRACT 2: {template_id} + TYPE: {type(template_id)}")
+            print_info(f"CREATE CHAT 2: {create_chat_bool} + TYPE: {type(create_chat_bool)}")
+
+            if template_id:
+                print_info("SEND CONTRACT 2")
+                create_contract(self, template_id=template_id, send_sms=create_chat_bool)
+            elif create_chat_bool:
+                print_info("SEND WELCOME MESSAGE 2")
+                from mysite.views.messaging import sendWelcomeMessageToTwilio
                 sendWelcomeMessageToTwilio(self)
+            
+            # Update any existing conversation links for this tenant
+            if self.tenant and self.tenant.phone:
+                self.update_conversation_links()
 
             # Update apartment keywords
             if self.apartment and self.tenant and self.tenant.full_name:
@@ -577,7 +649,7 @@ class Booking(models.Model):
     def schedule_cleaning(self, form_data):
         # Schedule a cleaning for the day after the booking ends
         cleaning_date = self.end_date
-        assigned_cleaner = form_data.get('assigned_cleaner')
+        assigned_cleaner = form_data.get('assigned_cleaner') if form_data else None
         
         if assigned_cleaner:
             # Check if assigned_cleaner is an ID (integer)
@@ -670,6 +742,125 @@ class Booking(models.Model):
             else:
                 revenue -= payment.amount
         return revenue
+    
+    def update_conversation_links(self):
+        """
+        Update existing Twilio conversations to link to this booking if more contextually relevant
+        This handles both unlinked conversations and conversations linked to older bookings
+        """
+        try:
+            if not self.tenant or not self.tenant.phone:
+                return
+                
+            # Find ALL conversations that involve this tenant (linked and unlinked)
+            all_tenant_conversations = TwilioConversation.objects.filter(
+                messages__author=self.tenant.phone
+            ).distinct()
+            
+            updated_count = 0
+            relinked_count = 0
+            
+            for conversation in all_tenant_conversations:
+                
+                current_booking = conversation.booking
+                should_link_to_new = self._should_link_conversation_to_booking(conversation)
+                
+                if not current_booking:
+                    # Case 1: Unlinked conversation
+                    if should_link_to_new:
+                        conversation.booking = self
+                        conversation.apartment = self.apartment
+                        conversation.save()
+                        updated_count += 1
+                        print_info(f"Linked unlinked conversation {conversation.conversation_sid} to booking {self}")
+                
+                elif current_booking != self:
+                    # Case 2: Conversation linked to different booking
+                    if should_link_to_new:
+                        # Check if this new booking is more contextually relevant than current
+                        should_keep_current = current_booking._should_link_conversation_to_booking(conversation)
+                        
+                        if should_link_to_new and not should_keep_current:
+                            # New booking is more relevant, relink
+                            old_booking = current_booking
+                            conversation.booking = self
+                            conversation.apartment = self.apartment
+                            conversation.save()
+                            relinked_count += 1
+                            print_info(f"Relinked conversation {conversation.conversation_sid} from booking {old_booking} to booking {self}")
+                        
+                        elif should_link_to_new and should_keep_current:
+                            # Both bookings are contextually relevant - check timing to decide
+                            if self._is_more_recent_booking_than(current_booking):
+                                old_booking = current_booking
+                                conversation.booking = self
+                                conversation.apartment = self.apartment
+                                conversation.save()
+                                relinked_count += 1
+                                print_info(f"Relinked conversation {conversation.conversation_sid} from older booking {old_booking} to newer booking {self}")
+                            else:
+                                print_info(f"Kept conversation {conversation.conversation_sid} linked to more recent booking {current_booking}")
+                        else:
+                            print_info(f"Kept conversation {conversation.conversation_sid} linked to more contextually relevant booking {current_booking}")
+                
+                # Case 3: Already linked to this booking - no action needed
+            
+            if updated_count > 0 or relinked_count > 0:
+                print_info(f"Updated conversation links for booking {self}: {updated_count} new links, {relinked_count} relinks")
+            
+        except Exception as e:
+            print_info(f"Error updating conversation links for booking {self}: {e}")
+    
+    def _is_more_recent_booking_than(self, other_booking):
+        """
+        Check if this booking is more recent than another booking
+        """
+        if not other_booking:
+            return True
+            
+        # Compare by start date first, then by creation date
+        if self.start_date != other_booking.start_date:
+            return self.start_date > other_booking.start_date
+        
+        # If same start date, compare by creation time
+        return self.created_at > other_booking.created_at
+    
+    def _should_link_conversation_to_booking(self, conversation):
+        """
+        Determine if a conversation should be linked to this booking
+        based on timing and context
+        """
+        try:
+            from datetime import timedelta
+            
+            # Get the earliest message in the conversation
+            earliest_message = conversation.messages.order_by('message_timestamp').first()
+            if not earliest_message:
+                return True  # No messages, safe to link
+            
+            # If conversation started around the time of this booking, it's likely related
+            booking_start_buffer = self.start_date - timedelta(days=30)  # 30 days before booking
+            booking_end_buffer = self.end_date + timedelta(days=7)       # 7 days after booking
+            
+            conversation_start = earliest_message.message_timestamp.date()
+            
+            # Link if conversation started in the booking timeframe
+            if booking_start_buffer <= conversation_start <= booking_end_buffer:
+                print_info(f"Conversation started {conversation_start} is within booking timeframe {booking_start_buffer} to {booking_end_buffer}")
+                return True
+            
+            # If conversation is very recent (last 3 days), link to most recent booking
+            from datetime import date
+            if (date.today() - conversation_start).days <= 3:
+                print_info(f"Conversation is very recent ({conversation_start}), linking to current booking")
+                return True
+            
+            print_info(f"Conversation started {conversation_start} is outside booking timeframe")
+            return False
+            
+        except Exception as e:
+            print_info(f"Error checking conversation context: {e}")
+            return True  # Default to linking if we can't determine context
     
     @property
     def payment_str_for_contract(self):
@@ -1181,42 +1372,6 @@ class Notification(models.Model):
         return links_list
 
 
-class Chat(models.Model):
-    SENDER_TYPE = [
-        ('USER', 'USER'),
-        ('MANAGER1', 'MANAGER1'),
-        ('MANAGER2', 'MANAGER2'),
-        ('GPT BOT', 'GPT BOT'),
-    ]
-    MESSAGE_TYPE = [
-        ('NO_NEED_ACTION', 'NO_NEED_ACTION'),
-        ('NEED_ACTION', 'NEED_ACTION'),
-        ('DB', 'DB'),
-        ('KNOWLEDGE_BASE', 'KNOWLEDGE_BASE'),
-        ('NOTIFICATION', 'NOTIFICATION'),
-        ('CONTRACT', 'CONTRACT'),
-    ]
-    MESSAGE_STATUS = [
-        ('ERROR', 'ERROR'),
-        ('SENDED', 'SENDED'),
-    ]
-    twilio_conversation_sid = models.CharField(max_length=100, blank=True, null=True)
-    twilio_message_sid = models.CharField(max_length=100, blank=True, null=True)
-    sender_phone = models.CharField(max_length=20, blank=True, null=True)
-    receiver_phone = models.CharField(max_length=20, blank=True, null=True)
-    timestamp = models.DateTimeField(auto_now_add=True, db_index=True)
-    booking = models.ForeignKey(Booking, on_delete=models.SET_NULL, db_index=True,
-                                related_name='chat', null=True, blank=True)
-    message = models.TextField()
-    sender_type = models.CharField(
-        max_length=32, db_index=True, choices=SENDER_TYPE, null=True, blank=True)
-    context = models.TextField(null=True, blank=True)
-    message_type = models.CharField(
-        max_length=32, db_index=True, choices=MESSAGE_TYPE, default='NO_NEED_ACTION', null=True, blank=True)
-    message_status = models.CharField(
-        max_length=32, db_index=True, choices=MESSAGE_STATUS, default='SENDED')
-
-
 # Models
 class HandymanCalendar(models.Model):
     tenant_name = models.CharField(max_length=255)
@@ -1331,6 +1486,94 @@ class ParkingBooking(models.Model):
                 "link": f"/bookings/?q=id={self.booking.id}"
             })
         return links_list
+
+class TwilioConversation(models.Model):
+    """Model to store Twilio conversation metadata"""
+    
+    def __str__(self):
+        return f"{self.friendly_name} ({self.conversation_sid})"
+    
+    conversation_sid = models.CharField(max_length=100, unique=True, db_index=True)
+    friendly_name = models.CharField(max_length=255)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    # Optional relationships
+    booking = models.ForeignKey(
+        Booking, 
+        on_delete=models.SET_NULL, 
+        null=True, 
+        blank=True,
+        related_name='twilio_conversations'
+    )
+    apartment = models.ForeignKey(
+        Apartment,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='twilio_conversations'
+    )
+    
+    @property
+    def links(self):
+        links_list = []
+        if self.booking:
+            links_list.append({
+                "name": f"Booking: {self.booking.apartment.name} ({self.booking.start_date} - {self.booking.end_date})",
+                "link": f"/bookings/?q=id={self.booking.id}"
+            })
+        if self.apartment:
+            links_list.append({
+                "name": f"Apartment: {self.apartment.name}",
+                "link": f"/apartments/?q=id={self.apartment.id}"
+            })
+        return links_list
+
+
+class TwilioMessage(models.Model):
+    """Model to store individual Twilio messages"""
+    
+    def __str__(self):
+        return f"{self.author}: {self.body[:50]}..." if len(self.body) > 50 else f"{self.author}: {self.body}"
+    
+    MESSAGE_DIRECTION = [
+        ('inbound', 'Inbound'),
+        ('outbound', 'Outbound'),
+    ]
+    
+    message_sid = models.CharField(max_length=100, unique=True, db_index=True)
+    conversation = models.ForeignKey(
+        TwilioConversation,
+        on_delete=models.CASCADE,
+        related_name='messages'
+    )
+    conversation_sid = models.CharField(max_length=100, db_index=True)
+    author = models.CharField(max_length=50)  # Phone number or identity like "ASSISTANT"
+    body = models.TextField()
+    direction = models.CharField(max_length=10, choices=MESSAGE_DIRECTION, default='inbound')
+    
+    # Twilio metadata
+    webhook_sid = models.CharField(max_length=100, blank=True, null=True)
+    messaging_binding_address = models.CharField(max_length=20, blank=True, null=True)
+    messaging_binding_proxy_address = models.CharField(max_length=20, blank=True, null=True)
+    
+    # Timestamps
+    message_timestamp = models.DateTimeField(auto_now_add=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        ordering = ['-message_timestamp']
+    
+    @property
+    def links(self):
+        links_list = []
+        links_list.append({
+            "name": f"Conversation: {self.conversation.friendly_name}",
+            "link": f"/twilio-conversations/?q=id={self.conversation.id}"
+        })
+        return links_list
+
 
 def send_telegram_message(chat_id, token, message):
     if chat_id and token:

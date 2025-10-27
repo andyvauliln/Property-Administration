@@ -16,12 +16,12 @@ def my_cron_job():
     today = date.today()
     next_day = today + timedelta(days=1)
     
-    # Process today's notifications first
-    today_notifications = Notification.objects.filter(date=today, send_in_telegram=True, cleaning__isnull=False)
+    # Process today's notifications first (excluding notifications for blocked bookings)
+    today_notifications = Notification.objects.filter(date=today, send_in_telegram=True, cleaning__isnull=False).exclude(booking__status='Blocked').exclude(cleaning__booking__status='Blocked')
     print(f"Found {len(today_notifications)} notifications for today ({today})")
     
-    # Process tomorrow's notifications
-    tomorrow_notifications = Notification.objects.filter(date=next_day, send_in_telegram=True, cleaning__isnull=False)
+    # Process tomorrow's notifications (excluding notifications for blocked bookings)
+    tomorrow_notifications = Notification.objects.filter(date=next_day, send_in_telegram=True, cleaning__isnull=False).exclude(booking__status='Blocked').exclude(cleaning__booking__status='Blocked')
     print(f"Found {len(tomorrow_notifications)} notifications for tomorrow ({next_day})")
     
     telegram_token = os.environ["TELEGRAM_TOKEN"]
@@ -42,6 +42,8 @@ def my_cron_job():
                 message += f"\n- Status: {notification.cleaning.status}"
             if hasattr(notification.cleaning, 'cleaner'):
                 message += f"\n- Cleaner: {notification.cleaning.cleaner.full_name}"
+            
+            message += f"\Form Link:https://form.jotform.com/250414400218038"
 
             send_telegram_message(cliner_chat_id.strip(), telegram_token, message)
     
@@ -61,6 +63,8 @@ def my_cron_job():
                 message += f"\n- Status: {notification.cleaning.status}"
             if hasattr(notification.cleaning, 'cleaner'):
                 message += f"\n- Cleaner: {notification.cleaning.cleaner.full_name}"
+
+            message += f"\Form Link:https://ro.am/join/fyy4jxbm-yr9qc7mo"
 
             send_telegram_message(cliner_chat_id.strip(), telegram_token, message)
 

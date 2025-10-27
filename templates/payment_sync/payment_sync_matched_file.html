@@ -64,6 +64,36 @@
     // Separator for grouping multiple payment keys - must match Python constant
     const PAYMENT_KEY_SEPARATOR = "###||###";
 
+    // Robustly parse various date string formats into a UTC Date object
+    function parseToUTCDate(date) {
+        if (!date) return null;
+        const months = [
+            "January", "February", "March", "April", "May", "June",
+            "July", "August", "September", "October", "November", "December"
+        ];
+        let d = null;
+        if (typeof date === 'string') {
+            if (/^\d{4}-\d{2}-\d{2}( \d{2}:\d{2}:\d{2})?$/.test(date)) {
+                const [datePart] = date.split(' ');
+                const [year, month, day] = datePart.split('-').map(Number);
+                d = new Date(Date.UTC(year, month - 1, day));
+            } else {
+                const parts = date.replace(/,|\./g, '').split(' ');
+                if (parts.length === 3) {
+                    const monthIndex = months.findIndex(m => m.toLowerCase().startsWith(parts[0].toLowerCase()));
+                    const day = parseInt(parts[1], 10);
+                    const year = parseInt(parts[2], 10);
+                    if (monthIndex !== -1 && !isNaN(day) && !isNaN(year)) {
+                        d = new Date(Date.UTC(year, monthIndex, day));
+                    }
+                }
+            }
+        } else if (date instanceof Date) {
+            d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
+        }
+        return (d && !isNaN(d.getTime())) ? d : null;
+    }
+
     document.addEventListener('DOMContentLoaded', function() {
         const fileSearchInput = document.getElementById('file_search_input');
         const dbSearchInput = document.getElementById('db_search_input');
@@ -219,7 +249,7 @@
             db_payment.file_date = file_payment.payment_date;
             db_payment.file_amount = file_payment.amount;
             db_payment.file_notes = file_payment.notes;
-            db_payment.payment_date = formatDate(db_payment.payment_date);
+            db_payment.payment_date = formatDate(file_payment.payment_date);
             db_payment.id = String(db_payment.id);
         });
     
@@ -286,8 +316,9 @@
     }
 
     function formatDateTime(dateStr) {
-        const date = new Date(dateStr + 'Z'); // Append 'Z' to indicate UTC time
-        const month = String(date.getUTCMonth() + 1).padStart(2, '0'); // Months are zero-based
+        const date = parseToUTCDate(dateStr);
+        if (!date) return '';
+        const month = String(date.getUTCMonth() + 1).padStart(2, '0');
         const day = String(date.getUTCDate()).padStart(2, '0');
         const year = date.getUTCFullYear();
         return `${month}/${day}/${year}`;
@@ -296,7 +327,14 @@
     function mergeMultipleFilePayments(file_payments_list, db_payment) {
         const merged_payment = { ...db_payment };
         merged_payment.amount = 0;
-        merged_payment.payment_date = formatDate(merged_payment.payment_date);
+        
+        // Find the earliest file payment date
+        const earliest_file_date_obj = file_payments_list.reduce((earliest, file_payment) => {
+            const current = parseToUTCDate(file_payment.payment_date);
+            return !earliest || (current && current < earliest) ? current : earliest;
+        }, null);
+        
+        merged_payment.payment_date = formatDate(earliest_file_date_obj);
         merged_payment.payment_status = 'Merged';
         merged_payment.merged_payment_key = ""
 
@@ -324,7 +362,14 @@
     function mergeMultipleFilePaymentsInNewPayment(file_payments_list) {
         const merged_payment = { };
         merged_payment.amount = 0;
-        merged_payment.payment_date = formatDate(merged_payment.payment_date);
+        
+        // Find the earliest file payment date
+        const earliest_file_date_obj = file_payments_list.reduce((earliest, file_payment) => {
+            const current = parseToUTCDate(file_payment.payment_date);
+            return !earliest || (current && current < earliest) ? current : earliest;
+        }, null);
+        
+        merged_payment.payment_date = formatDate(earliest_file_date_obj);
         merged_payment.payment_status = 'Merged';
         merged_payment.merged_payment_key = ""
         merged_payment.notes = ""
@@ -413,7 +458,7 @@
                                 </div>
                                 <div class="items-center text-center justify-center {% if not match.amount or match.amount == 'No Match' %}text-red-500{% elif match.amount == 'Exact Match' %}text-green-500{% else %}text-blue-500{% endif %}">{{ match.amount|default:"No Match" }}</div>
                                 <div class="w-[150px] flex-shrink-0 flex p-2 items-center justify-center {% if match_item.file_payment.payment_type_name == 'Other (Out)' %}text-red-500{% else %}text-green-500{% endif %}">
-                                    <span class="font-bold">F:</span> {% if match_item.file_payment.payment_type_name == 'Other (Out)' %}-{% endif %}${{ match_item.file_payment.amount|floatformat:0 }} 
+                                    <span class="font-bold">F:</span> {% if match_item.file_payment.payment_type_name == 'Other (Out)' %}-{% endif %}${{ match_item.file_payment.amount|floatformat:0 }}
                                 </div>
                             </div>
                         </div>
