@@ -1061,7 +1061,7 @@ class Payment(models.Model):
         if self.pk is not None:
             # Get the current Payment object from the database
             orig = Payment.objects.get(pk=self.pk)
-            self.booking = orig.booking
+            # Allow booking to be updated - don't override with orig.booking
 
             # Track what changed
             changes = []
