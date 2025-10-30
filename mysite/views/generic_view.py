@@ -32,7 +32,7 @@ def bookings(request):
     return generic_view(request, 'booking', BookingForm, 'bookings.html')
 
 
-@user_has_role('Admin', 'Cleaner')
+@user_has_role('Admin', 'Cleaner', 'Manager')
 def cleanings(request):
     return generic_view(request, 'cleaning', CleaningForm, 'cleanings.html')
 
@@ -110,6 +110,8 @@ def generic_view(request, model_name, form_class, template_name, pages=30):
             Q(booking__apartment__manager=request.user) |
             Q(apartment__manager=request.user)
         ).distinct()
+    if request.user.role == 'Manager' and model_name.lower() == 'cleaning':
+        items = items.filter(apartment__manager=request.user)
 
     # If there's a search query, apply the filters
     if search_query:

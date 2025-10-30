@@ -42,6 +42,10 @@ def my_cron_job():
                 message += f"\n- Status: {notification.cleaning.status}"
             if hasattr(notification.cleaning, 'cleaner'):
                 message += f"\n- Cleaner: {notification.cleaning.cleaner.full_name}"
+            if hasattr(notification.cleaning, 'tasks') and notification.cleaning.tasks:
+                message += f"\n- Tasks: {notification.cleaning.tasks}"
+            if hasattr(notification.cleaning, 'notes') and notification.cleaning.notes:
+                message += f"\n- Notes: {notification.cleaning.notes}"
             
             message += f"\Form Link:https://form.jotform.com/250414400218038"
 
@@ -63,6 +67,10 @@ def my_cron_job():
                 message += f"\n- Status: {notification.cleaning.status}"
             if hasattr(notification.cleaning, 'cleaner'):
                 message += f"\n- Cleaner: {notification.cleaning.cleaner.full_name}"
+            if hasattr(notification.cleaning, 'tasks') and notification.cleaning.tasks:
+                message += f"\n- Tasks: {notification.cleaning.tasks}"
+            if hasattr(notification.cleaning, 'notes') and notification.cleaning.notes:
+                message += f"\n- Notes: {notification.cleaning.notes}"
 
             message += f"\Form Link:https://ro.am/join/fyy4jxbm-yr9qc7mo"
 

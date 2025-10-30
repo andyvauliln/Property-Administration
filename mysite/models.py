@@ -1012,9 +1012,18 @@ class Payment(models.Model):
 
     def save(self, *args, **kwargs):
         import traceback
+        from django.core.exceptions import ValidationError
         
         number_of_months = kwargs.pop('number_of_months', 0)
         is_creating = self.pk is None
+
+        # Validate that booking and apartment are consistent
+        if self.booking and self.apartment and self.booking.apartment:
+            if self.booking.apartment != self.apartment:
+                raise ValidationError(
+                    f"Payment apartment ({self.apartment.name}) does not match booking apartment ({self.booking.apartment.name}). "
+                    "Please ensure the apartment matches the booking's apartment."
+                )
 
         # Log all payment saves
         action = "Creating" if is_creating else "Updating"
@@ -1253,6 +1262,11 @@ class Cleaning(models.Model):
             # For new cleaning objects
             if not self.apartment and self.booking is not None:
                 self.apartment = self.booking.apartment
+            
+            # Set default tasks if not provided
+            if not self.tasks:
+                self.tasks = "Tasks: \nTenant living or move out: N/A \nCheckout time: N/A\nCheck-in date/time: N/A\nPets: N/A\nParking: N/A"
+            
             super().save(*args, **kwargs)
             notification = Notification(
                 date=self.date,

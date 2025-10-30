@@ -811,6 +811,16 @@ class PaymentForm(forms.ModelForm):
         if not status:
             cleaned_data['payment_status'] = 'Pending'
 
+        # Validate that booking and apartment are consistent
+        booking = cleaned_data.get('booking')
+        apartment = cleaned_data.get('apartment')
+        
+        if booking and apartment and booking.apartment and booking.apartment != apartment:
+            raise forms.ValidationError(
+                f"Payment apartment ({apartment.name}) does not match booking apartment ({booking.apartment.name}). "
+                "Please ensure the apartment matches the booking's apartment."
+            )
+
         return cleaned_data
 
     def save(self, **kwargs):
@@ -862,7 +872,7 @@ class CleaningForm(forms.ModelForm):
     status = ChoiceFieldEx(
         choices=Cleaning.STATUS, required=False, initial='Scheduled', isColumn=True, isEdit=True, isCreate=True,
         ui_element="dropdown", _dropdown_options=lambda: get_dropdown_options("cleaning_status"))
-    tasks = CharFieldEx(isColumn=False, initial="", isEdit=True,
+    tasks = CharFieldEx(isColumn=False, initial="Tasks: \nTenant living or move out: N/A \nCheckout time: N/A\nCheck-in date/time: N/A\nPets: N/A\nParking: N/A", isEdit=True,
                         required=False, isCreate=True, ui_element="textarea")
     notes = CharFieldEx(isColumn=False, initial="", isEdit=True,
                         required=False, isCreate=True, ui_element="textarea")
