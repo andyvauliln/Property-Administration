@@ -121,18 +121,17 @@
         {% endif %}
     {% endfor %}
 
-    function handleApartmentChangeForPaymentsEdit(apartmentId, bookingIdToSelect = null) {
-        console.log('🔧 handleApartmentChangeForPaymentsEdit called with:', { apartmentId, bookingIdToSelect });
+    function handleApartmentChangeForPaymentsEdit(apartmentId) {
+        console.log('handleApartmentChangeForPaymentsEdit', apartmentId);
         const bookingSelect = document.querySelector('#updateModal [name="booking"]');
         
         if (!bookingSelect) {
-            console.log('❌ Booking select not found in edit modal');
+            console.log('Booking select not found in edit modal');
             return;
         }
         
-        // Use provided bookingId or current selection
-        const currentSelection = bookingIdToSelect !== null ? bookingIdToSelect : bookingSelect.value;
-        console.log('📌 Current booking selection to preserve:', currentSelection, typeof currentSelection);
+        // Store current selection
+        const currentSelection = bookingSelect.value;
         
         // Clear existing options
         bookingSelect.innerHTML = '<option value="">None</option>';
@@ -141,33 +140,21 @@
         let filteredBookings = bookingsDataEdit;
         if (apartmentId) {
             filteredBookings = bookingsDataEdit.filter(booking => booking.apartment_id == apartmentId);
-            console.log('✅ Filtered bookings for apartment', apartmentId, ':', filteredBookings);
+            console.log('Filtered bookings for apartment', apartmentId, ':', filteredBookings);
         } else {
-            console.log('📋 Showing all bookings');
+            console.log('Showing all bookings');
         }
         
-        // Check if current selection exists in filtered bookings
-        const selectionExists = filteredBookings.some(booking => String(booking.id) === String(currentSelection));
-        console.log('🔍 Does current selection exist in filtered bookings?', selectionExists, 'Selection:', currentSelection);
-        
         // Populate dropdown with filtered bookings
-        let optionSelected = false;
         filteredBookings.forEach(booking => {
             const option = document.createElement('option');
             option.value = booking.id;
             option.textContent = booking.label;
-            // Use strict string comparison to avoid type issues
-            if (String(booking.id) === String(currentSelection)) {
+            if (booking.id == currentSelection) {
                 option.selected = true;
-                optionSelected = true;
-                console.log('✅ Selected booking option:', booking.id, booking.label);
             }
             bookingSelect.appendChild(option);
         });
-        
-        if (currentSelection && !optionSelected) {
-            console.warn('⚠️ Could not select booking:', currentSelection, '- not found in filtered bookings');
-        }
     }
 
     document.addEventListener('DOMContentLoaded', function() {
@@ -214,7 +201,6 @@
             paymentContainer.innerHTML = '';
     
             if (item) {
-                console.log('📝 Opening modal for item:', item.id, 'Apartment:', item.apartment, 'Booking:', item.booking);
                 for (const [fieldName, fieldValue] of Object.entries(item)) {
 
                     const inputFields = updateModal.querySelectorAll(`[name="${fieldName}"]`);
@@ -226,18 +212,12 @@
                                 if (option.value == fieldValue) {
                                     option.selected = true;
                                     valueSet = true;
-                                    if (fieldName === 'booking') {
-                                        console.log('✅ SET booking field to:', fieldValue, '(option text:', option.textContent + ')');
-                                    }
                                 } else {
                                     option.selected = false;
                                 }
                             }
                             if (!valueSet && !fieldValue) {
                                 inputField.options[0].selected = true; 
-                            }
-                            if (fieldName === 'booking' && !valueSet && fieldValue) {
-                                console.warn('⚠️ FAILED to set booking field to:', fieldValue, '- option not found in dropdown');
                             }
                         
                         } else if (inputField.tagName === 'INPUT' && inputField.type === 'radio') {
@@ -267,9 +247,7 @@
                 // Handle apartment change for payments model
                 if (bookingsDataEdit.length > 0 && item.apartment) {
                     // Filter bookings based on the current apartment
-                    // Pass the booking ID explicitly to ensure it gets selected
-                    console.log('🔄 Calling handleApartmentChangeForPaymentsEdit with apartment:', item.apartment, 'booking:', item.booking);
-                    handleApartmentChangeForPaymentsEdit(item.apartment, item.booking);
+                    handleApartmentChangeForPaymentsEdit(item.apartment);
                 }
     
                 const linksContainer = document.querySelector('#updateModal .related-links');

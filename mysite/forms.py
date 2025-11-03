@@ -739,7 +739,7 @@ class PaymentForm(forms.ModelForm):
     class Meta:
         model = Payment
         fields = ['payment_date', 'payment_method', 'bank', 'keywords', 'payment_status', 'tenant_notes', 'keywords',
-                  'amount', "number_of_months", 'payment_type', 'notes', 'booking', "apartment", "invoice_url"]
+                  'amount', "number_of_months", 'payment_type', 'notes', 'booking', "apartment", "invoice_url", "last_updated_by"]
 
     def __init__(self, *args, **kwargs):
         self.request = kwargs.pop('request', None)
@@ -790,6 +790,10 @@ class PaymentForm(forms.ModelForm):
         isColumn=True, required=False, order=12, initial="",
         isEdit=False, isCreate=False, ui_element="link")
 
+    last_updated_by = CharFieldEx(
+        isColumn=True, required=False, order=15, initial="",
+        isEdit=False, isCreate=False, ui_element="input")
+
     apartment = ModelChoiceFieldEx(
         queryset=Apartment.objects.all(),
         isColumn=True, isEdit=True, required=False, isCreate=True, order=13, ui_element="dropdown",
@@ -826,7 +830,12 @@ class PaymentForm(forms.ModelForm):
     def save(self, **kwargs):
         instance = super().save(commit=False)
 
-        instance.save(number_of_months=self.number_of_months or 0)
+        # Get the user from the request if available
+        updated_by = None
+        if self.request and hasattr(self.request, 'user'):
+            updated_by = self.request.user
+        
+        instance.save(number_of_months=self.number_of_months or 0, updated_by=updated_by)
         return instance
 
 
@@ -906,6 +915,13 @@ class CleaningForm(forms.ModelForm):
             cleaned_data['status'] = 'Scheduled'
 
         return cleaned_data
+    
+    def save(self, commit=True):
+        instance = super().save(commit=False)
+        if commit:
+            # Pass the user to the model's save method for payment tracking
+            instance.save(updated_by=self.request.user if self.request else 'System')
+        return instance
 
 
 class NotificationForm(forms.ModelForm):

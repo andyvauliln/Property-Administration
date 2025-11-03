@@ -103,6 +103,11 @@ LOGGING = {
             'level': 'DEBUG',
             'propagate': False,
         },
+        'mysite.common': {
+            'handlers': ['common'],
+            'level': 'DEBUG',
+            'propagate': False,
+        },
     },
     'root': {
         'handlers': ['common'],

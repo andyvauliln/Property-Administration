@@ -1003,6 +1003,7 @@ class Payment(models.Model):
     tenant_notes = models.TextField(blank=True, null=True)
     keywords = models.TextField(blank=True, null=True)
     merged_payment_key = models.TextField(blank=True, null=True)
+    last_updated_by = models.CharField(max_length=255,  blank=True, null=True)
     booking = models.ForeignKey(Booking, on_delete=models.CASCADE, db_index=True,
                                 related_name='payments', null=True, blank=True)
     apartment = models.ForeignKey(Apartment, on_delete=models.CASCADE, db_index=True,
@@ -1015,7 +1016,15 @@ class Payment(models.Model):
         from django.core.exceptions import ValidationError
         
         number_of_months = kwargs.pop('number_of_months', 0)
+        updated_by = kwargs.pop('updated_by', None)
         is_creating = self.pk is None
+        
+        # Update last_updated_by if user is provided
+        if updated_by:
+            if hasattr(updated_by, 'full_name'):
+                self.last_updated_by = updated_by.full_name
+            elif isinstance(updated_by, str):
+                self.last_updated_by = updated_by
 
         # Validate that booking and apartment are consistent
         if self.booking and self.apartment and self.booking.apartment:
@@ -1237,6 +1246,9 @@ class Cleaning(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
 
     def save(self, *args, **kwargs):
+        # Pop updated_by from kwargs before passing to super().save()
+        updated_by = kwargs.pop('updated_by', 'System')
+        
         # Check if it's an update
         if self.pk is not None:
             # Get the current Cleaning object from the database
@@ -1274,6 +1286,37 @@ class Cleaning(models.Model):
                 cleaning=self,
             )
             notification.save()
+            
+            # Create payment for new cleaning
+            try:
+                payment_type = PaymenType.objects.get(pk=26)
+                payment_method = PaymentMethod.objects.get(pk=1)
+                bank = PaymentMethod.objects.get(pk=6)
+                
+                payment = Payment(
+                    payment_date=self.date,
+                    amount=1,
+                    payment_type=payment_type,
+                    payment_status='Pending',
+                    payment_method=payment_method,
+                    bank=bank,
+                    booking=self.booking,
+                    apartment=self.apartment,
+                    notes=f"Auto-generated cleaning payment"
+                )
+                
+                # Set last_updated_by
+                if hasattr(updated_by, 'full_name'):
+                    payment.last_updated_by = updated_by.full_name
+                elif isinstance(updated_by, str):
+                    payment.last_updated_by = updated_by
+                else:
+                    payment.last_updated_by = 'System'
+                
+                payment.save()
+                print_info(f"Created payment for cleaning on {self.date}")
+            except Exception as e:
+                print_info(f"Error creating payment for cleaning: {e}")
             
             # Send telegram notification for new cleanings if they're within 3 days
             from datetime import date, timedelta

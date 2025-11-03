@@ -148,10 +148,8 @@ def generic_view(request, model_name, form_class, template_name, pages=30):
             items = items.filter(date__lt=today).order_by('-date')
         else:
             # Default: bidirectional starting from today
-            # Split into today's, future, and past cleanings
-            # today_cleanings = items.filter(date=today)
-            future_cleanings = items.filter(date__gt=today).order_by('date')
-            #past_cleanings = items.filter(date__lt=today).order_by('-date')
+            # Show today and future cleanings
+            future_cleanings = items.filter(date__gte=today).order_by('date')
             
             # Combine the querysets using itertools.chain
             items = list(chain(future_cleanings))

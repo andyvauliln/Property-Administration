@@ -172,7 +172,7 @@ def update_payments(request, payments_to_update):
                         payment_info.get('file_notes', '')
                     )
                     payment.merged_payment_key = merged_payment_key
-                    payment.save()
+                    payment.save(updated_by=request.user if request.user else None)
                     messages.success(request, f"Updated Payment: {payment.id}")
                 else:
                     messages.error(request, f"Cand Find in DB Payment with Id: {payment.id}")
@@ -196,7 +196,7 @@ def update_payments(request, payments_to_update):
                     ),
                     payment_status="Merged",
                 )
-                payment.save()
+                payment.save(updated_by=request.user if request.user else None)
                 messages.success(request, f"Created new Payment: {payment.id}")
         except Exception as e:
             messages.error(request, f"Failed to {'update' if payment_id else 'create'}  payment: {payment_id or ''} due  {str(e)}")
