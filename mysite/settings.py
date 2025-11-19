@@ -187,7 +187,7 @@ DATABASES = {
         'PORT': os.environ["PGPORT"],
     }
 }
-print(DATABASES, "DATABASES")
+# print(DATABASES, "DATABASES")  # Commented out to prevent password leakage in logs
 
 APPEND_SLASH = False
 

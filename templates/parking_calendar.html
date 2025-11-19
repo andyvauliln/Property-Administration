@@ -65,8 +65,8 @@
                 <table class="w-full text-[7px] text-left text-gray-500 dark:text-gray-400">
                     <thead class="text-center text-gray-700 uppercase bg-gray-50 dark:bg-gray-700 dark:text-gray-400">
                         <tr>
-                            <th scope="col" class="p-1 border-r border-gray-500 w-16">Building</th>
                             <th scope="col" class="p-1 border-r border-gray-500 w-16">Parking</th>
+                            <th scope="col" class="p-1 border-r border-gray-500 w-16">Building</th>
                             <th scope="col" class="p-1 border-r border-gray-500 w-16">Room</th>
                             {% for month_data in monthly_data|slice:":3" %}
                                 <!-- Month Header -->
@@ -94,9 +94,6 @@
                                 {% for parking in sorted_parkings %}
                                     <tr class="border-b dark:border-gray-700 hover:bg-gray-50">
                                         <td class="border-r border-gray-500 p-1 w-16 text-center">
-                                            <span class="text-purple-600 font-bold">{{ parking.building }}</span>
-                                        </td>
-                                        <td class="border-r border-gray-500 p-1 w-16 text-center">
                                             <span class="text-blue-500 font-bold cursor-pointer hover:underline edit-parking" 
                                                 data-parking-id="{{ parking.id }}" 
                                                 data-building="{{ parking.building }}" 
@@ -104,6 +101,9 @@
                                                 data-notes="{{ parking.notes|default:'' }}"
                                                 data-associated-room="{{ parking.associated_room|default:'' }}">
                                                 {{ parking.number }}</span>
+                                        </td>
+                                        <td class="border-r border-gray-500 p-1 w-16 text-center">
+                                            <span class="text-purple-600 font-bold">{{ parking.building }}</span>
                                         </td>
                                         <td class="border-r border-gray-500 p-1 w-16 text-center">
                                             <span class="text-gray-600 font-bold">{{ parking.associated_room|default:'-' }}</span>

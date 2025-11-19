@@ -508,10 +508,11 @@ class BookingForm(forms.ModelForm):
     class Meta:
         model = Booking
         fields = [
-            'tenant_email', 'tenant_full_name', 'tenant_phone', 'keywords', 'assigned_cleaner',
+            'tenant_email', 'tenant_full_name', 'tenant_phone', 'keywords',
             'status', 'start_date', 'end_date', 'notes', 'tenant', 'apartment', 'source', 'tenants_n',
             'payment_type', 'payment_date', 'amount', "animals", "visit_purpose",  "other_tenants",  'is_rent_car',
             'car_model', 'car_price', 'car_rent_days', 'parking_number',
+            #  'assigned_cleaner'
         ]
 
     def __init__(self, *args, **kwargs):
@@ -597,12 +598,12 @@ class BookingForm(forms.ModelForm):
                         isCreate=True, ui_element="textarea", initial="", required=False)
     
 
-    assigned_cleaner = ModelChoiceFieldEx(
-        queryset=User.objects.all(),
-        order=11,
-        initial=None,
-        isColumn=False, isEdit=True, isCreate=True, required=False, ui_element="radio",
-        _dropdown_options=lambda: get_dropdown_options("cleaners"))
+    # assigned_cleaner = ModelChoiceFieldEx(
+    #     queryset=User.objects.all(),
+    #     order=11,
+    #     initial=None,
+    #     isColumn=False, isEdit=True, isCreate=True, required=False, ui_element="radio",
+    #     _dropdown_options=lambda: get_dropdown_options("cleaners"))
     
     status = ChoiceFieldEx(choices=Booking.STATUS, isColumn=True, initial='Waiting Contract', isEdit=True,
                            required=False, isCreate=True, ui_element="radio", order=12,

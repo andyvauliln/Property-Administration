@@ -308,7 +308,7 @@ def apartments_analytics(request):
     return render(request, 'apartments_analytics.html', context)
 
 
-logger_common = logging.getLogger('mysite.common')
+logger_common = logging.getLogger('mysite.debug')
 
 
 def print_info(message):
@@ -369,9 +369,13 @@ def generate_apartment_excel(bookings, start_date, end_date):
     }
     spreadsheet = sheets_service.create(body=spreadsheet_body).execute()
     spreadsheet_id = spreadsheet.get('spreadsheetId')
+    
+    # Get the actual sheet ID from the created spreadsheet
+    sheet_id = spreadsheet['sheets'][0]['properties']['sheetId']
+    print_info(f'Created spreadsheet with sheet ID: {sheet_id}')
 
     rows = prepare_apartment_rows(bookings, start_date, end_date)
-    insert_apartment_rows(sheets_service, spreadsheet_id, rows)
+    insert_apartment_rows(sheets_service, spreadsheet_id, rows, sheet_id)
 
     share_document_with_user(drive_service, spreadsheet_id)
 
@@ -587,7 +591,7 @@ def prepare_apartment_rows(bookings, period_start, period_end):
     return rows
 
 
-def insert_apartment_rows(sheets_service, spreadsheet_id, rows):
+def insert_apartment_rows(sheets_service, spreadsheet_id, rows, sheet_id):
     headers = [
         'Apartment', 'Start Date', 'End Date', 'Days',
         'Total Rent Payment', 'ADR (Payments)', 'ADR (Price Table)', 
@@ -630,7 +634,7 @@ def insert_apartment_rows(sheets_service, spreadsheet_id, rows):
             requests.append({
                 'repeatCell': {
                     'range': {
-                        'sheetId': 0,
+                        'sheetId': sheet_id,
                         'startRowIndex': row_number - 1,
                         'endRowIndex': row_number,
                         'startColumnIndex': 0,
@@ -653,7 +657,7 @@ def insert_apartment_rows(sheets_service, spreadsheet_id, rows):
     requests.append({
         'repeatCell': {
             'range': {
-                'sheetId': 0,
+                'sheetId': sheet_id,
                 'startRowIndex': 0,
                 'endRowIndex': 1,
                 'startColumnIndex': 0,
@@ -679,7 +683,7 @@ def insert_apartment_rows(sheets_service, spreadsheet_id, rows):
     requests.append({
         'autoResizeDimensions': {
             'dimensions': {
-                'sheetId': 0,
+                'sheetId': sheet_id,
                 'dimension': 'COLUMNS',
                 'startIndex': 0,
                 'endIndex': 10

@@ -54,3 +54,4 @@ start.sh
 ~/.ssh/
 
 *.log
+logs/

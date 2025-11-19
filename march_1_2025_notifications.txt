@@ -1,4 +1,0 @@
- id | date | send_in_telegram | message | created_at | updated_at | booking_id | cleaning_id | payment_id 
-----+------+------------------+---------+------------+------------+------------+-------------+------------
-(0 rows)
-

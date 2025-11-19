@@ -178,6 +178,18 @@ class Apartment(models.Model):
     def address(self):
         return f" {self.building_n} {self.street}, {self.apartment_n}, {self.state}, {self.city}, {self.zip_index}"
 
+    def get_rating_surcharge_per_day(self):
+        """Calculate additional daily charge based on apartment rating"""
+        if not self.raiting or self.raiting <= 5:
+            return 0
+        
+        rating = float(self.raiting)
+        if rating >= 6 and rating <= 10:
+            # Formula: (rating - 5) * 3
+            return (rating - 5) * 3
+        
+        return 0
+
     @property
     def current_price(self):
         """Get the price that is effective on the current date"""
@@ -420,33 +432,33 @@ class Booking(models.Model):
 
             # Create or update payments
             self.create_payments(payments_data)
-            if not self.cleanings.exists():
-                self.schedule_cleaning(form_data)
-            else:
-                # Check if assigned_cleaner is present in form_data, even if it's None
-                if form_data and 'assigned_cleaner' in form_data:
-                    assigned_cleaner = form_data.get('assigned_cleaner')
-                    cleaning = self.cleanings.first()
+            # if not self.cleanings.exists():
+            #     self.schedule_cleaning(form_data)
+            # else:
+            #     # Check if assigned_cleaner is present in form_data, even if it's None
+            #     if form_data and 'assigned_cleaner' in form_data:
+            #         assigned_cleaner = form_data.get('assigned_cleaner')
+            #         cleaning = self.cleanings.first()
                     
-                    # If assigned_cleaner is None or empty, explicitly set cleaner to None
-                    if assigned_cleaner is None or assigned_cleaner == "" or assigned_cleaner == 0:
-                        cleaning.cleaner = None
-                        cleaning.save()
-                    else:
-                        # Handle the case where a cleaner is specified
-                        if isinstance(assigned_cleaner, int):
-                            try:
-                                assigned_cleaner = User.objects.get(id=assigned_cleaner)
-                            except User.DoesNotExist:
-                                assigned_cleaner = None
-                        elif isinstance(assigned_cleaner, str) and assigned_cleaner.isdigit():
-                            try:
-                                assigned_cleaner = User.objects.get(id=int(assigned_cleaner))
-                            except User.DoesNotExist:
-                                assigned_cleaner = None
+            #         # If assigned_cleaner is None or empty, explicitly set cleaner to None
+            #         if assigned_cleaner is None or assigned_cleaner == "" or assigned_cleaner == 0:
+            #             cleaning.cleaner = None
+            #             cleaning.save()
+            #         else:
+            #             # Handle the case where a cleaner is specified
+            #             if isinstance(assigned_cleaner, int):
+            #                 try:
+            #                     assigned_cleaner = User.objects.get(id=assigned_cleaner)
+            #                 except User.DoesNotExist:
+            #                     assigned_cleaner = None
+            #             elif isinstance(assigned_cleaner, str) and assigned_cleaner.isdigit():
+            #                 try:
+            #                     assigned_cleaner = User.objects.get(id=int(assigned_cleaner))
+            #                 except User.DoesNotExist:
+            #                     assigned_cleaner = None
 
-                        cleaning.cleaner = assigned_cleaner
-                        cleaning.save()
+            #             cleaning.cleaner = assigned_cleaner
+            #             cleaning.save()
 
             super().save(*args, **kwargs)
 
@@ -478,11 +490,8 @@ class Booking(models.Model):
             elif isinstance(raw_create_chat, str):
                 create_chat_bool = raw_create_chat.strip().lower() in {"true", "1", "yes", "on"}
 
-            print_info(f"SEND CONTRACT 1: {template_id} + TYPE: {type(template_id)}")
-            print_info(f"CREATE CHAT 1: {create_chat_bool} + TYPE: {type(create_chat_bool)}")
 
             if template_id:
-                print_info("SEND CONTRACT 1")
                 create_contract(self, template_id=template_id, send_sms=create_chat_bool)
             elif create_chat_bool:
                 print_info("SEND WELCOME MESSAGE 1")
@@ -529,13 +538,8 @@ class Booking(models.Model):
             elif isinstance(raw_create_chat, str):
                 create_chat_bool = raw_create_chat.strip().lower() in {"true", "1", "yes", "on"}
 
-            print_info(f"SEND CONTRACT 2: {template_id} + TYPE: {type(template_id)}")
-            print_info(f"CREATE CHAT 2: {create_chat_bool} + TYPE: {type(create_chat_bool)}")
-
             if template_id:
-                print_info("SEND CONTRACT 2")
                 create_contract(self, template_id=template_id, send_sms=create_chat_bool)
-            elif create_chat_bool:
                 print_info("SEND WELCOME MESSAGE 2")
                 from mysite.views.messaging import sendWelcomeMessageToTwilio
                 sendWelcomeMessageToTwilio(self)
@@ -723,7 +727,7 @@ class Booking(models.Model):
 
     @property
     def payment_str(self):
-        payments = self.payments.all()
+        payments = self.payments.all().order_by('payment_date')
         payment_str = ""
         for payment in payments:
             formatted_date = payment.payment_date.strftime("%B %d %Y")
