@@ -367,206 +367,225 @@ class Booking(models.Model):
         super().save(*args, **kwargs)
 
     def save(self, *args, **kwargs):
+        # Extract custom kwargs
         parking_number = kwargs.pop('parking_number', None)
-        if self.pk:  # If primary key exists, it's an update
-            form_data = kwargs.pop('form_data', None)
-            payments_data = kwargs.pop('payments_data', None)
-            
+        form_data = kwargs.pop('form_data', None)
+        payments_data = kwargs.pop('payments_data', None)
+        
+        is_creating = self.pk is None
+        
+        # Handle tenant creation/update if form_data is provided
+        if form_data:
             self.get_or_create_tenant(form_data)
-            # self.create_payments(payments_data)
-            orig = Booking.objects.get(pk=self.pk)
-            # If start_date has changed
-            if orig.start_date != self.start_date:
-                # Update the related Notification
-                Notification.objects.filter(
-                    booking=self,
-                    message="Start Booking"
-                ).update(date=self.start_date)
-
-            # If end_date has changed
-            if orig.end_date != self.end_date:
-                if self.end_date < orig.end_date:
-                    # delete all payments except return deposit
-                    self.deletePayments()
-
-                # Change date for return deposit to the self.end_date
-                Payment.objects.filter(
-                    booking=self,
-                    payment_type__name="Damage Deposit",
-                    payment_type__type="Out"
-                ).update(payment_date=self.end_date)
-
-                # Change cleaning date to the self.end_date
-                # Assuming Cleaning is a model related to Booking
-                
-                # First update just the date for all related cleanings
-                Cleaning.objects.filter(
-                    booking=self).update(date=self.end_date)
-
-                # We'll handle the cleaner update separately in the code below
-
-                Notification.objects.filter(
-                    payment__booking=self,
-                    payment__payment_type__name="Damage Deposit",
-                    payment__payment_type__type="Out"
-                ).update(date=self.end_date)
-
-                # Update Notifications for Cleanings related to this Booking
-                Notification.objects.filter(
-                    cleaning__booking=self).update(date=self.end_date)
-
-                # Update the related Notification
-                Notification.objects.filter(
-                    booking=self,
-                    message="End Booking"
-                ).update(date=self.end_date)
-
-            # Update parking booking dates if start_date or end_date changed
-            if orig.start_date != self.start_date or orig.end_date != self.end_date:
-                ParkingBooking.objects.filter(
-                    booking=self
-                ).update(
-                    start_date=self.start_date,
-                    end_date=self.end_date
-                )
-
-            # Create or update payments
-            self.create_payments(payments_data)
-            # if not self.cleanings.exists():
-            #     self.schedule_cleaning(form_data)
-            # else:
-            #     # Check if assigned_cleaner is present in form_data, even if it's None
-            #     if form_data and 'assigned_cleaner' in form_data:
-            #         assigned_cleaner = form_data.get('assigned_cleaner')
-            #         cleaning = self.cleanings.first()
-                    
-            #         # If assigned_cleaner is None or empty, explicitly set cleaner to None
-            #         if assigned_cleaner is None or assigned_cleaner == "" or assigned_cleaner == 0:
-            #             cleaning.cleaner = None
-            #             cleaning.save()
-            #         else:
-            #             # Handle the case where a cleaner is specified
-            #             if isinstance(assigned_cleaner, int):
-            #                 try:
-            #                     assigned_cleaner = User.objects.get(id=assigned_cleaner)
-            #                 except User.DoesNotExist:
-            #                     assigned_cleaner = None
-            #             elif isinstance(assigned_cleaner, str) and assigned_cleaner.isdigit():
-            #                 try:
-            #                     assigned_cleaner = User.objects.get(id=int(assigned_cleaner))
-            #                 except User.DoesNotExist:
-            #                     assigned_cleaner = None
-
-            #             cleaning.cleaner = assigned_cleaner
-            #             cleaning.save()
-
-            super().save(*args, **kwargs)
-
-            # Check for new or modified payments
-            
-            # Update Contract
-            if self.contract_id:
-                update_contract(self)
-            # SEND CONTRACT
-            raw_send_contract = form_data.get("send_contract") if form_data else None
-            raw_create_chat = form_data.get("create_chat") if form_data else None
-
-            # Normalize template id to expected string values or None
-            template_id = None
-            if raw_send_contract not in (None, "", 0, "0", "None"):
-                candidate = str(raw_send_contract).strip()
-                try:
-                    candidate = str(int(candidate))
-                except ValueError:
-                    pass
-                template_id = candidate if candidate in {"118378", "120946"} else None
-
-            # Normalize create_chat to boolean
-            create_chat_bool = False
-            if isinstance(raw_create_chat, bool):
-                create_chat_bool = raw_create_chat
-            elif isinstance(raw_create_chat, (int, float)):
-                create_chat_bool = int(raw_create_chat) == 1
-            elif isinstance(raw_create_chat, str):
-                create_chat_bool = raw_create_chat.strip().lower() in {"true", "1", "yes", "on"}
-
-
-            if template_id:
-                create_contract(self, template_id=template_id, send_sms=create_chat_bool)
-            elif create_chat_bool:
-                print_info("SEND WELCOME MESSAGE 1")
-                from mysite.views.messaging import sendWelcomeMessageToTwilio
-                sendWelcomeMessageToTwilio(self)
-            
-            # Update any existing conversation links for this tenant
-            if self.tenant and self.tenant.phone:
-                self.update_conversation_links()
+        
+        # === UPDATING EXISTING BOOKING ===
+        if not is_creating:
+            self._handle_booking_update(form_data, payments_data)
+        
+        # === CREATING NEW BOOKING ===
         else:
-            form_data = kwargs.pop('form_data', None)
-            payments_data = kwargs.pop('payments_data', None)
-            if form_data:
-                self.get_or_create_tenant(form_data)
-                super().save(*args, **kwargs)  # Save the booking instance first to get an ID
-                if not self.cleanings.exists():
-                    self.schedule_cleaning(form_data)
-                self.create_booking_notifications()
-                
-            if payments_data:
-                self.create_payments(payments_data)
-
-            super().save(*args, **kwargs)
-             # SEND CONTRACT
-            raw_send_contract = form_data.get("send_contract") if form_data else None
-            raw_create_chat = form_data.get("create_chat") if form_data else None
-
-            # Normalize template id to expected string values or None
-            template_id = None
-            if raw_send_contract not in (None, "", 0, "0", "None"):
-                candidate = str(raw_send_contract).strip()
-                try:
-                    candidate = str(int(candidate))
-                except ValueError:
-                    pass
-                template_id = candidate if candidate in {"118378", "120946"} else None
-
-            # Normalize create_chat to boolean
-            create_chat_bool = False
-            if isinstance(raw_create_chat, bool):
-                create_chat_bool = raw_create_chat
-            elif isinstance(raw_create_chat, (int, float)):
-                create_chat_bool = int(raw_create_chat) == 1
-            elif isinstance(raw_create_chat, str):
-                create_chat_bool = raw_create_chat.strip().lower() in {"true", "1", "yes", "on"}
-
-            if template_id:
-                create_contract(self, template_id=template_id, send_sms=create_chat_bool)
-                print_info("SEND WELCOME MESSAGE 2")
-                from mysite.views.messaging import sendWelcomeMessageToTwilio
-                sendWelcomeMessageToTwilio(self)
-            
-            # Update any existing conversation links for this tenant
-            if self.tenant and self.tenant.phone:
-                self.update_conversation_links()
-
-            # Update apartment keywords
-            if self.apartment and self.tenant and self.tenant.full_name:
-                if not self.apartment.keywords:
-                    self.apartment.keywords = self.tenant.full_name
-                else:
-                    self.apartment.keywords += f", {self.tenant.full_name}"
-                self.apartment.save()
-        #update 
+            self._handle_booking_creation(form_data, payments_data)
+        
+        # Handle parking booking (both create and update)
         if parking_number:
-            parking = Parking.objects.get(id=parking_number)
-            parking_booking = ParkingBooking.objects.create(
-                parking=parking,
+            self._create_parking_booking(parking_number)
+    
+    def _handle_booking_update(self, form_data, payments_data):
+        """Handle updates to existing bookings"""
+        orig = Booking.objects.get(pk=self.pk)
+        
+        # Update notifications if dates changed
+        if orig.start_date != self.start_date:
+            Notification.objects.filter(
                 booking=self,
-                status= "Booked" if (self.is_rent_car or self.car_model or self.car_price or self.car_rent_days) else "No Car",
+                message="Start Booking"
+            ).update(date=self.start_date)
+        
+        if orig.end_date != self.end_date:
+            self._handle_end_date_change(orig)
+        
+        # Update parking booking dates if dates changed
+        if orig.start_date != self.start_date or orig.end_date != self.end_date:
+            ParkingBooking.objects.filter(booking=self).update(
                 start_date=self.start_date,
-                end_date=self.end_date,
-                apartment=self.apartment
+                end_date=self.end_date
             )
-            parking_booking.save()
+        
+        # Save the booking
+        super().save()
+        
+        # Create or update payments
+        if payments_data:
+            self.create_payments(payments_data)
+        
+        # Update contract if exists
+        if self.contract_id:
+            update_contract(self)
+        
+        # Handle contract sending and messaging
+        self._handle_contract_and_messaging(form_data)
+        
+        # Update conversation links
+        if self.tenant and self.tenant.phone:
+            self.update_conversation_links()
+    
+    def _handle_booking_creation(self, form_data, payments_data):
+        """Handle creation of new bookings"""
+        # Save the booking first to get an ID
+        super().save()
+        
+        # Schedule cleaning if form_data provided
+        if form_data and not self.cleanings.exists():
+            self.schedule_cleaning(form_data)
+        
+        # Auto-create booking notifications (Start and End)
+        self._create_booking_notifications()
+        
+        # Create payments if provided
+        if payments_data:
+            self.create_payments(payments_data)
+        
+        # Handle contract sending and messaging
+        self._handle_contract_and_messaging(form_data)
+        
+        # Update conversation links
+        if self.tenant and self.tenant.phone:
+            self.update_conversation_links()
+        
+        # Update apartment keywords
+        if self.apartment and self.tenant and self.tenant.full_name:
+            if not self.apartment.keywords:
+                self.apartment.keywords = self.tenant.full_name
+            else:
+                self.apartment.keywords += f", {self.tenant.full_name}"
+            self.apartment.save()
+    
+    def _handle_end_date_change(self, orig):
+        """Handle all updates needed when end_date changes"""
+        # Delete payments beyond new end date (except damage deposit)
+        if self.end_date < orig.end_date:
+            self.deletePayments()
+        
+        # Update damage deposit return date
+        Payment.objects.filter(
+            booking=self,
+            payment_type__name="Damage Deposit",
+            payment_type__type="Out"
+        ).update(payment_date=self.end_date)
+        
+        # Update cleaning date
+        Cleaning.objects.filter(booking=self).update(date=self.end_date)
+        
+        # Update all related notifications
+        Notification.objects.filter(
+            payment__booking=self,
+            payment__payment_type__name="Damage Deposit",
+            payment__payment_type__type="Out"
+        ).update(date=self.end_date)
+        
+        Notification.objects.filter(
+            cleaning__booking=self
+        ).update(date=self.end_date)
+        
+        Notification.objects.filter(
+            booking=self,
+            message="End Booking"
+        ).update(date=self.end_date)
+    
+    def _create_booking_notifications(self):
+        """Auto-create Start and End Booking notifications (excluding Blocked bookings)"""
+        # Skip notification creation for Blocked bookings
+        if self.status == 'Blocked':
+            print_info("Skipping notification creation: Blocked booking")
+            return
+        
+        # Check and create Start Booking notification
+        start_notification_exists = Notification.objects.filter(
+            booking=self,
+            message="Start Booking"
+        ).exists()
+        
+        if not start_notification_exists:
+            Notification.objects.create(
+                date=self.start_date,
+                message="Start Booking",
+                booking=self,
+                send_in_telegram=True
+            )
+            print_info("✓ Auto-created Start Booking notification")
+        
+        # Check and create End Booking notification
+        end_notification_exists = Notification.objects.filter(
+            booking=self,
+            message="End Booking"
+        ).exists()
+        
+        if not end_notification_exists:
+            Notification.objects.create(
+                date=self.end_date,
+                message="End Booking",
+                booking=self,
+                send_in_telegram=True
+            )
+            print_info("✓ Auto-created End Booking notification")
+    
+    def _handle_contract_and_messaging(self, form_data):
+        """Handle contract creation and welcome message sending"""
+        if not form_data:
+            return
+        
+        raw_send_contract = form_data.get("send_contract")
+        raw_create_chat = form_data.get("create_chat")
+        
+        # Normalize template_id
+        template_id = self._normalize_template_id(raw_send_contract)
+        
+        # Normalize create_chat to boolean
+        create_chat_bool = self._normalize_boolean(raw_create_chat)
+        
+        # Send contract or welcome message
+        if template_id:
+            create_contract(self, template_id=template_id, send_sms=create_chat_bool)
+        elif create_chat_bool:
+            print_info("SEND WELCOME MESSAGE")
+            from mysite.views.messaging import sendWelcomeMessageToTwilio
+            sendWelcomeMessageToTwilio(self)
+    
+    def _normalize_template_id(self, raw_value):
+        """Normalize template ID to expected string values or None"""
+        if raw_value in (None, "", 0, "0", "None"):
+            return None
+        
+        try:
+            candidate = str(int(str(raw_value).strip()))
+            return candidate if candidate in {"118378", "120946"} else None
+        except (ValueError, AttributeError):
+            return None
+    
+    def _normalize_boolean(self, raw_value):
+        """Normalize various boolean representations to actual boolean"""
+        if isinstance(raw_value, bool):
+            return raw_value
+        elif isinstance(raw_value, (int, float)):
+            return int(raw_value) == 1
+        elif isinstance(raw_value, str):
+            return raw_value.strip().lower() in {"true", "1", "yes", "on"}
+        return False
+    
+    def _create_parking_booking(self, parking_number):
+        """Create parking booking associated with this booking"""
+        parking = Parking.objects.get(id=parking_number)
+        status = "Booked" if (self.is_rent_car or self.car_model or 
+                              self.car_price or self.car_rent_days) else "No Car"
+        
+        ParkingBooking.objects.create(
+            parking=parking,
+            booking=self,
+            status=status,
+            start_date=self.start_date,
+            end_date=self.end_date,
+            apartment=self.apartment
+        )
        
     def deletePayments(self):
         payments_to_delete = Payment.objects.filter(
@@ -634,14 +653,6 @@ class Booking(models.Model):
             ):
                 self.create_payment(p_type, amount, date, p_notes, n_months, payment_id, payment_status)
 
-    def create_booking_notifications(self):
-
-        notification = Notification(
-            date=self.end_date,
-            message="End Booking",
-            booking=self
-        )
-        notification.save()
 
         notification = Notification(
             date=self.start_date,
@@ -1153,10 +1164,38 @@ class Payment(models.Model):
 
         print_info('*' * 60 + '\n')
 
+        # Save the payment first
         if number_of_months and number_of_months > 0:
             self.create_payments(number_of_months)
         else:
             super().save(*args, **kwargs)
+
+        # Auto-create notification for new payments (excluding mortage payments)
+        if is_creating:
+            should_create_notification = True
+            
+            # Check if this is a mortage payment (should not have notifications)
+            if self.payment_type and (
+                'mortage' in self.payment_type.name.lower()
+            ):
+                should_create_notification = False
+                print_info("Skipping notification creation: Mortage payment")
+            
+            if should_create_notification:
+                # Check if notification already exists (safety check)
+                existing_notification = Notification.objects.filter(payment=self).first()
+                if not existing_notification:
+                    Notification.objects.create(
+                        date=self.payment_date,
+                        message='Payment',
+                        payment=self,
+                        send_in_telegram=True
+                    )
+                    print_info("✓ Auto-created Payment notification")
+                else:
+                    print_info("Notification already exists, skipping creation")
+
+        
 
     def create_payments(self, number_of_months):
         for i in range(number_of_months):
@@ -1176,12 +1215,7 @@ class Payment(models.Model):
             )
             payment.save()
 
-            notification = Notification(
-                date=payment_date,
-                message="Payment",
-                payment=payment
-            )
-            notification.save()
+            
 
     def delete(self, *args, **kwargs):
         if self.payment_status != "Completed" and self.payment_status != "Merged":

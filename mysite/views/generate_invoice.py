@@ -64,7 +64,7 @@ def get_services():
     print_info("Getting GOOGLE Services")
     # Authenticate with Google Docs API using service account credentials
     credentials = service_account.Credentials.from_service_account_file(
-        'google_tokens.json',
+        'secrets/google_tokens.json',
         scopes=['https://www.googleapis.com/auth/documents',
                 'https://www.googleapis.com/auth/drive']
     )

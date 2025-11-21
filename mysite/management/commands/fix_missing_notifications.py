@@ -126,11 +126,9 @@ class Command(BaseCommand):
             notif_count=Count('payment_notifications')
         ).filter(notif_count=0)
 
-        # Exclude mortgage payments (they shouldn't have notifications)
+        # Exclude mortage payments (they shouldn't have notifications)
         payments_query = payments_query.exclude(
             payment_type__name__icontains='Mortage'
-        ).exclude(
-            payment_type__name__icontains='Mortgage'
         )
 
         if exclude_old:

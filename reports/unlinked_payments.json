@@ -1,5 +1,0 @@
-{
-  "generated_at": "2025-10-17T20:29:49.848237+00:00",
-  "criteria": "payment_type name in [Rent, Hold Deposit] and booking is null",
-  "total_unlinked_payments": 7015
-}

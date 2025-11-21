@@ -343,7 +343,7 @@ def insert_monthly_data_report(sheets_service, spreadsheet_id, month_data):
 def get_google_sheets_service():
     SCOPES = ['https://www.googleapis.com/auth/spreadsheets',
               'https://www.googleapis.com/auth/drive']
-    SERVICE_ACCOUNT_FILE = 'google_tokens.json'
+    SERVICE_ACCOUNT_FILE = 'secrets/google_tokens.json'
 
     credentials = Credentials.from_service_account_file(
         SERVICE_ACCOUNT_FILE, scopes=SCOPES)

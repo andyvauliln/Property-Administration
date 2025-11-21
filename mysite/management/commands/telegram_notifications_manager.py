@@ -96,7 +96,7 @@ def my_cron_job():
             check_bookings_without_cleaning(manager.telegram_chat_id, telegram_token)
 
             for notification in notifications:
-                # Skip mortgage payments
+                # Skip mortage payments
                 if notification.payment and notification.payment.payment_type and notification.payment.payment_type.name and 'Mortage' in notification.payment.payment_type.name:
                     continue
                     

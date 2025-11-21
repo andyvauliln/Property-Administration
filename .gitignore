@@ -41,13 +41,7 @@ backup.json
 
 data/
 
-google_tokens.json
-
-token_gmail_v1.pickle
-README2.md
-gmail_oauth_token.json
-farid_oauth2.json
-cron_logs.json
+secrets/
 
 start.sh
 
