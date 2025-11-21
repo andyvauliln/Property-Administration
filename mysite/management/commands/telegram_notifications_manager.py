@@ -3,7 +3,7 @@ import requests
 from datetime import timedelta, date
 from mysite.models import Notification, Payment, User, Booking
 import os
-from django.core.management.base import BaseCommand
+from mysite.management.commands.base_command import BaseCommandWithErrorHandling
 from django.db.models import Q    
 
 def send_telegram_message(chat_id, token, message):
@@ -122,10 +122,10 @@ def my_cron_job():
             
 
 
-class Command(BaseCommand):
-    help = 'Run telegram notification task'
+class Command(BaseCommandWithErrorHandling):
+    help = 'Run telegram notification task for managers'
 
-    def handle(self, *args, **options):
-        self.stdout.write('Running telegram notification task...')
+    def execute_command(self, *args, **options):
+        self.stdout.write('Running telegram notification task for managers...')
         my_cron_job()
-        self.stdout.write(self.style.SUCCESS('Successfully ran telegram notification'))
+        self.stdout.write('Telegram notification task for managers completed')
