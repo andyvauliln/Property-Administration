@@ -38,8 +38,8 @@
         {% endif %}
     {% endfor %}
     
-    function handleApartmentChangeForPaymentSync(apartmentId) {
-        console.log('🔍 handleApartmentChangeForPaymentSync called with apartmentId:', apartmentId);
+    function handleApartmentChangeForPaymentSync(apartmentId, bookingIdToSelect = null) {
+        console.log('🔧 handleApartmentChangeForPaymentSync called with:', { apartmentId, bookingIdToSelect });
         
         if (!bookingsDataSync || bookingsDataSync.length === 0) {
             console.log('⚠️ No bookings data available');
@@ -56,8 +56,9 @@
         
         console.log('✅ Booking select found, current options:', bookingSelect.options.length);
         
-        // Store current selection
-        const currentSelection = bookingSelect.value;
+        // Use provided bookingId or current selection (handle undefined as well)
+        const currentSelection = (bookingIdToSelect !== null && bookingIdToSelect !== undefined) ? bookingIdToSelect : bookingSelect.value;
+        console.log('📌 Booking to select:', currentSelection, typeof currentSelection);
         
         // Clear existing options
         while (bookingSelect.options.length > 0) {
@@ -74,21 +75,33 @@
         let filteredBookings = bookingsDataSync;
         if (apartmentId) {
             filteredBookings = bookingsDataSync.filter(booking => booking.apartment_id == apartmentId);
-            console.log(`🔎 Filtered ${filteredBookings.length} bookings for apartment ${apartmentId}`);
+            console.log(`✅ Filtered ${filteredBookings.length} bookings for apartment ${apartmentId}`);
         } else {
             console.log('📋 Showing all', filteredBookings.length, 'bookings');
         }
         
+        // Check if current selection exists in filtered bookings
+        const selectionExists = filteredBookings.some(booking => String(booking.id) === String(currentSelection));
+        console.log('🔍 Does booking exist in filtered list?', selectionExists);
+        
         // Populate dropdown with filtered bookings
+        let optionSelected = false;
         filteredBookings.forEach(booking => {
             const option = document.createElement('option');
             option.value = booking.id;
             option.textContent = booking.label;
-            if (booking.id == currentSelection) {
+            // Use strict string comparison to avoid type mismatch
+            if (String(booking.id) === String(currentSelection)) {
                 option.selected = true;
+                optionSelected = true;
+                console.log('✅ Selected booking:', booking.id, '-', booking.label);
             }
             bookingSelect.appendChild(option);
         });
+        
+        if (currentSelection && !optionSelected) {
+            console.warn('⚠️ Could not select booking:', currentSelection, '- not found in filtered list');
+        }
         
         console.log('✅ Booking dropdown populated with', filteredBookings.length, 'options');
     }
@@ -326,10 +339,13 @@
         console.log("find db_payment for merge", db_payment, db_payment_id, file_payment_id)
         if(file_payment_id){
             const file_payment = file_payments_json.find(i => i.id === file_payment_id);
+            console.log('📦 db_payment.booking:', db_payment.booking, 'file_payment.booking:', file_payment.booking);
             payment.id = db_payment.id || file_payment.id
             payment.file_id = file_payment.id
             payment.apartment = db_payment.apartment || file_payment.apartment
             payment.apartment_name  = db_payment.apartment_name || file_payment.apartment_name
+            // Use nullish coalescing to handle 0 as valid booking ID
+            payment.booking = db_payment.booking ?? file_payment.booking ?? null
             payment.payment_date = file_payment.payment_date
             payment.amount = Math.abs(file_payment.amount)
             payment.payment_method = file_payment.payment_method ? file_payment.payment_method : db_payment.payment_method ? db_payment.payment_method : null
@@ -353,7 +369,7 @@
             payment.payment_status = 'Merged'
             payment.bank = file_payment.bank
            
-            
+            console.log('🔗 merge2Payments result - booking:', payment.booking, 'apartment:', payment.apartment);
           
         }
         return payment
@@ -384,17 +400,29 @@
             }
         }
         payment = merge2Payments(db_payment_id, file_payment_id, mode === 'create')
-        console.log(payment, 'payment')
+        console.log('📝 Opening payment sync modal. Payment data:', payment)
+        console.log('📌 Booking to select:', payment.booking, 'Apartment:', payment.apartment);
+        
         if (payment) {
             payment.status = 'Merged'
             id_input = document.getElementById('editId')
             file_id_input = document.getElementById('fileId')
             id_input.value = payment.id
             file_id_input.value = payment.file_id
+            
+            // Check if we'll be filtering bookings later
+            const willFilterBookings = bookingsDataSync && bookingsDataSync.length > 0;
+            
             for (let [fieldName, fieldValue] of Object.entries(payment)) {
                 // Handle apartment field specifically
                 if(fieldName === "apartment_id"){
                     fieldName = "apartment"
+                }
+                
+                // Skip booking field if we're going to filter it afterwards
+                if (fieldName === 'booking' && willFilterBookings) {
+                    console.log('⏭️ Skipping booking field in main loop - will be set by filter function');
+                    continue;
                 }
                 
                 const inputFields = updateModal.querySelectorAll(`[name="${fieldName}"]`);
@@ -494,9 +522,10 @@
             // Filter bookings based on selected apartment
             if (bookingsDataSync && bookingsDataSync.length > 0) {
                 const apartmentSelect = updateModal.querySelector('[name="apartment"]');
-                if (apartmentSelect && apartmentSelect.value) {
-                    console.log('🔄 Filtering bookings for apartment:', apartmentSelect.value);
-                    handleApartmentChangeForPaymentSync(apartmentSelect.value);
+                if (apartmentSelect) {
+                    console.log('🔄 Filtering bookings for apartment:', apartmentSelect.value, 'booking to select:', payment.booking);
+                    // Pass the booking ID explicitly to ensure it gets selected after filtering
+                    handleApartmentChangeForPaymentSync(apartmentSelect.value, payment.booking);
                 }
             }
         }

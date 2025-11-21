@@ -106,7 +106,7 @@ def get_dropdown_options(identifier, isData=False, request=None):
     elif identifier == 'bookings':
         from datetime import timedelta
         today = date.today()
-        one_month_ago = today - timedelta(days=30)
+        one_month_ago = today - timedelta(days=365)
         items = Booking.objects.filter(
             start_date__gte=one_month_ago
         ).select_related('tenant', 'apartment').order_by('start_date')
@@ -508,10 +508,11 @@ class BookingForm(forms.ModelForm):
     class Meta:
         model = Booking
         fields = [
-            'tenant_email', 'tenant_full_name', 'tenant_phone', 'keywords', 'assigned_cleaner',
+            'tenant_email', 'tenant_full_name', 'tenant_phone', 'keywords',
             'status', 'start_date', 'end_date', 'notes', 'tenant', 'apartment', 'source', 'tenants_n',
             'payment_type', 'payment_date', 'amount', "animals", "visit_purpose",  "other_tenants",  'is_rent_car',
             'car_model', 'car_price', 'car_rent_days', 'parking_number',
+            #  'assigned_cleaner'
         ]
 
     def __init__(self, *args, **kwargs):
@@ -597,12 +598,12 @@ class BookingForm(forms.ModelForm):
                         isCreate=True, ui_element="textarea", initial="", required=False)
     
 
-    assigned_cleaner = ModelChoiceFieldEx(
-        queryset=User.objects.all(),
-        order=11,
-        initial=None,
-        isColumn=False, isEdit=True, isCreate=True, required=False, ui_element="radio",
-        _dropdown_options=lambda: get_dropdown_options("cleaners"))
+    # assigned_cleaner = ModelChoiceFieldEx(
+    #     queryset=User.objects.all(),
+    #     order=11,
+    #     initial=None,
+    #     isColumn=False, isEdit=True, isCreate=True, required=False, ui_element="radio",
+    #     _dropdown_options=lambda: get_dropdown_options("cleaners"))
     
     status = ChoiceFieldEx(choices=Booking.STATUS, isColumn=True, initial='Waiting Contract', isEdit=True,
                            required=False, isCreate=True, ui_element="radio", order=12,
@@ -739,7 +740,7 @@ class PaymentForm(forms.ModelForm):
     class Meta:
         model = Payment
         fields = ['payment_date', 'payment_method', 'bank', 'keywords', 'payment_status', 'tenant_notes', 'keywords',
-                  'amount', "number_of_months", 'payment_type', 'notes', 'booking', "apartment", "invoice_url"]
+                  'amount', "number_of_months", 'payment_type', 'notes', 'booking', "apartment", "invoice_url", "last_updated_by"]
 
     def __init__(self, *args, **kwargs):
         self.request = kwargs.pop('request', None)
@@ -790,6 +791,10 @@ class PaymentForm(forms.ModelForm):
         isColumn=True, required=False, order=12, initial="",
         isEdit=False, isCreate=False, ui_element="link")
 
+    last_updated_by = CharFieldEx(
+        isColumn=True, required=False, order=15, initial="",
+        isEdit=False, isCreate=False, ui_element="input")
+
     apartment = ModelChoiceFieldEx(
         queryset=Apartment.objects.all(),
         isColumn=True, isEdit=True, required=False, isCreate=True, order=13, ui_element="dropdown",
@@ -811,12 +816,27 @@ class PaymentForm(forms.ModelForm):
         if not status:
             cleaned_data['payment_status'] = 'Pending'
 
+        # Validate that booking and apartment are consistent
+        booking = cleaned_data.get('booking')
+        apartment = cleaned_data.get('apartment')
+        
+        if booking and apartment and booking.apartment and booking.apartment != apartment:
+            raise forms.ValidationError(
+                f"Payment apartment ({apartment.name}) does not match booking apartment ({booking.apartment.name}). "
+                "Please ensure the apartment matches the booking's apartment."
+            )
+
         return cleaned_data
 
     def save(self, **kwargs):
         instance = super().save(commit=False)
 
-        instance.save(number_of_months=self.number_of_months or 0)
+        # Get the user from the request if available
+        updated_by = None
+        if self.request and hasattr(self.request, 'user'):
+            updated_by = self.request.user
+        
+        instance.save(number_of_months=self.number_of_months or 0, updated_by=updated_by)
         return instance
 
 
@@ -862,7 +882,7 @@ class CleaningForm(forms.ModelForm):
     status = ChoiceFieldEx(
         choices=Cleaning.STATUS, required=False, initial='Scheduled', isColumn=True, isEdit=True, isCreate=True,
         ui_element="dropdown", _dropdown_options=lambda: get_dropdown_options("cleaning_status"))
-    tasks = CharFieldEx(isColumn=False, initial="", isEdit=True,
+    tasks = CharFieldEx(isColumn=False, initial="Tasks: \nTenant living or move out: N/A \nCheckout time: N/A\nCheck-in date/time: N/A\nPets: N/A\nParking: N/A", isEdit=True,
                         required=False, isCreate=True, ui_element="textarea")
     notes = CharFieldEx(isColumn=False, initial="", isEdit=True,
                         required=False, isCreate=True, ui_element="textarea")
@@ -896,6 +916,13 @@ class CleaningForm(forms.ModelForm):
             cleaned_data['status'] = 'Scheduled'
 
         return cleaned_data
+    
+    def save(self, commit=True):
+        instance = super().save(commit=False)
+        if commit:
+            # Pass the user to the model's save method for payment tracking
+            instance.save(updated_by=self.request.user if self.request else 'System')
+        return instance
 
 
 class NotificationForm(forms.ModelForm):

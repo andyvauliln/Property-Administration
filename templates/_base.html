@@ -202,7 +202,7 @@
             </a>
           </li>
           {% endif %}
-          {% if user_role in 'Admin,Cleaner' %}
+          {% if user_role in 'Admin,Cleaner,Manager' %}
           <li>
             <a href="/cleanings/"
               class="flex items-center p-2 text-base font-medium text-gray-900 rounded-lg dark:text-white hover:bg-gray-300 dark:hover:bg-gray-700 group {% if current_path == '/cleanings/' %}bg-gray-300{% endif %}">
@@ -485,7 +485,7 @@
        }
        
        // Dynamically generate options based on paymentTypes
-       [{value: "Completed", label: "Completed"}, {value: "Pending", label: "Pending"}].forEach(type => {
+       [{value: "Completed", label: "Completed"}, {value: "Pending", label: "Pending"}, {value: "Merged", label: "Merged"}].forEach(type => {
            const option = document.createElement('option');
            option.setAttribute('value', type.value);
            option.textContent = type.label;

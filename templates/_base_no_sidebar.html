@@ -194,7 +194,7 @@
        }
        
        // Dynamically generate options based on paymentTypes
-       [{value: "Completed", label: "Completed"}, {value: "Pending", label: "Pending"}].forEach(type => {
+       [{value: "Completed", label: "Completed"}, {value: "Pending", label: "Pending"}, {value: "Merged", label: "Merged"}].forEach(type => {
            const option = document.createElement('option');
            option.setAttribute('value', type.value);
            option.textContent = type.label;

@@ -32,7 +32,7 @@ def bookings(request):
     return generic_view(request, 'booking', BookingForm, 'bookings.html')
 
 
-@user_has_role('Admin', 'Cleaner')
+@user_has_role('Admin', 'Cleaner', 'Manager')
 def cleanings(request):
     return generic_view(request, 'cleaning', CleaningForm, 'cleanings.html')
 
@@ -110,6 +110,8 @@ def generic_view(request, model_name, form_class, template_name, pages=30):
             Q(booking__apartment__manager=request.user) |
             Q(apartment__manager=request.user)
         ).distinct()
+    if request.user.role == 'Manager' and model_name.lower() == 'cleaning':
+        items = items.filter(apartment__manager=request.user)
 
     # If there's a search query, apply the filters
     if search_query:
@@ -146,10 +148,8 @@ def generic_view(request, model_name, form_class, template_name, pages=30):
             items = items.filter(date__lt=today).order_by('-date')
         else:
             # Default: bidirectional starting from today
-            # Split into today's, future, and past cleanings
-            # today_cleanings = items.filter(date=today)
-            future_cleanings = items.filter(date__gt=today).order_by('date')
-            #past_cleanings = items.filter(date__lt=today).order_by('-date')
+            # Show today and future cleanings
+            future_cleanings = items.filter(date__gte=today).order_by('date')
             
             # Combine the querysets using itertools.chain
             items = list(chain(future_cleanings))
