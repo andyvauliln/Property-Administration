@@ -46,3 +46,5 @@ class Command(BaseCommandWithErrorHandling):
             else:
                 self.stdout.write(self.style.WARNING('Critical message may not have been sent (check Telegram token)'))
 
+
+
