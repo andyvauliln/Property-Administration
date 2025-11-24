@@ -16,7 +16,7 @@ nano /home/superuser/site/.env
 
 Update these lines:
 ```env
-TWILIO_ACCOUNT_SID=ACbae1a1954f19101812ca63bcd920e7e1
+TWILIO_ACCOUNT_SID=your_account_sid_here
 TWILIO_AUTH_TOKEN=your_32_character_token_here
 ```
 
@@ -61,7 +61,7 @@ nano /home/superuser/site/.env
 Update to use API Key instead:
 ```env
 # Keep your Account SID the same
-TWILIO_ACCOUNT_SID=ACbae1a1954f19101812ca63bcd920e7e1
+TWILIO_ACCOUNT_SID=your_account_sid_here
 
 # Replace Auth Token with API Key SID
 TWILIO_AUTH_TOKEN=SK...your_api_key_secret_here
