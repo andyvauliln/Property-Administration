@@ -7,6 +7,7 @@ from dateutil.relativedelta import relativedelta
 from datetime import datetime
 from datetime import datetime, date
 from mysite.docuseal_contract_managment import create_contract, update_contract, delete_contract
+from mysite.telegram_logger import log_error
 from itertools import zip_longest
 import re
 import uuid
@@ -1030,170 +1031,174 @@ class Payment(models.Model):
         import traceback
         from django.core.exceptions import ValidationError
         
-        number_of_months = kwargs.pop('number_of_months', 0)
-        updated_by = kwargs.pop('updated_by', None)
-        is_creating = self.pk is None
-        
-        # Update last_updated_by if user is provided
-        if updated_by:
-            if hasattr(updated_by, 'full_name'):
-                self.last_updated_by = updated_by.full_name
-            elif isinstance(updated_by, str):
-                self.last_updated_by = updated_by
-
-        # Validate that booking and apartment are consistent
-        if self.booking and self.apartment and self.booking.apartment:
-            if self.booking.apartment != self.apartment:
-                raise ValidationError(
-                    f"Payment apartment ({self.apartment.name}) does not match booking apartment ({self.booking.apartment.name}). "
-                    "Please ensure the apartment matches the booking's apartment."
-                )
-
-        # Log all payment saves
-        action = "Creating" if is_creating else "Updating"
-        print_info(f"\n{'*' * 60}")
-        print_info(f"{action} Payment")
-        
-        if not is_creating:
-            print_info(f"Payment ID: {self.pk}")
-        
-        print_info(f"Payment Date: {self.payment_date}")
-        print_info(f"Amount: {self.amount}")
-        print_info(f"Payment Type: {self.payment_type.name if self.payment_type else 'N/A'} ({self.payment_type.type if self.payment_type else 'N/A'})")
-        print_info(f"Payment Status: {self.payment_status}")
-        
-        if self.booking:
-            print_info(f"Booking ID: {self.booking.id}")
-            if self.booking.apartment:
-                print_info(f"Apartment: {self.booking.apartment.name}")
-            if self.booking.tenant:
-                print_info(f"Tenant: {self.booking.tenant.full_name}")
-        elif self.apartment:
-            print_info(f"Apartment: {self.apartment.name}")
-        
-        if self.payment_method:
-            print_info(f"Payment Method: {self.payment_method.name}")
-        if self.bank:
-            print_info(f"Bank: {self.bank.name}")
-        if self.merged_payment_key:
-            print_info(f"Merged Payment Key: {self.merged_payment_key}")
-        
-        # Show call stack (simplified - just last 3 frames)
-        stack = traceback.extract_stack()
-        caller_info = []
-        for frame in stack[-4:-1]:  # Get last 3 frames before this one
-            # Shorten the path for readability
-            path = frame.filename.split('/')[-2:] if '/' in frame.filename else [frame.filename]
-            caller_info.append(f"  {'/'.join(path)}:{frame.lineno} in {frame.name}")
-        
-        print_info("Call from:")
-        for frame_info in caller_info:
-            print_info(frame_info)
-
-        # Check if it's an update
-        if self.pk is not None:
-            # Get the current Payment object from the database
-            orig = Payment.objects.get(pk=self.pk)
-            # Allow booking to be updated - don't override with orig.booking
-
-            # Track what changed
-            changes = []
-            if orig.payment_status != self.payment_status:
-                changes.append(f"Status: {orig.payment_status} -> {self.payment_status}")
-            if orig.amount != self.amount:
-                changes.append(f"Amount: {orig.amount} -> {self.amount}")
-            if orig.payment_date != self.payment_date:
-                changes.append(f"Date: {orig.payment_date} -> {self.payment_date}")
-            if orig.payment_type_id != self.payment_type_id:
-                changes.append(f"Type: {orig.payment_type.name if orig.payment_type else 'N/A'} -> {self.payment_type.name if self.payment_type else 'N/A'}")
+        try:
+            number_of_months = kwargs.pop('number_of_months', 0)
+            updated_by = kwargs.pop('updated_by', None)
+            is_creating = self.pk is None
             
-            if changes:
-                print_info("Changes:")
-                for change in changes:
-                    print_info(f"  - {change}")
-        
-            # Log status change from Merged to Completed (detailed version)
-            if orig.payment_status == 'Merged' and self.payment_status == 'Completed':
-                
-                # Get the call stack to identify who is making this change
-                stack = traceback.extract_stack()
-                caller_info = []
-                for frame in stack[-6:-1]:  # Get last 5 frames before this one
-                    caller_info.append(f"  {frame.filename}:{frame.lineno} in {frame.name}")
-                
-                print_info("=" * 80)
-                print_info(f"Payment Status Change: Merged -> Completed")
-                print_info(f"Payment ID: {self.pk}")
-                print_info(f"Payment Date: {self.payment_date}")
-                print_info(f"Amount: {self.amount}")
-                print_info(f"Payment Type: {self.payment_type.name if self.payment_type else 'N/A'} ({self.payment_type.type if self.payment_type else 'N/A'})")
-                print_info(f"Booking ID: {self.booking.id if self.booking else 'N/A'}")
-                if self.booking:
-                    print_info(f"Apartment: {self.booking.apartment.name if self.booking.apartment else 'N/A'}")
-                    print_info(f"Tenant: {self.booking.tenant.full_name if self.booking.tenant else 'N/A'}")
-                elif self.apartment:
-                    print_info(f"Apartment: {self.apartment.name}")
-                print_info(f"Payment Method: {self.payment_method.name if self.payment_method else 'N/A'}")
-                print_info(f"Bank: {self.bank.name if self.bank else 'N/A'}")
-                print_info(f"Merged Payment Key: {self.merged_payment_key}")
-                print_info(f"Notes: {self.notes}")
-                print_info(f"\nCall Stack:")
-                for frame_info in caller_info:
-                    print_info(frame_info)
-                print_info("=" * 80)
+            # Update last_updated_by if user is provided
+            if updated_by:
+                if hasattr(updated_by, 'full_name'):
+                    self.last_updated_by = updated_by.full_name
+                elif isinstance(updated_by, str):
+                    self.last_updated_by = updated_by
 
-            # If payment_date has changed
-            if orig.payment_date != self.payment_date:
-                # print(self.payment_date, "self.payment_date")
-                # if isinstance(self.payment_date, tuple) and len(self.payment_date) > 0:
-                #     payment_date_obj = self.payment_date[0]
-                # else:
-                #     payment_date_obj = self.payment_date
-
-                # Ensure payment_date_obj is a date object or a string
-                if isinstance(self.payment_date, date):
-                    payment_date_str = self.payment_date.isoformat()
-                elif isinstance(self.payment_date, str):
-                    payment_date_str = self.payment_date
-                else:
-                    raise ValueError("Unsupported date format for self.payment_date")
-
-
-                Notification.objects.filter(
-                    payment=self).update(date=payment_date_str)
-
-        print_info('*' * 60 + '\n')
-
-        # Save the payment first
-        if number_of_months and number_of_months > 0:
-            self.create_payments(number_of_months)
-        else:
-            super().save(*args, **kwargs)
-
-        # Auto-create notification for new payments (excluding mortage payments)
-        if is_creating:
-            should_create_notification = True
-            
-            # Check if this is a mortage payment (should not have notifications)
-            if self.payment_type and (
-                'mortage' in self.payment_type.name.lower()
-            ):
-                should_create_notification = False
-                print_info("Skipping notification creation: Mortage payment")
-            
-            if should_create_notification:
-                # Check if notification already exists (safety check)
-                existing_notification = Notification.objects.filter(payment=self).first()
-                if not existing_notification:
-                    Notification.objects.create(
-                        date=self.payment_date,
-                        message='Payment',
-                        payment=self,
-                        send_in_telegram=True
+            # Validate that booking and apartment are consistent
+            if self.booking and self.apartment and self.booking.apartment:
+                if self.booking.apartment != self.apartment:
+                    raise ValidationError(
+                        f"Payment apartment ({self.apartment.name}) does not match booking apartment ({self.booking.apartment.name}). "
+                        "Please ensure the apartment matches the booking's apartment."
                     )
-                    print_info("✓ Auto-created Payment notification")
-                else:
-                    print_info("Notification already exists, skipping creation")
+
+            # Log all payment saves
+            action = "Creating" if is_creating else "Updating"
+            print_info(f"\n{'*' * 60}")
+            print_info(f"{action} Payment")
+            
+            if not is_creating:
+                print_info(f"Payment ID: {self.pk}")
+            
+            print_info(f"Payment Date: {self.payment_date}")
+            print_info(f"Amount: {self.amount}")
+            print_info(f"Payment Type: {self.payment_type.name if self.payment_type else 'N/A'} ({self.payment_type.type if self.payment_type else 'N/A'})")
+            print_info(f"Payment Status: {self.payment_status}")
+            
+            if self.booking:
+                print_info(f"Booking ID: {self.booking.id}")
+                if self.booking.apartment:
+                    print_info(f"Apartment: {self.booking.apartment.name}")
+                if self.booking.tenant:
+                    print_info(f"Tenant: {self.booking.tenant.full_name}")
+            elif self.apartment:
+                print_info(f"Apartment: {self.apartment.name}")
+            
+            if self.payment_method:
+                print_info(f"Payment Method: {self.payment_method.name}")
+            if self.bank:
+                print_info(f"Bank: {self.bank.name}")
+            if self.merged_payment_key:
+                print_info(f"Merged Payment Key: {self.merged_payment_key}")
+            
+            # Show call stack (simplified - just last 3 frames)
+            stack = traceback.extract_stack()
+            caller_info = []
+            for frame in stack[-4:-1]:  # Get last 3 frames before this one
+                # Shorten the path for readability
+                path = frame.filename.split('/')[-2:] if '/' in frame.filename else [frame.filename]
+                caller_info.append(f"  {'/'.join(path)}:{frame.lineno} in {frame.name}")
+            
+            print_info("Call from:")
+            for frame_info in caller_info:
+                print_info(frame_info)
+
+            # Check if it's an update
+            if self.pk is not None:
+                # Get the current Payment object from the database
+                orig = Payment.objects.get(pk=self.pk)
+                # Allow booking to be updated - don't override with orig.booking
+
+                # Track what changed
+                changes = []
+                if orig.payment_status != self.payment_status:
+                    changes.append(f"Status: {orig.payment_status} -> {self.payment_status}")
+                if orig.amount != self.amount:
+                    changes.append(f"Amount: {orig.amount} -> {self.amount}")
+                if orig.payment_date != self.payment_date:
+                    changes.append(f"Date: {orig.payment_date} -> {self.payment_date}")
+                if orig.payment_type_id != self.payment_type_id:
+                    changes.append(f"Type: {orig.payment_type.name if orig.payment_type else 'N/A'} -> {self.payment_type.name if self.payment_type else 'N/A'}")
+                
+                if changes:
+                    print_info("Changes:")
+                    for change in changes:
+                        print_info(f"  - {change}")
+            
+                # Log status change from Merged to Completed (detailed version)
+                if orig.payment_status == 'Merged' and self.payment_status == 'Completed':
+                    
+                    # Get the call stack to identify who is making this change
+                    stack = traceback.extract_stack()
+                    caller_info = []
+                    for frame in stack[-6:-1]:  # Get last 5 frames before this one
+                        caller_info.append(f"  {frame.filename}:{frame.lineno} in {frame.name}")
+                    
+                    print_info("=" * 80)
+                    print_info(f"Payment Status Change: Merged -> Completed")
+                    print_info(f"Payment ID: {self.pk}")
+                    print_info(f"Payment Date: {self.payment_date}")
+                    print_info(f"Amount: {self.amount}")
+                    print_info(f"Payment Type: {self.payment_type.name if self.payment_type else 'N/A'} ({self.payment_type.type if self.payment_type else 'N/A'})")
+                    print_info(f"Booking ID: {self.booking.id if self.booking else 'N/A'}")
+                    if self.booking:
+                        print_info(f"Apartment: {self.booking.apartment.name if self.booking.apartment else 'N/A'}")
+                        print_info(f"Tenant: {self.booking.tenant.full_name if self.booking.tenant else 'N/A'}")
+                    elif self.apartment:
+                        print_info(f"Apartment: {self.apartment.name}")
+                    print_info(f"Payment Method: {self.payment_method.name if self.payment_method else 'N/A'}")
+                    print_info(f"Bank: {self.bank.name if self.bank else 'N/A'}")
+                    print_info(f"Merged Payment Key: {self.merged_payment_key}")
+                    print_info(f"Notes: {self.notes}")
+                    print_info(f"\nCall Stack:")
+                    for frame_info in caller_info:
+                        print_info(frame_info)
+                    print_info("=" * 80)
+
+                # If payment_date has changed
+                if orig.payment_date != self.payment_date:
+                    # print(self.payment_date, "self.payment_date")
+                    # if isinstance(self.payment_date, tuple) and len(self.payment_date) > 0:
+                    #     payment_date_obj = self.payment_date[0]
+                    # else:
+                    #     payment_date_obj = self.payment_date
+
+                    # Ensure payment_date_obj is a date object or a string
+                    if isinstance(self.payment_date, date):
+                        payment_date_str = self.payment_date.isoformat()
+                    elif isinstance(self.payment_date, str):
+                        payment_date_str = self.payment_date
+                    else:
+                        raise ValueError("Unsupported date format for self.payment_date")
+
+
+                    Notification.objects.filter(
+                        payment=self).update(date=payment_date_str)
+
+            print_info('*' * 60 + '\n')
+
+            # Save the payment first
+            if number_of_months and number_of_months > 0:
+                self.create_payments(number_of_months)
+            else:
+                super().save(*args, **kwargs)
+
+            # Auto-create notification for new payments (excluding mortage payments)
+            if is_creating:
+                should_create_notification = True
+                
+                # Check if this is a mortage payment (should not have notifications)
+                if self.payment_type and (
+                    'mortage' in self.payment_type.name.lower()
+                ):
+                    should_create_notification = False
+                    print_info("Skipping notification creation: Mortage payment")
+                
+                if should_create_notification:
+                    # Check if notification already exists (safety check)
+                    existing_notification = Notification.objects.filter(payment=self).first()
+                    if not existing_notification:
+                        Notification.objects.create(
+                            date=self.payment_date,
+                            message='Payment',
+                            payment=self,
+                            send_in_telegram=True
+                        )
+                        print_info("✓ Auto-created Payment notification")
+                    else:
+                        print_info("Notification already exists, skipping creation")
+        except Exception as e:
+            print_info(f"Error in Payment.save(): {str(e)}")
+            raise
 
         
 

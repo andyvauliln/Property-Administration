@@ -116,13 +116,13 @@ cron.schedule('0 8 * * *', function () {
 //     console.log(`stderr: finished SMS cron`);
 // });
 // Schedule task to run every 13h
-cron.schedule('0 */13 * * *', function () {
-    executeCronCommand(
-        '12H Contract notification',
-        '/usr/bin/python3 /home/superuser/site/manage.py contract_notification',
-        '/home/superuser/site/'
-    );
-});
+// cron.schedule('0 */13 * * *', function () {
+//     executeCronCommand(
+//         '12H Contract notification',
+//         '/usr/bin/python3 /home/superuser/site/manage.py contract_notification',
+//         '/home/superuser/site/'
+//     );
+// });
 
 // Schedule data integrity check to run daily at 9 PM
 cron.schedule('0 21 * * *', function () {
