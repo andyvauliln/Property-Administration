@@ -9,7 +9,8 @@ DOCUSEAL_API_KEY = os.environ.get("DOCUSEAL_API_KEY")
 
 logger_sms = logging.getLogger('mysite.sms_webhooks')
 
-def print_info(message):
+def print_info(*args):
+    message = ' '.join(str(arg) for arg in args)
     print(message)
     logger_sms.debug(message)
 
@@ -28,35 +29,43 @@ def create_contract(booking, template_id, send_sms=False):
 def create_and_send_agreement(booking, template_id, send_sms=False):
     try:
         # Get Adobe Sign access token
-        print("START CREATE AGREEMENT")
+        print_info("START CREATE AGREEMENT")
         data = prepare_data_for_agreement(booking, template_id)
-        print("data", data)
+        print_info("data", data)
 
         headers = {
             "X-Auth-Token": f"{DOCUSEAL_API_KEY}",
             "Content-Type": "application/json",
         }
         response = requests.post(SUBMISSION_URL_API_BASE_URL, headers=headers, json=data)
+        print_info("DocuSeal API response status code:", response.status_code)
+        print_info("DocuSeal API response status code:", response)
 
-        if response.status_code == 200:
+        if 200 <= response.status_code < 300:
             response_data = response.json()
-            print("response_data", response_data)
-            booking.contract_id = response_data[0]["submission_id"]
+            print_info("response_data", response_data)
+            booking.contract_id = str(response_data[0]["submission_id"])
             booking.contract_url = response_data[0]["embed_src"]
             booking.contract_send_status = "Sent by Email"
+            print_info(f"Saving contract_id {booking.contract_id} to booking {booking.id}")
             if send_sms and booking.tenant.phone and booking.tenant.phone.startswith("+1"):
                 from mysite.views.messaging import sendContractToTwilio
                 sendContractToTwilio(booking, response_data[0]["embed_src"])
-            booking.update()
+            # Save only the contract-related fields to avoid triggering complex save logic
+            from django.db import models
+            models.Model.save(booking, update_fields=['contract_id', 'contract_url', 'contract_send_status', 'updated_at'])
+            print_info(f"Contract saved - Booking {booking.id} now has contract_id: {booking.contract_id}")
         else:
-            print("Detailed response:", response.json())
+            print_info("Detailed response:", response.json())
             booking.contract_send_status = "Not Sent"
-            booking.update()
-            raise Exception("Contract wasn't sent by email")
+            from django.db import models
+            models.Model.save(booking, update_fields=['contract_send_status', 'updated_at'])
+            raise Exception(f"Contract wasn't sent by email. Status code: {response.status_code}")
     except Exception as e:
-        print(f"An error occurred: {e}")
+        print_info(f"An error occurred: {e}")
         booking.contract_send_status = "Not Sent"
-        booking.update()
+        from django.db import models
+        models.Model.save(booking, update_fields=['contract_send_status', 'updated_at'])
         raise Exception("Contract wasn't sent by email")
       
 
@@ -86,7 +95,7 @@ def prepare_data_for_agreement(booking, template_id):
 
 
 def get_fields(booking, template_id):
-    print("template_id", template_id, template_id == 120946)
+    print_info("template_id", template_id, template_id == 120946)
     
     if template_id == "120946": #application form
         return [
@@ -127,16 +136,16 @@ def delete_contract(id):
     }
 
     response = requests.delete(f"{SUBMISSION_URL_API_BASE_URL}/{id}", headers=headers)
-    print("response", response)
-    if response.status_code != 200:
-        print("Detailed response:", response.json())
-
-    print(f"Contract with id {id} was deleted")
+    print_info("Delete contract response status code:", response.status_code)
+    if not (200 <= response.status_code < 300):
+        print_info("Detailed error response:", response.json())
+    else:
+        print_info(f"Contract with id {id} was deleted successfully")
 
 
 def update_contract(booking):
     submitter_id  = get_submitter_id(booking)
-    print("submitter_id", submitter_id)
+    print_info("submitter_id", submitter_id)
     if submitter_id:
         update_submitter(booking, submitter_id)
     else:
@@ -151,23 +160,23 @@ def get_submitter_id(booking):
     }
 
     response = requests.get(f"{SUBMISSION_URL_API_BASE_URL}/{booking.contract_id}", headers=headers)
-    print("response", response)
-    if response.status_code == 200:
+    print_info("Get submitter response status code:", response.status_code)
+    if 200 <= response.status_code < 300:
         submitters = response.json()["submitters"]
         #tenant_submitter = next((s for s in submitters if s["name"] == "Farid Gazizov"), None)
         submitter = submitters[0]
         if submitter:
-            print(f"Found tenant submitter: {submitter} {submitter['id']}")
+            print_info(f"Found tenant submitter: {submitter} {submitter['id']}")
             return submitter['id']
         else:
-            print(f"No submitter found for tenant email: {booking.tenant.email}")
+            print_info(f"No submitter found for tenant email: {booking.tenant.email}")
     else:
-        print("Detailed error response:", response.json())
+        print_info("Detailed error response:", response.json())
         return None
         
 
 
-    print(f"Contract with id {id} was deleted")
+    print_info(f"Contract with id {id} was deleted")
 
 
 def update_submitter(booking, submitter_id):
@@ -183,13 +192,13 @@ def update_submitter(booking, submitter_id):
     ]}
 
     response = requests.put(f"https://api.docuseal.co/submitters/{submitter_id}", headers=headers, json=data)
-    # print("response", response)
-    if response.status_code == 200:
+    print_info("Update submitter response status code:", response.status_code)
+    if 200 <= response.status_code < 300:
         response = response.json()
-        print("Successfully updated submitters", response)
+        print_info("Successfully updated submitters", response)
         
     else:
-        print("Detailed error response:", response.json())
+        print_info("Detailed error response:", response.json())
 
 
 

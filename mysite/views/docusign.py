@@ -25,14 +25,55 @@ def docuseal_callback(request):
             data = json.loads(request.body).get('data', {})
             print_info(data, "Request Data")
             bookingid = data.get("metadata", {}).get('booking_id', None)
+            submission_id = data.get("submission_id", None)
+            
+            booking = None
+            
+            # Try to find booking by ID from metadata
             if bookingid:
                 parsed_bookingid = int(bookingid[2:-1])
-                booking = Booking.objects.get(id=parsed_bookingid)
-                print_info(booking, "Booking")
-                values = data.get('values', [])
-                form_fields_dict = {item['field']: item.get('value', '') for item in values}
-                print_info(form_fields_dict, "form_fields_dict")
-                if booking and len(values) > 0:
+                print_info(f"Parsed booking_id: {bookingid} -> {parsed_bookingid}", "Booking ID Parsing")
+                
+                try:
+                    booking = Booking.objects.get(id=parsed_bookingid)
+                    print_info(f"Found booking by ID: {booking}", "Booking Found")
+                except Booking.DoesNotExist:
+                    print_info(f"Booking with ID {parsed_bookingid} not found, trying by contract_id...", "warning")
+            
+            # Fallback: Try to find booking by contract_id (submission_id)
+            if not booking and submission_id:
+                try:
+                    booking = Booking.objects.get(contract_id=str(submission_id))
+                    print_info(f"Found booking by contract_id {submission_id}: {booking}", "Booking Found")
+                except Booking.DoesNotExist:
+                    print_info(f"Booking with contract_id {submission_id} also not found", "warning")
+            
+            # If still not found, return error with debugging info
+            if not booking:
+                error_msg = f"Booking not found - ID: {bookingid if bookingid else 'N/A'}, Contract ID: {submission_id}"
+                print_info(error_msg, "error")
+                
+                # Check nearby booking IDs for debugging
+                if bookingid:
+                    parsed_bookingid = int(bookingid[2:-1])
+                    nearby_bookings = Booking.objects.filter(
+                        id__gte=parsed_bookingid-5, 
+                        id__lte=parsed_bookingid+5
+                    ).values_list('id', 'contract_id')
+                    print_info(f"Nearby bookings: {list(nearby_bookings)}", "info")
+                
+                return JsonResponse({
+                    'status': 'error', 
+                    'message': error_msg
+                }, status=404)
+            
+            # Process the booking if found
+            print_info(booking, "Booking")
+            values = data.get('values', [])
+            form_fields_dict = {item['field']: item.get('value', '') for item in values}
+            print_info(form_fields_dict, "form_fields_dict")
+            
+            if len(values) > 0:
                     booking.status = 'Waiting Payment'
                     
                     # Handle visit_purpose with default value if missing or empty
@@ -89,14 +130,14 @@ def docuseal_callback(request):
                     tenant.save()
                     print_info("TENANT Saved")
                     booking.save()
-                    print_info("SUCSSEFULY UPDATED")
-                return JsonResponse({'status': 'success', 'message': 'success'})
+                    print_info("SUCCESSFULLY UPDATED")
+            
+            return JsonResponse({'status': 'success', 'message': 'success'})
+            
         except Exception as e:
             print_info(f"Error processing request: {e}", "error")
             print_info(traceback.format_exc(), "traceback")
             return JsonResponse({'status': 'error', 'message': 'An error occurred'}, status=500)
-        
-        return JsonResponse({'status': 'error', 'message': 'booking_id not found'}, status=400)
 
     elif request.method == 'GET':
         print("GET", request, request.json())

@@ -12,6 +12,9 @@ from django.utils import timezone
 
 # Debug: Check Twilio version at runtime
 
+def print_info(message):
+    print(message)
+    logger_sms.debug(message)
 
 logger_sms = logging.getLogger('mysite.sms_webhooks')
 
@@ -48,15 +51,6 @@ except Exception as e:
     logger_sms.error(f"Error initializing Twilio client: {e}")
     client = None
 
-
-def print_info(message):
-    print(message)
-    logger_sms.debug(message)
-
-print_info(f"=== TWILIO VERSION DEBUG 2 ===")
-print_info(f"Twilio version: {twilio.__version__}")
-print_info(f"Twilio path: {twilio.__file__}")
-print_info(f"===========================")
 
 
 def save_conversation_to_db(conversation_sid, friendly_name, booking=None, apartment=None, author=None):
@@ -780,14 +774,30 @@ def send_messsage_by_sid(conversation_sid, author, message, sender_phone, receiv
 def sendContractToTwilio(booking, contract_url):
     try:
         twilio_phone_secondary = os.environ.get("TWILIO_PHONE_SECONDARY")
+        
+        # Log tenant phone for debugging
+        print_info(f"Attempting to send contract to tenant phone: {booking.tenant.phone}")
+        
+        # Validate tenant phone
+        if not booking.tenant.phone:
+            print_info(f"ERROR: Tenant phone is empty/None for booking {booking.id}")
+            raise Exception(f"Tenant phone is empty/None for booking {booking.id}")
+        
+        validated_phone = validate_phone_number(booking.tenant.phone)
+        if not validated_phone:
+            print_info(f"ERROR: Invalid tenant phone format: '{booking.tenant.phone}' (Type: {type(booking.tenant.phone).__name__}) for booking {booking.id}, tenant: {booking.tenant.full_name}")
+            raise Exception(f"Invalid tenant phone format: '{booking.tenant.phone}' for booking {booking.id}")
+        
+        print_info(f"Validated tenant phone: {validated_phone}")
+        
         conversation_sid = create_conversation_config(
             f" {booking.tenant.full_name or 'Tenant'} Chat Apt: {booking.apartment.name}",
-            booking.tenant.phone
+            validated_phone
         )
         
         if conversation_sid:
             print_info(f"Conversation created: {conversation_sid}")
-            send_messsage_by_sid(conversation_sid, "ASSISTANT", f"Hi, {booking.tenant.full_name or 'Dear guest'}, this is your contract for booking apartment {booking.apartment.name}. from {booking.start_date} to {booking.end_date}. Please sign it here: {contract_url}", twilio_phone_secondary, booking.tenant.phone)
+            send_messsage_by_sid(conversation_sid, "ASSISTANT", f"Hi, {booking.tenant.full_name or 'Dear guest'}, this is your contract for booking apartment {booking.apartment.name}. from {booking.start_date} to {booking.end_date}. Please sign it here: {contract_url}", twilio_phone_secondary, validated_phone)
         else:
             print_info("Conversation wasn't created")
     except Exception as e:
@@ -799,24 +809,36 @@ def sendContractToTwilio(booking, contract_url):
 def sendWelcomeMessageToTwilio(booking):
     try:
         twilio_phone_secondary = os.environ.get("TWILIO_PHONE_SECONDARY")
-        if booking.tenant.phone and booking.tenant.phone.startswith("+1"):
-            conversation_sid = create_conversation_config(
-                f" {booking.tenant.full_name or 'Tenant'} Chat Apt: {booking.apartment.name}",
-                booking.tenant.phone
-            )
-            
-            if conversation_sid:
-                print_info(f"Conversation created: {conversation_sid}")
-                send_messsage_by_sid(conversation_sid, "ASSISTANT", f"Hi, {booking.tenant.full_name or 'Dear guest'}, This chat for renting apartment {booking.apartment.name}. from {booking.start_date} to {booking.end_date}.", twilio_phone_secondary, booking.tenant.phone)
-            else:
-                print_info("Conversation wasn't created")
+        
+        # Log tenant phone for debugging
+        print_info(f"Attempting to send welcome message to tenant phone: {booking.tenant.phone}")
+        
+        # Validate tenant phone
+        if not booking.tenant.phone:
+            print_info(f"ERROR: Tenant phone is empty/None for booking {booking.id}")
+            raise Exception(f"Tenant phone is empty/None for booking {booking.id}")
+        
+        validated_phone = validate_phone_number(booking.tenant.phone)
+        if not validated_phone:
+            print_info(f"ERROR: Invalid tenant phone format: '{booking.tenant.phone}' (Type: {type(booking.tenant.phone).__name__}) for booking {booking.id}, tenant: {booking.tenant.full_name}")
+            raise Exception(f"Invalid tenant phone format: '{booking.tenant.phone}' for booking {booking.id}")
+        
+        print_info(f"Validated tenant phone: {validated_phone}")
+        
+        conversation_sid = create_conversation_config(
+            f" {booking.tenant.full_name or 'Tenant'} Chat Apt: {booking.apartment.name}",
+            validated_phone
+        )
+        
+        if conversation_sid:
+            print_info(f"Conversation created: {conversation_sid}")
+            send_messsage_by_sid(conversation_sid, "ASSISTANT", f"Hi, {booking.tenant.full_name or 'Dear guest'}, This chat for renting apartment {booking.apartment.name}. from {booking.start_date} to {booking.end_date}.", twilio_phone_secondary, validated_phone)
         else:
-            print_info("Tenant phone is not valid")
-            raise Exception("Tenant phone is not valid")
+            print_info("Conversation wasn't created")
     except Exception as e:
         from twilio.base.exceptions import TwilioException
-        print_info(f"Error sending contract message: {e}")
-        raise Exception(f"Error sending contract message: {e}")
+        print_info(f"Error sending welcome message: {e}")
+        raise Exception(f"Error sending welcome message: {e}")
 
 
 def print_participants(conversation_sid, label="Participants"):
