@@ -37,20 +37,150 @@ def convert_date_format(value):
 
 
 
-def format_phone(phone):
-    if phone:
-        cleaned_phone = re.sub(r'\D', '', phone)
-        
-        if phone.startswith('+'):
-            return "+" + cleaned_phone
+def _is_valid_e164(phone_with_plus):
+    """
+    Internal function to validate E.164 format.
+    
+    E.164 format requirements:
+    - Must start with '+'
+    - Must have 7-15 digits total
+    - Country code must start with 1-9 (no leading 0)
+    - US numbers (+1) must have exactly 11 digits
+    - Cannot be all zeros
+    
+    Returns:
+        str: Cleaned phone in E.164 format if valid
+        None: If invalid
+    """
+    if not phone_with_plus or not phone_with_plus.startswith('+'):
+        return None
+    
+    # Remove all non-digits
+    cleaned = re.sub(r'\D', '', phone_with_plus)
+    
+    # Check length (7-15 digits as per E.164 standard)
+    if not (7 <= len(cleaned) <= 15):
+        return None
+    
+    # Verify country code is valid (must start with 1-9, no leading 0)
+    if cleaned[0] not in '123456789':
+        return None
+    
+    # Check if all zeros (invalid phone)
+    if cleaned.strip('0') == '':
+        return None
+    
+    # US country code (+1) specific validation
+    # Numbers starting with +1 are ONLY valid if they have exactly 11 digits (US/Canada)
+    # Other country codes like +123, +1264, +1268, etc. don't actually exist in E.164
+    # All country codes starting with 1 are part of the North American Numbering Plan
+    if cleaned.startswith('1'):
+        if len(cleaned) != 11:
+            # US/Canada numbers must be exactly 11 digits
+            return None
+        # Check if the actual phone number (after country code) is all zeros
+        phone_number_part = cleaned[1:]  # Remove the '1' country code
+        if phone_number_part.strip('0') == '':
+            # All zeros after +1 is invalid
+            return None
+    
+    # Valid E.164 format
+    return f"+{cleaned}"
 
-        elif phone.startswith('0'):
-            return "+1" + cleaned_phone[1:]
 
-        else:
-            return "+" + cleaned_phone
+def validate_and_format_phone(phone):
+    """
+    Comprehensive phone validation and formatting.
+    ALL returned phones are validated against E.164 standard.
+    
+    Returns:
+        str: Validated phone in E.164 format
+        None: If phone is invalid or empty
+    
+    Supported formats:
+    - E.164: +[country_code][number] (e.g., +12025551234, +447738195342, +919876543210)
+    - US without +1: 2025551234 (will add +1)
+    - US with 1: 12025551234 (will add +)
+    - US with leading 0: 0201234567 (strips 0, adds +1)
+    """
+    if not phone:
+        return None
+    
+    # Convert to string and strip whitespace
+    phone = str(phone).strip()
+    
+    if not phone:
+        return None
+    
+    # Step 1: Format the phone number to E.164 candidate
+    formatted_phone = None
+    
+    # If already starts with +, clean it
+    if phone.startswith('+'):
+        digits_only = re.sub(r'\D', '', phone)
+        formatted_phone = f"+{digits_only}"
     else:
-        return ""
+        # Remove all non-digit characters
+        digits_only = re.sub(r'\D', '', phone)
+        
+        # If no digits found, invalid
+        if not digits_only:
+            print_info(f"No digits found in phone: {phone}")
+            return None
+        
+        # Special case: Numbers starting with 0 (assume US, strip the leading 0)
+        # Common in some countries where local dialing uses 0 prefix
+        stripped_leading_zero = False
+        if digits_only.startswith('0'):
+            # Strip ALL leading zeros, not just one
+            original_length = len(digits_only)
+            digits_only = digits_only.lstrip('0')
+            
+            # If all zeros, invalid
+            if not digits_only:
+                print_info(f"Phone is all zeros: {phone}")
+                return None
+            
+            stripped_leading_zero = True
+            stripped_count = original_length - len(digits_only)
+            
+            # After stripping 0(s), we need at least 10 digits for valid US phone
+            if len(digits_only) < 10:
+                print_info(f"Too short after removing {stripped_count} leading zero(s) (need 10 digits, got {len(digits_only)}): {phone}")
+                return None
+        
+        # Now format based on length and pattern
+        if stripped_leading_zero:
+            # If we stripped a leading 0, check what we have left
+            if len(digits_only) == 11 and digits_only.startswith('1'):
+                # After stripping, we have 11 digits starting with 1 (complete US number)
+                formatted_phone = f"+{digits_only}"
+            else:
+                # After stripping, treat as US number and add +1
+                formatted_phone = f"+1{digits_only}"
+        elif len(digits_only) == 10:
+            # 10 digits: assume US number
+            formatted_phone = f"+1{digits_only}"
+        elif len(digits_only) == 11 and digits_only.startswith('1'):
+            # 11 digits starting with 1: assume US number
+            formatted_phone = f"+{digits_only}"
+        elif 7 <= len(digits_only) <= 15:
+            # Other lengths: assume international
+            formatted_phone = f"+{digits_only}"
+        else:
+            print_info(f"Invalid phone length: {phone} (digits: {len(digits_only)})")
+            return None
+    
+    # Step 2: Validate the formatted phone against E.164 standard
+    validated_phone = _is_valid_e164(formatted_phone)
+    
+    if validated_phone:
+        return validated_phone
+    else:
+        print_info(f"Phone failed E.164 validation: {phone} -> {formatted_phone}")
+        return None
+
+
 
 
 class CustomUserManager(BaseUserManager):
@@ -105,7 +235,20 @@ class User(AbstractBaseUser, PermissionsMixin):
         # Check if the password is not hashed
         if self.password and not self.password.startswith(('pbkdf2_sha256$', 'bcrypt')):
             self.password = make_password(self.password)
-        self.phone = format_phone(self.phone)
+        
+        # Validate and format phone number - SINGLE SOURCE OF TRUTH
+        if self.phone and self.phone.strip():
+            validated_phone = validate_and_format_phone(self.phone)
+            if validated_phone:
+                self.phone = validated_phone
+            else:
+                # Log the invalid phone but don't fail the save
+                # Set to None to indicate invalid phone
+                print_info(f"⚠️ Error: Invalid phone number for user {self.email}: '{self.phone}' - Setting to None")
+                raise ValueError(f"Invalid phone number for user {self.email}: '{self.phone}'")
+        else:
+            self.phone = None
+        
         super(User, self).save(*args, **kwargs)
 
     @property
@@ -616,19 +759,30 @@ class Booking(models.Model):
                 # Try to retrieve an existing user with the given email
                 user = User.objects.filter(email=tenant_email).first()
 
-                if user:
-                    # If the user exists, update the full_name and phone fields
-                    user.full_name = tenant_full_name
-                    user.phone = tenant_phone
-                    user.save()
-                else:
-                    # If the user doesn't exist, create a new one
-                    user = User.objects.create(
+                if not user:
+                    # If the user doesn't exist, create a new instance
+                    user = User(
                         email=tenant_email,
                         full_name=tenant_full_name,
                         phone=tenant_phone,
                         role='Tenant',
                         password=User.objects.make_random_password()
+                    )
+                else:
+                    # If the user exists, update the fields
+                    user.full_name = tenant_full_name
+                    user.phone = tenant_phone
+
+                # Save the user (both new and existing go through same path)
+                # This triggers phone validation in User.save()
+                try:
+                    user.save()
+                except ValueError as e:
+                    # Phone validation failed - re-raise with user-friendly message
+                    from django.core.exceptions import ValidationError
+                    raise ValidationError(
+                        f"Invalid phone number: '{tenant_phone}'. "
+                        f"Please use format +1XXXXXXXXXX for US numbers or +[country code][number] for international numbers."
                     )
 
                 # Assign the user to the booking's tenant field

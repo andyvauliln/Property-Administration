@@ -79,12 +79,11 @@ def docuseal_callback(request):
                         print_info(form_fields_dict['email'], "email")
                     if 'phone' in form_fields_dict and form_fields_dict['phone']:
                         # Clean phone number: take only the first phone if multiple are provided
-                        # and remove extra formatting to fit within 20 character limit
                         raw_phone = form_fields_dict['phone'].strip()
                         # Split by common separators and take the first phone number
                         phone_cleaned = raw_phone.split('//')[0].split(',')[0].strip()
-                        # Truncate to 20 characters if still too long
-                        tenant.phone = phone_cleaned[:20] if len(phone_cleaned) > 20 else phone_cleaned
+                        # Set phone - validation happens in User.save()
+                        tenant.phone = phone_cleaned
                         print_info(f"phone: {raw_phone} -> {tenant.phone}", "phone")
                     tenant.save()
                     print_info("TENANT Saved")

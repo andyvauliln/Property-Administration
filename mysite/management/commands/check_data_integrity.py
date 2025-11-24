@@ -142,105 +142,81 @@ class DataIntegrityChecker:
         print(f"Found {len(overlaps)} booking overlaps")
         return len(overlaps)
     
-    def check_cleaning_without_booking(self):
+    def check_invalid_phone_numbers(self):
         """
-        Check for cleanings that don't have a valid booking reference
+        Check for users with invalid or missing phone numbers
         """
-        print("Checking cleanings without bookings...")
+        print("Checking user phone numbers...")
         
-        cleanings = Cleaning.objects.filter(
-            booking__isnull=True
-        ).select_related('cleaner', 'apartment')
+        from mysite.models import validate_and_format_phone
         
-        for cleaning in cleanings:
-            # This might be intentional for some cleanings, mark as low severity
-            self.add_issue(
-                category="Cleaning Without Booking",
-                severity="low",
-                description=f"Cleaning #{cleaning.id} has no booking reference",
-                details={
-                    'Cleaning ID': cleaning.id,
-                    'Date': str(cleaning.date),
-                    'Status': cleaning.status if hasattr(cleaning, 'status') else 'N/A',
-                    'Cleaner': cleaning.cleaner.full_name if cleaning.cleaner else 'N/A',
-                    'Apartment': cleaning.apartment.name if cleaning.apartment else 'N/A'
-                }
-            )
+        invalid_count = 0
+        missing_count = 0
         
-        count = cleanings.count()
-        print(f"Found {count} cleanings without bookings")
-        return count
-    
-    def check_users_without_contact(self):
-        """
-        Check for users without email or phone
-        """
-        print("Checking users without contact information...")
-        
-        users = User.objects.filter(
-            Q(email__isnull=True) | Q(email='') | Q(phone__isnull=True) | Q(phone='')
-        ).filter(is_active=True)
+        # Check all users with phone numbers
+        users = User.objects.all()
         
         for user in users:
-            missing_fields = []
-            if not user.email:
-                missing_fields.append('email')
             if not user.phone:
-                missing_fields.append('phone')
-                
-            self.add_issue(
-                category="User Missing Contact Info",
-                severity="medium",
-                description=f"User #{user.id} ({user.full_name}) missing {', '.join(missing_fields)}",
-                details={
-                    'User ID': user.id,
-                    'Username': user.username if hasattr(user, 'username') else 'N/A',
-                    'Full Name': user.full_name,
-                    'Role': user.role if hasattr(user, 'role') else 'N/A',
-                    'Email': user.email or 'MISSING',
-                    'Phone': user.phone or 'MISSING',
-                    'Active': 'Yes' if user.is_active else 'No'
-                }
-            )
+                # Phone is missing
+                if user.role == 'Tenant':
+                    # Missing phone for tenant is more critical
+                    missing_count += 1
+                    self.add_issue(
+                        category="Missing Phone Number",
+                        severity="medium",
+                        description=f"Tenant {user.full_name} has no phone number",
+                        details={
+                            'User ID': user.id,
+                            'Name': user.full_name,
+                            'Email': user.email,
+                            'Role': user.role,
+                            'Created': str(user.created_at.date())
+                        }
+                    )
+                continue
+            
+            # Validate phone format
+            validated = validate_and_format_phone(user.phone)
+            
+            if validated is None:
+                # Phone is invalid
+                invalid_count += 1
+                self.add_issue(
+                    category="Invalid Phone Number",
+                    severity="high",
+                    description=f"User {user.full_name} has invalid phone: {user.phone}",
+                    details={
+                        'User ID': user.id,
+                        'Name': user.full_name,
+                        'Email': user.email,
+                        'Role': user.role,
+                        'Phone': user.phone,
+                        'Issue': 'Does not meet E.164 standard'
+                    }
+                )
+            elif validated != user.phone:
+                # Phone needs reformatting
+                self.add_issue(
+                    category="Phone Needs Reformatting",
+                    severity="low",
+                    description=f"User {user.full_name} phone needs reformatting",
+                    details={
+                        'User ID': user.id,
+                        'Name': user.full_name,
+                        'Email': user.email,
+                        'Current Phone': user.phone,
+                        'Should Be': validated,
+                        'Action': 'Run fix_phone_numbers command'
+                    }
+                )
         
-        count = users.count()
-        print(f"Found {count} users without contact information")
-        return count
+        print(f"Found {invalid_count} invalid phones, {missing_count} missing phones")
+        return invalid_count + missing_count
     
-    def check_pending_payments_old(self):
-        """
-        Check for pending payments older than 60 days
-        """
-        print("Checking old pending payments...")
-        
-        from datetime import date, timedelta
-        sixty_days_ago = date.today() - timedelta(days=60)
-        
-        old_pending = Payment.objects.filter(
-            payment_status='Pending',
-            payment_date__lt=sixty_days_ago
-        ).select_related('booking', 'apartment')
-        
-        for payment in old_pending:
-            self.add_issue(
-                category="Old Pending Payment",
-                severity="high",
-                description=f"Payment #{payment.id} pending for over 60 days",
-                details={
-                    'Payment ID': payment.id,
-                    'Amount': f"${payment.amount}",
-                    'Payment Date': str(payment.payment_date),
-                    'Days Pending': (date.today() - payment.payment_date).days,
-                    'Apartment': payment.apartment.name if payment.apartment else (
-                        payment.booking.apartment.name if payment.booking and payment.booking.apartment else 'N/A'
-                    ),
-                    'Tenant': payment.booking.tenant.full_name if payment.booking and payment.booking.tenant else 'N/A'
-                }
-            )
-        
-        count = old_pending.count()
-        print(f"Found {count} old pending payments")
-        return count
+
+    
+
     
     def run_all_checks(self):
         """
@@ -255,9 +231,7 @@ class DataIntegrityChecker:
         self.check_payment_apartment_mismatch()
         self.check_orphaned_payments()
         self.check_booking_date_overlaps()
-        self.check_cleaning_without_booking()
-        self.check_users_without_contact()
-        self.check_pending_payments_old()
+        self.check_invalid_phone_numbers()
         
         print("=" * 50)
         print(f"Total issues found: {len(self.issues)}")

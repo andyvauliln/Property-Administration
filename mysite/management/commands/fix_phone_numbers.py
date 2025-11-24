@@ -1,46 +1,46 @@
-import re
 from django.core.management.base import BaseCommand
 from mysite.models import User
 
 
 class Command(BaseCommand):
-    help = 'Update phone numbers of all users to a specific format'
+    help = 'Re-validate and format all user phone numbers using centralized validation'
 
     def handle(self, *args, **options):
         users = User.objects.all()
+        
+        self.stdout.write(self.style.WARNING('\n' + '='*80))
+        self.stdout.write(self.style.WARNING('FIXING USER PHONE NUMBERS'))
+        self.stdout.write(self.style.WARNING('='*80 + '\n'))
+        
+        total_users = 0
+        fixed_users = 0
+        invalid_users = 0
 
         for user in users:
             if user.phone:
-                formatted_phone = format_phone(user.phone)
-
-                # Update the user's phone number
-                user.phone = formatted_phone
+                original_phone = user.phone
+                total_users += 1
+                
+                # Just save - validation happens automatically in User.save()
                 user.save()
-
-                self.stdout.write(self.style.SUCCESS(
-                    f'Update phone from {user.phone} to {formatted_phone} for {user.full_name}'))
-            # else:
-            #     self.stdout.write(self.style.WARNING(f'Skipping user {user.username} {user.phone}- no profile or phone information'))
-            #     print("")
-
-
-def format_phone(phone):
-    if phone.startswith(('+')):
-        cleaned_phone = re.sub(r'\D', '', phone)
-        cleaned_phone = "+" + cleaned_phone
-        return cleaned_phone
-
-    elif phone.startswith(('0')):
-        cleaned_phone = re.sub(r'\D', '', phone)
-        cleaned_phone = "+1" + cleaned_phone[1:]
-        return cleaned_phone
-
-    elif phone.startswith(('1')):
-        cleaned_phone = re.sub(r'\D', '', phone)
-        cleaned_phone = "+" + cleaned_phone
-        return cleaned_phone
-
-    else:
-        cleaned_phone = re.sub(r'\D', '', phone)
-        cleaned_phone = "+1" + cleaned_phone
-        return cleaned_phone
+                
+                if user.phone != original_phone:
+                    if user.phone is None:
+                        self.stdout.write(self.style.ERROR(
+                            f'❌ Invalid phone for {user.full_name} ({user.email}): "{original_phone}" -> None'))
+                        invalid_users += 1
+                    else:
+                        self.stdout.write(self.style.SUCCESS(
+                            f'✅ Fixed phone for {user.full_name} ({user.email}): "{original_phone}" -> "{user.phone}"'))
+                        fixed_users += 1
+                else:
+                    self.stdout.write(self.style.SUCCESS(
+                        f'✓ Valid phone for {user.full_name} ({user.email}): "{user.phone}"'))
+        
+        self.stdout.write(self.style.WARNING('\n' + '='*80))
+        self.stdout.write(self.style.WARNING(f'SUMMARY:'))
+        self.stdout.write(self.style.WARNING(f'Total users with phones: {total_users}'))
+        self.stdout.write(self.style.WARNING(f'Fixed: {fixed_users}'))
+        self.stdout.write(self.style.WARNING(f'Invalid (set to None): {invalid_users}'))
+        self.stdout.write(self.style.WARNING(f'Already valid: {total_users - fixed_users - invalid_users}'))
+        self.stdout.write(self.style.WARNING('='*80 + '\n'))
