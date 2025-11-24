@@ -49,3 +49,6 @@ start.sh
 
 *.log
 logs/
+
+./README2.md
+README2.md
