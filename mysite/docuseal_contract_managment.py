@@ -144,10 +144,14 @@ def delete_contract(id):
 
 
 def update_contract(booking):
-    submitter_id  = get_submitter_id(booking)
-    print_info("submitter_id", submitter_id)
+    submitter_id, status = get_submitter_id(booking)
+    print_info("submitter_id", submitter_id, "status", status)
     if submitter_id:
+        if status == "completed":
+            print_info(f"Skipping update - submitter {submitter_id} has already completed the submission")
+            return False
         update_submitter(booking, submitter_id)
+        return True
     else:
         raise Exception("Submitter id is not found")
 
@@ -167,12 +171,12 @@ def get_submitter_id(booking):
         submitter = submitters[0]
         if submitter:
             print_info(f"Found tenant submitter: {submitter} {submitter['id']}")
-            return submitter['id']
+            return submitter['id'], submitter.get('status')
         else:
             print_info(f"No submitter found for tenant email: {booking.tenant.email}")
     else:
         print_info("Detailed error response:", response.json())
-        return None
+        return None, None
         
 
 
