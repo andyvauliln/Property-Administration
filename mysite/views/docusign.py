@@ -112,12 +112,30 @@ def docuseal_callback(request):
                     print_info("Booking Saved")
                     tenant = booking.tenant
                     print_info(tenant, "tenant object before update")
+                    
+                    # Check if email has changed and if the new email already exists
+                    new_email = form_fields_dict.get('email', '').strip() if 'email' in form_fields_dict and form_fields_dict['email'] else None
+                    
+                    if new_email and new_email != tenant.email:
+                        # Check if a user with this email already exists
+                        from mysite.models import User
+                        try:
+                            existing_user = User.objects.get(email=new_email)
+                            # Email exists for a different user - switch the booking to that user
+                            print_info(f"Email {new_email} already exists for user {existing_user}. Switching booking tenant.", "info")
+                            booking.tenant = existing_user
+                            tenant = existing_user
+                        except User.DoesNotExist:
+                            # Email doesn't exist - safe to update current tenant
+                            print_info(f"Email {new_email} is available. Updating current tenant.", "info")
+                    
+                    # Update tenant information
                     if 'tenant' in form_fields_dict and form_fields_dict['tenant']:
                         tenant.full_name = form_fields_dict['tenant'].strip()
                         print_info(form_fields_dict['tenant'], "tenant")
-                    if 'email' in form_fields_dict and form_fields_dict['email']:
-                        tenant.email = form_fields_dict['email'].strip()
-                        print_info(form_fields_dict['email'], "email")
+                    if new_email and new_email != tenant.email:
+                        tenant.email = new_email
+                        print_info(new_email, "email")
                     if 'phone' in form_fields_dict and form_fields_dict['phone']:
                         # Clean phone number: take only the first phone if multiple are provided
                         raw_phone = form_fields_dict['phone'].strip()
@@ -128,6 +146,7 @@ def docuseal_callback(request):
                         print_info(f"phone: {raw_phone} -> {tenant.phone}", "phone")
                     tenant.save()
                     print_info("TENANT Saved")
+                    # Save booking in case tenant was changed
                     booking.save()
                     print_info("SUCCESSFULLY UPDATED")
             

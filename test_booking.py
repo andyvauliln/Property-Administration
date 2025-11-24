@@ -28,3 +28,4 @@ latest = Booking.objects.order_by('-id')[:5].values_list('id', 'status', 'create
 for b in latest:
     print(f"ID: {b[0]}, Status: {b[1]}, Created: {b[2]}")
 
+
