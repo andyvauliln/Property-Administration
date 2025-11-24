@@ -63,7 +63,8 @@ def docuseal_callback(request):
                         booking.is_rent_car = True if form_fields_dict["car_info"] == "Rent" else False
                         print_info(form_fields_dict['car_info'], "car_info")
                     if 'car_model' in form_fields_dict:
-                        booking.car_model = form_fields_dict["car_model"]
+                        # Ensure car_model is never None - use empty string as default
+                        booking.car_model = form_fields_dict["car_model"] if form_fields_dict["car_model"] else ""
                         print_info(form_fields_dict['car_model'], "car_model")
                     booking.save()
                     print_info(booking.status, "booking status")
@@ -77,8 +78,14 @@ def docuseal_callback(request):
                         tenant.email = form_fields_dict['email'].strip()
                         print_info(form_fields_dict['email'], "email")
                     if 'phone' in form_fields_dict and form_fields_dict['phone']:
-                        tenant.phone = form_fields_dict['phone'].strip()
-                        print_info(form_fields_dict['phone'], "phone")
+                        # Clean phone number: take only the first phone if multiple are provided
+                        # and remove extra formatting to fit within 20 character limit
+                        raw_phone = form_fields_dict['phone'].strip()
+                        # Split by common separators and take the first phone number
+                        phone_cleaned = raw_phone.split('//')[0].split(',')[0].strip()
+                        # Truncate to 20 characters if still too long
+                        tenant.phone = phone_cleaned[:20] if len(phone_cleaned) > 20 else phone_cleaned
+                        print_info(f"phone: {raw_phone} -> {tenant.phone}", "phone")
                     tenant.save()
                     print_info("TENANT Saved")
                     booking.save()

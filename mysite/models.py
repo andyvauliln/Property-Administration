@@ -350,7 +350,7 @@ class Booking(models.Model):
 
     is_rent_car = models.BooleanField(null=True, blank=True, verbose_name="Is Rent Car")
     car_model = models.CharField(
-        max_length=100, default="", verbose_name="Car Model")
+        max_length=100, default="", blank=True, verbose_name="Car Model")
     car_price = models.DecimalField(
         max_digits=10, decimal_places=2, default=0, verbose_name="Car Price")
     car_rent_days = models.IntegerField(

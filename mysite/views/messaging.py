@@ -14,9 +14,39 @@ from django.utils import timezone
 
 
 logger_sms = logging.getLogger('mysite.sms_webhooks')
-account_sid = os.environ["TWILIO_ACCOUNT_SID"]
-auth_token = os.environ["TWILIO_AUTH_TOKEN"]
-client = Client(account_sid, auth_token)
+
+# Initialize Twilio client with validation
+def get_twilio_client():
+    """Get or create Twilio client with proper credential validation"""
+    try:
+        account_sid = os.environ.get("TWILIO_ACCOUNT_SID", "")
+        auth_token = os.environ.get("TWILIO_AUTH_TOKEN", "")
+        
+        if not account_sid or not auth_token:
+            raise ValueError("Twilio credentials are not set in environment variables")
+        
+        if account_sid.startswith("AC") and len(account_sid) == 34:
+            # Valid account_sid format
+            return Client(account_sid, auth_token)
+        else:
+            raise ValueError(f"Invalid Twilio Account SID format: {account_sid[:10]}...")
+            
+    except Exception as e:
+        logger_sms.error(f"Failed to initialize Twilio client: {e}")
+        raise
+
+# Initialize client at module level
+try:
+    account_sid = os.environ.get("TWILIO_ACCOUNT_SID", "")
+    auth_token = os.environ.get("TWILIO_AUTH_TOKEN", "")
+    if not account_sid or not auth_token:
+        logger_sms.warning("Twilio credentials not found in environment variables")
+        client = None
+    else:
+        client = Client(account_sid, auth_token)
+except Exception as e:
+    logger_sms.error(f"Error initializing Twilio client: {e}")
+    client = None
 
 
 def print_info(message):
@@ -318,6 +348,12 @@ def create_conversation_with_participants(friendly_name, participants_config):
         str: conversation_sid of the created conversation
     """
     try:
+        # Ensure client is initialized
+        global client
+        if client is None:
+            print_info("Twilio client not initialized, attempting to initialize...")
+            client = get_twilio_client()
+        
         participant_list = []
         
         for config in participants_config:
@@ -364,6 +400,9 @@ def create_conversation_with_participants(friendly_name, participants_config):
         
     except Exception as e:
         print_info(f"Error creating conversation with participants: {e}")
+        # Log more details about the error for debugging
+        import traceback
+        print_info(f"Full traceback: {traceback.format_exc()}")
         raise
 
 
@@ -384,6 +423,12 @@ def check_author_in_group_conversations(author_phone):
             return False
             
         print_info(f"Checking if {validated_phone} exists in group conversations")
+        
+        # Ensure client is initialized
+        global client
+        if client is None:
+            print_info("Twilio client not initialized, attempting to initialize...")
+            client = get_twilio_client()
         
         # Get all conversations
         conversations = client.conversations.v1.conversations.list()
@@ -429,6 +474,12 @@ def forward_message_to_conversation(conversation_sid, author, message):
         message (str): Original message content
     """
     try:
+        # Ensure client is initialized
+        global client
+        if client is None:
+            print_info("Twilio client not initialized, attempting to initialize...")
+            client = get_twilio_client()
+            
         formatted_message = f">>Customer: {author} - {message}"
         
         # Send message to conversation using ASSISTANT identity
@@ -463,6 +514,12 @@ def delete_conversation(conversation_sid):
         conversation_sid (str): Conversation SID to delete
     """
     try:
+        # Ensure client is initialized
+        global client
+        if client is None:
+            print_info("Twilio client not initialized, attempting to initialize...")
+            client = get_twilio_client()
+            
         client.conversations.v1.conversations(conversation_sid).delete()
         print_info(f"Deleted conversation: {conversation_sid}")
         
@@ -481,12 +538,14 @@ def twilio_webhook(request):
             print_info(f"Data: {data}")
             event_type = data.get('EventType', None)
             webhook_sid = data.get('WebhookSid', None)
+            message_sid = data.get('MessageSid', None)  # Extract actual MessageSid from webhook
             conversation_sid = data.get('ConversationSid', None)
             author = data.get('Author', None)
             body = data.get('Body', None)
             messaging_binding_address = data.get('MessagingBinding.Address', None)
             messaging_binding_proxy_address = data.get('MessagingBinding.ProxyAddress', None)
             print_info(f"Body: {body}")
+            print_info(f"MessageSid: {message_sid}")
             print_info(f"WebhookSid: {webhook_sid}")
             print_info(f"ConversationSid: {conversation_sid}")
             print_info(f"EventType: {event_type}")
@@ -501,7 +560,7 @@ def twilio_webhook(request):
                 print_info(f"Event type is onMessageAdded: {event_type}")
                 
                 # Save incoming message to database
-                if body:  # Only save if there's actual message content
+                if body and message_sid:  # Only save if there's actual message content and message_sid
                     # Determine direction based on author
                     direction = 'inbound' if author not in [twilio_phone, 'ASSISTANT', manager_phone] else 'outbound'
                     
@@ -514,7 +573,7 @@ def twilio_webhook(request):
                         )
                     
                     save_message_to_db(
-                        message_sid=webhook_sid,  # Using webhook_sid as message identifier
+                        message_sid=message_sid,  # Use the actual MessageSid from Twilio
                         conversation_sid=conversation_sid,
                         author=author,
                         body=body,
@@ -523,6 +582,8 @@ def twilio_webhook(request):
                         messaging_binding_address=messaging_binding_address,
                         messaging_binding_proxy_address=messaging_binding_proxy_address
                     )
+                elif body and not message_sid:
+                    print_info(f"Warning: Received message without MessageSid, skipping save to DB")
                 
                 # Check if author is not twilio_phone and not manager_phone
                 author_is_customer = (author != twilio_phone and author != manager_phone)
@@ -668,6 +729,12 @@ def create_conversation_config(friendly_name, tenant_phone):
 
 def send_messsage_by_sid(conversation_sid, author, message, sender_phone, receiver_phone):
     try:
+        # Ensure client is initialized
+        global client
+        if client is None:
+            print_info("Twilio client not initialized, attempting to initialize...")
+            client = get_twilio_client()
+            
         # Retry sending in case the conversation is still initializing
         max_attempts = 6
         delay_seconds = 0.5
@@ -755,6 +822,12 @@ def sendWelcomeMessageToTwilio(booking):
 def print_participants(conversation_sid, label="Participants"):
     """Helper function to print all participants in a conversation"""
     try:
+        # Ensure client is initialized
+        global client
+        if client is None:
+            print_info("Twilio client not initialized, attempting to initialize...")
+            client = get_twilio_client()
+            
         participants = client.conversations.v1.conversations(conversation_sid).participants.list()
         print_info(f"\n========== {label} for Conversation {conversation_sid} ==========")
         print_info(f"Total participants: {len(participants)}")
