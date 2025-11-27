@@ -11,9 +11,6 @@ class Command(BaseCommand):
         # Set environment variables
         account_sid = os.environ["TWILIO_ACCOUNT_SID"]
         auth_token = os.environ["TWILIO_AUTH_TOKEN"]
-        # twilio_phone = os.environ["TWILIO_PHONE"]
-        manager_phone = os.environ["MANAGER_PHONE"]
-        second_manager_phone = os.environ["MANAGER_PHONE2"]
         twilio_phone_secondary = "+13153524379"
         farid_secondary = "+15612205252"
         farid_wife = "+15618438867"
