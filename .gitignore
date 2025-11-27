@@ -31,6 +31,7 @@ static/CACHE/
 
 backups/
 backup.json
+db_backups/
 
 .DS_Store
 

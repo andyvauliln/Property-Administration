@@ -1190,6 +1190,12 @@ class Payment(models.Model):
             updated_by = kwargs.pop('updated_by', None)
             is_creating = self.pk is None
             
+            # Validate amount is not zero
+            if self.amount == 0:
+                raise ValidationError(
+                    "Payment amount cannot be 0. Please enter a valid payment amount."
+                )
+            
             # Update last_updated_by if user is provided
             if updated_by:
                 if hasattr(updated_by, 'full_name'):
