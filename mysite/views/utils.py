@@ -10,6 +10,7 @@ from django.contrib import messages
 from django.db.models import Case, When
 from decimal import Decimal
 from django.core.serializers.json import DjangoJSONEncoder
+from mysite.error_logger import log_exception
 
 def handle_post_request(request, model, form_class):
     try:
@@ -46,6 +47,15 @@ def handle_post_request(request, model, form_class):
             return redirect(request.path)
     except Exception as e:
         print(f"DEBUG - Exception: {e}")
+        log_exception(
+            error=e,
+            context="Utils - handle_post_request",
+            additional_info={
+                'model': model.__name__,
+                'POST_keys': list(request.POST.keys()),
+                'path': request.path
+            }
+        )
         messages.error(request, f"Error: {e}")
         return redirect(request.path)
 

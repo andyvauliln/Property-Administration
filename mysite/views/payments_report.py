@@ -12,12 +12,7 @@ from urllib.parse import urlencode
 import logging
 import calendar
 
-logger_common = logging.getLogger('mysite.common')
 
-
-def print_info(message):
-    print(message)
-    logger_common.debug(message)
 
 
 @user_has_role('Admin')
@@ -89,22 +84,22 @@ def paymentReport(request):
         else: 
             filtered_payments = []
             for payment in payments_within_range:
-                print_info(f"Checking payment {payment.id}:")
-                print_info(f"- Has booking: {bool(payment.booking)}")
+                logger.info(f"Checking payment {payment.id}:")
+                logger.info(f"- Has booking: {bool(payment.booking)}")
                 if payment.booking:
-                    print_info(f"- Booking apartment: {payment.booking.apartment.name}")
-                print_info(f"- Has direct apartment: {bool(payment.apartment)}")
+                    logger.info(f"- Booking apartment: {payment.booking.apartment.name}")
+                logger.info(f"- Has direct apartment: {bool(payment.apartment)}")
                 if payment.apartment:
-                    print_info(f"- Direct apartment: {payment.apartment.name}")
+                    logger.info(f"- Direct apartment: {payment.apartment.name}")
                 
                 if payment.booking and payment.booking.apartment.name == apartment_filter:
-                    print_info(f"✓ Payment {payment.id} matched through booking")
+                    logger.info(f"✓ Payment {payment.id} matched through booking")
                     filtered_payments.append(payment)
                 elif payment.apartment and payment.apartment.name == apartment_filter:
-                    print_info(f"✓ Payment {payment.id} matched through direct apartment")
+                    logger.info(f"✓ Payment {payment.id} matched through direct apartment")
                     filtered_payments.append(payment)
                 else:
-                    print_info(f"✗ Payment {payment.id} did not match filter {apartment_filter}")
+                    logger.info(f"✗ Payment {payment.id} did not match filter {apartment_filter}")
                 
             payments_within_range = filtered_payments
 
@@ -240,7 +235,7 @@ def paymentReport(request):
 def generate_excel(summary, monthly_data, start_date, end_date):
     try:
         sheets_service, drive_service = get_google_sheets_service()
-        print_info("Got GOOGLE Services")
+        logger.info("Got GOOGLE Services")
         # Create a new spreadsheet
         spreadsheet_body = {
             'properties': {
@@ -254,7 +249,7 @@ def generate_excel(summary, monthly_data, start_date, end_date):
         }
         spreadsheet = sheets_service.create(body=spreadsheet_body).execute()
         spreadsheet_id = spreadsheet.get('spreadsheetId')
-        print_info(f"Spredsheet created {spreadsheet_id}")
+        logger.info(f"Spredsheet created {spreadsheet_id}")
 
         # Insert summary data into the Summary sheet
         insert_summary_data(sheets_service, spreadsheet_id, summary)
@@ -270,7 +265,7 @@ def generate_excel(summary, monthly_data, start_date, end_date):
         excel_link = f'https://docs.google.com/spreadsheets/d/{spreadsheet_id}/edit'
         return excel_link
     except Exception as e:
-        print_info("ERROR: Error while generating Excel Report")
+        logger.info("ERROR: Error while generating Excel Report")
         return ""
 
 
@@ -288,7 +283,7 @@ def insert_summary_data(sheets_service, spreadsheet_id, summary):
         spreadsheetId=spreadsheet_id, range=summary_range,
         valueInputOption='USER_ENTERED', body={'values': summary_values}).execute()
 
-    print_info(f"Created Summary Sheet for {spreadsheet_id}")
+    logger.info(f"Created Summary Sheet for {spreadsheet_id}")
 
 
 def insert_monthly_data_report(sheets_service, spreadsheet_id, month_data):
@@ -337,7 +332,7 @@ def insert_monthly_data_report(sheets_service, spreadsheet_id, month_data):
             {'range': month_range, 'values': month_summary_values}]}
     ).execute()
 
-    print_info(f"Created Sheet for {month_sheet_title}")
+    logger.info(f"Created Sheet for {month_sheet_title}")
 
 
 def get_google_sheets_service():
@@ -368,6 +363,6 @@ def share_document_with_user(service, document_id):
             fields='id',
         ).execute()
 
-        print_info(f"Document {document_id} shared to public")
+        logger.info(f"Document {document_id} shared to public")
     except Exception as e:
-        print_info(f"Failed to share document: {e}")
+        logger.info(f"Failed to share document: {e}")

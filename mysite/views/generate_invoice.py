@@ -11,12 +11,7 @@ from django.db.models import Sum
 from dateutil.relativedelta import relativedelta
 import logging
 
-logger_common = logging.getLogger('mysite.common')
 
-
-def print_info(message):
-    print(message)
-    logger_common.debug(message)
 
 
 @user_has_role('Admin', 'Manager')
@@ -29,12 +24,12 @@ def generate_invoice(request):
             payment = Payment.objects.get(pk=int(payment_id))
             if (payment and not payment.invoice_url):
                 invoice_url = generate_invoice_for_payment(payment)
-                print_info(f'Invoice created {invoice_url}')
+                logger.info(f'Invoice created {invoice_url}')
 
-            print_info(f'Cant find a pyament Id: {payment_id}')
+            logger.info(f'Cant find a pyament Id: {payment_id}')
         return redirect(referer_url)
     except Exception as e:
-        print_info(f"Error: Generating Invoice Error, {str(e)}")
+        logger.info(f"Error: Generating Invoice Error, {str(e)}")
         return redirect(referer_url)
 
 
@@ -56,12 +51,12 @@ def generate_invoice_for_payment(payment: Payment):
 
     except Exception as e:
         # Handle errors appropriately
-        print_info(f"Error: {e}")
+        logger.info(f"Error: {e}")
         return None
 
 
 def get_services():
-    print_info("Getting GOOGLE Services")
+    logger.info("Getting GOOGLE Services")
     # Authenticate with Google Docs API using service account credentials
     credentials = service_account.Credentials.from_service_account_file(
         'secrets/google_tokens.json',
@@ -77,7 +72,7 @@ def get_services():
 
 
 def create_doc_from_template(payment, drive_service):
-    print_info("Creating Document from Template")
+    logger.info("Creating Document from Template")
     copy_title = f'Booking Invoice {payment.booking.id} [{payment.booking.apartment.name}]'
     document_copy = drive_service.files().copy(
         fileId=os.environ["TEMPLATE_INVOICE_DOCUMENT_ID"],
@@ -102,9 +97,9 @@ def share_document_with_user(service, document_id):
             fields='id',
         ).execute()
 
-        print_info(f"Document {document_id} shared to public")
+        logger.info(f"Document {document_id} shared to public")
     except Exception as e:
-        print_info(f"Failed to share document: {e}")
+        logger.info(f"Failed to share document: {e}")
 
 
 def replaceText(payment: Payment, document_id, docs_service):
@@ -193,6 +188,6 @@ def replaceText(payment: Payment, document_id, docs_service):
     result = docs_service.documents().batchUpdate(
         documentId=document_id, body={'requests': requests}).execute()
 
-    print_info("Template values are replaced")
+    logger.info("Template values are replaced")
 
     return result

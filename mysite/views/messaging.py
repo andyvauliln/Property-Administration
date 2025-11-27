@@ -4,19 +4,13 @@ import os
 from twilio.rest import Client
 from django.views.decorators.csrf import csrf_exempt
 import re
-import logging
+from mysite.unified_logger import log_error, log_info, log_warning, logger
 from django.http import JsonResponse
 import time
 import twilio
 from django.utils import timezone
 
-# Debug: Check Twilio version at runtime
-
-def print_info(message):
-    print(message)
-    logger_sms.debug(message)
-
-logger_sms = logging.getLogger('mysite.sms_webhooks')
+# Unified logger throughout the app
 
 # Initialize Twilio client with validation
 def get_twilio_client():

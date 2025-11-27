@@ -12,12 +12,7 @@ from dateutil.relativedelta import relativedelta
 import logging
 from datetime import datetime
 
-logger_common = logging.getLogger('mysite.common')
 
-
-def print_info(message):
-    print(message)
-    logger_common.debug(message)
 
 
 @user_has_role('Admin', 'Manager')
@@ -37,19 +32,19 @@ def booking_report(request):
             bookings = bookings.filter(start_date__gte=start_date, end_date__lte=end_date)
             if (bookings):
                 booking_report_url = generate_excel(bookings, report_start_date, report_end_date)
-                print_info(f'Report created {booking_report_url}')
+                logger.info(f'Report created {booking_report_url}')
 
                 return redirect(booking_report_url)
         return redirect(referer_url)
     except Exception as e:
-        print_info(f"Error: Generating Booking Report Error, {str(e)}")
+        logger.info(f"Error: Generating Booking Report Error, {str(e)}")
         return redirect(referer_url)
 
 
 def generate_excel(bookings, start_date, end_date):
     try:
         sheets_service, drive_service = get_google_sheets_service()
-        print_info("Got GOOGLE Services")
+        logger.info("Got GOOGLE Services")
         # Create a new spreadsheet
         spreadsheet_body = {
             'properties': {
@@ -63,7 +58,7 @@ def generate_excel(bookings, start_date, end_date):
         }
         spreadsheet = sheets_service.create(body=spreadsheet_body).execute()
         spreadsheet_id = spreadsheet.get('spreadsheetId')
-        print_info(f"Spredsheet created {spreadsheet_id}")
+        logger.info(f"Spredsheet created {spreadsheet_id}")
         data = prepare_data(bookings)
 
         # Insert summary data into the Summary sheet
@@ -76,7 +71,7 @@ def generate_excel(bookings, start_date, end_date):
         excel_link = f'https://docs.google.com/spreadsheets/d/{spreadsheet_id}/edit'
         return excel_link
     except Exception as e:
-        print_info("ERROR: Error while generating Excel Report", e)
+        logger.info("ERROR: Error while generating Excel Report", e)
         return ""
 
 
@@ -318,7 +313,7 @@ def insert_report_data(sheets_service, spreadsheet_id, data):
         spreadsheetId=spreadsheet_id, range=data_range,
         valueInputOption='USER_ENTERED', body={'values': report_values}).execute()
 
-    print_info(f"Created Booking Report Sheet for {spreadsheet_id}")
+    logger.info(f"Created Booking Report Sheet for {spreadsheet_id}")
 
 def get_google_sheets_service():
     SCOPES = ['https://www.googleapis.com/auth/spreadsheets',
@@ -348,6 +343,6 @@ def share_document_with_user(service, document_id):
             fields='id',
         ).execute()
 
-        print_info(f"Document {document_id} shared to public")
+        logger.info(f"Document {document_id} shared to public")
     except Exception as e:
-        print_info(f"Failed to share document: {e}")
+        logger.info(f"Failed to share document: {e}")

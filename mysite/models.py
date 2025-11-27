@@ -15,13 +15,7 @@ import requests
 import os
 import logging
 
-logger_sms = logging.getLogger('mysite.debug')
-
-
-
-def print_info(message):
-    print(message)
-    logger_sms.debug(message)
+logger = logging.getLogger('mysite.common')  # Unified logger
 
 def convert_date_format(value):
     if isinstance(value, date):
@@ -2057,6 +2051,188 @@ class TwilioMessage(models.Model):
             "link": f"/twilio-conversations/?q=id={self.conversation.id}"
         })
         return links_list
+
+
+class AuditLog(models.Model):
+    """
+    Comprehensive audit log to track all database changes (creates, updates, deletes).
+    This provides a complete history of database activities for monitoring and debugging.
+    """
+    ACTION_CHOICES = [
+        ('create', 'Create'),
+        ('update', 'Update'),
+        ('delete', 'Delete'),
+    ]
+    
+    # What changed
+    model_name = models.CharField(max_length=100, db_index=True)
+    object_id = models.CharField(max_length=100, db_index=True)
+    object_repr = models.TextField(blank=True, null=True)  # String representation of the object
+    action = models.CharField(max_length=10, choices=ACTION_CHOICES, db_index=True)
+    
+    # Who changed it
+    changed_by = models.CharField(max_length=255, blank=True, null=True, db_index=True)
+    
+    # When changed
+    timestamp = models.DateTimeField(auto_now_add=True, db_index=True)
+    
+    # What data changed
+    changed_fields = models.JSONField(blank=True, null=True)  # List of field names that changed
+    old_values = models.JSONField(blank=True, null=True)  # Old values (for updates and deletes)
+    new_values = models.JSONField(blank=True, null=True)  # New values (for creates and updates)
+    
+    class Meta:
+        ordering = ['-timestamp']
+        indexes = [
+            models.Index(fields=['-timestamp', 'model_name']),
+            models.Index(fields=['model_name', '-timestamp']),
+            models.Index(fields=['changed_by', '-timestamp']),
+        ]
+    
+    def __str__(self):
+        return f"{self.action.upper()} {self.model_name} #{self.object_id} by {self.changed_by or 'System'}"
+    
+    @property
+    def formatted_changes(self):
+        """Return a nicely formatted string of changes"""
+        if not self.changed_fields:
+            return "No field changes recorded"
+        
+        changes = []
+        for field in self.changed_fields:
+            old_val = self.old_values.get(field, 'N/A') if self.old_values else 'N/A'
+            new_val = self.new_values.get(field, 'N/A') if self.new_values else 'N/A'
+            changes.append(f"{field}: {old_val} → {new_val}")
+        
+        return "\n".join(changes)
+
+
+class ErrorLog(models.Model):
+    """
+    Centralized error tracking - stores all application errors with full context
+    """
+    SEVERITY_CHOICES = [
+        ('low', 'Low'),
+        ('medium', 'Medium'),
+        ('high', 'High'),
+        ('critical', 'Critical'),
+    ]
+    
+    SOURCE_CHOICES = [
+        ('web', 'Web Request'),
+        ('api', 'API'),
+        ('command', 'Management Command'),
+        ('model', 'Model Operation'),
+        ('task', 'Background Task'),
+        ('webhook', 'Webhook'),
+        ('other', 'Other'),
+    ]
+    
+    # Error identification
+    error_type = models.CharField(max_length=255, db_index=True)  # Exception class name
+    error_message = models.TextField()  # Error message
+    context = models.CharField(max_length=500, db_index=True)  # Where it happened
+    source = models.CharField(max_length=20, choices=SOURCE_CHOICES, default='other', db_index=True)
+    severity = models.CharField(max_length=20, choices=SEVERITY_CHOICES, default='medium', db_index=True)
+    
+    # Stack trace and details
+    traceback = models.TextField(blank=True, null=True)
+    additional_info = models.JSONField(blank=True, null=True)  # Extra context as JSON
+    
+    # User context
+    user_id = models.CharField(max_length=100, blank=True, null=True, db_index=True)
+    username = models.CharField(max_length=255, blank=True, null=True, db_index=True)
+    user_role = models.CharField(max_length=100, blank=True, null=True)
+    user_email = models.CharField(max_length=255, blank=True, null=True)
+    
+    # Request context (for web errors)
+    request_method = models.CharField(max_length=10, blank=True, null=True)
+    request_path = models.CharField(max_length=500, blank=True, null=True, db_index=True)
+    request_ip = models.GenericIPAddressField(blank=True, null=True)
+    user_agent = models.TextField(blank=True, null=True)
+    
+    # Notification tracking
+    telegram_sent = models.BooleanField(default=False)
+    telegram_sent_at = models.DateTimeField(blank=True, null=True)
+    
+    # Metadata
+    timestamp = models.DateTimeField(auto_now_add=True, db_index=True)
+    resolved = models.BooleanField(default=False, db_index=True)
+    resolved_at = models.DateTimeField(blank=True, null=True)
+    resolved_by = models.CharField(max_length=255, blank=True, null=True)
+    notes = models.TextField(blank=True, null=True)
+    
+    # Grouping similar errors
+    error_hash = models.CharField(max_length=64, db_index=True, blank=True, null=True)  # Hash for grouping similar errors
+    occurrences = models.IntegerField(default=1)  # Count of similar errors
+    last_occurrence = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        ordering = ['-timestamp']
+        indexes = [
+            models.Index(fields=['-timestamp', 'severity']),
+            models.Index(fields=['resolved', '-timestamp']),
+            models.Index(fields=['source', '-timestamp']),
+            models.Index(fields=['error_type', '-timestamp']),
+            models.Index(fields=['username', '-timestamp']),
+            models.Index(fields=['error_hash', '-last_occurrence']),
+        ]
+    
+    def __str__(self):
+        return f"{self.error_type} - {self.context} ({self.timestamp})"
+
+
+class SystemLog(models.Model):
+    """
+    General system logging for important events and operations
+    """
+    LEVEL_CHOICES = [
+        ('debug', 'Debug'),
+        ('info', 'Info'),
+        ('warning', 'Warning'),
+        ('error', 'Error'),
+        ('critical', 'Critical'),
+    ]
+    
+    CATEGORY_CHOICES = [
+        ('auth', 'Authentication'),
+        ('sms', 'SMS/Messaging'),
+        ('payment', 'Payment'),
+        ('booking', 'Booking'),
+        ('contract', 'Contract'),
+        ('notification', 'Notification'),
+        ('sync', 'Synchronization'),
+        ('cleanup', 'Cleanup'),
+        ('system', 'System'),
+        ('other', 'Other'),
+    ]
+    
+    # Log identification
+    level = models.CharField(max_length=20, choices=LEVEL_CHOICES, default='info', db_index=True)
+    category = models.CharField(max_length=50, choices=CATEGORY_CHOICES, default='other', db_index=True)
+    message = models.TextField()
+    context = models.CharField(max_length=500, blank=True, null=True, db_index=True)
+    
+    # Details
+    details = models.JSONField(blank=True, null=True)  # Additional structured data
+    
+    # User context (if applicable)
+    user_id = models.CharField(max_length=100, blank=True, null=True, db_index=True)
+    username = models.CharField(max_length=255, blank=True, null=True, db_index=True)
+    
+    # Metadata
+    timestamp = models.DateTimeField(auto_now_add=True, db_index=True)
+    
+    class Meta:
+        ordering = ['-timestamp']
+        indexes = [
+            models.Index(fields=['-timestamp', 'level']),
+            models.Index(fields=['category', '-timestamp']),
+            models.Index(fields=['level', 'category', '-timestamp']),
+        ]
+    
+    def __str__(self):
+        return f"[{self.level.upper()}] {self.category}: {self.message[:100]}"
 
 
 def send_telegram_message(chat_id, token, message):

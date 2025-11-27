@@ -7,7 +7,8 @@ from django.db.models import Max, Q
 from django.utils import timezone
 from django.core.paginator import Paginator
 from mysite.models import TwilioConversation, TwilioMessage, User
-from mysite.views.messaging import send_messsage_by_sid, print_info
+from mysite.unified_logger import logger
+from mysite.error_logger import log_exception
 import json
 
 
@@ -144,6 +145,14 @@ def send_message(request, conversation_sid):
             
         except Exception as e:
             print_info(f"Error sending message from chat interface: {e}")
+            log_exception(
+                error=e,
+                context="Chat - Send Message to Twilio",
+                additional_info={
+                    'conversation_sid': conversation_sid,
+                    'message_length': len(message_body) if message_body else 0
+                }
+            )
             return JsonResponse({
                 'error': f'Failed to send message: {str(e)}'
             }, status=500)
@@ -152,6 +161,11 @@ def send_message(request, conversation_sid):
         return JsonResponse({'error': 'Invalid JSON data'}, status=400)
     except Exception as e:
         print_info(f"Error in send_message view: {e}")
+        log_exception(
+            error=e,
+            context="Chat - Send Message View",
+            additional_info={'conversation_sid': conversation_sid}
+        )
         return JsonResponse({'error': str(e)}, status=500)
 
 
@@ -192,6 +206,11 @@ def load_more_messages(request, conversation_sid):
         })
         
     except Exception as e:
+        log_exception(
+            error=e,
+            context="Chat - Load More Messages",
+            additional_info={'conversation_sid': conversation_sid}
+        )
         return JsonResponse({'error': str(e)}, status=500)
 
 

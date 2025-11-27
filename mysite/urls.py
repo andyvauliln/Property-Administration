@@ -39,6 +39,8 @@ urlpatterns = [
     path('chat/<str:conversation_sid>/', views.chat_detail, name='chat_detail'),
     path('chat/<str:conversation_sid>/send/', views.send_message, name='send_message'),
     path('chat/<str:conversation_sid>/load-more/', views.load_more_messages, name='load_more_messages'),
+    # Database Activity Monitoring
+    path('database-activity/', views.database_activity, name='database_activity'),
 
 ]
 
