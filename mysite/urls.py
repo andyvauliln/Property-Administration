@@ -27,6 +27,7 @@ urlpatterns = [
     path('booking-report/', views.booking_report, name='booking_report'),
     path('apartment-report/', views.apartment_report, name='apartment_report'),
     path('payments-sync/', views.sync_payments, name='sync_payments'),
+    path('payments-sync-v2/', views.sync_payments_v2, name='sync_payments_v2'),
     path('booking-availability/', views.booking_availability, name='booking_availability'),
     path('create-booking/', views.create_booking_by_link, name='create_booking_by_link'),
     path('handyman_calendar/', views.handyman_calendar, name='handyman_calendar'),

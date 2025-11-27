@@ -7,7 +7,8 @@ from django.db.models import Max, Q
 from django.utils import timezone
 from django.core.paginator import Paginator
 from mysite.models import TwilioConversation, TwilioMessage, User
-from mysite.unified_logger import logger
+from mysite.views.messaging import send_messsage_by_sid
+from mysite.unified_logger import log_error, log_info, logger
 from mysite.error_logger import log_exception
 import json
 
@@ -160,7 +161,6 @@ def send_message(request, conversation_sid):
     except json.JSONDecodeError:
         return JsonResponse({'error': 'Invalid JSON data'}, status=400)
     except Exception as e:
-        print_info(f"Error in send_message view: {e}")
         log_exception(
             error=e,
             context="Chat - Send Message View",
@@ -275,7 +275,6 @@ def get_conversation_display_info(conversation):
         return display_info
         
     except Exception as e:
-        print_info(f"Error getting conversation display info: {e}")
         display_info['name'] = conversation.friendly_name or f"Conversation {conversation.conversation_sid[:8]}"
         return display_info
 

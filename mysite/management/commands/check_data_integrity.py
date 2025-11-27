@@ -214,6 +214,39 @@ class DataIntegrityChecker:
         print(f"Found {invalid_count} invalid phones, {missing_count} missing phones")
         return invalid_count + missing_count
     
+    def check_merged_payments_without_key(self):
+        """
+        Check for payments with status 'Merged' but without a merged_payment_key
+        """
+        print("Checking merged payments without keys...")
+        
+        # Find payments with status Merged but no merged_payment_key
+        invalid_merged = Payment.objects.filter(
+            payment_status='Merged'
+        ).filter(
+            Q(merged_payment_key__isnull=True) | Q(merged_payment_key='')
+        ).select_related('booking', 'apartment', 'payment_type')
+        
+        for payment in invalid_merged:
+            self.add_issue(
+                category="Merged Payment Without Key",
+                severity="high",
+                description=f"Payment #{payment.id} has status 'Merged' but no merged_payment_key",
+                details={
+                    'Payment ID': payment.id,
+                    'Amount': f"${payment.amount}",
+                    'Payment Date': str(payment.payment_date),
+                    'Payment Type': payment.payment_type.name if payment.payment_type else 'N/A',
+                    'Booking ID': payment.booking.id if payment.booking else 'N/A',
+                    'Apartment': payment.booking.apartment.name if payment.booking and payment.booking.apartment else (payment.apartment.name if payment.apartment else 'N/A'),
+                    'Tenant': payment.booking.tenant.full_name if payment.booking and payment.booking.tenant else 'N/A',
+                    'Issue': 'Merged payment must have merged_payment_key'
+                }
+            )
+        
+        count = invalid_merged.count()
+        print(f"Found {count} merged payments without keys")
+        return count
 
     
 
@@ -232,6 +265,7 @@ class DataIntegrityChecker:
         self.check_orphaned_payments()
         self.check_booking_date_overlaps()
         self.check_invalid_phone_numbers()
+        self.check_merged_payments_without_key()
         
         print("=" * 50)
         print(f"Total issues found: {len(self.issues)}")

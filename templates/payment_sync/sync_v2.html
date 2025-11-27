@@ -1,0 +1,699 @@
+{% extends "_base.html" %}
+{% load custom_filters %}
+
+{% block content %}
+<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    <!-- Modern Header -->
+    <div class="mb-8">
+        <div class="flex items-center mb-3">
+            <div class="flex items-center justify-center w-12 h-12 rounded-xl bg-gradient-to-br from-blue-500 to-indigo-600 shadow-lg">
+                <svg class="w-7 h-7 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+            </svg>
+            </div>
+            <div class="ml-4">
+                <h1 class="text-3xl font-bold text-gray-900 dark:text-white">Payment Sync V2</h1>
+                <p class="text-sm text-gray-500 dark:text-gray-400 mt-0.5">Intelligent payment matching and synchronization</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Upload Section Card -->
+    <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-xl border border-gray-200 dark:border-gray-700 overflow-hidden mb-8">
+        <form method="POST" enctype="multipart/form-data" id="upload_form">
+            {% csrf_token %}
+            
+            <div class="p-8 space-y-6">
+                {% if not data.file_payments_json %}
+                <!-- Initial State: Upload Only -->
+                <div class="text-center">
+                    <label class="block mb-4 text-lg font-semibold text-gray-700 dark:text-gray-300">
+                        Start by uploading your bank statement CSV
+                    </label>
+                    <div class="max-w-xl mx-auto">
+                        <label class="flex flex-col items-center justify-center w-full h-64 border-2 border-blue-300 border-dashed rounded-2xl cursor-pointer bg-gray-50 dark:bg-gray-700 hover:bg-blue-50 dark:hover:bg-gray-600 transition duration-300">
+                            <div class="flex flex-col items-center justify-center pt-5 pb-6">
+                                <svg class="w-12 h-12 mb-4 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"></path>
+                                </svg>
+                                <p class="mb-2 text-sm text-gray-500 dark:text-gray-400"><span class="font-semibold">Click to upload</span> or drag and drop</p>
+                                <p class="text-xs text-gray-500 dark:text-gray-400">CSV file only</p>
+                </div>
+                            <input type="file" name="csv_file" accept=".csv" required class="hidden" onchange="this.form.submit()">
+                    </label>
+                    </div>
+                </div>
+                {% else %}
+                <!-- After Upload: Action Buttons Grid -->
+                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                    <!-- Match with AI Button -->
+                    <button type="button" onclick="matchWithAI()"
+                            class="px-6 py-3 bg-white dark:bg-gray-700 border-2 border-gray-300 dark:border-gray-600
+                                   hover:border-purple-500 hover:bg-purple-50 dark:hover:bg-gray-600 hover:text-purple-700
+                                   text-gray-700 dark:text-gray-300 font-semibold rounded-xl
+                                   shadow-sm hover:shadow-md
+                                   transition duration-200
+                                   focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-opacity-50 flex items-center justify-center">
+                        <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path>
+                        </svg>
+                        Match with AI
+                    </button>
+
+                    <!-- Match Manually Button -->
+                    <button type="button" onclick="matchManually()"
+                            class="px-6 py-3 bg-white dark:bg-gray-700 border-2 border-gray-300 dark:border-gray-600
+                                   hover:border-blue-500 hover:bg-blue-50 dark:hover:bg-gray-600 hover:text-blue-700
+                                   text-gray-700 dark:text-gray-300 font-semibold rounded-xl
+                                   shadow-sm hover:shadow-md
+                                   transition duration-200
+                                   focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-50 flex items-center justify-center">
+                        <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"></path>
+                        </svg>
+                        Match Manually
+                    </button>
+
+                    <!-- Edit Matching Criteria Button -->
+                    <button type="button" onclick="openMatchingConfigModal()"
+                            class="px-6 py-3 bg-white dark:bg-gray-700 border-2 border-gray-300 dark:border-gray-600
+                                   hover:border-gray-500 hover:bg-gray-50 dark:hover:bg-gray-600
+                                   text-gray-700 dark:text-gray-300 font-semibold rounded-xl
+                                   shadow-sm hover:shadow-md
+                                   transition duration-200
+                                   focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-opacity-50 flex items-center justify-center">
+                        <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path>
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
+                        </svg>
+                        Edit Criteria
+                    </button>
+
+                    <!-- Upload File Button (Secondary/Reset) -->
+                    <button type="button" onclick="document.getElementById('hidden_file_input').click()"
+                            class="px-6 py-3 bg-gradient-to-r from-blue-600 to-indigo-600
+                                   hover:from-blue-700 hover:to-indigo-700
+                                   text-white font-semibold rounded-xl
+                                   shadow-md hover:shadow-lg
+                                   transform hover:-translate-y-0.5
+                                   transition duration-200
+                                   focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-50 flex items-center justify-center">
+                        <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"></path>
+                        </svg>
+                        Upload New File
+                    </button>
+                    <input type="file" name="csv_file" id="hidden_file_input" accept=".csv" class="hidden" onchange="this.form.submit()">
+                </div>
+                {% endif %}
+
+                <!-- Hidden Configuration Fields -->
+                <div class="hidden">
+                    <input type="checkbox" name="with_confirmed" id="with_confirmed" {% if data.with_confirmed %}checked{% endif %}>
+                    <input type="number" name="amount_delta" id="amount_delta" value="{{ data.amount_delta|default:100 }}">
+                    <input type="number" name="date_delta" id="date_delta" value="{{ data.date_delta|default:4 }}">
+                    <!-- Add more hidden fields for config -->
+                    <input type="text" name="ai_model" id="ai_model" value="gpt-3.5-turbo">
+                    <input type="text" name="ai_prompt" id="ai_prompt" value="Match these payments...">
+                    <!-- Weights -->
+                    <input type="number" name="weight_keywords" id="weight_keywords" value="5">
+                    <input type="number" name="weight_amount" id="weight_amount" value="2">
+                    <input type="number" name="weight_date" id="weight_date" value="1">
+                    <input type="number" name="weight_tenant" id="weight_tenant" value="5">
+                </div>
+            </div>
+        </form>
+    </div>
+
+    <!-- Edit Matching Criteria Modal -->
+    <div id="matchingConfigModal" class="fixed inset-0 z-50 hidden overflow-y-auto" aria-labelledby="modal-title" role="dialog" aria-modal="true">
+        <div class="flex items-center justify-center min-h-screen px-4 pt-4 pb-20 text-center sm:block sm:p-0">
+            <div class="fixed inset-0 transition-opacity bg-gray-500 bg-opacity-75" aria-hidden="true" onclick="closeMatchingConfigModal()"></div>
+            <div class="inline-block align-bottom bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-2xl sm:w-full">
+                <div class="bg-gradient-to-r from-gray-700 to-gray-900 px-6 py-4">
+                    <div class="flex items-center justify-between">
+                        <h3 class="text-lg font-bold text-white">Edit Matching Configuration</h3>
+                        <button type="button" onclick="closeMatchingConfigModal()" class="text-white hover:text-gray-200">
+                            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                        </button>
+                    </div>
+                </div>
+                <div class="px-6 py-4 max-h-[70vh] overflow-y-auto">
+                    <div class="space-y-6">
+                        <!-- AI Configuration -->
+                        <div>
+                            <h4 class="text-lg font-semibold text-gray-900 mb-3">AI Configuration</h4>
+                            <div class="grid grid-cols-1 gap-4">
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-1">AI Model</label>
+                                    <select id="modal_ai_model" class="w-full rounded-lg border-gray-300">
+                                        <option value="openai/gpt-3.5-turbo">GPT-3.5 Turbo</option>
+                                        <option value="openai/gpt-4">GPT-4</option>
+                                        <option value="anthropic/claude-2">Claude 2</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-1">Prompt Template</label>
+                                    <textarea id="modal_ai_prompt" rows="3" class="w-full rounded-lg border-gray-300">Match these payments based on amount, date, and description...</textarea>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Manual Matching Weights -->
+                        <div>
+                            <h4 class="text-lg font-semibold text-gray-900 mb-3">Manual Matching Weights & Deltas</h4>
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-1">Amount Delta ($)</label>
+                                    <input type="number" id="modal_amount_delta" class="w-full rounded-lg border-gray-300">
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-1">Date Delta (days)</label>
+                                    <input type="number" id="modal_date_delta" class="w-full rounded-lg border-gray-300">
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-1">Keywords Weight</label>
+                                    <input type="number" id="modal_weight_keywords" class="w-full rounded-lg border-gray-300">
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-1">Exact Amount Weight</label>
+                                    <input type="number" id="modal_weight_amount" class="w-full rounded-lg border-gray-300">
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-1">Date Match Weight</label>
+                                    <input type="number" id="modal_weight_date" class="w-full rounded-lg border-gray-300">
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-1">Tenant/Apt Match Weight</label>
+                                    <input type="number" id="modal_weight_tenant" class="w-full rounded-lg border-gray-300">
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="bg-gray-50 px-6 py-4 flex justify-end gap-3 border-t border-gray-200">
+                    <button type="button" onclick="closeMatchingConfigModal()" class="px-4 py-2 bg-gray-300 hover:bg-gray-400 text-gray-800 rounded-lg">Cancel</button>
+                    <button type="button" onclick="saveMatchingConfig()" class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg">Save Config</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    {% if data.file_payments_json %}
+    <!-- Results Section -->
+    <div class="bg-white rounded-lg shadow-lg">
+        <!-- Stats Bar -->
+        <div class="bg-gradient-to-r from-gray-50 to-gray-100 p-4 border-b border-gray-200">
+            <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <div class="text-center">
+                    <div class="text-2xl font-bold text-blue-600">{{ data.total_file_payments }}</div>
+                    <div class="text-sm text-gray-600">File Payments</div>
+                </div>
+                <div class="text-center">
+                    <div class="text-2xl font-bold text-indigo-600">{{ data.total_db_payments }}</div>
+                    <div class="text-sm text-gray-600">DB Payments</div>
+                </div>
+                <div class="text-center">
+                    <div class="text-2xl font-bold text-green-600" id="high_confidence_count">0</div>
+                    <div class="text-sm text-gray-600">High Confidence</div>
+                </div>
+                <div class="text-center">
+                    <div class="text-2xl font-bold text-yellow-600" id="medium_confidence_count">0</div>
+                    <div class="text-sm text-gray-600">Medium Confidence</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Tabs -->
+        <div class="border-b border-gray-200">
+            <nav class="flex space-x-2 px-4" aria-label="Tabs">
+                <button onclick="switchTab('all')" 
+                        id="tab_all"
+                        class="tab-button active px-4 py-3 text-sm font-semibold border-b-2 border-blue-600 text-blue-600">
+                    All Payments
+                    <span class="ml-2 px-2 py-0.5 rounded-full bg-blue-100 text-blue-600 text-xs" id="count_all">0</span>
+                </button>
+                <button onclick="switchTab('high')" 
+                        id="tab_high"
+                        class="tab-button px-4 py-3 text-sm font-semibold border-b-2 border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300">
+                    High Confidence
+                    <span class="ml-2 px-2 py-0.5 rounded-full bg-green-100 text-green-600 text-xs" id="count_high">0</span>
+                </button>
+                <button onclick="switchTab('medium')" 
+                        id="tab_medium"
+                        class="tab-button px-4 py-3 text-sm font-semibold border-b-2 border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300">
+                    Medium Confidence
+                    <span class="ml-2 px-2 py-0.5 rounded-full bg-yellow-100 text-yellow-600 text-xs" id="count_medium">0</span>
+                </button>
+                <button onclick="switchTab('low')" 
+                        id="tab_low"
+                        class="tab-button px-4 py-3 text-sm font-semibold border-b-2 border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300">
+                    Low/No Match
+                    <span class="ml-2 px-2 py-0.5 rounded-full bg-red-100 text-red-600 text-xs" id="count_low">0</span>
+                </button>
+            </nav>
+        </div>
+
+        <!-- Search and Filter Bar -->
+        <div class="p-4 bg-gray-50 border-b border-gray-200">
+            <div class="flex flex-col md:flex-row gap-4">
+                <div class="flex-1">
+                    <input type="text" 
+                           id="search_input"
+                           placeholder="Search by amount, date, notes, apartment..."
+                           onkeyup="filterPayments()"
+                           class="w-full p-2.5 text-sm text-gray-900 bg-white rounded-lg border border-gray-300 focus:ring-blue-500 focus:border-blue-500">
+                </div>
+                <button onclick="autoMergeHighConfidence()" 
+                        class="px-4 py-2 bg-green-600 hover:bg-green-700 text-white font-semibold rounded-lg shadow-md transition duration-200 flex items-center whitespace-nowrap">
+                    <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path>
+                    </svg>
+                    Auto-Merge High Confidence
+                </button>
+            </div>
+        </div>
+
+        <!-- Payments List -->
+        <div id="payments_container" class="p-4">
+            <!-- Will be populated by JavaScript -->
+        </div>
+    </div>
+
+    <!-- Payments for Save Container -->
+    <div id="payments_for_save_container" class="mt-6">
+        <!-- Will be populated by JavaScript -->
+    </div>
+
+    {% endif %}
+</div>
+
+<!-- Include Modal -->
+{% include 'payment_sync/sync_v2_modal.html' %}
+
+<!-- Include JavaScript -->
+{% if data.file_payments_json %}
+<script>
+    // Global data
+    const db_payments_json = {{ data.db_payments_json|safe }};
+    const file_payments_json = {{ data.file_payments_json|safe }};
+    const payment_methods_json = {{ data.payment_methods|safe }};
+    const apartments_json = {{ data.apartments|safe }};
+    const payment_types_json = {{ data.payment_types|safe }};
+    
+    // Create dictionaries for quick lookup
+    const payment_methods_dictionary = Object.fromEntries(payment_methods_json.map(i => [i.id, i.name]));
+    const apartments_dictionary = Object.fromEntries(apartments_json.map(i => [i.id, i.name]));
+    const payment_types_dictionary = Object.fromEntries(payment_types_json.map(i => [i.id, i.name + ' - ' + i.type]));
+    
+    // Matched groups from backend
+    const matched_groups = {{ data.matched_groups|safe }};
+    
+    // Payments to save
+    let payments_for_save_to_db = [];
+    
+    // Current tab and filter
+    let current_tab = 'all';
+    let search_query = '';
+    
+    // Initialize
+    document.addEventListener('DOMContentLoaded', function() {
+        updateCounts();
+        renderPayments();
+    });
+    
+    function updateCounts() {
+        const counts = {
+            all: matched_groups.length,
+            high: matched_groups.filter(g => g.match_quality === 'high').length,
+            medium: matched_groups.filter(g => g.match_quality === 'medium').length,
+            low: matched_groups.filter(g => g.match_quality === 'low' || g.match_quality === 'none').length,
+        };
+        
+        document.getElementById('count_all').textContent = counts.all;
+        document.getElementById('count_high').textContent = counts.high;
+        document.getElementById('count_medium').textContent = counts.medium;
+        document.getElementById('count_low').textContent = counts.low;
+        
+        document.getElementById('high_confidence_count').textContent = counts.high;
+        document.getElementById('medium_confidence_count').textContent = counts.medium;
+    }
+
+    function openMatchingConfigModal() {
+        // Populate modal from hidden fields
+        document.getElementById('modal_ai_model').value = document.getElementById('ai_model').value;
+        document.getElementById('modal_ai_prompt').value = document.getElementById('ai_prompt').value;
+        document.getElementById('modal_amount_delta').value = document.getElementById('amount_delta').value;
+        document.getElementById('modal_date_delta').value = document.getElementById('date_delta').value;
+        document.getElementById('modal_weight_keywords').value = document.getElementById('weight_keywords').value;
+        document.getElementById('modal_weight_amount').value = document.getElementById('weight_amount').value;
+        document.getElementById('modal_weight_date').value = document.getElementById('weight_date').value;
+        document.getElementById('modal_weight_tenant').value = document.getElementById('weight_tenant').value;
+        
+        document.getElementById('matchingConfigModal').classList.remove('hidden');
+    }
+
+    function closeMatchingConfigModal() {
+        document.getElementById('matchingConfigModal').classList.add('hidden');
+    }
+
+    function saveMatchingConfig() {
+        // Update hidden fields from modal
+        document.getElementById('ai_model').value = document.getElementById('modal_ai_model').value;
+        document.getElementById('ai_prompt').value = document.getElementById('modal_ai_prompt').value;
+        document.getElementById('amount_delta').value = document.getElementById('modal_amount_delta').value;
+        document.getElementById('date_delta').value = document.getElementById('modal_date_delta').value;
+        document.getElementById('weight_keywords').value = document.getElementById('modal_weight_keywords').value;
+        document.getElementById('weight_amount').value = document.getElementById('modal_weight_amount').value;
+        document.getElementById('weight_date').value = document.getElementById('modal_weight_date').value;
+        document.getElementById('weight_tenant').value = document.getElementById('modal_weight_tenant').value;
+        
+        closeMatchingConfigModal();
+        
+        // Show feedback
+        // const btn = event.target; // event is not defined here in some contexts
+        // const originalText = btn.innerText;
+        // btn.innerText = 'Saved!';
+        // setTimeout(() => btn.innerText = originalText, 2000);
+        alert('Configuration saved! Click "Match Manually" to apply changes.');
+    }
+
+    function matchManually() {
+        // Submit form to re-run matching with current config
+        document.getElementById('upload_form').submit();
+    }
+
+    function matchWithAI() {
+        alert('AI Matching feature coming soon! This will use ' + document.getElementById('ai_model').value);
+    }
+
+    // Print data structure for debugging as requested
+    console.log("=== MATCHED DATA STRUCTURE ===");
+    if (typeof matched_groups !== 'undefined' && matched_groups.length > 0) {
+        console.log("Matched Groups Array:", matched_groups);
+        console.log("Single Matched Group Example:", matched_groups[0]);
+        if (matched_groups[0].matches.length > 0) {
+            console.log("Match Detail Example:", matched_groups[0].matches[0]);
+        }
+        
+        // Also render it to UI for visibility
+        const debugContainer = document.createElement('div');
+        debugContainer.className = "mt-8 p-4 bg-gray-800 text-green-400 rounded-lg overflow-x-auto font-mono text-xs";
+        debugContainer.innerHTML = `
+            <h3 class="text-white font-bold mb-2">Matched Data Structure (First Item):</h3>
+            <pre>${JSON.stringify(matched_groups[0], null, 2)}</pre>
+        `;
+        const container = document.getElementById('payments_container');
+        if(container) {
+            container.after(debugContainer);
+        }
+    } else {
+        console.log("No matched groups available yet.");
+    }
+
+        
+        document.getElementById('count_all').textContent = counts.all;
+        document.getElementById('count_high').textContent = counts.high;
+        document.getElementById('count_medium').textContent = counts.medium;
+        document.getElementById('count_low').textContent = counts.low;
+        
+        document.getElementById('high_confidence_count').textContent = counts.high;
+        document.getElementById('medium_confidence_count').textContent = counts.medium;
+    }
+    
+    function switchTab(tab) {
+        current_tab = tab;
+        
+        // Update button styles
+        document.querySelectorAll('.tab-button').forEach(btn => {
+            btn.classList.remove('active', 'border-blue-600', 'text-blue-600');
+            btn.classList.add('border-transparent', 'text-gray-500');
+        });
+        
+        const activeBtn = document.getElementById(`tab_${tab}`);
+        activeBtn.classList.add('active', 'border-blue-600', 'text-blue-600');
+        activeBtn.classList.remove('border-transparent', 'text-gray-500');
+        
+        renderPayments();
+    }
+    
+    function filterPayments() {
+        search_query = document.getElementById('search_input').value.toLowerCase();
+        renderPayments();
+    }
+    
+    function renderPayments() {
+        let filtered_groups = matched_groups;
+        
+        // Filter by tab
+        if (current_tab !== 'all') {
+            if (current_tab === 'low') {
+                filtered_groups = filtered_groups.filter(g => g.match_quality === 'low' || g.match_quality === 'none');
+            } else {
+                filtered_groups = filtered_groups.filter(g => g.match_quality === current_tab);
+            }
+        }
+        
+        // Filter by search
+        if (search_query) {
+            filtered_groups = filtered_groups.filter(g => {
+                const fp = g.file_payment;
+                return (
+                    fp.amount.toString().includes(search_query) ||
+                    fp.notes.toLowerCase().includes(search_query) ||
+                    (fp.apartment_name && fp.apartment_name.toLowerCase().includes(search_query)) ||
+                    formatDate(fp.payment_date).includes(search_query)
+                );
+            });
+        }
+        
+        const container = document.getElementById('payments_container');
+        
+        if (filtered_groups.length === 0) {
+            container.innerHTML = '<div class="text-center py-12 text-gray-500"><svg class="w-16 h-16 mx-auto mb-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.172 16.172a4 4 0 015.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg><p class="text-lg font-semibold">No payments found</p><p class="text-sm">Try adjusting your filters or search criteria</p></div>';
+            return;
+        }
+        
+        let html = '';
+        filtered_groups.forEach(group => {
+            html += renderPaymentGroup(group);
+        });
+        
+        container.innerHTML = html;
+    }
+    
+    function renderPaymentGroup(group) {
+        const fp = group.file_payment;
+        const matches = group.matches;
+        const quality = group.match_quality;
+        
+        // Quality badge
+        let qualityBadge = '';
+        if (quality === 'high') {
+            qualityBadge = '<span class="px-3 py-1 text-xs font-semibold rounded-full bg-green-100 text-green-800">High Confidence</span>';
+        } else if (quality === 'medium') {
+            qualityBadge = '<span class="px-3 py-1 text-xs font-semibold rounded-full bg-yellow-100 text-yellow-800">Medium Confidence</span>';
+        } else if (quality === 'low') {
+            qualityBadge = '<span class="px-3 py-1 text-xs font-semibold rounded-full bg-orange-100 text-orange-800">Low Confidence</span>';
+        } else {
+            qualityBadge = '<span class="px-3 py-1 text-xs font-semibold rounded-full bg-red-100 text-red-800">No Match</span>';
+        }
+        
+        const amountColor = fp.payment_type_type === 'Out' ? 'text-red-600' : 'text-green-600';
+        const amountPrefix = fp.payment_type_type === 'Out' ? '-' : '';
+        
+        let html = `
+            <div id="file_payment_${fp.id}" class="mb-6 border border-gray-200 rounded-lg overflow-hidden shadow-sm hover:shadow-md transition-shadow">
+                <!-- File Payment Header -->
+                <div class="bg-gradient-to-r from-blue-50 to-indigo-50 p-4 border-b border-gray-200">
+                    <div class="flex items-start justify-between">
+                        <div class="flex-1 grid grid-cols-1 md:grid-cols-4 gap-4">
+                            <div>
+                                <div class="text-xs font-semibold text-gray-500 uppercase mb-1">Date</div>
+                                <div class="text-sm font-semibold text-gray-900">${formatDate(fp.payment_date)}</div>
+                            </div>
+                            <div>
+                                <div class="text-xs font-semibold text-gray-500 uppercase mb-1">Amount</div>
+                                <div class="text-lg font-bold ${amountColor}">${amountPrefix}$${fp.amount.toFixed(2)}</div>
+                            </div>
+                            <div>
+                                <div class="text-xs font-semibold text-gray-500 uppercase mb-1">Apartment</div>
+                                <div class="text-sm font-medium text-gray-900">${fp.apartment_name || 'N/A'}</div>
+                            </div>
+                            <div>
+                                <div class="text-xs font-semibold text-gray-500 uppercase mb-1">Match Quality</div>
+                                ${qualityBadge}
+                            </div>
+                        </div>
+                    </div>
+                    <div class="mt-3">
+                        <div class="text-xs font-semibold text-gray-500 uppercase mb-1">Notes</div>
+                        <div class="text-sm text-gray-700">${fp.notes}</div>
+                    </div>
+                </div>
+                
+                <!-- Matches -->
+                <div class="bg-white">
+        `;
+        
+        if (matches.length > 0) {
+            // Show top match
+            const topMatch = matches[0];
+            html += renderMatchItem(topMatch, fp, true);
+            
+            // Show other matches if any
+            if (matches.length > 1) {
+                html += `
+                    <div class="border-t border-gray-200 bg-gray-50 p-3">
+                        <button onclick="toggleOtherMatches('${fp.id}')" 
+                                class="text-sm font-semibold text-blue-600 hover:text-blue-800 flex items-center">
+                            <svg id="toggle_icon_${fp.id}" class="w-4 h-4 mr-1 transform transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+                            </svg>
+                            Show ${matches.length - 1} more potential match${matches.length - 1 > 1 ? 'es' : ''}
+                        </button>
+                    </div>
+                    <div id="other_matches_${fp.id}" class="hidden border-t border-gray-200">
+                `;
+                
+                for (let i = 1; i < matches.length; i++) {
+                    html += renderMatchItem(matches[i], fp, false);
+                }
+                
+                html += '</div>';
+            }
+        } else {
+            html += `
+                <div class="p-6 text-center">
+                    <svg class="w-12 h-12 mx-auto mb-3 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.172 16.172a4 4 0 015.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                    </svg>
+                    <p class="text-sm font-semibold text-gray-700 mb-2">No matches found</p>
+                    <button onclick="createNewPayment('${fp.id}')" 
+                            class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold rounded-lg transition duration-200">
+                        Create New Payment
+                    </button>
+                </div>
+            `;
+        }
+        
+        html += `
+                </div>
+            </div>
+        `;
+        
+        return html;
+    }
+    
+    function renderMatchItem(match, file_payment, is_top_match) {
+        const db = match.db_payment;
+        const details = match.details;
+        const score = match.score;
+        
+        // Get payment type info
+        const payment_type = db.payment_type_obj || { type: 'In' };
+        const amountColor = payment_type.type === 'Out' ? 'text-red-600' : 'text-green-600';
+        const amountPrefix = payment_type.type === 'Out' ? '-' : '';
+        
+        const bgClass = is_top_match ? 'bg-blue-50' : 'bg-white';
+        
+        let html = `
+            <div class="${bgClass} p-4 border-b border-gray-200 hover:bg-gray-50 cursor-pointer transition-colors"
+                 onclick="openEditModalForPayment(${db.id}, '${file_payment.id}')">
+                <div class="flex items-start justify-between mb-3">
+                    <div class="flex-1 grid grid-cols-1 md:grid-cols-5 gap-4">
+                        <div>
+                            <div class="text-xs font-semibold text-gray-500 uppercase mb-1">DB ID</div>
+                            <div class="text-sm font-semibold text-gray-900">#${db.id}</div>
+                            ${is_top_match ? '<span class="mt-1 inline-block px-2 py-0.5 text-xs font-semibold rounded bg-blue-100 text-blue-800">Top Match</span>' : ''}
+                        </div>
+                        <div>
+                            <div class="text-xs font-semibold text-gray-500 uppercase mb-1">Date</div>
+                            <div class="text-sm font-medium text-gray-900">${formatDate(db.payment_date)}</div>
+                            ${getMatchBadge(details.date)}
+                        </div>
+                        <div>
+                            <div class="text-xs font-semibold text-gray-500 uppercase mb-1">Amount</div>
+                            <div class="text-lg font-bold ${amountColor}">${amountPrefix}$${parseFloat(db.amount).toFixed(2)}</div>
+                            ${getMatchBadge(details.amount)}
+                        </div>
+                        <div>
+                            <div class="text-xs font-semibold text-gray-500 uppercase mb-1">Apartment</div>
+                            <div class="text-sm font-medium text-gray-900">${db.apartment_name || 'N/A'}</div>
+                            ${getMatchBadge(details.apartment)}
+                        </div>
+                        <div>
+                            <div class="text-xs font-semibold text-gray-500 uppercase mb-1">Match Score</div>
+                            <div class="text-xl font-bold text-purple-600">${score}</div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-3 mb-3">
+                    <div>
+                        <div class="text-xs font-semibold text-gray-500 uppercase mb-1">DB Notes</div>
+                        <div class="text-sm text-gray-700">${db.notes || 'N/A'}</div>
+                    </div>
+                    <div>
+                        <div class="text-xs font-semibold text-gray-500 uppercase mb-1">Matched Keywords</div>
+                        <div class="text-sm text-gray-700">${details.keywords}</div>
+                    </div>
+                </div>
+                
+                <div class="flex items-center justify-between">
+                    <div class="flex gap-4 text-xs text-gray-600">
+                        <span><strong>Type:</strong> ${payment_types_dictionary[db.payment_type] || 'N/A'}</span>
+                        <span><strong>Method:</strong> ${db.payment_method ? payment_methods_dictionary[db.payment_method] : 'N/A'}</span>
+                        <span><strong>Status:</strong> ${db.payment_status || 'N/A'}</span>
+                        ${db.tenant_name ? `<span><strong>Tenant:</strong> ${db.tenant_name}</span>` : ''}
+                    </div>
+                    
+                    <button onclick="event.stopPropagation(); autoMergePayment(${db.id}, '${file_payment.id}')" 
+                            class="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white text-sm font-semibold rounded-lg transition duration-200 flex items-center">
+                        <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path>
+                        </svg>
+                        Quick Merge
+                    </button>
+                </div>
+            </div>
+        `;
+        
+        return html;
+    }
+    
+    function getMatchBadge(matchText) {
+        if (!matchText || matchText === 'N/A') return '';
+        if (matchText === 'Exact Match') {
+            return '<span class="mt-1 inline-block px-2 py-0.5 text-xs font-semibold rounded bg-green-100 text-green-800">✓ Exact</span>';
+        }
+        if (matchText.includes('Match')) {
+            return `<span class="mt-1 inline-block px-2 py-0.5 text-xs font-semibold rounded bg-blue-100 text-blue-800">${matchText}</span>`;
+        }
+        return `<span class="mt-1 inline-block px-2 py-0.5 text-xs text-gray-600">${matchText}</span>`;
+    }
+    
+    function toggleOtherMatches(filePaymentId) {
+        const container = document.getElementById(`other_matches_${filePaymentId}`);
+        const icon = document.getElementById(`toggle_icon_${filePaymentId}`);
+        
+        if (container.classList.contains('hidden')) {
+            container.classList.remove('hidden');
+            icon.classList.add('rotate-180');
+        } else {
+            container.classList.add('hidden');
+            icon.classList.remove('rotate-180');
+        }
+    }
+    
+    function formatDate(dateStr) {
+        const date = new Date(dateStr);
+        return date.toLocaleDateString('en-US', { month: '2-digit', day: '2-digit', year: 'numeric' });
+    }
+    
+    // Additional functions will be in the modal file
+</script>
+{% endif %}
+
+{% endblock %}
+

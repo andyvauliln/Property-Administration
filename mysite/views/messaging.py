@@ -74,8 +74,6 @@ def save_conversation_to_db(conversation_sid, friendly_name, booking=None, apart
         )
         
         if created:
-            print_info(f"Saved new conversation to DB: {conversation_sid}")
-            
             # Try to link booking/apartment for new customer conversations only
             if not booking and not apartment and author:
                 # Only try to link if author is a customer (not system phones)
@@ -83,24 +81,21 @@ def save_conversation_to_db(conversation_sid, friendly_name, booking=None, apart
                 manager_phone = "+15612205252"
                 
                 if author not in [twilio_phone, 'ASSISTANT', manager_phone]:
-                    print_info(f"Attempting to link conversation to booking for customer: {author}")
                     booking = get_booking_from_phone(author)
                     if booking:
                         conversation.booking = booking
                         conversation.apartment = booking.apartment
                         conversation.save()
-                        print_info(f"Linked conversation to booking: {booking} and apartment: {booking.apartment}")
-                    else:
-                        print_info(f"No booking found for customer: {author} - conversation can be linked later")
-                else:
-                    print_info(f"Author {author} is system user - skipping booking lookup")
-        else:
-            print_info(f"Found existing conversation in DB: {conversation_sid}")
+                        log_info(
+                            "Conversation linked to booking",
+                            category='sms',
+                            details={'conversation_sid': conversation_sid, 'booking_id': booking.id}
+                        )
             
         return conversation
         
     except Exception as e:
-        print_info(f"Error saving conversation to DB: {e}")
+        log_error(e, "Save Conversation to DB", source='web')
         return None
 
 
