@@ -92,38 +92,6 @@ cron.schedule('0 8 * * *', function () {
     );
 });
 
-// Schedule task to run every day at 12:00 (noon)
-// cron.schedule('0 12 * * *', function () {
-//     console.log('Running Django SMS cron...');
-//     exec('/usr/bin/python3 /home/superuser/site/manage.py sms_notifications', { cwd: '/home/superuser/site/' }, (error, stdout, stderr) => {
-//         // Log execution details
-//         const logEntry = {
-//             timestamp: new Date().toISOString(),
-//             command: 'Django SMS cron',
-//             error: error ? error.toString() : null,
-//             stdout: stdout,
-//             stderr: stderr
-//         };
-//         fs.appendFileSync(logFilePath, JSON.stringify(logEntry) + '\n');
-
-//         if (error) {
-//             console.error(`Error executing task: ${error}`);
-//             return;
-//         }
-//         console.log(`stdout: ${stdout}`);
-//         console.log(`stderr: ${stderr}`);
-//     });
-//     console.log(`stderr: finished SMS cron`);
-// });
-// Schedule task to run every 13h
-// cron.schedule('0 */13 * * *', function () {
-//     executeCronCommand(
-//         '12H Contract notification',
-//         '/usr/bin/python3 /home/superuser/site/manage.py contract_notification',
-//         '/home/superuser/site/'
-//     );
-// });
-
 // Schedule data integrity check to run daily at 9 PM
 cron.schedule('0 21 * * *', function () {
     executeCronCommand(
@@ -133,26 +101,10 @@ cron.schedule('0 21 * * *', function () {
     );
 });
 
-// Schedule task to run every hour
-// cron.schedule('*/10 * * * *', function () {
-//     console.log('Running Django Contract Checker cron...');
-//     exec('/usr/bin/python3 /home/superuser/site/manage.py contract_cheker', { cwd: '/home/superuser/site/' }, (error, stdout, stderr) => {
-//         // Log execution details
-//         const logEntry = {
-//             timestamp: new Date().toISOString(),
-//             command: 'Django Contract Checker cron',
-//             error: error ? error.toString() : null,
-//             stdout: stdout,
-//             stderr: stderr
-//         };
-//         fs.appendFileSync(logFilePath, JSON.stringify(logEntry) + '\n');
-
-//         if (error) {
-//             console.error(`Error executing task: ${error}`);
-//             return;
-//         }
-//         console.log(`stdout: ${stdout}`);
-//         console.log(`stderr: ${stderr}`);
-//     });
-//     console.log(`stderr: finished Contract Checker cron`);
-// });
+cron.schedule('0 9 * * *', function () {
+    executeCronCommand(
+        'Twilio Balance Check',
+        '/usr/bin/python3 /home/superuser/site/manage.py check_twilio_balance',
+        '/home/superuser/site/'
+    );
+});
