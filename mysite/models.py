@@ -220,6 +220,10 @@ class User(AbstractBaseUser, PermissionsMixin):
 
     is_active = models.BooleanField(default=True)
     is_staff = models.BooleanField(default=False)
+    
+    # Tracking fields
+    created_by = models.CharField(max_length=255, blank=True, null=True, editable=False)
+    last_updated_by = models.CharField(max_length=255, blank=True, null=True, editable=False)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -232,6 +236,11 @@ class User(AbstractBaseUser, PermissionsMixin):
         return self.full_name
 
     def save(self, *args, **kwargs):
+        from mysite.request_context import apply_user_tracking
+        
+        # Apply user tracking first
+        updated_by = kwargs.pop('updated_by', None)
+        apply_user_tracking(self, updated_by)
         # Check if the password is not hashed
         if self.password and not self.password.startswith(('pbkdf2_sha256$', 'bcrypt')):
             self.password = make_password(self.password)
@@ -308,8 +317,6 @@ class Apartment(models.Model):
     start_date = models.DateTimeField(blank=True, null=True, db_index=True)
     end_date = models.DateTimeField(blank=True, null=True, db_index=True)
     keywords = models.TextField(blank=True, null=True)
-    created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
     raiting = models.DecimalField(blank=True, null=True, default=0, max_digits=2, decimal_places=1)
     default_price = models.DecimalField(blank=True, null=True, default=0, max_digits=10, decimal_places=2)
 
@@ -317,6 +324,18 @@ class Apartment(models.Model):
                                 related_name='managed_apartments', null=True, limit_choices_to={'role': 'Manager'})
     owner = models.ForeignKey(User, on_delete=models.SET_NULL, blank=True, db_index=True,
                               related_name='owned_apartments', null=True, limit_choices_to={'role': 'Owner'})
+
+    # Tracking fields
+    created_by = models.CharField(max_length=255, blank=True, null=True, editable=False)
+    last_updated_by = models.CharField(max_length=255, blank=True, null=True, editable=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def save(self, *args, **kwargs):
+        from mysite.request_context import apply_user_tracking
+        updated_by = kwargs.pop('updated_by', None)
+        apply_user_tracking(self, updated_by)
+        super().save(*args, **kwargs)
 
     @property
     def address(self):
@@ -419,12 +438,22 @@ class ApartmentPrice(models.Model):
     price = models.DecimalField(max_digits=10, decimal_places=2)
     effective_date = models.DateField(db_index=True, help_text="Date when this price becomes effective")
     notes = models.TextField(blank=True, null=True, help_text="Optional notes about this price change")
+    
+    # Tracking fields
+    created_by = models.CharField(max_length=255, blank=True, null=True, editable=False)
+    last_updated_by = models.CharField(max_length=255, blank=True, null=True, editable=False)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
         ordering = ['-effective_date']
         unique_together = ['apartment', 'effective_date']
+    
+    def save(self, *args, **kwargs):
+        from mysite.request_context import apply_user_tracking
+        updated_by = kwargs.pop('updated_by', None)
+        apply_user_tracking(self, updated_by)
+        super().save(*args, **kwargs)
 
     @property
     def links(self):
@@ -499,6 +528,9 @@ class Booking(models.Model):
     car_rent_days = models.IntegerField(
         default=0, verbose_name="Car Rent Days")
 
+    # Tracking fields
+    created_by = models.CharField(max_length=255, blank=True, null=True, editable=False)
+    last_updated_by = models.CharField(max_length=255, blank=True, null=True, editable=False)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -511,10 +543,16 @@ class Booking(models.Model):
         super().save(*args, **kwargs)
 
     def save(self, *args, **kwargs):
+        from mysite.request_context import apply_user_tracking
+        
         # Extract custom kwargs
         parking_number = kwargs.pop('parking_number', None)
         form_data = kwargs.pop('form_data', None)
         payments_data = kwargs.pop('payments_data', None)
+        updated_by = kwargs.pop('updated_by', None)
+        
+        # Apply user tracking
+        apply_user_tracking(self, updated_by)
         
         is_creating = self.pk is None
         
@@ -650,12 +688,13 @@ class Booking(models.Model):
         ).exists()
         
         if not start_notification_exists:
-            Notification.objects.create(
+            notification = Notification(
                 date=self.start_date,
                 message="Start Booking",
                 booking=self,
                 send_in_telegram=True
             )
+            notification.save()
             print_info("✓ Auto-created Start Booking notification")
         
         # Check and create End Booking notification
@@ -665,12 +704,13 @@ class Booking(models.Model):
         ).exists()
         
         if not end_notification_exists:
-            Notification.objects.create(
+            notification = Notification(
                 date=self.end_date,
                 message="End Booking",
                 booking=self,
                 send_in_telegram=True
             )
+            notification.save()
             print_info("✓ Auto-created End Booking notification")
     
     def _handle_contract_and_messaging(self, form_data):
@@ -722,7 +762,7 @@ class Booking(models.Model):
         status = "Booked" if (self.is_rent_car or self.car_model or 
                               self.car_price or self.car_rent_days) else "No Car"
         
-        ParkingBooking.objects.create(
+        parking_booking = ParkingBooking(
             parking=parking,
             booking=self,
             status=status,
@@ -730,6 +770,7 @@ class Booking(models.Model):
             end_date=self.end_date,
             apartment=self.apartment
         )
+        parking_booking.save()
        
     def deletePayments(self):
         payments_to_delete = Payment.objects.filter(
@@ -1102,8 +1143,17 @@ class PaymentMethod(models.Model):
     keywords = models.TextField(blank=True, null=True)
     notes = models.TextField(blank=True, null=True)
 
+    # Tracking fields
+    created_by = models.CharField(max_length=255, blank=True, null=True, editable=False)
+    last_updated_by = models.CharField(max_length=255, blank=True, null=True, editable=False)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+
+    def save(self, *args, **kwargs):
+        from mysite.request_context import apply_user_tracking
+        updated_by = kwargs.pop('updated_by', None)
+        apply_user_tracking(self, updated_by)
+        super().save(*args, **kwargs)
 
     @property
     def links(self):
@@ -1132,8 +1182,17 @@ class PaymenType(models.Model):
     type = models.CharField(max_length=32, db_index=True, choices=TYPE)
     keywords = models.TextField(blank=True, null=True)
 
+    # Tracking fields
+    created_by = models.CharField(max_length=255, blank=True, null=True, editable=False)
+    last_updated_by = models.CharField(max_length=255, blank=True, null=True, editable=False)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+
+    def save(self, *args, **kwargs):
+        from mysite.request_context import apply_user_tracking
+        updated_by = kwargs.pop('updated_by', None)
+        apply_user_tracking(self, updated_by)
+        super().save(*args, **kwargs)
 
     @property
     def links(self):
@@ -1173,29 +1232,29 @@ class Payment(models.Model):
     tenant_notes = models.TextField(blank=True, null=True)
     keywords = models.TextField(blank=True, null=True)
     merged_payment_key = models.TextField(blank=True, null=True)
-    last_updated_by = models.CharField(max_length=255,  blank=True, null=True)
     booking = models.ForeignKey(Booking, on_delete=models.CASCADE, db_index=True,
                                 related_name='payments', null=True, blank=True)
     apartment = models.ForeignKey(Apartment, on_delete=models.CASCADE, db_index=True,
                                   related_name='payments', null=True, blank=True)
+    
+    # Tracking fields
+    created_by = models.CharField(max_length=255, blank=True, null=True, editable=False)
+    last_updated_by = models.CharField(max_length=255,  blank=True, null=True, editable=False)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
     def save(self, *args, **kwargs):
         import traceback
         from django.core.exceptions import ValidationError
+        from mysite.request_context import apply_user_tracking
         
         try:
             number_of_months = kwargs.pop('number_of_months', 0)
             updated_by = kwargs.pop('updated_by', None)
             is_creating = self.pk is None
             
-            # Update last_updated_by if user is provided
-            if updated_by:
-                if hasattr(updated_by, 'full_name'):
-                    self.last_updated_by = updated_by.full_name
-                elif isinstance(updated_by, str):
-                    self.last_updated_by = updated_by
+            # Apply automatic user tracking
+            apply_user_tracking(self, updated_by)
 
             # Validate that booking and apartment are consistent
             if self.booking and self.apartment and self.booking.apartment:
@@ -1341,12 +1400,13 @@ class Payment(models.Model):
                     # Check if notification already exists (safety check)
                     existing_notification = Notification.objects.filter(payment=self).first()
                     if not existing_notification:
-                        Notification.objects.create(
+                        notification = Notification(
                             date=self.payment_date,
                             message='Payment',
                             payment=self,
                             send_in_telegram=True
                         )
+                        notification.save()
                         print_info("✓ Auto-created Payment notification")
                     else:
                         print_info("Notification already exists, skipping creation")
@@ -1439,12 +1499,20 @@ class Cleaning(models.Model):
     apartment = models.ForeignKey(Apartment, db_index=True, on_delete=models.CASCADE,
                                 blank=True, null=True, related_name='cleanings')
 
+    # Tracking fields
+    created_by = models.CharField(max_length=255, blank=True, null=True, editable=False)
+    last_updated_by = models.CharField(max_length=255, blank=True, null=True, editable=False)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
     def save(self, *args, **kwargs):
+        from mysite.request_context import apply_user_tracking
+        
         # Pop updated_by from kwargs before passing to super().save()
         updated_by = kwargs.pop('updated_by', 'System')
+        
+        # Apply automatic user tracking
+        apply_user_tracking(self, updated_by)
         
         # Check if it's an update
         if self.pk is not None:
@@ -1654,6 +1722,10 @@ class Notification(models.Model):
                                  null=True, related_name='cleaning_notifications')
     apartment = models.ForeignKey(Apartment, db_index=True, blank=True, on_delete=models.CASCADE,
                                  null=True, related_name='apartment_notifications')
+    
+    # Tracking fields
+    created_by = models.CharField(max_length=255, blank=True, null=True, editable=False)
+    last_updated_by = models.CharField(max_length=255, blank=True, null=True, editable=False)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -1683,6 +1755,11 @@ class Notification(models.Model):
             return self.message
     
     def save(self, *args, **kwargs):
+        from mysite.request_context import apply_user_tracking
+        
+        updated_by = kwargs.pop('updated_by', None)
+        apply_user_tracking(self, updated_by)
+        
         if self.apartment:
             self.apartment = self.apartment
         elif self.booking:
@@ -1731,11 +1808,19 @@ class HandymanCalendar(models.Model):
     start_time = models.TimeField()
     end_time = models.TimeField()
     notes = models.TextField()
-    created_by = models.CharField(max_length=100, blank=True, null=True)
+    
+    # Tracking fields
+    created_by = models.CharField(max_length=255, blank=True, null=True, editable=False)
+    last_updated_by = models.CharField(max_length=255, blank=True, null=True, editable=False)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
     def save(self, *args, **kwargs):
+        from mysite.request_context import apply_user_tracking
+        
+        updated_by = kwargs.pop('updated_by', None)
+        apply_user_tracking(self, updated_by)
+        
         print(self.start_time, "self.start_time")
         super().save(*args, **kwargs)
 
@@ -1748,12 +1833,21 @@ class HandymanBlockedSlot(models.Model):
     end_time = models.TimeField(null=True, blank=True)
     is_full_day = models.BooleanField(default=False)
     reason = models.TextField(blank=True, null=True)
-    created_by = models.CharField(max_length=100, blank=True, null=True)
+    
+    # Tracking fields
+    created_by = models.CharField(max_length=255, blank=True, null=True, editable=False)
+    last_updated_by = models.CharField(max_length=255, blank=True, null=True, editable=False)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
         unique_together = ('date', 'start_time', 'end_time')
+    
+    def save(self, *args, **kwargs):
+        from mysite.request_context import apply_user_tracking
+        updated_by = kwargs.pop('updated_by', None)
+        apply_user_tracking(self, updated_by)
+        super().save(*args, **kwargs)
         
     def __str__(self):
         if self.is_full_day:
@@ -1766,10 +1860,22 @@ class Parking(models.Model):
     notes = models.CharField(max_length=1000, blank=True, null=True)
     associated_room = models.CharField(max_length=255, blank=True, null=True)
     building = models.CharField(max_length=255, blank=True, null=True)
+    
+    # Tracking fields
+    created_by = models.CharField(max_length=255, blank=True, null=True, editable=False)
+    last_updated_by = models.CharField(max_length=255, blank=True, null=True, editable=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
     def __str__(self):
         return f"Building: {self.building}-{self.associated_room}. P#{self.number}"
     
     def save(self, *args, **kwargs):
+        from mysite.request_context import apply_user_tracking
+        
+        updated_by = kwargs.pop('updated_by', None)
+        apply_user_tracking(self, updated_by)
+        
         print(self.associated_room, "self.associated_room", self.notes, "self.notes")
         super().save(*args, **kwargs)
 
@@ -1800,6 +1906,12 @@ class ParkingBooking(models.Model):
         null=True,
         blank=True
     )
+    
+    # Tracking fields
+    created_by = models.CharField(max_length=255, blank=True, null=True, editable=False)
+    last_updated_by = models.CharField(max_length=255, blank=True, null=True, editable=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
 
     def __str__(self):
         parking_str = f" {self.parking.number}" if self.parking else "No parking"
@@ -1808,6 +1920,10 @@ class ParkingBooking(models.Model):
         return f"{apartment_name} {parking_str}{status_str}"
 
     def save(self, *args, **kwargs):
+        from mysite.request_context import apply_user_tracking
+        
+        updated_by = kwargs.pop('updated_by', None)
+        apply_user_tracking(self, updated_by)
 
         # If booking is assigned, use booking dates
         if self.booking:
@@ -1843,8 +1959,6 @@ class TwilioConversation(models.Model):
     
     conversation_sid = models.CharField(max_length=100, unique=True, db_index=True)
     friendly_name = models.CharField(max_length=255)
-    created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
     
     # Optional relationships
     booking = models.ForeignKey(
@@ -1861,6 +1975,18 @@ class TwilioConversation(models.Model):
         blank=True,
         related_name='twilio_conversations'
     )
+    
+    # Tracking fields
+    created_by = models.CharField(max_length=255, blank=True, null=True, editable=False)
+    last_updated_by = models.CharField(max_length=255, blank=True, null=True, editable=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    def save(self, *args, **kwargs):
+        from mysite.request_context import apply_user_tracking
+        updated_by = kwargs.pop('updated_by', None)
+        apply_user_tracking(self, updated_by)
+        super().save(*args, **kwargs)
     
     @property
     def links(self):
@@ -1907,11 +2033,21 @@ class TwilioMessage(models.Model):
     
     # Timestamps
     message_timestamp = models.DateTimeField(auto_now_add=True)
+    
+    # Tracking fields
+    created_by = models.CharField(max_length=255, blank=True, null=True, editable=False)
+    last_updated_by = models.CharField(max_length=255, blank=True, null=True, editable=False)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     
     class Meta:
         ordering = ['-message_timestamp']
+    
+    def save(self, *args, **kwargs):
+        from mysite.request_context import apply_user_tracking
+        updated_by = kwargs.pop('updated_by', None)
+        apply_user_tracking(self, updated_by)
+        super().save(*args, **kwargs)
     
     @property
     def links(self):

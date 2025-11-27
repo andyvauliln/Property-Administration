@@ -266,7 +266,7 @@ class Command(BaseCommand):
                 )
             
             # Create message record
-            TwilioMessage.objects.create(
+            message = TwilioMessage(
                 message_sid=sent_message.sid,
                 conversation=conversation_obj,
                 conversation_sid=conversation_sid or '',
@@ -277,6 +277,7 @@ class Command(BaseCommand):
                 messaging_binding_address=booking.tenant.phone,
                 messaging_binding_proxy_address=os.environ.get("TWILIO_PHONE_SECONDARY", ''),
             )
+            message.save()
             
             print_info(f"Message saved to database: {sent_message.sid}")
             

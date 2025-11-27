@@ -1,33 +1,56 @@
 """
-Base model classes with built-in error handling and Telegram logging
+Base model classes with built-in error handling, Telegram logging, and user tracking
 """
 from django.db import models
 from django.core.exceptions import ValidationError
 from mysite.telegram_logger import log_error
+from mysite.request_context import get_current_user_display
 import traceback
 import logging
 
 logger = logging.getLogger(__name__)
 
 
-class BaseModelWithErrorHandling(models.Model):
+class BaseModelWithTracking(models.Model):
     """
-    Abstract base model that provides automatic error handling and Telegram logging
-    for all save operations and validation errors.
+    Abstract base model that provides:
+    - Automatic user tracking (created_by, last_updated_by)
+    - Automatic timestamps (created_at, updated_at)
+    - Error handling and Telegram logging
     
-    All your models should inherit from this class to get automatic error reporting.
+    All models should inherit from this class for consistent tracking and error reporting.
     """
+    
+    # Tracking fields
+    created_by = models.CharField(max_length=255, blank=True, null=True, editable=False)
+    last_updated_by = models.CharField(max_length=255, blank=True, null=True, editable=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
     
     class Meta:
         abstract = True
     
     def save(self, *args, **kwargs):
         """
-        Override save to wrap it with error handling and Telegram logging
+        Override save to add user tracking, error handling and Telegram logging
         """
         model_name = self.__class__.__name__
         is_creating = self.pk is None
         action = "Creating" if is_creating else "Updating"
+        
+        # Extract updated_by from kwargs if provided (for backwards compatibility)
+        updated_by = kwargs.pop('updated_by', None)
+        
+        # Track who is making this change
+        current_user = self._get_user_for_tracking(updated_by)
+        
+        if is_creating:
+            # Set created_by on creation
+            if not self.created_by:
+                self.created_by = current_user
+        
+        # Always update last_updated_by
+        self.last_updated_by = current_user
         
         try:
             # Call the actual save logic
@@ -42,6 +65,26 @@ class BaseModelWithErrorHandling(models.Model):
             # Handle any other unexpected errors
             self._handle_unexpected_error(e, model_name, action)
             raise  # Re-raise after logging
+    
+    def _get_user_for_tracking(self, explicit_user=None):
+        """
+        Get the user to use for tracking purposes.
+        
+        Args:
+            explicit_user: User explicitly passed to save() (for backwards compatibility)
+        
+        Returns:
+            String representation of the user
+        """
+        if explicit_user:
+            # Explicit user was provided (backwards compatibility)
+            if hasattr(explicit_user, 'full_name'):
+                return explicit_user.full_name
+            elif isinstance(explicit_user, str):
+                return explicit_user
+        
+        # Use the current user from request context
+        return get_current_user_display()
     
     def _do_save(self, *args, **kwargs):
         """
@@ -122,7 +165,7 @@ class BaseModelWithErrorHandling(models.Model):
             return str(error)
 
 
-class PaymentBaseModel(BaseModelWithErrorHandling):
+class PaymentBaseModel(BaseModelWithTracking):
     """
     Base model for Payment with specific error details
     """
@@ -150,7 +193,7 @@ class PaymentBaseModel(BaseModelWithErrorHandling):
         return details
 
 
-class BookingBaseModel(BaseModelWithErrorHandling):
+class BookingBaseModel(BaseModelWithTracking):
     """
     Base model for Booking with specific error details
     """
@@ -176,7 +219,7 @@ class BookingBaseModel(BaseModelWithErrorHandling):
         return details
 
 
-class CleaningBaseModel(BaseModelWithErrorHandling):
+class CleaningBaseModel(BaseModelWithTracking):
     """
     Base model for Cleaning with specific error details
     """
@@ -200,4 +243,8 @@ class CleaningBaseModel(BaseModelWithErrorHandling):
             details['Apartment'] = str(self.apartment.name)
         
         return details
+
+
+# Keep the old name for backwards compatibility
+BaseModelWithErrorHandling = BaseModelWithTracking
 

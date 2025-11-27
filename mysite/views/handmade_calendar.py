@@ -133,14 +133,14 @@ def handle_block_request(request):
                 return JsonResponse({'error': 'This slot is already blocked'}, status=400)
             
             # Create a new blocked slot
-            blocked_slot = HandymanBlockedSlot.objects.create(
+            blocked_slot = HandymanBlockedSlot(
                 date=date_obj,
                 start_time=start_time_obj,
                 end_time=end_time_obj,
                 is_full_day=False,
-                reason=reason,
-                created_by=request.GET.get('user', 'manager')
+                reason=reason
             )
+            blocked_slot.save()
             
             return JsonResponse({'id': blocked_slot.id, 'success': True})
             
@@ -194,12 +194,12 @@ def handle_block_request(request):
                 return JsonResponse({'error': 'This day is already blocked'}, status=400)
             
             # Create a new blocked day
-            blocked_day = HandymanBlockedSlot.objects.create(
+            blocked_day = HandymanBlockedSlot(
                 date=date_obj,
                 is_full_day=True,
-                reason=reason,
-                created_by=request.GET.get('user', 'manager')
+                reason=reason
             )
+            blocked_day.save()
             
             return JsonResponse({'id': blocked_day.id, 'success': True})
             
