@@ -1225,6 +1225,12 @@ class Payment(models.Model):
             updated_by = kwargs.pop('updated_by', None)
             is_creating = self.pk is None
             
+            # Validate amount is not zero
+            if self.amount == 0:
+                raise ValidationError(
+                    "Payment amount cannot be 0. Please enter a valid payment amount."
+                )
+            
             # Apply automatic user tracking
             apply_user_tracking(self, updated_by)
 
