@@ -582,10 +582,27 @@ function toggleSection(sectionId) {
     const content = document.getElementById(sectionId + '-content');
     const icon = document.getElementById(sectionId + '-icon');
     
-    if (content.style.maxHeight === '0px' || content.style.maxHeight === '') {
+    // Check if closed (handle 0px, 0, or empty)
+    if (content.style.maxHeight === '0px' || content.style.maxHeight === '' || content.style.maxHeight === '0') {
         content.style.maxHeight = content.scrollHeight + 'px';
         icon.style.transform = 'rotate(180deg)';
+        
+        // Remove max-height limit after transition to allow content expansion (e.g. details tags)
+        setTimeout(() => {
+            if (content.style.maxHeight !== '0px' && content.style.maxHeight !== '0') {
+                content.style.maxHeight = 'none';
+            }
+        }, 300);
     } else {
+        // Closing logic
+        if (content.style.maxHeight === 'none') {
+            // Set explicit height to allow transition
+            content.style.maxHeight = content.scrollHeight + 'px';
+        }
+        
+        // Force reflow
+        void content.offsetWidth;
+        
         content.style.maxHeight = '0px';
         icon.style.transform = 'rotate(0deg)';
     }

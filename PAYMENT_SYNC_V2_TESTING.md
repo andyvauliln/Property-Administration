@@ -8,20 +8,12 @@ Payment Sync V2 is a completely rebuilt payment matching system with improved al
 ### 1. Intelligent Matching Algorithm
 - **Multi-factor scoring system** - Combines amount, date, keywords, apartment, and notes matching
 - **Confidence levels** - Automatically categorizes matches as High, Medium, or Low confidence
-- **Weighted scoring** - More important factors (amount, date) contribute more to the match score
+- **Weighted scoring** - More important factors (amount, date, keywords) contribute more to the match score
 
-### 2. Modern UI with Tabs
-- **All Payments** - View all file payments with their matches
-- **High Confidence** - Payments with 70+ match score (likely to be correct)
-- **Medium Confidence** - Payments with 40-69 match score (needs review)
-- **Low/No Match** - Payments with <40 score or no matches (requires manual handling)
 
-### 3. Advanced Features
-- **Auto-merge high confidence** - One-click merge for all high confidence matches
+### 3. Features
 - **Quick merge** - Merge individual payments directly from the list
 - **Search and filter** - Find payments by amount, date, notes, apartment
-- **Batch save** - Review multiple merges before saving to database
-- **Real-time stats** - See counts for each confidence level
 
 ## Testing Commands
 
