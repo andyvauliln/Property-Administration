@@ -195,12 +195,13 @@ class UpdateSingleApartmentPrice(APIView):
             price_record = existing_price
         else:
             # Create new price record
-            price_record = ApartmentPrice.objects.create(
+            price_record = ApartmentPrice(
                 apartment=apartment,
                 price=new_price,
                 effective_date=effective_date,
                 notes=notes
             )
+            price_record.save()
             action = "created"
         
         # Get all prices for this apartment since the effective date
@@ -324,12 +325,13 @@ class UpdateApartmentPriceByRooms(APIView):
                 updated_count += 1
             else:
                 # Create new price record
-                apartment_price = ApartmentPrice.objects.create(
+                apartment_price = ApartmentPrice(
                     apartment=apartment,
                     price=new_price,
                     effective_date=effective_date,
                     notes=notes
                 )
+                apartment_price.save()
                 created_prices.append({
                     "apartment_id": apartment.id,
                     "apartment_name": apartment.name,

@@ -418,6 +418,11 @@ class ApartmentForm(forms.ModelForm):
                              isEdit=True, isCreate=True, ui_element="datepicker")
     end_date = DateFieldEx(isColumn=False, required=False,
                            isEdit=True, isCreate=True, ui_element="datepicker")
+    
+    # Tracking field - display only in table view (auto-tracked)
+    last_updated_by = CharFieldEx(
+        isColumn=True, required=False, initial="",
+        isEdit=False, isCreate=False, ui_element="input")
 
 
 class ApartmentPriceForm(forms.ModelForm):
@@ -644,6 +649,11 @@ class BookingForm(forms.ModelForm):
     parking_number = IntegerFieldEx(
         required=False, isColumn=False, isCreate=True, initial=None, isEdit=False, ui_element="dropdown", order=22,
         _dropdown_options=lambda: get_dropdown_options("parking_numbers"))
+    
+    # Tracking field - display only in table view (auto-tracked)
+    last_updated_by = CharFieldEx(
+        isColumn=True, required=False, order=23, initial="",
+        isEdit=False, isCreate=False, ui_element="input")
 
     create_chat = ChoiceFieldEx( choices=[
         (True, "Create Chat"),
@@ -740,7 +750,7 @@ class PaymentForm(forms.ModelForm):
     class Meta:
         model = Payment
         fields = ['payment_date', 'payment_method', 'bank', 'keywords', 'payment_status', 'tenant_notes', 'keywords',
-                  'amount', "number_of_months", 'payment_type', 'notes', 'booking', "apartment", "invoice_url", "last_updated_by"]
+                  'amount', "number_of_months", 'payment_type', 'notes', 'booking', "apartment", "invoice_url"]
 
     def __init__(self, *args, **kwargs):
         self.request = kwargs.pop('request', None)
@@ -791,6 +801,7 @@ class PaymentForm(forms.ModelForm):
         isColumn=True, required=False, order=12, initial="",
         isEdit=False, isCreate=False, ui_element="link")
 
+    # Tracking field - display only in table view (auto-tracked)
     last_updated_by = CharFieldEx(
         isColumn=True, required=False, order=15, initial="",
         isEdit=False, isCreate=False, ui_element="input")
@@ -1050,7 +1061,7 @@ class HandymanBlockedSlotForm(forms.ModelForm):
 
     class Meta:
         model = HandymanBlockedSlot
-        fields = ('date', 'start_time', 'end_time', 'is_full_day', 'reason', 'created_by')
+        fields = ('date', 'start_time', 'end_time', 'is_full_day', 'reason')
 
 
 class ParkingBookingForm(forms.ModelForm):

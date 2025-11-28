@@ -27,6 +27,8 @@ def create_contract(booking, template_id, send_sms=False):
     return booking.contract_url
 
 def create_and_send_agreement(booking, template_id, send_sms=False):
+    data = None
+    response = None
     try:
         # Get Adobe Sign access token
         print_info("START CREATE AGREEMENT")
@@ -48,25 +50,66 @@ def create_and_send_agreement(booking, template_id, send_sms=False):
             booking.contract_url = response_data[0]["embed_src"]
             booking.contract_send_status = "Sent by Email"
             print_info(f"Saving contract_id {booking.contract_id} to booking {booking.id}")
+            
+            # Try to send SMS but don't fail the entire process if it fails
             if send_sms and booking.tenant.phone and booking.tenant.phone.startswith("+1"):
-                from mysite.views.messaging import sendContractToTwilio
-                sendContractToTwilio(booking, response_data[0]["embed_src"])
+                try:
+                    from mysite.views.messaging import sendContractToTwilio
+                    sendContractToTwilio(booking, response_data[0]["embed_src"])
+                    print_info(f"SMS notification sent successfully to {booking.tenant.phone}")
+                except Exception as sms_error:
+                    print_info(f"Warning: SMS notification failed but contract was created successfully. Error: {str(sms_error)}")
+                    # Don't re-raise - contract was created successfully
+            
             # Save only the contract-related fields to avoid triggering complex save logic
             from django.db import models
             models.Model.save(booking, update_fields=['contract_id', 'contract_url', 'contract_send_status', 'updated_at'])
             print_info(f"Contract saved - Booking {booking.id} now has contract_id: {booking.contract_id}")
+            print_info(f"✓ Contract successfully created and sent for booking {booking.id}")
+            return True  # Success
         else:
-            print_info("Detailed response:", response.json())
+            error_detail = ""
+            try:
+                error_detail = response.json()
+            except:
+                error_detail = response.text
+            print_info("Detailed response:", error_detail)
             booking.contract_send_status = "Not Sent"
             from django.db import models
             models.Model.save(booking, update_fields=['contract_send_status', 'updated_at'])
-            raise Exception(f"Contract wasn't sent by email. Status code: {response.status_code}")
+            raise Exception(f"Contract wasn't sent by email. Status code: {response.status_code}. Error: {error_detail}")
     except Exception as e:
-        print_info(f"An error occurred: {e}")
+        print_info(f"An error occurred in create_and_send_agreement: {str(e)}")
         booking.contract_send_status = "Not Sent"
         from django.db import models
         models.Model.save(booking, update_fields=['contract_send_status', 'updated_at'])
-        raise Exception("Contract wasn't sent by email")
+        
+        # Build detailed error message
+        error_details = [
+            f"Booking ID: {booking.id}",
+            f"Template ID: {template_id}",
+            f"Tenant: {booking.tenant.full_name}",
+            f"Tenant Email: {booking.tenant.email}",
+            f"Tenant Phone: {booking.tenant.phone}",
+        ]
+        
+        if response is not None:
+            error_details.append(f"Response Status: {response.status_code}")
+            try:
+                error_details.append(f"Response Body: {response.json()}")
+            except:
+                error_details.append(f"Response Text: {response.text[:200]}")
+        else:
+            error_details.append("Response: None (request may have failed before getting response)")
+        
+        if data is not None:
+            error_details.append(f"Request Data: {json.dumps(data, indent=2)[:500]}")
+        
+        error_details.append(f"Original Error: {str(e)}")
+        error_details.append(f"Error Type: {type(e).__name__}")
+        
+        detailed_message = "Contract wasn't sent by email. Details:\n" + "\n".join(f"  - {detail}" for detail in error_details)
+        raise Exception(detailed_message)
       
 
 
@@ -95,9 +138,11 @@ def prepare_data_for_agreement(booking, template_id):
 
 
 def get_fields(booking, template_id):
-    print_info("template_id", template_id, template_id == 120946)
+    # Convert template_id to string for consistent comparison
+    template_id_str = str(template_id)
+    print_info("template_id", template_id, "converted to", template_id_str)
     
-    if template_id == "120946": #application form
+    if template_id_str == "120946": #application form
         return [
                     {"name": "tenant", "default_value": "" if booking.tenant.full_name == "Not Availabale" or booking.tenant.full_name == "" else booking.tenant.full_name, "readonly": False},
                     {"name": "phone", "default_value": booking.tenant.phone or "", "readonly": False},
@@ -112,7 +157,7 @@ def get_fields(booking, template_id):
                     {"name": "apartment_address", "default_value": booking.apartment.address, "readonly": True},
                     # {"name": "owner_signature", "default_value": booking.apartment.owner.full_name, "readonly": True},
                 ]
-    elif template_id == "118378": #occupancy agreement
+    elif template_id_str == "118378": #occupancy agreement
         return [           
                     {"name": "tenant", "default_value": "" if booking.tenant.full_name == "Not Availabale" or booking.tenant.full_name == "" else booking.tenant.full_name, "readonly": False},
                     {"name": "phone", "default_value": booking.tenant.phone or "", "readonly": False},
@@ -126,7 +171,7 @@ def get_fields(booking, template_id):
                     # {"name": "owner_signature", "default_value": booking.apartment.owner.full_name, "readonly": True},
                 ]
     else:
-        raise Exception("Template id is not supported")
+        raise Exception(f"Template id '{template_id}' (type: {type(template_id).__name__}) is not supported. Expected '120946' or '118378'")
 
 
 def delete_contract(id):

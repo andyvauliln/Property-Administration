@@ -85,12 +85,13 @@ class Command(BaseCommand):
                 )
                 
                 if not dry_run:
-                    Notification.objects.create(
+                    notification = Notification(
                         date=booking.start_date,
                         message='Start Booking',
                         booking=booking,
                         send_in_telegram=True
                     )
+                    notification.save()
                     self.stdout.write(self.style.SUCCESS('    ✓ Created Start Booking notification'))
                 
                 stats['start_notifs_created'] += 1
@@ -104,12 +105,13 @@ class Command(BaseCommand):
                 )
                 
                 if not dry_run:
-                    Notification.objects.create(
+                    notification = Notification(
                         date=booking.end_date,
                         message='End Booking',
                         booking=booking,
                         send_in_telegram=True
                     )
+                    notification.save()
                     self.stdout.write(self.style.SUCCESS('    ✓ Created End Booking notification'))
                 
                 stats['end_notifs_created'] += 1
@@ -155,12 +157,13 @@ class Command(BaseCommand):
             )
             
             if not dry_run:
-                Notification.objects.create(
+                notification = Notification(
                     date=payment.payment_date,
                     message='Payment',
                     payment=payment,
                     send_in_telegram=True
                 )
+                notification.save()
                 self.stdout.write(self.style.SUCCESS('    ✓ Created Payment notification'))
             
             stats['payment_notifs_created'] += 1

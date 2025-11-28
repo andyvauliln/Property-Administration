@@ -162,14 +162,13 @@ class Command(BaseCommand):
                     self.stdout.write(f'    Would link to apartment: {apartment}')
             else:
                 # Create new conversation
-                db_conversation = TwilioConversation.objects.create(
+                db_conversation = TwilioConversation(
                     conversation_sid=conversation_sid,
                     friendly_name=friendly_name,
                     booking=booking,
-                    apartment=apartment,
-                    created_at=twilio_conversation.date_created or timezone.now(),
-                    updated_at=twilio_conversation.date_updated or timezone.now()
+                    apartment=apartment
                 )
+                db_conversation.save()
                 self.stdout.write(f'  Created conversation: {friendly_name}')
         
         # Sync messages for this conversation
@@ -317,16 +316,15 @@ class Command(BaseCommand):
         direction = 'inbound' if author not in [self.twilio_phone, 'ASSISTANT', self.manager_phone] else 'outbound'
         
         # Create message
-        TwilioMessage.objects.create(
+        message = TwilioMessage(
             message_sid=message_sid,
             conversation=db_conversation,
             conversation_sid=db_conversation.conversation_sid,
             author=author,
             body=twilio_message.body or '',
             direction=direction,
-            message_timestamp=twilio_message.date_created or timezone.now(),
-            created_at=timezone.now(),
-            updated_at=timezone.now()
+            message_timestamp=twilio_message.date_created or timezone.now()
         )
+        message.save()
         
         return True  # Message was created
