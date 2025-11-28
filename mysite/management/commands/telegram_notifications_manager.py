@@ -1,22 +1,14 @@
-import logging
-import requests
 from datetime import timedelta, date
 from mysite.models import Notification, Payment, User, Booking
 import os
 from mysite.management.commands.base_command import BaseCommandWithErrorHandling
-from django.db.models import Q    
+from django.db.models import Q  
+from mysite.unified_logger import log_error, log_info, log_warning, logger
+import requests
 
 def send_telegram_message(chat_id, token, message):
-    print_info(f"Sending telegram message to {chat_id}: {message}")
     base_url = f"https://api.telegram.org/bot{token}/sendMessage?chat_id={chat_id}&text={message}"
     requests.get(base_url)
-
-logger_sms = logging.getLogger('mysite.sms_notifications')
-
-
-def print_info(message):
-    print(message)
-    logger_sms.debug(message)
 
 def sent_pending_payments_message(chat_id, token):
     tomorrow = date.today() + timedelta(days=1)
@@ -31,9 +23,13 @@ def sent_pending_payments_message(chat_id, token):
     ).order_by('payment_date')
     
     if not pending_payments.exists():
-        print_info("No pending payments found")
         return ""
-    print_info(f"FOUND Pending payments: {pending_payments.count()}")    
+    
+    log_info(
+        f"Sending pending payments notification",
+        category='notification',
+        details={'count': pending_payments.count()}
+    )
     message = "\n\n🚨 PENDING PAYMENTS FROM PAST PERIODS:"
     for payment in pending_payments:
         message += f"\n- Amount: ${payment.amount}"

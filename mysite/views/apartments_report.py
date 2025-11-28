@@ -308,12 +308,7 @@ def apartments_analytics(request):
     return render(request, 'apartments_analytics.html', context)
 
 
-logger_common = logging.getLogger('mysite.debug')
 
-
-def print_info(message):
-    print(message)
-    logger_common.debug(message)
 
 
 @user_has_role('Admin', 'Manager')
@@ -331,23 +326,23 @@ def apartment_report(request):
             start_date = datetime.strptime(report_start_date, "%B %d %Y").date()
             end_date = datetime.strptime(report_end_date, "%B %d %Y").date()
             
-            print_info(f'Generating report for period: {start_date} to {end_date}')
+            logger.info(f'Generating report for period: {start_date} to {end_date}')
             
             # Include bookings that overlap the period
             bookings = bookings.filter(start_date__lte=end_date, end_date__gte=start_date)
             
             booking_count = bookings.count()
-            print_info(f'Found {booking_count} bookings')
+            logger.info(f'Found {booking_count} bookings')
             
             if bookings.exists():
                 report_url = generate_apartment_excel(bookings, start_date, end_date)
-                print_info(f'Apartment report created {report_url}')
+                logger.info(f'Apartment report created {report_url}')
                 return redirect(report_url)
         return redirect(referer_url)
     except Exception as e:
-        print_info(f"Error: Generating Apartment Report Error, {str(e)}")
+        logger.info(f"Error: Generating Apartment Report Error, {str(e)}")
         import traceback
-        print_info(f"Traceback: {traceback.format_exc()}")
+        logger.info(f"Traceback: {traceback.format_exc()}")
         return redirect(request.META.get('HTTP_REFERER', '/'))
 
 
@@ -372,7 +367,7 @@ def generate_apartment_excel(bookings, start_date, end_date):
     
     # Get the actual sheet ID from the created spreadsheet
     sheet_id = spreadsheet['sheets'][0]['properties']['sheetId']
-    print_info(f'Created spreadsheet with sheet ID: {sheet_id}')
+    logger.info(f'Created spreadsheet with sheet ID: {sheet_id}')
 
     rows = prepare_apartment_rows(bookings, start_date, end_date)
     insert_apartment_rows(sheets_service, spreadsheet_id, rows, sheet_id)
@@ -387,7 +382,7 @@ def build_price_cache(apartment_ids, period_start, period_end):
     Build a cache of all apartment prices for the period.
     Returns: dict[apartment_id] -> list of (effective_date, price) tuples
     """
-    print_info(f"Building price cache for apartments: {apartment_ids}")
+    logger.info(f"Building price cache for apartments: {apartment_ids}")
     
     price_cache = defaultdict(list)
     
@@ -415,7 +410,7 @@ def build_price_cache(apartment_ids, period_start, period_end):
                 'price': float(apt['default_price'] or 0)
             })
     
-    print_info(f"Price cache built with {len(price_cache)} apartments")
+    logger.info(f"Price cache built with {len(price_cache)} apartments")
     return price_cache
 
 
@@ -490,7 +485,7 @@ def prepare_apartment_rows(bookings, period_start, period_end):
     - Price caching to avoid N+1 queries
     - JSON export for debugging
     """
-    print_info(f"Starting to prepare rows for {bookings.count() if hasattr(bookings, 'count') else len(bookings)} bookings")
+    logger.info(f"Starting to prepare rows for {bookings.count() if hasattr(bookings, 'count') else len(bookings)} bookings")
     
     # OPTIMIZATION 1: Prefetch all related data in a single query
     bookings = bookings.select_related(
@@ -508,7 +503,7 @@ def prepare_apartment_rows(bookings, period_start, period_end):
     
     # Convert to list to avoid multiple DB hits
     bookings_list = list(bookings)
-    print_info(f"Loaded {len(bookings_list)} bookings with related data")
+    logger.info(f"Loaded {len(bookings_list)} bookings with related data")
     
     # OPTIMIZATION 2: Build price cache for all apartments at once
     apartment_ids = [b.apartment.id for b in bookings_list if b.apartment]
@@ -518,7 +513,7 @@ def prepare_apartment_rows(bookings, period_start, period_end):
     
     for idx, booking in enumerate(bookings_list):
         if idx % 50 == 0:
-            print_info(f"Processing booking {idx + 1}/{len(bookings_list)}")
+            logger.info(f"Processing booking {idx + 1}/{len(bookings_list)}")
         
         apartment_name = booking.apartment.name if booking.apartment else ''
         apartment_id = booking.apartment.id if booking.apartment else None
@@ -570,7 +565,7 @@ def prepare_apartment_rows(bookings, period_start, period_end):
             'payment_found': payment_found,
         })
     
-    print_info(f"Completed processing all {len(rows)} bookings")
+    logger.info(f"Completed processing all {len(rows)} bookings")
     
     # DEBUGGING: Export to JSON file
     try:
@@ -584,9 +579,9 @@ def prepare_apartment_rows(bookings, period_start, period_end):
                 'bookings_with_missing_payments': sum(1 for r in rows if not r['payment_found']),
                 'rows': rows
             }, f, indent=2)
-        print_info(f"Debug data exported to {debug_file}")
+        logger.info(f"Debug data exported to {debug_file}")
     except Exception as e:
-        print_info(f"Could not export debug JSON: {e}")
+        logger.info(f"Could not export debug JSON: {e}")
     
     return rows
 

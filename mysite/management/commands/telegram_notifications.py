@@ -1,17 +1,10 @@
-import requests
 from datetime import timedelta, date
 from mysite.models import Notification, Payment, Booking
 import os
 from mysite.management.commands.base_command import BaseCommandWithErrorHandling
 from django.db.models import Q
-import logging
-
-logger_sms = logging.getLogger('mysite.sms_notifications')
-
-
-def print_info(message):
-    print(message)
-    logger_sms.debug(message)
+from mysite.unified_logger import log_error, log_info, log_warning, logger
+import requests
 
 def send_telegram_message(chat_id, token, message):
     base_url = f"https://api.telegram.org/bot{token}/sendMessage?chat_id={chat_id}&text={message}"
@@ -30,13 +23,14 @@ def sent_pending_payments_message(chat_ids, token):
     ).order_by('payment_date')
     
     if not pending_payments.exists():
-        print("No pending payments found")
         return ""
-        
+    
+    log_info(
+        f"Sending pending payments notification",
+        category='notification',
+        details={'count': pending_payments.count()}
+    )
     message = "\n\n🚨 PENDING PAYMENTS FROM PAST PERIODS:"
-    for payment in pending_payments:
-        print_info(f"Sending payment message for payment: {payment.id}")
-        message += f"\n- Amount: ${payment.amount}"
         message += f"\n  Payment Date: {payment.payment_date}"
         message += f"\n  Status: {payment.payment_status}"
         if payment.payment_type:
@@ -64,11 +58,16 @@ def check_bookings_without_cleaning(chat_ids, token):
         end_date__lte=three_days_from_now
     ).exclude(status='Blocked').select_related('apartment', 'tenant')
 
-    print_info(f"Found {upcoming_end_bookings.count()} bookings ending in next 3 days")
+    if upcoming_end_bookings.count() > 0:
+        log_info(
+            f"Checking bookings without cleanings",
+            category='notification',
+            details={'count': upcoming_end_bookings.count()}
+        )
+    
     for booking in upcoming_end_bookings:
         # Check if cleaning exists for this booking
         if not hasattr(booking, 'cleanings') or not booking.cleanings.exists():
-            print_info(f"Sending booking message for booking: {booking.id}")
             message = f"⚠️ WARNING: Booking ending soon without cleaning scheduled!\n"
             message += f"Booking Details:\n"
             message += f"- End Date: {booking.end_date}\n"
@@ -89,7 +88,6 @@ def my_cron_job():
     telegram_chat_ids = os.environ["TELEGRAM_CHAT_ID"].split(",")
     telegram_token = os.environ["TELEGRAM_TOKEN"]
     
-    print_info("Sending pending payments message")
     # Get pending payments message once
     sent_pending_payments_message(telegram_chat_ids, telegram_token)
     
@@ -97,7 +95,6 @@ def my_cron_job():
     check_bookings_without_cleaning(telegram_chat_ids, telegram_token)
    
     for notification in notifications:
-        print_info(f"Sending notification message for notification: {notification.id}")
         message = f"{notification.notification_message}"
         
         # Add payment information if it exists

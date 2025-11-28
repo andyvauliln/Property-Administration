@@ -1,0 +1,609 @@
+{% extends '_base.html' %}
+{% load custom_filters %}
+
+{% block content %}
+<div class="p-4 mt-14">
+    <!-- Header Section -->
+    <div class="mb-6">
+        <h1 class="text-3xl font-bold text-gray-900 dark:text-white mb-2">Administration</h1>
+        <p class="text-gray-600 dark:text-gray-400">Database Activity Monitor - Track all changes across your system</p>
+    </div>
+
+    <!-- Collapsible Statistics Section -->
+    <div class="mb-6">
+        <button 
+            onclick="toggleSection('db-activity-section')" 
+            class="w-full bg-white dark:bg-gray-800 rounded-lg shadow hover:shadow-md transition-shadow duration-200"
+        >
+            <!-- Statistics Row - Always Visible -->
+            <div class="p-6">
+                <div class="flex items-center justify-between mb-4">
+                    <h2 class="text-xl font-semibold text-gray-900 dark:text-white">Database Activity Monitor</h2>
+                    <svg id="db-activity-section-icon" class="w-6 h-6 text-gray-500 transform transition-transform duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+                    </svg>
+                </div>
+                
+                <!-- Statistics in One Row -->
+                <div class="grid grid-cols-4 gap-4">
+                    <div class="text-center">
+                        <div class="flex items-center justify-center mb-2">
+                            <svg class="w-6 h-6 text-blue-500" fill="currentColor" viewBox="0 0 20 20">
+                                <path fill-rule="evenodd" d="M4 5a2 2 0 012-2 3 3 0 003 3h2a3 3 0 003-3 2 2 0 012 2v11a2 2 0 01-2 2H6a2 2 0 01-2-2V5zm3 4a1 1 0 000 2h.01a1 1 0 100-2H7zm3 0a1 1 0 000 2h3a1 1 0 100-2h-3zm-3 4a1 1 0 100 2h.01a1 1 0 100-2H7zm3 0a1 1 0 100 2h3a1 1 0 100-2h-3z" clip-rule="evenodd"/>
+                            </svg>
+                        </div>
+                        <dt class="text-sm font-medium text-gray-500 dark:text-gray-400">Total</dt>
+                        <dd class="text-2xl font-bold text-gray-900 dark:text-white">{{ total_logs }}</dd>
+                    </div>
+
+                    <div class="text-center">
+                        <div class="flex items-center justify-center mb-2">
+                            <svg class="w-6 h-6 text-green-500" fill="currentColor" viewBox="0 0 20 20">
+                                <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-11a1 1 0 10-2 0v2H7a1 1 0 100 2h2v2a1 1 0 102 0v-2h2a1 1 0 100-2h-2V7z" clip-rule="evenodd"/>
+                            </svg>
+                        </div>
+                        <dt class="text-sm font-medium text-gray-500 dark:text-gray-400">Creates</dt>
+                        <dd class="text-2xl font-bold text-green-600 dark:text-green-400">{{ creates_count }}</dd>
+                    </div>
+
+                    <div class="text-center">
+                        <div class="flex items-center justify-center mb-2">
+                            <svg class="w-6 h-6 text-yellow-500" fill="currentColor" viewBox="0 0 20 20">
+                                <path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z"/>
+                            </svg>
+                        </div>
+                        <dt class="text-sm font-medium text-gray-500 dark:text-gray-400">Updates</dt>
+                        <dd class="text-2xl font-bold text-yellow-600 dark:text-yellow-400">{{ updates_count }}</dd>
+                    </div>
+
+                    <div class="text-center">
+                        <div class="flex items-center justify-center mb-2">
+                            <svg class="w-6 h-6 text-red-500" fill="currentColor" viewBox="0 0 20 20">
+                                <path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clip-rule="evenodd"/>
+                            </svg>
+                        </div>
+                        <dt class="text-sm font-medium text-gray-500 dark:text-gray-400">Deletes</dt>
+                        <dd class="text-2xl font-bold text-red-600 dark:text-red-400">{{ deletes_count }}</dd>
+                    </div>
+                </div>
+            </div>
+        </button>
+
+        <!-- Collapsible Content -->
+        <div id="db-activity-section-content" class="overflow-hidden transition-all duration-300" style="max-height: 0;">
+            <div class="bg-white dark:bg-gray-800 rounded-b-lg shadow p-6 border-t border-gray-200 dark:border-gray-700">
+                
+                <!-- Filters Section -->
+                <div class="mb-6">
+                    <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Filters</h3>
+                    <form method="get" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Time Range</label>
+                            <select name="days" class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:text-white">
+                                <option value="1" {% if days == 1 %}selected{% endif %}>Last 24 hours</option>
+                                <option value="3" {% if days == 3 %}selected{% endif %}>Last 3 days</option>
+                                <option value="7" {% if days == 7 %}selected{% endif %}>Last 7 days</option>
+                                <option value="14" {% if days == 14 %}selected{% endif %}>Last 14 days</option>
+                                <option value="30" {% if days == 30 %}selected{% endif %}>Last 30 days</option>
+                            </select>
+                        </div>
+
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Action Type</label>
+                            <select name="action" class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:text-white">
+                                <option value="">All Actions</option>
+                                <option value="create" {% if action_filter == 'create' %}selected{% endif %}>Creates</option>
+                                <option value="update" {% if action_filter == 'update' %}selected{% endif %}>Updates</option>
+                                <option value="delete" {% if action_filter == 'delete' %}selected{% endif %}>Deletes</option>
+                            </select>
+                        </div>
+
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Model</label>
+                            <select name="model" class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:text-white">
+                                <option value="">All Models</option>
+                                {% for model in unique_models %}
+                                <option value="{{ model }}" {% if model_filter == model %}selected{% endif %}>{{ model }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Changed By</label>
+                            <select name="user" class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:text-white">
+                                <option value="">All Users</option>
+                                {% for user in unique_users %}
+                                <option value="{{ user }}" {% if user_filter == user %}selected{% endif %}>{{ user }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+
+                        <div class="flex items-end">
+                            <button type="submit" class="w-full text-white bg-blue-700 hover:bg-blue-800 focus:ring-4 focus:outline-none focus:ring-blue-300 font-medium rounded-lg text-sm px-5 py-2.5 text-center dark:bg-blue-600 dark:hover:bg-blue-700 dark:focus:ring-blue-800">
+                                Apply Filters
+                            </button>
+                        </div>
+                    </form>
+                </div>
+
+                <!-- Activity by Date and Model -->
+                <div class="space-y-6">
+                    <h3 class="text-lg font-semibold text-gray-900 dark:text-white">Activity Timeline</h3>
+                    
+                    {% for date, models in logs_by_date.items %}
+                    <div class="border-l-4 border-blue-500 pl-4">
+                        <h4 class="text-md font-semibold text-gray-900 dark:text-white mb-3">{{ date|date:"F d, Y" }}</h4>
+                        
+                        <div class="space-y-4">
+                            {% for model_name, data in models.items %}
+                            <div class="bg-gray-50 dark:bg-gray-700 rounded-lg p-4">
+                                <div class="flex items-center justify-between mb-3">
+                                    <h5 class="text-md font-semibold text-gray-800 dark:text-gray-200">{{ model_name }}</h5>
+                                    <div class="flex space-x-3 text-sm">
+                                        {% if data.creates > 0 %}
+                                        <span class="px-2 py-1 bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300 rounded">
+                                            +{{ data.creates }}
+                                        </span>
+                                        {% endif %}
+                                        {% if data.updates > 0 %}
+                                        <span class="px-2 py-1 bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-300 rounded">
+                                            ~{{ data.updates }}
+                                        </span>
+                                        {% endif %}
+                                        {% if data.deletes > 0 %}
+                                        <span class="px-2 py-1 bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-300 rounded">
+                                            -{{ data.deletes }}
+                                        </span>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                                
+                                <!-- Expandable log details -->
+                                <details class="mt-2">
+                                    <summary class="cursor-pointer text-sm text-blue-600 dark:text-blue-400 hover:underline">
+                                        Show {{ data.logs|length }} change{{ data.logs|length|pluralize }}
+                                    </summary>
+                                    
+                                    <div class="mt-3 space-y-2">
+                                        {% for log in data.logs %}
+                                        <div class="bg-white dark:bg-gray-800 rounded p-3 text-sm">
+                                            <div class="flex items-start justify-between">
+                                                <div class="flex-1">
+                                                    <div class="flex items-center space-x-2 mb-1">
+                                                        <span class="font-semibold">
+                                                            {% if log.action == 'create' %}
+                                                            <span class="text-green-600 dark:text-green-400">CREATE</span>
+                                                            {% elif log.action == 'update' %}
+                                                            <span class="text-yellow-600 dark:text-yellow-400">UPDATE</span>
+                                                            {% else %}
+                                                            <span class="text-red-600 dark:text-red-400">DELETE</span>
+                                                            {% endif %}
+                                                        </span>
+                                                        <span class="text-gray-600 dark:text-gray-400">{{ log.object_repr|truncatewords:10 }}</span>
+                                                    </div>
+                                                    
+                                                    <div class="text-xs text-gray-500 dark:text-gray-400 mb-2">
+                                                        <span class="font-medium">{{ log.changed_by|default:"System" }}</span>
+                                                        <span class="mx-1">•</span>
+                                                        <span>{{ log.timestamp|date:"H:i:s" }}</span>
+                                                        <span class="mx-1">•</span>
+                                                        <span>ID: {{ log.object_id }}</span>
+                                                    </div>
+                                                    
+                                                    {% if log.changed_fields %}
+                                                    <div class="mt-2 bg-gray-50 dark:bg-gray-700 rounded p-2">
+                                                        <div class="text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Changed Fields:</div>
+                                                        <div class="space-y-1">
+                                                            {% for field in log.changed_fields %}
+                                                            <div class="text-xs">
+                                                                <span class="font-medium text-gray-800 dark:text-gray-200">{{ field }}:</span>
+                                                                {% if log.action != 'create' and log.old_values %}
+                                                                <span class="text-gray-500 dark:text-gray-400">{{ log.old_values|get_item:field|truncatewords:10 }}</span>
+                                                                <span class="mx-1 text-gray-400">→</span>
+                                                                {% endif %}
+                                                                {% if log.action != 'delete' and log.new_values %}
+                                                                <span class="text-gray-700 dark:text-gray-300">{{ log.new_values|get_item:field|truncatewords:10 }}</span>
+                                                                {% endif %}
+                                                            </div>
+                                                            {% endfor %}
+                                                        </div>
+                                                    </div>
+                                                    {% endif %}
+                                                </div>
+                                            </div>
+                                        </div>
+                                        {% endfor %}
+                                    </div>
+                                </details>
+                            </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+                    {% empty %}
+                    <div class="text-center py-12">
+                        <svg class="mx-auto h-12 w-12 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4" />
+                        </svg>
+                        <h3 class="mt-2 text-sm font-medium text-gray-900 dark:text-white">No activity found</h3>
+                        <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">No database changes in the selected time range</p>
+                    </div>
+                    {% endfor %}
+                </div>
+
+                <!-- Pagination -->
+                {% if page_obj.has_other_pages %}
+                <div class="mt-6 pt-4 border-t border-gray-200 dark:border-gray-700">
+                    <nav class="flex items-center justify-between">
+                        <div class="flex-1 flex justify-between sm:hidden">
+                            {% if page_obj.has_previous %}
+                            <a href="?page={{ page_obj.previous_page_number }}&days={{ days }}&action={{ action_filter }}&model={{ model_filter }}&user={{ user_filter }}" class="relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50">
+                                Previous
+                            </a>
+                            {% endif %}
+                            {% if page_obj.has_next %}
+                            <a href="?page={{ page_obj.next_page_number }}&days={{ days }}&action={{ action_filter }}&model={{ model_filter }}&user={{ user_filter }}" class="ml-3 relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50">
+                                Next
+                            </a>
+                            {% endif %}
+                        </div>
+                        <div class="hidden sm:flex-1 sm:flex sm:items-center sm:justify-between">
+                            <div>
+                                <p class="text-sm text-gray-700 dark:text-gray-300">
+                                    Page <span class="font-medium">{{ page_obj.number }}</span> of <span class="font-medium">{{ page_obj.paginator.num_pages }}</span>
+                                </p>
+                            </div>
+                            <div>
+                                <nav class="relative z-0 inline-flex rounded-md shadow-sm -space-x-px">
+                                    {% if page_obj.has_previous %}
+                                    <a href="?page={{ page_obj.previous_page_number }}&days={{ days }}&action={{ action_filter }}&model={{ model_filter }}&user={{ user_filter }}" class="relative inline-flex items-center px-2 py-2 rounded-l-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50 dark:bg-gray-700 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-600">
+                                        Previous
+                                    </a>
+                                    {% endif %}
+                                    {% if page_obj.has_next %}
+                                    <a href="?page={{ page_obj.next_page_number }}&days={{ days }}&action={{ action_filter }}&model={{ model_filter }}&user={{ user_filter }}" class="relative inline-flex items-center px-2 py-2 rounded-r-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50 dark:bg-gray-700 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-600">
+                                        Next
+                                    </a>
+                                    {% endif %}
+                                </nav>
+                            </div>
+                        </div>
+                    </nav>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <!-- Error Logs Section -->
+    <div class="mb-6">
+        <button 
+            onclick="toggleSection('error-logs-section')" 
+            class="w-full bg-white dark:bg-gray-800 rounded-lg shadow hover:shadow-md transition-shadow duration-200"
+        >
+            <div class="p-6">
+                <div class="flex items-center justify-between mb-4">
+                    <h2 class="text-xl font-semibold text-gray-900 dark:text-white">Error Logs</h2>
+                    <svg id="error-logs-section-icon" class="w-6 h-6 text-gray-500 transform transition-transform duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+                    </svg>
+                </div>
+                
+                <!-- Error Statistics in One Row -->
+                <div class="grid grid-cols-4 gap-4">
+                    <div class="text-center">
+                        <div class="flex items-center justify-center mb-2">
+                            <svg class="w-6 h-6 text-red-500" fill="currentColor" viewBox="0 0 20 20">
+                                <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clip-rule="evenodd"/>
+                            </svg>
+                        </div>
+                        <dt class="text-sm font-medium text-gray-500 dark:text-gray-400">Total Errors</dt>
+                        <dd class="text-2xl font-bold text-red-600 dark:text-red-400">{{ total_errors|default:0 }}</dd>
+                    </div>
+
+                    <div class="text-center">
+                        <div class="flex items-center justify-center mb-2">
+                            <svg class="w-6 h-6 text-orange-500" fill="currentColor" viewBox="0 0 20 20">
+                                <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd"/>
+                            </svg>
+                        </div>
+                        <dt class="text-sm font-medium text-gray-500 dark:text-gray-400">Unresolved</dt>
+                        <dd class="text-2xl font-bold text-orange-600 dark:text-orange-400">{{ unresolved_errors|default:0 }}</dd>
+                    </div>
+
+                    <div class="text-center">
+                        <div class="flex items-center justify-center mb-2">
+                            <svg class="w-6 h-6 text-purple-500" fill="currentColor" viewBox="0 0 20 20">
+                                <path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd"/>
+                            </svg>
+                        </div>
+                        <dt class="text-sm font-medium text-gray-500 dark:text-gray-400">Critical</dt>
+                        <dd class="text-2xl font-bold text-purple-600 dark:text-purple-400">{{ critical_errors|default:0 }}</dd>
+                    </div>
+
+                    <div class="text-center">
+                        <div class="flex items-center justify-center mb-2">
+                            <svg class="w-6 h-6 text-yellow-500" fill="currentColor" viewBox="0 0 20 20">
+                                <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd"/>
+                            </svg>
+                        </div>
+                        <dt class="text-sm font-medium text-gray-500 dark:text-gray-400">High Priority</dt>
+                        <dd class="text-2xl font-bold text-yellow-600 dark:text-yellow-400">{{ high_errors|default:0 }}</dd>
+                    </div>
+                </div>
+            </div>
+        </button>
+
+        <!-- Collapsible Error Content -->
+        <div id="error-logs-section-content" class="overflow-hidden transition-all duration-300" style="max-height: 0;">
+            <div class="bg-white dark:bg-gray-800 rounded-b-lg shadow p-6 border-t border-gray-200 dark:border-gray-700">
+                
+                <!-- Error Filters -->
+                <div class="mb-6">
+                    <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Error Filters</h3>
+                    <form method="get" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+                        <input type="hidden" name="days" value="{{ days }}">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Severity</label>
+                            <select name="severity" class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-red-500 focus:border-red-500 block w-full p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:text-white">
+                                <option value="">All Severities</option>
+                                <option value="low" {% if severity_filter == 'low' %}selected{% endif %}>Low</option>
+                                <option value="medium" {% if severity_filter == 'medium' %}selected{% endif %}>Medium</option>
+                                <option value="high" {% if severity_filter == 'high' %}selected{% endif %}>High</option>
+                                <option value="critical" {% if severity_filter == 'critical' %}selected{% endif %}>Critical</option>
+                            </select>
+                        </div>
+
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Source</label>
+                            <select name="source" class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-red-500 focus:border-red-500 block w-full p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:text-white">
+                                <option value="">All Sources</option>
+                                <option value="web" {% if source_filter == 'web' %}selected{% endif %}>Web Request</option>
+                                <option value="api" {% if source_filter == 'api' %}selected{% endif %}>API</option>
+                                <option value="command" {% if source_filter == 'command' %}selected{% endif %}>Management Command</option>
+                                <option value="model" {% if source_filter == 'model' %}selected{% endif %}>Model Operation</option>
+                                <option value="task" {% if source_filter == 'task' %}selected{% endif %}>Background Task</option>
+                                <option value="webhook" {% if source_filter == 'webhook' %}selected{% endif %}>Webhook</option>
+                            </select>
+                        </div>
+
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Error Type</label>
+                            <select name="error_type" class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-red-500 focus:border-red-500 block w-full p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:text-white">
+                                <option value="">All Types</option>
+                                {% for error_type in unique_error_types %}
+                                <option value="{{ error_type }}" {% if error_type_filter == error_type %}selected{% endif %}>{{ error_type }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Status</label>
+                            <select name="resolved" class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-red-500 focus:border-red-500 block w-full p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:text-white">
+                                <option value="">All Statuses</option>
+                                <option value="false" {% if resolved_filter == 'false' %}selected{% endif %}>Unresolved</option>
+                                <option value="true" {% if resolved_filter == 'true' %}selected{% endif %}>Resolved</option>
+                            </select>
+                        </div>
+
+                        <div class="flex items-end">
+                            <button type="submit" class="w-full text-white bg-red-700 hover:bg-red-800 focus:ring-4 focus:outline-none focus:ring-red-300 font-medium rounded-lg text-sm px-5 py-2.5 text-center dark:bg-red-600 dark:hover:bg-red-700">
+                                Apply Filters
+                            </button>
+                        </div>
+                    </form>
+                </div>
+
+                <!-- Recent Errors -->
+                <div class="space-y-4">
+                    <h3 class="text-lg font-semibold text-gray-900 dark:text-white">Recent Errors</h3>
+                    
+                    {% for error in recent_errors %}
+                    <div class="bg-gray-50 dark:bg-gray-700 rounded-lg p-4 {% if error.severity == 'critical' %}border-l-4 border-purple-500{% elif error.severity == 'high' %}border-l-4 border-red-500{% endif %}">
+                        <div class="flex items-start justify-between">
+                            <div class="flex-1">
+                                <div class="flex items-center space-x-2 mb-2">
+                                    <span class="px-2 py-1 text-xs font-semibold rounded {% if error.severity == 'critical' %}bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-300{% elif error.severity == 'high' %}bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-300{% elif error.severity == 'medium' %}bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-300{% else %}bg-gray-100 text-gray-800 dark:bg-gray-600 dark:text-gray-300{% endif %}">
+                                        {{ error.severity|upper }}
+                                    </span>
+                                    <span class="px-2 py-1 text-xs font-semibold rounded bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300">
+                                        {{ error.source }}
+                                    </span>
+                                    {% if not error.resolved %}
+                                    <span class="px-2 py-1 text-xs font-semibold rounded bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-300">
+                                        UNRESOLVED
+                                    </span>
+                                    {% endif %}
+                                </div>
+                                
+                                <h4 class="text-md font-semibold text-gray-900 dark:text-white mb-1">{{ error.error_type }}</h4>
+                                <p class="text-sm text-gray-700 dark:text-gray-300 mb-2">{{ error.error_message|truncatewords:30 }}</p>
+                                
+                                <div class="text-xs text-gray-500 dark:text-gray-400 mb-2">
+                                    <span class="font-medium">📍 {{ error.context }}</span>
+                                    <span class="mx-2">•</span>
+                                    <span>{{ error.timestamp|date:"Y-m-d H:i:s" }}</span>
+                                    {% if error.username %}
+                                    <span class="mx-2">•</span>
+                                    <span>👤 {{ error.username }}</span>
+                                    {% if error.user_role %}({{ error.user_role }}){% endif %}
+                                    {% endif %}
+                                    {% if error.request_path %}
+                                    <span class="mx-2">•</span>
+                                    <span>🌐 {{ error.request_method }} {{ error.request_path|truncatewords:5 }}</span>
+                                    {% endif %}
+                                </div>
+                                
+                                {% if error.traceback %}
+                                <details class="mt-2">
+                                    <summary class="cursor-pointer text-sm text-red-600 dark:text-red-400 hover:underline">Show stack trace</summary>
+                                    <pre class="mt-2 bg-gray-900 text-gray-100 p-3 rounded text-xs overflow-x-auto">{{ error.traceback|truncatewords:100 }}</pre>
+                                </details>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                    {% empty %}
+                    <div class="text-center py-8 text-gray-500 dark:text-gray-400">
+                        <p>No errors in the selected time range 🎉</p>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- System Logs Section -->
+    <div class="mb-6">
+        <button 
+            onclick="toggleSection('system-logs-section')" 
+            class="w-full bg-white dark:bg-gray-800 rounded-lg shadow hover:shadow-md transition-shadow duration-200"
+        >
+            <div class="p-6">
+                <div class="flex items-center justify-between mb-4">
+                    <h2 class="text-xl font-semibold text-gray-900 dark:text-white">System Logs</h2>
+                    <svg id="system-logs-section-icon" class="w-6 h-6 text-gray-500 transform transition-transform duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+                    </svg>
+                </div>
+                
+                <!-- System Log Statistics -->
+                <div class="grid grid-cols-4 gap-4">
+                    <div class="text-center">
+                        <dt class="text-sm font-medium text-gray-500 dark:text-gray-400">Total Logs</dt>
+                        <dd class="text-2xl font-bold text-gray-900 dark:text-white">{{ total_system_logs|default:0 }}</dd>
+                    </div>
+
+                    <div class="text-center">
+                        <dt class="text-sm font-medium text-gray-500 dark:text-gray-400">Info</dt>
+                        <dd class="text-2xl font-bold text-blue-600 dark:text-blue-400">{{ info_logs|default:0 }}</dd>
+                    </div>
+
+                    <div class="text-center">
+                        <dt class="text-sm font-medium text-gray-500 dark:text-gray-400">Warnings</dt>
+                        <dd class="text-2xl font-bold text-yellow-600 dark:text-yellow-400">{{ warning_logs|default:0 }}</dd>
+                    </div>
+
+                    <div class="text-center">
+                        <dt class="text-sm font-medium text-gray-500 dark:text-gray-400">Errors</dt>
+                        <dd class="text-2xl font-bold text-red-600 dark:text-red-400">{{ error_level_logs|default:0 }}</dd>
+                    </div>
+                </div>
+            </div>
+        </button>
+
+        <!-- Collapsible System Log Content -->
+        <div id="system-logs-section-content" class="overflow-hidden transition-all duration-300" style="max-height: 0;">
+            <div class="bg-white dark:bg-gray-800 rounded-b-lg shadow p-6 border-t border-gray-200 dark:border-gray-700">
+                
+                <!-- System Log Filters -->
+                <div class="mb-6">
+                    <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Log Filters</h3>
+                    <form method="get" class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <input type="hidden" name="days" value="{{ days }}">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Level</label>
+                            <select name="log_level" class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:text-white">
+                                <option value="">All Levels</option>
+                                <option value="debug" {% if log_level_filter == 'debug' %}selected{% endif %}>Debug</option>
+                                <option value="info" {% if log_level_filter == 'info' %}selected{% endif %}>Info</option>
+                                <option value="warning" {% if log_level_filter == 'warning' %}selected{% endif %}>Warning</option>
+                                <option value="error" {% if log_level_filter == 'error' %}selected{% endif %}>Error</option>
+                                <option value="critical" {% if log_level_filter == 'critical' %}selected{% endif %}>Critical</option>
+                            </select>
+                        </div>
+
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Category</label>
+                            <select name="log_category" class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:text-white">
+                                <option value="">All Categories</option>
+                                <option value="auth" {% if log_category_filter == 'auth' %}selected{% endif %}>Authentication</option>
+                                <option value="sms" {% if log_category_filter == 'sms' %}selected{% endif %}>SMS/Messaging</option>
+                                <option value="payment" {% if log_category_filter == 'payment' %}selected{% endif %}>Payment</option>
+                                <option value="booking" {% if log_category_filter == 'booking' %}selected{% endif %}>Booking</option>
+                                <option value="contract" {% if log_category_filter == 'contract' %}selected{% endif %}>Contract</option>
+                                <option value="notification" {% if log_category_filter == 'notification' %}selected{% endif %}>Notification</option>
+                                <option value="sync" {% if log_category_filter == 'sync' %}selected{% endif %}>Synchronization</option>
+                                <option value="system" {% if log_category_filter == 'system' %}selected{% endif %}>System</option>
+                            </select>
+                        </div>
+
+                        <div class="flex items-end">
+                            <button type="submit" class="w-full text-white bg-blue-700 hover:bg-blue-800 focus:ring-4 focus:outline-none focus:ring-blue-300 font-medium rounded-lg text-sm px-5 py-2.5 text-center">
+                                Apply Filters
+                            </button>
+                        </div>
+                    </form>
+                </div>
+
+                <!-- Recent System Logs -->
+                <div class="space-y-2">
+                    <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Recent Logs</h3>
+                    
+                    {% for log in recent_system_logs %}
+                    <div class="bg-gray-50 dark:bg-gray-700 rounded p-3 text-sm">
+                        <div class="flex items-start justify-between">
+                            <div class="flex-1">
+                                <div class="flex items-center space-x-2 mb-1">
+                                    <span class="px-2 py-0.5 text-xs font-semibold rounded {% if log.level == 'critical' or log.level == 'error' %}bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-300{% elif log.level == 'warning' %}bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-300{% elif log.level == 'info' %}bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300{% else %}bg-gray-100 text-gray-800 dark:bg-gray-600 dark:text-gray-300{% endif %}">
+                                        {{ log.level|upper }}
+                                    </span>
+                                    <span class="px-2 py-0.5 text-xs font-semibold rounded bg-indigo-100 text-indigo-800 dark:bg-indigo-900 dark:text-indigo-300">
+                                        {{ log.category }}
+                                    </span>
+                                    <span class="text-xs text-gray-500 dark:text-gray-400">{{ log.timestamp|date:"Y-m-d H:i:s" }}</span>
+                                </div>
+                                
+                                <p class="text-gray-700 dark:text-gray-300">{{ log.message }}</p>
+                                
+                                {% if log.context %}
+                                <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">📍 {{ log.context }}</p>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                    {% empty %}
+                    <div class="text-center py-8 text-gray-500 dark:text-gray-400">
+                        <p>No system logs in the selected time range</p>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Placeholder for future sections -->
+    <div class="text-center py-8 text-gray-400 dark:text-gray-600 text-sm">
+        Additional administration sections will appear here
+    </div>
+</div>
+
+<script>
+function toggleSection(sectionId) {
+    const content = document.getElementById(sectionId + '-content');
+    const icon = document.getElementById(sectionId + '-icon');
+    
+    if (content.style.maxHeight === '0px' || content.style.maxHeight === '') {
+        content.style.maxHeight = content.scrollHeight + 'px';
+        icon.style.transform = 'rotate(180deg)';
+    } else {
+        content.style.maxHeight = '0px';
+        icon.style.transform = 'rotate(0deg)';
+    }
+}
+
+// Auto-expand on page load if there are filters applied or data exists
+window.addEventListener('DOMContentLoaded', function() {
+    const urlParams = new URLSearchParams(window.location.search);
+    const hasFilters = urlParams.has('action') || urlParams.has('model') || urlParams.has('user') || urlParams.get('days') !== '3';
+    
+    if (hasFilters || {{ total_logs }} > 0) {
+        toggleSection('db-activity-section');
+    }
+    
+    // Auto-expand errors if there are unresolved errors
+    if ({{ unresolved_errors|default:0 }} > 0) {
+        toggleSection('error-logs-section');
+    }
+});
+</script>
+{% endblock %}

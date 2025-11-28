@@ -10,21 +10,14 @@ from twilio.base.exceptions import TwilioException
 from twilio.twiml.messaging_response import MessagingResponse
 from django.db.models import F
 from django.db import models
-import logging
-
-logger_sms = logging.getLogger('mysite.sms_notifications')
-
-
-def print_info(message):
-    print(message)
-    logger_sms.debug(message)
+from mysite.unified_logger import log_error, log_info, log_warning, logger
 
 
 class Command(BaseCommand):
     help = 'Send SMS notifications for upcoming booking events'
 
     def handle(self, *args, **options):
-        print_info("**************** START NOTIFICATION PROCESS ************")
+        log_info("Starting SMS notification process", category='sms')
         
         self.send_sms_for_event('move_in')
         self.send_sms_for_event('unsigned_contract_1d')
@@ -34,6 +27,8 @@ class Command(BaseCommand):
         self.send_sms_for_event('extension')
         self.send_sms_for_event('move_out')
         self.send_sms_for_event('safe_travel')
+        
+        log_info("SMS notification process completed", category='sms')
 
     def send_sms_for_event(self, event_type):
         bookings = self.get_bookings_for_event(event_type)
@@ -41,18 +36,26 @@ class Command(BaseCommand):
         for booking in bookings:
             if booking.tenant.phone:
                 message = self.get_message_for_event(event_type)
-                print_info(
-                    "\n**********************************************\n")
-                print_info(
-                    f"\n Found SMS to Send {event_type} for {booking.tenant.phone} {booking.apartment.name}  \n{message}\n")
+                log_info(
+                    f"Sending {event_type} SMS to {booking.tenant.phone} for {booking.apartment.name}",
+                    category='sms',
+                    details={'booking_id': booking.id, 'event': event_type}
+                )
                 
                 # Only send if conversation exists (production)
                 self.send_sms(booking, message)
 
             else:
-                print_info(f'Cannot notify tenant {booking.tenant.full_name} about {event_type} event because they do not have a phone number. Apt: [{booking.apartment.name}]. Booking id: {booking.id}, [{booking.start_date} {booking.end_date}]')
-
-            print_info("\n**********************************************\n")
+                log_warning(
+                    f"Cannot notify tenant {booking.tenant.full_name} about {event_type} - no phone number",
+                    category='sms',
+                    details={
+                        'tenant': booking.tenant.full_name,
+                        'apartment': booking.apartment.name,
+                        'booking_id': booking.id,
+                        'dates': f"{booking.start_date} - {booking.end_date}"
+                    }
+                )
 
     def get_bookings_for_event(self, event_type):
         now = timezone.now()
@@ -170,8 +173,12 @@ class Command(BaseCommand):
             return None
 
     def send_sms(self, booking, message):
-        account_sid = os.environ["TWILIO_ACCOUNT_SID"]
-        auth_token = os.environ["TWILIO_AUTH_TOKEN"]
+        account_sid = os.environ.get("TWILIO_ACCOUNT_SID")
+        auth_token = os.environ.get("TWILIO_AUTH_TOKEN")
+        
+        if not account_sid or not auth_token:
+            log_warning("Twilio credentials not available", category='sms')
+            return
 
         client = Client(account_sid, auth_token)
 
@@ -182,15 +189,38 @@ class Command(BaseCommand):
             if conversation:
                 # Send via conversation only if one exists
                 sent_message = self.send_via_conversation(client, conversation, message, booking)
-                print_info(
-                    f'SMS sent to {booking.tenant.full_name}({booking.tenant.phone}): {sent_message.sid} \n Message: {message}')
+                log_info(
+                    f'SMS sent successfully',
+                    category='sms',
+                    details={
+                        'tenant': booking.tenant.full_name,
+                        'phone': booking.tenant.phone,
+                        'message_sid': sent_message.sid
+                    }
+                )
             else:
                 # No conversation exists - skip sending
-                print_info(
-                    f'No existing conversation found for {booking.tenant.full_name}({booking.tenant.phone}). Skipping SMS notification for: {message}')
+                log_warning(
+                    f'No existing conversation - SMS not sent',
+                    category='sms',
+                    details={
+                        'tenant': booking.tenant.full_name,
+                        'phone': booking.tenant.phone
+                    }
+                )
                 
         except TwilioException as e:
-            print_info(f'Error sending SMS notification to {booking.tenant.full_name}({booking.tenant.phone}). Apt: {booking.apartment.name} \n Error: {str(e)}')
+            log_error(
+                e,
+                f'SMS Send Failed - {booking.tenant.full_name}',
+                source='command',
+                severity='high',
+                additional_info={
+                    'tenant': booking.tenant.full_name,
+                    'phone': booking.tenant.phone,
+                    'apartment': booking.apartment.name
+                }
+            )
 
     def get_existing_conversation(self, booking):
         """
@@ -200,7 +230,6 @@ class Command(BaseCommand):
             # First check if we have a conversation in our database for this booking
             conversation = TwilioConversation.objects.filter(booking=booking).first()
             if conversation:
-                print_info(f"Found existing conversation linked to booking: {conversation.conversation_sid}")
                 return conversation
             
             # Check if there's any conversation for this tenant phone number
@@ -211,20 +240,17 @@ class Command(BaseCommand):
                 ).first()
                 
                 if conversation:
-                    print_info(f"Found conversation by phone number: {conversation.conversation_sid}")
                     # Link it to this booking if not already linked
                     if not conversation.booking:
                         conversation.booking = booking
                         conversation.apartment = booking.apartment
                         conversation.save()
-                        print_info(f"Linked conversation {conversation.conversation_sid} to booking {booking.id}")
                     return conversation
             
-            print_info(f"No existing conversation found for booking {booking.id}")
             return None
             
         except Exception as e:
-            print_info(f"Error getting conversation for booking {booking.id}: {e}")
+            log_error(e, f"Get Conversation - Booking {booking.id}", source='command')
             return None
 
     def send_via_conversation(self, client, conversation, message, booking):
@@ -241,12 +267,11 @@ class Command(BaseCommand):
             # Save to our database
             self.save_message_to_db(sent_message, booking, message, 'outbound', conversation.conversation_sid)
             
-            print_info(f"Message sent via conversation {conversation.conversation_sid}")
             return sent_message
             
         except Exception as e:
-            print_info(f"Error sending via conversation: {e}")
-            raise e  # Re-raise the exception instead of falling back
+            log_error(e, "Send via Conversation", source='command')
+            raise e  # Re-raise the exception
 
     def save_message_to_db(self, sent_message, booking, message_body, direction, conversation_sid=None):
         """
@@ -279,7 +304,5 @@ class Command(BaseCommand):
             )
             message.save()
             
-            print_info(f"Message saved to database: {sent_message.sid}")
-            
         except Exception as e:
-            print_info(f"Error saving message to database: {e}")
+            log_error(e, "Save Message to DB", source='command')

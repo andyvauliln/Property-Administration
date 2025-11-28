@@ -2,17 +2,10 @@ from django.utils import timezone
 import os
 import requests
 import json
-import logging
+from mysite.unified_logger import log_error, log_info, log_warning, logger
 
 SUBMISSION_URL_API_BASE_URL = "https://api.docuseal.co/submissions"
 DOCUSEAL_API_KEY = os.environ.get("DOCUSEAL_API_KEY")
-
-logger_sms = logging.getLogger('mysite.sms_webhooks')
-
-def print_info(*args):
-    message = ' '.join(str(arg) for arg in args)
-    print(message)
-    logger_sms.debug(message)
 
 
 
@@ -30,42 +23,42 @@ def create_and_send_agreement(booking, template_id, send_sms=False):
     data = None
     response = None
     try:
-        # Get Adobe Sign access token
-        print_info("START CREATE AGREEMENT")
+        log_info("Creating DocuSeal contract", category='contract', details={'booking_id': booking.id})
         data = prepare_data_for_agreement(booking, template_id)
-        print_info("data", data)
 
         headers = {
             "X-Auth-Token": f"{DOCUSEAL_API_KEY}",
             "Content-Type": "application/json",
         }
         response = requests.post(SUBMISSION_URL_API_BASE_URL, headers=headers, json=data)
-        print_info("DocuSeal API response status code:", response.status_code)
-        print_info("DocuSeal API response status code:", response)
 
         if 200 <= response.status_code < 300:
             response_data = response.json()
-            print_info("response_data", response_data)
             booking.contract_id = str(response_data[0]["submission_id"])
             booking.contract_url = response_data[0]["embed_src"]
             booking.contract_send_status = "Sent by Email"
-            print_info(f"Saving contract_id {booking.contract_id} to booking {booking.id}")
             
             # Try to send SMS but don't fail the entire process if it fails
             if send_sms and booking.tenant.phone and booking.tenant.phone.startswith("+1"):
                 try:
                     from mysite.views.messaging import sendContractToTwilio
                     sendContractToTwilio(booking, response_data[0]["embed_src"])
-                    print_info(f"SMS notification sent successfully to {booking.tenant.phone}")
+                    log_info("SMS notification sent with contract", category='sms', details={'phone': booking.tenant.phone})
                 except Exception as sms_error:
-                    print_info(f"Warning: SMS notification failed but contract was created successfully. Error: {str(sms_error)}")
-                    # Don't re-raise - contract was created successfully
+                    log_warning(
+                        f"SMS notification failed but contract created successfully",
+                        category='sms',
+                        details={'error': str(sms_error), 'phone': booking.tenant.phone}
+                    )
             
             # Save only the contract-related fields to avoid triggering complex save logic
             from django.db import models
             models.Model.save(booking, update_fields=['contract_id', 'contract_url', 'contract_send_status', 'updated_at'])
-            print_info(f"Contract saved - Booking {booking.id} now has contract_id: {booking.contract_id}")
-            print_info(f"✓ Contract successfully created and sent for booking {booking.id}")
+            log_info(
+                f"Contract created successfully",
+                category='contract',
+                details={'booking_id': booking.id, 'contract_id': booking.contract_id}
+            )
             return True  # Success
         else:
             error_detail = ""
@@ -73,43 +66,42 @@ def create_and_send_agreement(booking, template_id, send_sms=False):
                 error_detail = response.json()
             except:
                 error_detail = response.text
-            print_info("Detailed response:", error_detail)
             booking.contract_send_status = "Not Sent"
             from django.db import models
             models.Model.save(booking, update_fields=['contract_send_status', 'updated_at'])
             raise Exception(f"Contract wasn't sent by email. Status code: {response.status_code}. Error: {error_detail}")
     except Exception as e:
-        print_info(f"An error occurred in create_and_send_agreement: {str(e)}")
         booking.contract_send_status = "Not Sent"
         from django.db import models
         models.Model.save(booking, update_fields=['contract_send_status', 'updated_at'])
         
         # Build detailed error message
-        error_details = [
-            f"Booking ID: {booking.id}",
-            f"Template ID: {template_id}",
-            f"Tenant: {booking.tenant.full_name}",
-            f"Tenant Email: {booking.tenant.email}",
-            f"Tenant Phone: {booking.tenant.phone}",
-        ]
+        error_details = {
+            'booking_id': booking.id,
+            'template_id': template_id,
+            'tenant': booking.tenant.full_name,
+            'tenant_email': booking.tenant.email,
+            'tenant_phone': booking.tenant.phone,
+        }
         
         if response is not None:
-            error_details.append(f"Response Status: {response.status_code}")
+            error_details['response_status'] = response.status_code
             try:
-                error_details.append(f"Response Body: {response.json()}")
+                error_details['response_body'] = response.json()
             except:
-                error_details.append(f"Response Text: {response.text[:200]}")
-        else:
-            error_details.append("Response: None (request may have failed before getting response)")
+                error_details['response_text'] = response.text[:200]
         
         if data is not None:
-            error_details.append(f"Request Data: {json.dumps(data, indent=2)[:500]}")
+            error_details['request_data'] = json.dumps(data, indent=2)[:500]
         
-        error_details.append(f"Original Error: {str(e)}")
-        error_details.append(f"Error Type: {type(e).__name__}")
-        
-        detailed_message = "Contract wasn't sent by email. Details:\n" + "\n".join(f"  - {detail}" for detail in error_details)
-        raise Exception(detailed_message)
+        log_error(
+            e,
+            f"Contract Creation Failed - Booking {booking.id}",
+            source='web',
+            severity='high',
+            additional_info=error_details
+        )
+        raise
       
 
 
@@ -140,7 +132,6 @@ def prepare_data_for_agreement(booking, template_id):
 def get_fields(booking, template_id):
     # Convert template_id to string for consistent comparison
     template_id_str = str(template_id)
-    print_info("template_id", template_id, "converted to", template_id_str)
     
     if template_id_str == "120946": #application form
         return [
@@ -181,19 +172,25 @@ def delete_contract(id):
     }
 
     response = requests.delete(f"{SUBMISSION_URL_API_BASE_URL}/{id}", headers=headers)
-    print_info("Delete contract response status code:", response.status_code)
+    
     if not (200 <= response.status_code < 300):
-        print_info("Detailed error response:", response.json())
+        log_error(
+            Exception(f"Delete contract failed with status {response.status_code}"),
+            f"Delete Contract {id}",
+            source='contract',
+            severity='medium',
+            additional_info={'response': response.json()}
+        )
     else:
-        print_info(f"Contract with id {id} was deleted successfully")
+        log_info(f"Contract deleted successfully", category='contract', details={'contract_id': id})
 
 
 def update_contract(booking):
     submitter_id, status = get_submitter_id(booking)
-    print_info("submitter_id", submitter_id, "status", status)
+    
     if submitter_id:
         if status == "completed":
-            print_info(f"Skipping update - submitter {submitter_id} has already completed the submission")
+            log_info(f"Contract already completed", category='contract', details={'submitter_id': submitter_id})
             return False
         update_submitter(booking, submitter_id)
         return True
@@ -209,23 +206,23 @@ def get_submitter_id(booking):
     }
 
     response = requests.get(f"{SUBMISSION_URL_API_BASE_URL}/{booking.contract_id}", headers=headers)
-    print_info("Get submitter response status code:", response.status_code)
+    
     if 200 <= response.status_code < 300:
         submitters = response.json()["submitters"]
-        #tenant_submitter = next((s for s in submitters if s["name"] == "Farid Gazizov"), None)
         submitter = submitters[0]
         if submitter:
-            print_info(f"Found tenant submitter: {submitter} {submitter['id']}")
             return submitter['id'], submitter.get('status')
         else:
-            print_info(f"No submitter found for tenant email: {booking.tenant.email}")
+            log_warning(f"No submitter found", category='contract', details={'tenant_email': booking.tenant.email})
+            return None, None
     else:
-        print_info("Detailed error response:", response.json())
+        log_error(
+            Exception(f"Get submitter failed with status {response.status_code}"),
+            f"Get Submitter - Contract {booking.contract_id}",
+            source='contract',
+            additional_info={'response': response.json()}
+        )
         return None, None
-        
-
-
-    print_info(f"Contract with id {id} was deleted")
 
 
 def update_submitter(booking, submitter_id):
@@ -241,13 +238,16 @@ def update_submitter(booking, submitter_id):
     ]}
 
     response = requests.put(f"https://api.docuseal.co/submitters/{submitter_id}", headers=headers, json=data)
-    print_info("Update submitter response status code:", response.status_code)
+    
     if 200 <= response.status_code < 300:
-        response = response.json()
-        print_info("Successfully updated submitters", response)
-        
+        log_info("Contract submitter updated", category='contract', details={'submitter_id': submitter_id})
     else:
-        print_info("Detailed error response:", response.json())
+        log_error(
+            Exception(f"Update submitter failed with status {response.status_code}"),
+            f"Update Submitter {submitter_id}",
+            source='contract',
+            additional_info={'response': response.json()}
+        )
 
 
 

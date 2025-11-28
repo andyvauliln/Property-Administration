@@ -1,9 +1,5 @@
 from django import template
-import calendar
 import json
-from datetime import timedelta
-from datetime import datetime
-import locale
 import re
 
 register = template.Library()

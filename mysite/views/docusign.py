@@ -8,12 +8,7 @@ from django.views.decorators.http import require_http_methods
 import logging
 import traceback
 
-logger_common = logging.getLogger('mysite.docuseal')
 
-
-def print_info(message, type="info"):
-    print(message)
-    logger_common.debug(f"\n{type}:\n{message}\n")
 
 
 @csrf_exempt
@@ -23,7 +18,7 @@ def docuseal_callback(request):
     if request.method == 'POST':
         try:
             data = json.loads(request.body).get('data', {})
-            print_info(data, "Request Data")
+            logger.info(data, "Request Data")
             bookingid = data.get("metadata", {}).get('booking_id', None)
             submission_id = data.get("submission_id", None)
             
@@ -32,26 +27,26 @@ def docuseal_callback(request):
             # Try to find booking by ID from metadata
             if bookingid:
                 parsed_bookingid = int(bookingid[2:-1])
-                print_info(f"Parsed booking_id: {bookingid} -> {parsed_bookingid}", "Booking ID Parsing")
+                logger.info(f"Parsed booking_id: {bookingid} -> {parsed_bookingid}", "Booking ID Parsing")
                 
                 try:
                     booking = Booking.objects.get(id=parsed_bookingid)
-                    print_info(f"Found booking by ID: {booking}", "Booking Found")
+                    logger.info(f"Found booking by ID: {booking}", "Booking Found")
                 except Booking.DoesNotExist:
-                    print_info(f"Booking with ID {parsed_bookingid} not found, trying by contract_id...", "warning")
+                    logger.info(f"Booking with ID {parsed_bookingid} not found, trying by contract_id...", "warning")
             
             # Fallback: Try to find booking by contract_id (submission_id)
             if not booking and submission_id:
                 try:
                     booking = Booking.objects.get(contract_id=str(submission_id))
-                    print_info(f"Found booking by contract_id {submission_id}: {booking}", "Booking Found")
+                    logger.info(f"Found booking by contract_id {submission_id}: {booking}", "Booking Found")
                 except Booking.DoesNotExist:
-                    print_info(f"Booking with contract_id {submission_id} also not found", "warning")
+                    logger.info(f"Booking with contract_id {submission_id} also not found", "warning")
             
             # If still not found, return error with debugging info
             if not booking:
                 error_msg = f"Booking not found - ID: {bookingid if bookingid else 'N/A'}, Contract ID: {submission_id}"
-                print_info(error_msg, "error")
+                logger.info(error_msg, "error")
                 
                 # Check nearby booking IDs for debugging
                 if bookingid:
@@ -60,7 +55,7 @@ def docuseal_callback(request):
                         id__gte=parsed_bookingid-5, 
                         id__lte=parsed_bookingid+5
                     ).values_list('id', 'contract_id')
-                    print_info(f"Nearby bookings: {list(nearby_bookings)}", "info")
+                    logger.info(f"Nearby bookings: {list(nearby_bookings)}", "info")
                 
                 return JsonResponse({
                     'status': 'error', 
@@ -68,10 +63,10 @@ def docuseal_callback(request):
                 }, status=404)
             
             # Process the booking if found
-            print_info(booking, "Booking")
+            logger.info(booking, "Booking")
             values = data.get('values', [])
             form_fields_dict = {item['field']: item.get('value', '') for item in values}
-            print_info(form_fields_dict, "form_fields_dict")
+            logger.info(form_fields_dict, "form_fields_dict")
             
             if len(values) > 0:
                     booking.status = 'Waiting Payment'
@@ -79,39 +74,39 @@ def docuseal_callback(request):
                     # Handle visit_purpose with default value if missing or empty
                     if 'visit_purpose' in form_fields_dict and form_fields_dict['visit_purpose']:
                         booking.visit_purpose = form_fields_dict['visit_purpose']
-                        print_info(form_fields_dict['visit_purpose'], "visit_purpose_updated")
+                        logger.info(form_fields_dict['visit_purpose'], "visit_purpose_updated")
                     elif not booking.visit_purpose:  # Only set default if current value is empty/null
                         booking.visit_purpose = 'Other'  # Default value from VISIT_PURPOSE choices
-                        print_info('Other', "visit_purpose_set_to_default")
+                        logger.info('Other', "visit_purpose_set_to_default")
                     
                     # Handle animals field with default value if missing or empty
                     if 'animals' in form_fields_dict and form_fields_dict['animals']:
                         booking.animals = form_fields_dict['animals']
-                        print_info(form_fields_dict['animals'], "animals_updated")
+                        logger.info(form_fields_dict['animals'], "animals_updated")
                     elif not booking.animals:  # Only set default if current value is empty/null
                         booking.animals = ''  # Empty string is allowed for this field
-                        print_info('', "animals_set_to_empty")
+                        logger.info('', "animals_set_to_empty")
                     
                     # Handle source field with default value if missing or empty  
                     if 'source' in form_fields_dict and form_fields_dict['source']:
                         booking.source = form_fields_dict['source']
-                        print_info(form_fields_dict['source'], "source_updated")
+                        logger.info(form_fields_dict['source'], "source_updated")
                     elif not booking.source:  # Only set default if current value is empty/null
                         booking.source = 'Other'  # Default value from SOURCE choices
-                        print_info('Other', "source_set_to_default")
+                        logger.info('Other', "source_set_to_default")
                     
                     if 'car_info' in form_fields_dict:
                         booking.is_rent_car = True if form_fields_dict["car_info"] == "Rent" else False
-                        print_info(form_fields_dict['car_info'], "car_info")
+                        logger.info(form_fields_dict['car_info'], "car_info")
                     if 'car_model' in form_fields_dict:
                         # Ensure car_model is never None - use empty string as default
                         booking.car_model = form_fields_dict["car_model"] if form_fields_dict["car_model"] else ""
-                        print_info(form_fields_dict['car_model'], "car_model")
+                        logger.info(form_fields_dict['car_model'], "car_model")
                     booking.save()
-                    print_info(booking.status, "booking status")
-                    print_info("Booking Saved")
+                    logger.info(booking.status, "booking status")
+                    logger.info("Booking Saved")
                     tenant = booking.tenant
-                    print_info(tenant, "tenant object before update")
+                    logger.info(tenant, "tenant object before update")
                     
                     # Check if email has changed and if the new email already exists
                     new_email = form_fields_dict.get('email', '').strip() if 'email' in form_fields_dict and form_fields_dict['email'] else None
@@ -122,20 +117,20 @@ def docuseal_callback(request):
                         try:
                             existing_user = User.objects.get(email=new_email)
                             # Email exists for a different user - switch the booking to that user
-                            print_info(f"Email {new_email} already exists for user {existing_user}. Switching booking tenant.", "info")
+                            logger.info(f"Email {new_email} already exists for user {existing_user}. Switching booking tenant.", "info")
                             booking.tenant = existing_user
                             tenant = existing_user
                         except User.DoesNotExist:
                             # Email doesn't exist - safe to update current tenant
-                            print_info(f"Email {new_email} is available. Updating current tenant.", "info")
+                            logger.info(f"Email {new_email} is available. Updating current tenant.", "info")
                     
                     # Update tenant information
                     if 'tenant' in form_fields_dict and form_fields_dict['tenant']:
                         tenant.full_name = form_fields_dict['tenant'].strip()
-                        print_info(form_fields_dict['tenant'], "tenant")
+                        logger.info(form_fields_dict['tenant'], "tenant")
                     if new_email and new_email != tenant.email:
                         tenant.email = new_email
-                        print_info(new_email, "email")
+                        logger.info(new_email, "email")
                     if 'phone' in form_fields_dict and form_fields_dict['phone']:
                         # Clean phone number: take only the first phone if multiple are provided
                         raw_phone = form_fields_dict['phone'].strip()
@@ -143,18 +138,18 @@ def docuseal_callback(request):
                         phone_cleaned = raw_phone.split('//')[0].split(',')[0].strip()
                         # Set phone - validation happens in User.save()
                         tenant.phone = phone_cleaned
-                        print_info(f"phone: {raw_phone} -> {tenant.phone}", "phone")
+                        logger.info(f"phone: {raw_phone} -> {tenant.phone}", "phone")
                     tenant.save()
-                    print_info("TENANT Saved")
+                    logger.info("TENANT Saved")
                     # Save booking in case tenant was changed
                     booking.save()
-                    print_info("SUCCESSFULLY UPDATED")
+                    logger.info("SUCCESSFULLY UPDATED")
             
             return JsonResponse({'status': 'success', 'message': 'success'})
             
         except Exception as e:
-            print_info(f"Error processing request: {e}", "error")
-            print_info(traceback.format_exc(), "traceback")
+            logger.info(f"Error processing request: {e}", "error")
+            logger.info(traceback.format_exc(), "traceback")
             return JsonResponse({'status': 'error', 'message': 'An error occurred'}, status=500)
 
     elif request.method == 'GET':

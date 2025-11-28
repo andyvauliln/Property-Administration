@@ -2,6 +2,7 @@ from django.shortcuts import render
 from ..models import Apartment, Booking, Cleaning, Payment, User, HandymanCalendar, HandymanBlockedSlot
 import logging
 from mysite.forms import BookingForm, HandymanBlockedSlotForm
+from mysite.error_logger import log_exception
 from django.db.models import Q
 import json
 from datetime import date, timedelta, datetime
@@ -89,6 +90,11 @@ def handle_post_request(request, model, form_class):
                     return JsonResponse({'error': errors}, status=400)
             except Exception as e:
                 print(f"TIME FORMAT ERROR: {str(e)}")
+                log_exception(
+                    error=e,
+                    context="Handyman Calendar - Time Format Processing",
+                    additional_info={'POST_data': str(request.POST)}
+                )
                 return JsonResponse({
                     'error': {'server': [f"Error processing time format: {str(e)}"]}
                 }, status=400)
@@ -103,6 +109,14 @@ def handle_post_request(request, model, form_class):
                 return JsonResponse({'error': {'permission': ['You can only delete your own bookings']}}, status=403)
     except Exception as e:
         logging.exception("Error in handle_post_request")
+        log_exception(
+            error=e,
+            context="Handyman Calendar - handle_post_request",
+            additional_info={
+                'model': model.__name__,
+                'action': 'edit' if 'edit' in request.POST else 'add' if 'add' in request.POST else 'delete' if 'delete' in request.POST else 'unknown'
+            }
+        )
         return JsonResponse({'error': {'server': [str(e)]}}, status=500)
 
 def handle_block_request(request):
@@ -216,6 +230,11 @@ def handle_block_request(request):
             return JsonResponse({'success': True})
             
     except Exception as e:
+        log_exception(
+            error=e,
+            context="Handyman Calendar - get_handyman_data",
+            additional_info={'handyman_id': request.GET.get('handyman_id')}
+        )
         return JsonResponse({'error': str(e)}, status=500)
 
 def handyman_calendar(request):
