@@ -10,7 +10,8 @@ from django.http import HttpResponseRedirect
 from django.urls import reverse
 from urllib.parse import urlencode
 import logging
-import calendar
+
+logger = logging.getLogger(__name__)
 
 
 

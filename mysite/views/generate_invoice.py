@@ -11,6 +11,8 @@ from django.db.models import Sum
 from dateutil.relativedelta import relativedelta
 import logging
 
+logger = logging.getLogger(__name__)
+
 
 
 

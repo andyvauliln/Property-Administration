@@ -11,6 +11,8 @@ import logging
 from datetime import datetime
 from collections import defaultdict
 
+logger = logging.getLogger(__name__)
+
 
 @user_has_role('Admin')
 def apartments_analytics(request):
