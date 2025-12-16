@@ -45,7 +45,172 @@ def sync_payments_v2(request):
             except Exception as e:
                 messages.error(request, f"Error processing CSV: {str(e)}")
     
+    # Allow demo data preview without CSV upload
+    if not context['data'].get('file_payments_json') and request.GET.get('demo') == '1':
+        context['data'] = build_demo_matching_data()
+    
     return render(request, 'payment_sync/sync_v2.html', context)
+
+
+def build_demo_matching_data():
+    payment_methods = [
+        {"id": 1, "name": "Wire"},
+        {"id": 2, "name": "Zelle"},
+        {"id": 3, "name": "Check"},
+    ]
+    apartments = [
+        {"id": 1, "name": "630-205"},
+        {"id": 2, "name": "780-306"},
+        {"id": 3, "name": "PH-402"},
+    ]
+    payment_types = [
+        {"id": 1, "name": "Rent", "type": "In"},
+        {"id": 2, "name": "Other", "type": "Out"},
+    ]
+    
+    file_payments = [
+        {
+            "id": "bank-001",
+            "amount": 3300.00,
+            "payment_date": "2025-12-01",
+            "notes": "Wire payment from Michael Steinhardt for apt. 630-205",
+            "apartment_name": None,
+            "payment_method": None,
+            "payment_method_name": None,
+            "bank": 1,
+            "bank_name": "Bank of America",
+            "payment_type": 1,
+            "payment_type_name": "Rent",
+            "payment_type_type": "In",
+            "is_merged": False
+        },
+        {
+            "id": "bank-002",
+            "amount": 2100.00,
+            "payment_date": "2025-11-23",
+            "notes": "Zelle payment from Darren Wiggins for November rent",
+            "apartment_name": "780-306",
+            "payment_method": 2,
+            "payment_method_name": "Zelle",
+            "bank": 1,
+            "bank_name": "Bank of America",
+            "payment_type": 1,
+            "payment_type_name": "Rent",
+            "payment_type_type": "In",
+            "is_merged": False
+        },
+        {
+            "id": "bank-003",
+            "amount": 178.85,
+            "payment_date": "2025-11-19",
+            "notes": "City of West Palm payment for PH-402 garage",
+            "apartment_name": "PH-402",
+            "payment_method": 3,
+            "payment_method_name": "Check",
+            "bank": 2,
+            "bank_name": "Chase",
+            "payment_type": 2,
+            "payment_type_name": "Other - Out",
+            "payment_type_type": "Out",
+            "is_merged": True
+        },
+        {
+            "id": "bank-004",
+            "amount": 500.00,
+            "payment_date": "2025-11-15",
+            "notes": "Utility payment match test",
+            "apartment_name": "780-306",
+            "payment_method": 1,
+            "payment_method_name": "Wire",
+            "bank": 1,
+            "bank_name": "Bank of America",
+            "payment_type": 2,
+            "payment_type_name": "Other - Out",
+            "payment_type_type": "Out",
+            "is_merged": True
+        },
+    ]
+    
+    db_payments = [
+        {
+            "id": 5001,
+            "amount": 500.00,
+            "payment_date": "2025-11-15",
+            "notes": "Utility payment matched",
+            "apartment_name": "780-306",
+            "tenant_name": "",
+            "payment_method": 1,
+            "bank": 1,
+            "bank_name": "Bank of America",
+            "payment_status": "Confirmed",
+            "payment_type": 2,
+            "payment_type_obj": {"type": "Out"},
+            "is_matched": True,
+            "matched_criteria": "Exact match with bank-004"
+        },
+        {
+            "id": 15812,
+            "amount": 1944.00,
+            "payment_date": "2025-11-23",
+            "notes": "Partial Airbnb payout 2611-7%-15%-120=1944",
+            "apartment_name": "630-205",
+            "tenant_name": "Darren Wiggins",
+            "payment_method": 2,
+            "bank": 1,
+            "bank_name": "Bank of America",
+            "payment_status": "Pending",
+            "payment_type": 1,
+            "payment_type_obj": {"type": "In"},
+            "is_matched": False,
+            "matched_criteria": "Keywords: Airbnb, Amount delta: $156"
+        },
+        {
+            "id": 3999,
+            "amount": 2970.00,
+            "payment_date": "2025-12-05",
+            "notes": "Auto generated cleaning payment",
+            "apartment_name": "630-205",
+            "tenant_name": "Anish Puri",
+            "payment_method": 1,
+            "bank": 2,
+            "bank_name": "Chase",
+            "payment_status": "Pending",
+            "payment_type": 2,
+            "payment_type_obj": {"type": "Out"},
+            "is_matched": True,
+            "matched_criteria": "Matched to bank-001 (amount delta $330)"
+        },
+        {
+            "id": 7866,
+            "amount": 2100.00,
+            "payment_date": "2025-11-25",
+            "notes": "Manual adjustment for December rent",
+            "apartment_name": "780-306",
+            "tenant_name": "Matthew Anderson",
+            "payment_method": 3,
+            "bank": 1,
+            "bank_name": "Bank of America",
+            "payment_status": "Pending",
+            "payment_type": 1,
+            "payment_type_obj": {"type": "In"},
+            "is_matched": False,
+            "matched_criteria": "Amount exact, date delta 2 days"
+        },
+    ]
+    
+    return {
+        'file_payments_json': json.dumps(file_payments),
+        'db_payments_json': json.dumps(db_payments),
+        'matched_groups': json.dumps([]),
+        'total_file_payments': len(file_payments),
+        'total_db_payments': len(db_payments),
+        'amount_delta': 100,
+        'date_delta': 4,
+        'with_confirmed': False,
+        'payment_methods': json.dumps(payment_methods),
+        'apartments': json.dumps(apartments),
+        'payment_types': json.dumps(payment_types),
+    }
 
 
 def process_csv_upload(request):
@@ -533,10 +698,14 @@ def calculate_match_quality(matches):
 
 def serialize_payment(payment_dict):
     """Serialize payment dictionary for JSON"""
-    return {
-        k: v.isoformat() if isinstance(v, datetime) else v 
-        for k, v in payment_dict.items()
-    }
+    result = {}
+    for k, v in payment_dict.items():
+        if isinstance(v, datetime):
+            # Convert datetime to ISO format string (YYYY-MM-DD)
+            result[k] = v.strftime('%Y-%m-%d')
+        else:
+            result[k] = v
+    return result
 
 
 def serialize_matched_groups(matched_groups):
@@ -606,6 +775,11 @@ def get_json(db_model):
             item["tenant_name"] = ""
         if hasattr(original_obj, 'apartmentName'):
             item['apartment_name'] = original_obj.apartmentName
+        # Add bank_name
+        if hasattr(original_obj, 'bank') and original_obj.bank:
+            item['bank_name'] = original_obj.bank.name
+        else:
+            item['bank_name'] = None
     
     return json.dumps(items_list)
 

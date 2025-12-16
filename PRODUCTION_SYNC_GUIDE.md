@@ -143,3 +143,12 @@ pg_dump -h 68.183.124.79 -U postgres_user -d railway \
   > specific_tables_backup.sql
 ```
 
+
+
+
+
+
+
+
+
+
