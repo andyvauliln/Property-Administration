@@ -1,5 +1,5 @@
 {% extends "_base.html" %}
-{% load custom_filters %}
+{% load static %}
 
 {% block content %}
 <div class="w-full px-2 py-8">
@@ -127,8 +127,6 @@
                     <input type="number" name="weight_apartment" id="weight_apartment" value="{{ data.weight_apartment|default:5 }}">
                 </div>
             </div>
-        </form>
-    </div>
 
     <!-- Edit Matching Criteria Modal -->
     <div id="matchingConfigModal" class="fixed inset-0 z-50 hidden overflow-y-auto" aria-labelledby="modal-title" role="dialog" aria-modal="true">
@@ -338,8 +336,24 @@
 </style>
 {% endif %}
 
-<!-- Include Modal -->
-{% include 'payment_sync/sync_v2_modal.html' %}
+<!-- Matching Config Modal -->
+<div id="configModal" class="fixed inset-0 z-50 hidden overflow-y-auto" aria-labelledby="modal-title" role="dialog" aria-modal="true">
+    <div class="flex items-center justify-center min-h-screen px-4 pt-4 pb-20 text-center sm:block sm:p-0">
+        <div class="fixed inset-0 transition-opacity bg-gray-500 bg-opacity-75" aria-hidden="true" onclick="closeConfigModal()"></div>
+        <span class="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
+        <div class="inline-block align-bottom bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full">
+            <div class="bg-white px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
+                <h3 class="text-lg leading-6 font-medium text-gray-900 mb-4" id="modal-title">Matching Configuration</h3>
+                
+                <div class="space-y-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700">Select AI Model</label>
+                        <select class="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md border">
+                            <option>GPT-4o</option>
+                            <option>GPT-3.5-Turbo</option>
+                            <option>Claude 3.5 Sonnet</option>
+                        </select>
+                    </div>
 
 <!-- Include JavaScript -->
 {% if data.file_payments_json %}
@@ -864,5 +878,13 @@
 </script>
 {% endif %}
 
+    function closePaymentModal() {
+        document.getElementById('paymentModal').classList.add('hidden');
+    }
+
+    // Init
+    document.addEventListener('DOMContentLoaded', init);
+
+</script>
 {% endblock %}
 

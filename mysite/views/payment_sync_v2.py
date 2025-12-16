@@ -838,6 +838,11 @@ def create_new_payment(payment_info):
     if not date_str:
         raise ValueError("Payment date is required")
     
+    # Validate amount is not zero
+    amount = float(payment_info['amount'])
+    if amount == 0:
+        raise ValueError("Payment amount cannot be 0")
+    
     merged_payment_key = payment_info.get('merged_payment_key') or (
         parse_date(payment_info.get('file_date', '')) + 
         remove_trailing_zeros_from_str(payment_info.get('file_amount', '0')) + 
@@ -845,7 +850,7 @@ def create_new_payment(payment_info):
     )
     
     return Payment(
-        amount=float(payment_info['amount']),
+        amount=amount,
         payment_date=parse_payment_date(date_str),
         payment_type_id=payment_info['payment_type'],
         notes=payment_info['notes'],

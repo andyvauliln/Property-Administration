@@ -11,6 +11,8 @@ from django.db.models import Sum
 from dateutil.relativedelta import relativedelta
 import logging
 
+logger = logging.getLogger(__name__)
+
 
 
 
@@ -73,7 +75,8 @@ def get_services():
 
 def create_doc_from_template(payment, drive_service):
     logger.info("Creating Document from Template")
-    copy_title = f'Booking Invoice {payment.booking.id} [{payment.booking.apartment.name}]'
+    apt_name = payment.booking.apartment.name if payment.booking and payment.booking.apartment else 'Unknown'
+    copy_title = f'Booking Invoice {payment.booking.id} [{apt_name}]'
     document_copy = drive_service.files().copy(
         fileId=os.environ["TEMPLATE_INVOICE_DOCUMENT_ID"],
         body={"name": copy_title},
@@ -110,9 +113,10 @@ def replaceText(payment: Payment, document_id, docs_service):
     payment_method = "{{payment_method}}"
 
     if (payment.booking):
-        tenant_name = payment.booking.tenant.full_name
-        address = f"{payment.booking.apartment.building_n} {payment.booking.apartment.city} {payment.booking.apartment.street}, {payment.booking.apartment.state}, {payment.booking.apartment.zip_index}"
-        room_number = payment.booking.apartment.apartment_n
+        tenant_name = payment.booking.tenant.full_name if payment.booking.tenant else "{{tenant_name}}"
+        if payment.booking.apartment:
+            address = f"{payment.booking.apartment.building_n} {payment.booking.apartment.city} {payment.booking.apartment.street}, {payment.booking.apartment.state}, {payment.booking.apartment.zip_index}"
+            room_number = payment.booking.apartment.apartment_n
         rent_period = f"{payment.booking.start_date.strftime('%B %d %Y')} - {payment.booking.end_date.strftime('%B %d %Y')}"
 
     payment_date = payment.payment_date.strftime('%B %d %Y')

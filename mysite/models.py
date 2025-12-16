@@ -322,6 +322,48 @@ class Apartment(models.Model):
         apply_user_tracking(self, updated_by)
         super().save(*args, **kwargs)
 
+    def delete(self, *args, **kwargs):
+        """
+        Prevent deletion of apartment if it has any related objects.
+        """
+        from django.db.models import ProtectedError
+        
+        related_objects = []
+        
+        # Check for bookings
+        bookings_count = self.booked_apartments.count()
+        if bookings_count > 0:
+            related_objects.append(f"{bookings_count} booking(s)")
+        
+        # Check for payments
+        payments_count = self.payments.count()
+        if payments_count > 0:
+            related_objects.append(f"{payments_count} payment(s)")
+        
+        # Check for cleanings
+        cleanings_count = self.cleanings.count()
+        if cleanings_count > 0:
+            related_objects.append(f"{cleanings_count} cleaning(s)")
+        
+        # Check for notifications
+        notifications_count = self.apartment_notifications.count()
+        if notifications_count > 0:
+            related_objects.append(f"{notifications_count} notification(s)")
+        
+        # Check for prices
+        prices_count = self.prices.count()
+        if prices_count > 0:
+            related_objects.append(f"{prices_count} price record(s)")
+        
+        if related_objects:
+            raise ProtectedError(
+                f"Cannot delete apartment '{self.name}' because it has related data: {', '.join(related_objects)}. "
+                f"Please remove or reassign these items first.",
+                set()
+            )
+        
+        super().delete(*args, **kwargs)
+
     @property
     def address(self):
         return f" {self.building_n} {self.street}, {self.apartment_n}, {self.state}, {self.city}, {self.zip_index}"
@@ -1322,7 +1364,7 @@ class Payment(models.Model):
     def apartmentName(self):
         if self.apartment:
             return self.apartment.name
-        elif self.booking:
+        elif self.booking and self.booking.apartment:
             return self.booking.apartment.name
         return ""
 
@@ -1332,13 +1374,16 @@ class Payment(models.Model):
 
         # Link to the associated booking
         if self.booking:
+            apt_name = self.booking.apartment.name if self.booking.apartment else 'Unknown'
             links_list.append({
                 "name":
-                f"Booking: Apartment {self.booking.apartment.name} from {self.booking.start_date.strftime('%B %d %Y')} to {self.booking.end_date.strftime('%B %d %Y')}",
+                f"Booking: Apartment {apt_name} from {self.booking.start_date.strftime('%B %d %Y')} to {self.booking.end_date.strftime('%B %d %Y')}",
                 "link": f"/bookings/?q=id={self.booking.id}"})
+            tenant_name = self.booking.tenant.full_name if self.booking.tenant else 'Unknown'
+            tenant_phone = self.booking.tenant.phone if self.booking.tenant else ''
             links_list.append({
                 "name":
-                f"Tenant: {self.booking.tenant.full_name} {self.booking.tenant.phone} ",
+                f"Tenant: {tenant_name} {tenant_phone} ",
                 "link": f"/bookings/?q=id={self.booking.id}"})
         if self.apartment:
             links_list.append({"name": f"Apartment: {self.apartment.name}",
@@ -1532,7 +1577,7 @@ class Cleaning(models.Model):
 
         # Link to the booking associated with this cleaning
         if self.booking:
-            apartment_name = self.booking.apartment.name if self.booking.apartment else self.apartment.name
+            apartment_name = self.booking.apartment.name if self.booking.apartment else (self.apartment.name if self.apartment else 'Unknown')
             links_list.append({
                 "name":
                 f"Booking: Apartment {apartment_name} from {self.booking.start_date.strftime('%B %d %Y')} to {self.booking.end_date.strftime('%B %d %Y')}",
@@ -1611,13 +1656,15 @@ class Notification(models.Model):
         if self.booking:
             start_date = format_date(self.booking.start_date)
             end_date = format_date(self.booking.end_date)
-            return f"{self.message or 'Booking'}: {start_date} - {end_date}, {self.booking.apartment.name}, {self.booking.tenant.full_name}."
+            apt_name = self.booking.apartment.name if self.booking.apartment else 'Unknown'
+            tenant_name = self.booking.tenant.full_name if self.booking.tenant else 'Unknown'
+            return f"{self.message or 'Booking'}: {start_date} - {end_date}, {apt_name}, {tenant_name}."
         elif self.payment:
             payment_date = format_date(self.payment.payment_date)
             apartment_name = self.payment.apartment.name if self.payment.apartment else (
                 self.payment.booking.apartment.name if self.payment.booking and self.payment.booking.apartment else '')
             tenant_name = " (" + self.payment.booking.tenant.full_name + \
-                ") " if self.payment.booking else ''
+                ") " if self.payment.booking and self.payment.booking.tenant else ''
             return f"{self.message or 'Payment'}: {self.payment.payment_type} {self.payment.amount}$ {payment_date} {apartment_name} {self.payment.notes or ''}{tenant_name}[{self.payment.payment_status}]"
         elif self.cleaning:
             cleaning_date = format_date(self.cleaning.date)
@@ -1656,9 +1703,10 @@ class Notification(models.Model):
         links_list = []
 
         if self.booking:
+            apt_name = self.booking.apartment.name if self.booking.apartment else 'Unknown'
             links_list.append({
                 "name":
-                f"Booking: Apartment {self.booking.apartment.name} from {self.booking.start_date} to {self.booking.end_date}",
+                f"Booking: Apartment {apt_name} from {self.booking.start_date} to {self.booking.end_date}",
                 "link": f"/bookings/?q=id={self.booking.id}"})
         if self.payment:
             links_list.append({
@@ -1867,8 +1915,9 @@ class TwilioConversation(models.Model):
     def links(self):
         links_list = []
         if self.booking:
+            apt_name = self.booking.apartment.name if self.booking.apartment else 'Unknown'
             links_list.append({
-                "name": f"Booking: {self.booking.apartment.name} ({self.booking.start_date} - {self.booking.end_date})",
+                "name": f"Booking: {apt_name} ({self.booking.start_date} - {self.booking.end_date})",
                 "link": f"/bookings/?q=id={self.booking.id}"
             })
         if self.apartment:

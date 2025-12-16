@@ -536,6 +536,15 @@ class BookingForm(forms.ModelForm):
         self.fields['apartment']._dropdown_options = get_dropdown_options(
             "apartments", False, request=self.request)
 
+    def clean(self):
+        cleaned_data = super().clean()
+        apartment = cleaned_data.get('apartment')
+        
+        if not apartment:
+            raise forms.ValidationError("Apartment is required. A booking must have an apartment assigned.")
+        
+        return cleaned_data
+
     def save(self, **kwargs):
         instance = super().save(commit=False)
 
@@ -816,8 +825,11 @@ class PaymentForm(forms.ModelForm):
         cleaned_data = super().clean()
         amount = cleaned_data.get('amount')
 
-        if amount is not None and amount <= 0:
-            cleaned_data['amount'] = -amount
+        if amount is not None:
+            if amount == 0:
+                raise forms.ValidationError("Payment amount cannot be 0. Please enter a valid payment amount.")
+            if amount < 0:
+                cleaned_data['amount'] = -amount
         status = cleaned_data.get('payment_status')
 
         number_of_months = cleaned_data.get('number_of_months')

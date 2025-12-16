@@ -150,11 +150,17 @@ def update_payments(request, payments_to_update):
     for payment_info in payments_to_update:
         payment_id = None
         try:
+            # Validate amount is not zero
+            amount = float(payment_info['amount'])
+            if amount == 0:
+                messages.error(request, f"Cannot create/update payment with 0 amount. Skipping.")
+                continue
+                
             if payment_info['id'] and (isinstance(payment_info['id'], int) or (isinstance(payment_info['id'], str) and 'id_' not in payment_info['id'])):
                 payment = Payment.objects.get(id=payment_info['id'])
                 payment_id = payment.id
                 if payment:
-                    payment.amount = float(payment_info['amount'])
+                    payment.amount = amount
                     # Determine payment_date, fallback to file_date, error if both empty
                     date_str = payment_info.get('payment_date') or payment_info.get('file_date', '')
                     if not date_str:
@@ -182,7 +188,7 @@ def update_payments(request, payments_to_update):
                 if not date_str:
                     raise ValueError("Payment date is required (payment_date or file_date)")
                 payment = Payment(
-                    amount=float(payment_info['amount']),
+                    amount=amount,
                     payment_date= parse_payment_date(date_str),
                     payment_type_id=payment_info['payment_type'],
                     notes=payment_info['notes'],
