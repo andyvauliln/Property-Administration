@@ -111,7 +111,7 @@ def my_cron_job():
             message += f"\nBooking Details:"
             message += f"\n- Start Date: {notification.booking.start_date}"
             message += f"\n- End Date: {notification.booking.end_date}"
-            if hasattr(notification.booking, 'apartment'):
+            if notification.booking.apartment:
                 message += f"\n- Apartment: {notification.booking.apartment.name}"
 
             for chat_id in telegram_chat_ids:
@@ -120,7 +120,7 @@ def my_cron_job():
         if notification.cleaning:
             message += f"\nCleaning Details:"
             message += f"\n- Date: {notification.cleaning.date}"
-            if hasattr(notification.cleaning, 'booking'):
+            if notification.cleaning.booking and notification.cleaning.booking.apartment:
                 message += f"\n- Apartment: {notification.cleaning.booking.apartment.name}"
             if hasattr(notification.cleaning, 'status'):
                 message += f"\n- Status: {notification.cleaning.status}"

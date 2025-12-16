@@ -9,6 +9,502 @@
         <p class="text-gray-600 dark:text-gray-400">Database Activity Monitor - Track all changes across your system</p>
     </div>
 
+    <!-- Data Integrity Section (Most Important - Always First) -->
+    <div class="mb-6">
+        <button 
+            onclick="toggleSection('data-integrity-section')" 
+            class="w-full {% if data_integrity.summary.total > 0 %}bg-red-50 dark:bg-red-900/20 border-2 border-red-300 dark:border-red-700{% else %}bg-white dark:bg-gray-800{% endif %} rounded-lg shadow hover:shadow-md transition-shadow duration-200"
+        >
+            <div class="p-6">
+                <div class="flex items-center justify-between mb-4">
+                    <div class="flex items-center space-x-3">
+                        {% if data_integrity.summary.total > 0 %}
+                        <span class="relative flex h-4 w-4">
+                            <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+                            <span class="relative inline-flex rounded-full h-4 w-4 bg-red-500"></span>
+                        </span>
+                        {% endif %}
+                        <h2 class="text-xl font-semibold {% if data_integrity.summary.total > 0 %}text-red-700 dark:text-red-400{% else %}text-gray-900 dark:text-white{% endif %}">
+                            🔍 Data Integrity Check
+                        </h2>
+                        {% if data_integrity.summary.total > 0 %}
+                        <span class="px-3 py-1 text-sm font-bold bg-red-600 text-white rounded-full animate-pulse">
+                            {{ data_integrity.summary.total }} ISSUES
+                        </span>
+                        {% else %}
+                        <span class="px-3 py-1 text-sm font-bold bg-green-600 text-white rounded-full">
+                            ✓ ALL CLEAR
+                        </span>
+                        {% endif %}
+                        <span class="px-2 py-1 text-xs bg-gray-200 dark:bg-gray-700 text-gray-600 dark:text-gray-400 rounded">
+                            Last 30 days
+                        </span>
+                    </div>
+                    <svg id="data-integrity-section-icon" class="w-6 h-6 text-gray-500 transform transition-transform duration-200 {% if data_integrity.summary.total > 0 %}rotate-180{% endif %}" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+                    </svg>
+                </div>
+                
+                <!-- Summary Statistics -->
+                <div class="grid grid-cols-4 gap-4">
+                    <div class="text-center">
+                        <div class="flex items-center justify-center mb-2">
+                            <svg class="w-6 h-6 {% if data_integrity.summary.total > 0 %}text-red-500{% else %}text-green-500{% endif %}" fill="currentColor" viewBox="0 0 20 20">
+                                <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd"/>
+                            </svg>
+                        </div>
+                        <dt class="text-sm font-medium text-gray-500 dark:text-gray-400">Total Issues</dt>
+                        <dd class="text-2xl font-bold {% if data_integrity.summary.total > 0 %}text-red-600 dark:text-red-400{% else %}text-green-600 dark:text-green-400{% endif %}">{{ data_integrity.summary.total }}</dd>
+                    </div>
+
+                    <div class="text-center">
+                        <div class="flex items-center justify-center mb-2">
+                            <svg class="w-6 h-6 text-purple-500" fill="currentColor" viewBox="0 0 20 20">
+                                <path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd"/>
+                            </svg>
+                        </div>
+                        <dt class="text-sm font-medium text-gray-500 dark:text-gray-400">Critical</dt>
+                        <dd class="text-2xl font-bold text-purple-600 dark:text-purple-400">{{ data_integrity.summary.critical }}</dd>
+                    </div>
+
+                    <div class="text-center">
+                        <div class="flex items-center justify-center mb-2">
+                            <svg class="w-6 h-6 text-orange-500" fill="currentColor" viewBox="0 0 20 20">
+                                <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clip-rule="evenodd"/>
+                            </svg>
+                        </div>
+                        <dt class="text-sm font-medium text-gray-500 dark:text-gray-400">High</dt>
+                        <dd class="text-2xl font-bold text-orange-600 dark:text-orange-400">{{ data_integrity.summary.high }}</dd>
+                    </div>
+
+                    <div class="text-center">
+                        <div class="flex items-center justify-center mb-2">
+                            <svg class="w-6 h-6 text-yellow-500" fill="currentColor" viewBox="0 0 20 20">
+                                <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd"/>
+                            </svg>
+                        </div>
+                        <dt class="text-sm font-medium text-gray-500 dark:text-gray-400">Medium</dt>
+                        <dd class="text-2xl font-bold text-yellow-600 dark:text-yellow-400">{{ data_integrity.summary.medium }}</dd>
+                    </div>
+                </div>
+            </div>
+        </button>
+
+        <!-- Collapsible Data Integrity Content -->
+        <div id="data-integrity-section-content" class="overflow-hidden transition-all duration-300" style="max-height: {% if data_integrity.summary.total > 0 %}none{% else %}0{% endif %};">
+            <div class="bg-white dark:bg-gray-800 rounded-b-lg shadow p-6 border-t border-gray-200 dark:border-gray-700">
+                
+                {% if data_integrity.summary.total == 0 %}
+                <div class="text-center py-8">
+                    <svg class="mx-auto h-16 w-16 text-green-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    <h3 class="mt-4 text-xl font-semibold text-green-600 dark:text-green-400">All Systems Healthy!</h3>
+                    <p class="mt-2 text-gray-500 dark:text-gray-400">No data integrity issues found in your database.</p>
+                </div>
+                {% else %}
+                
+                <!-- CRITICAL: Bookings Without Apartment -->
+                {% if data_integrity.bookings_without_apartment %}
+                <div class="mb-8">
+                    <div class="flex items-center space-x-3 mb-4">
+                        <span class="px-3 py-1 text-sm font-bold bg-purple-600 text-white rounded">CRITICAL</span>
+                        <h3 class="text-lg font-semibold text-gray-900 dark:text-white">🏚️ Bookings Without Apartment</h3>
+                        <span class="text-sm text-gray-500">({{ data_integrity.counts.bookings_without_apartment }} total)</span>
+                    </div>
+                    <p class="text-sm text-gray-600 dark:text-gray-400 mb-4">
+                        These bookings have no apartment assigned. The tenant has a reservation but we don't know WHERE they should stay!
+                    </p>
+                    <div class="overflow-x-auto">
+                        <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+                            <thead class="bg-purple-50 dark:bg-purple-900/30">
+                                <tr>
+                                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">Booking ID</th>
+                                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">Dates</th>
+                                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">Status</th>
+                                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">Tenant</th>
+                                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">Email</th>
+                                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">Action</th>
+                                </tr>
+                            </thead>
+                            <tbody class="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
+                                {% for item in data_integrity.bookings_without_apartment %}
+                                <tr class="hover:bg-red-50 dark:hover:bg-red-900/20">
+                                    <td class="px-4 py-3 text-sm font-medium text-gray-900 dark:text-white">#{{ item.id }}</td>
+                                    <td class="px-4 py-3 text-sm text-gray-700 dark:text-gray-300">{{ item.start_date }} → {{ item.end_date }}</td>
+                                    <td class="px-4 py-3 text-sm">
+                                        <span class="px-2 py-1 text-xs font-semibold rounded bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300">{{ item.status }}</span>
+                                    </td>
+                                    <td class="px-4 py-3 text-sm text-gray-700 dark:text-gray-300">{{ item.tenant }}</td>
+                                    <td class="px-4 py-3 text-sm text-gray-700 dark:text-gray-300">{{ item.tenant_email }}</td>
+                                    <td class="px-4 py-3 text-sm">
+                                        <a href="/bookings/?q=id={{ item.id }}" class="text-blue-600 hover:text-blue-800 dark:text-blue-400 font-medium">Fix →</a>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                {% endif %}
+
+                <!-- CRITICAL: Booking Overlaps -->
+                {% if data_integrity.booking_overlaps %}
+                <div class="mb-8">
+                    <div class="flex items-center space-x-3 mb-4">
+                        <span class="px-3 py-1 text-sm font-bold bg-purple-600 text-white rounded">CRITICAL</span>
+                        <h3 class="text-lg font-semibold text-gray-900 dark:text-white">📅 Double-Booked Apartments</h3>
+                        <span class="text-sm text-gray-500">({{ data_integrity.booking_overlaps|length }} conflicts)</span>
+                    </div>
+                    <p class="text-sm text-gray-600 dark:text-gray-400 mb-4">
+                        Two bookings claim the same apartment during overlapping dates. Two tenants might show up at the same time!
+                    </p>
+                    <div class="space-y-4">
+                        {% for overlap in data_integrity.booking_overlaps %}
+                        <div class="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4">
+                            <div class="flex items-center justify-between mb-3">
+                                <span class="font-semibold text-red-700 dark:text-red-400">🏠 {{ overlap.apartment }}</span>
+                                <span class="text-xs text-red-600 dark:text-red-400">CONFLICT</span>
+                            </div>
+                            <div class="grid grid-cols-2 gap-4">
+                                <div class="bg-white dark:bg-gray-800 rounded p-3">
+                                    <div class="text-sm font-medium text-gray-900 dark:text-white mb-1">Booking #{{ overlap.booking1.id }}</div>
+                                    <div class="text-xs text-gray-600 dark:text-gray-400">{{ overlap.booking1.dates }}</div>
+                                    <div class="text-xs text-gray-600 dark:text-gray-400">{{ overlap.booking1.tenant }}</div>
+                                    <div class="text-xs"><span class="px-2 py-0.5 bg-gray-100 dark:bg-gray-700 rounded">{{ overlap.booking1.status }}</span></div>
+                                    <a href="/bookings/?q=id={{ overlap.booking1.id }}" class="text-xs text-blue-600 hover:underline">View →</a>
+                                </div>
+                                <div class="bg-white dark:bg-gray-800 rounded p-3">
+                                    <div class="text-sm font-medium text-gray-900 dark:text-white mb-1">Booking #{{ overlap.booking2.id }}</div>
+                                    <div class="text-xs text-gray-600 dark:text-gray-400">{{ overlap.booking2.dates }}</div>
+                                    <div class="text-xs text-gray-600 dark:text-gray-400">{{ overlap.booking2.tenant }}</div>
+                                    <div class="text-xs"><span class="px-2 py-0.5 bg-gray-100 dark:bg-gray-700 rounded">{{ overlap.booking2.status }}</span></div>
+                                    <a href="/bookings/?q=id={{ overlap.booking2.id }}" class="text-xs text-blue-600 hover:underline">View →</a>
+                                </div>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+                {% endif %}
+
+                <!-- HIGH: Payment Apartment Mismatch -->
+                {% if data_integrity.payment_apartment_mismatch or data_integrity.counts.mismatch_payments > 0 %}
+                <div class="mb-8">
+                    <div class="flex items-center space-x-3 mb-4">
+                        <span class="px-3 py-1 text-sm font-bold bg-orange-600 text-white rounded">HIGH</span>
+                        <h3 class="text-lg font-semibold text-gray-900 dark:text-white">🏠 Payment Apartment Mismatch</h3>
+                        <span class="text-sm text-gray-500">({{ data_integrity.counts.mismatch_payments }} total)</span>
+                    </div>
+                    <p class="text-sm text-gray-600 dark:text-gray-400 mb-4">
+                        Payment's apartment field doesn't match the booking's apartment. This causes incorrect financial reports.
+                    </p>
+                    <div class="overflow-x-auto">
+                        <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+                            <thead class="bg-orange-50 dark:bg-orange-900/30">
+                                <tr>
+                                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">Payment</th>
+                                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">Amount</th>
+                                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">Payment Apt</th>
+                                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">Booking Apt</th>
+                                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">Tenant</th>
+                                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">Action</th>
+                                </tr>
+                            </thead>
+                            <tbody class="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
+                                {% for item in data_integrity.payment_apartment_mismatch %}
+                                <tr class="hover:bg-orange-50 dark:hover:bg-orange-900/20">
+                                    <td class="px-4 py-3 text-sm font-medium text-gray-900 dark:text-white">#{{ item.id }}</td>
+                                    <td class="px-4 py-3 text-sm text-gray-700 dark:text-gray-300">${{ item.amount }}</td>
+                                    <td class="px-4 py-3 text-sm text-red-600 dark:text-red-400 font-medium">{{ item.payment_apartment }}</td>
+                                    <td class="px-4 py-3 text-sm text-green-600 dark:text-green-400 font-medium">{{ item.booking_apartment }}</td>
+                                    <td class="px-4 py-3 text-sm text-gray-700 dark:text-gray-300">{{ item.tenant }}</td>
+                                    <td class="px-4 py-3 text-sm">
+                                        <a href="/payments/?q=id={{ item.id }}" class="text-blue-600 hover:text-blue-800 dark:text-blue-400 font-medium">Fix →</a>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    
+                    <!-- Pagination for Payment Mismatch -->
+                    {% if data_integrity.mismatch_pagination.total_pages > 1 %}
+                    <div class="mt-4 flex items-center justify-between border-t border-gray-200 dark:border-gray-700 pt-4">
+                        <div class="text-sm text-gray-500 dark:text-gray-400">
+                            Page {{ data_integrity.mismatch_pagination.current_page }} of {{ data_integrity.mismatch_pagination.total_pages }}
+                            ({{ data_integrity.mismatch_pagination.total_count }} items)
+                        </div>
+                        <div class="flex space-x-2">
+                            {% if data_integrity.mismatch_pagination.has_prev %}
+                            <a href="?mismatch_page={{ data_integrity.mismatch_pagination.prev_page }}&days={{ days }}" 
+                               class="px-3 py-1 text-sm bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded hover:bg-gray-300 dark:hover:bg-gray-600">
+                                ← Previous
+                            </a>
+                            {% endif %}
+                            {% if data_integrity.mismatch_pagination.has_next %}
+                            <a href="?mismatch_page={{ data_integrity.mismatch_pagination.next_page }}&days={{ days }}" 
+                               class="px-3 py-1 text-sm bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded hover:bg-gray-300 dark:hover:bg-gray-600">
+                                Next →
+                            </a>
+                            {% endif %}
+                        </div>
+                    </div>
+                    {% endif %}
+                </div>
+                {% endif %}
+
+                <!-- HIGH: Merged Payments Without Key -->
+                {% if data_integrity.merged_payments_without_key or data_integrity.counts.merged_payments_without_key > 0 %}
+                <div class="mb-8">
+                    <div class="flex items-center space-x-3 mb-4">
+                        <span class="px-3 py-1 text-sm font-bold bg-orange-600 text-white rounded">HIGH</span>
+                        <h3 class="text-lg font-semibold text-gray-900 dark:text-white">🔗 Merged Payments Missing Key</h3>
+                        <span class="text-sm text-gray-500">({{ data_integrity.counts.merged_payments_without_key }} total)</span>
+                    </div>
+                    <p class="text-sm text-gray-600 dark:text-gray-400 mb-4">
+                        Payments with status "Merged" but no merged_payment_key. We can't track which payments were combined.
+                    </p>
+                    <div class="overflow-x-auto">
+                        <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+                            <thead class="bg-orange-50 dark:bg-orange-900/30">
+                                <tr>
+                                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">Payment ID</th>
+                                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">Amount</th>
+                                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">Date</th>
+                                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">Type</th>
+                                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">Apartment</th>
+                                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">Action</th>
+                                </tr>
+                            </thead>
+                            <tbody class="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
+                                {% for item in data_integrity.merged_payments_without_key %}
+                                <tr class="hover:bg-orange-50 dark:hover:bg-orange-900/20">
+                                    <td class="px-4 py-3 text-sm font-medium text-gray-900 dark:text-white">#{{ item.id }}</td>
+                                    <td class="px-4 py-3 text-sm text-gray-700 dark:text-gray-300">${{ item.amount }}</td>
+                                    <td class="px-4 py-3 text-sm text-gray-700 dark:text-gray-300">{{ item.payment_date }}</td>
+                                    <td class="px-4 py-3 text-sm text-gray-700 dark:text-gray-300">{{ item.type }}</td>
+                                    <td class="px-4 py-3 text-sm text-gray-700 dark:text-gray-300">{{ item.apartment }}</td>
+                                    <td class="px-4 py-3 text-sm">
+                                        <a href="/payments/?q=id={{ item.id }}" class="text-blue-600 hover:text-blue-800 dark:text-blue-400 font-medium">Fix →</a>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    
+                    <!-- Pagination for Merged Payments -->
+                    {% if data_integrity.merged_pagination.total_pages > 1 %}
+                    <div class="mt-4 flex items-center justify-between border-t border-gray-200 dark:border-gray-700 pt-4">
+                        <div class="text-sm text-gray-500 dark:text-gray-400">
+                            Page {{ data_integrity.merged_pagination.current_page }} of {{ data_integrity.merged_pagination.total_pages }}
+                            ({{ data_integrity.merged_pagination.total_count }} items)
+                        </div>
+                        <div class="flex space-x-2">
+                            {% if data_integrity.merged_pagination.has_prev %}
+                            <a href="?merged_page={{ data_integrity.merged_pagination.prev_page }}&days={{ days }}" 
+                               class="px-3 py-1 text-sm bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded hover:bg-gray-300 dark:hover:bg-gray-600">
+                                ← Previous
+                            </a>
+                            {% endif %}
+                            {% if data_integrity.merged_pagination.has_next %}
+                            <a href="?merged_page={{ data_integrity.merged_pagination.next_page }}&days={{ days }}" 
+                               class="px-3 py-1 text-sm bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded hover:bg-gray-300 dark:hover:bg-gray-600">
+                                Next →
+                            </a>
+                            {% endif %}
+                        </div>
+                    </div>
+                    {% endif %}
+                </div>
+                {% endif %}
+
+                <!-- MEDIUM: Orphaned Payments -->
+                {% if data_integrity.orphaned_payments or data_integrity.counts.orphaned_payments > 0 %}
+                <div class="mb-8">
+                    <div class="flex items-center space-x-3 mb-4">
+                        <span class="px-3 py-1 text-sm font-bold bg-yellow-600 text-white rounded">MEDIUM</span>
+                        <h3 class="text-lg font-semibold text-gray-900 dark:text-white">💸 Orphaned Payments</h3>
+                        <span class="text-sm text-gray-500">({{ data_integrity.counts.orphaned_payments }} total)</span>
+                    </div>
+                    <p class="text-sm text-gray-600 dark:text-gray-400 mb-4">
+                        Payments with no booking AND no apartment. Money received but we don't know what it's for!
+                    </p>
+                    <div class="overflow-x-auto">
+                        <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+                            <thead class="bg-yellow-50 dark:bg-yellow-900/30">
+                                <tr>
+                                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">Payment ID</th>
+                                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">Amount</th>
+                                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">Date</th>
+                                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">Status</th>
+                                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">Type</th>
+                                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">Notes</th>
+                                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">Action</th>
+                                </tr>
+                            </thead>
+                            <tbody class="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
+                                {% for item in data_integrity.orphaned_payments %}
+                                <tr class="hover:bg-yellow-50 dark:hover:bg-yellow-900/20">
+                                    <td class="px-4 py-3 text-sm font-medium text-gray-900 dark:text-white">#{{ item.id }}</td>
+                                    <td class="px-4 py-3 text-sm text-gray-700 dark:text-gray-300">${{ item.amount }}</td>
+                                    <td class="px-4 py-3 text-sm text-gray-700 dark:text-gray-300">{{ item.payment_date }}</td>
+                                    <td class="px-4 py-3 text-sm">
+                                        <span class="px-2 py-1 text-xs rounded bg-gray-100 dark:bg-gray-700">{{ item.status }}</span>
+                                    </td>
+                                    <td class="px-4 py-3 text-sm text-gray-700 dark:text-gray-300">{{ item.type }}</td>
+                                    <td class="px-4 py-3 text-sm text-gray-500 dark:text-gray-400 max-w-xs truncate">{{ item.notes|default:"-" }}</td>
+                                    <td class="px-4 py-3 text-sm">
+                                        <a href="/payments/?q=id={{ item.id }}" class="text-blue-600 hover:text-blue-800 dark:text-blue-400 font-medium">Fix →</a>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    
+                    <!-- Pagination for Orphaned Payments -->
+                    {% if data_integrity.orphaned_pagination.total_pages > 1 %}
+                    <div class="mt-4 flex items-center justify-between border-t border-gray-200 dark:border-gray-700 pt-4">
+                        <div class="text-sm text-gray-500 dark:text-gray-400">
+                            Page {{ data_integrity.orphaned_pagination.current_page }} of {{ data_integrity.orphaned_pagination.total_pages }}
+                            ({{ data_integrity.orphaned_pagination.total_count }} items)
+                        </div>
+                        <div class="flex space-x-2">
+                            {% if data_integrity.orphaned_pagination.has_prev %}
+                            <a href="?orphaned_page={{ data_integrity.orphaned_pagination.prev_page }}&days={{ days }}" 
+                               class="px-3 py-1 text-sm bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded hover:bg-gray-300 dark:hover:bg-gray-600">
+                                ← Previous
+                            </a>
+                            {% endif %}
+                            {% if data_integrity.orphaned_pagination.has_next %}
+                            <a href="?orphaned_page={{ data_integrity.orphaned_pagination.next_page }}&days={{ days }}" 
+                               class="px-3 py-1 text-sm bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded hover:bg-gray-300 dark:hover:bg-gray-600">
+                                Next →
+                            </a>
+                            {% endif %}
+                        </div>
+                    </div>
+                    {% endif %}
+                </div>
+                {% endif %}
+
+                <!-- MEDIUM: Zero Amount Payments -->
+                {% if data_integrity.zero_amount_payments or data_integrity.counts.zero_amount_payments > 0 %}
+                <div class="mb-8">
+                    <div class="flex items-center space-x-3 mb-4">
+                        <span class="px-3 py-1 text-sm font-bold bg-yellow-600 text-white rounded">MEDIUM</span>
+                        <h3 class="text-lg font-semibold text-gray-900 dark:text-white">💰 Zero Amount Payments</h3>
+                        <span class="text-sm text-gray-500">({{ data_integrity.counts.zero_amount_payments }} total)</span>
+                    </div>
+                    <p class="text-sm text-gray-600 dark:text-gray-400 mb-4">
+                        Payments with $0 amount. These might be errors or need to be reviewed.
+                    </p>
+                    <div class="overflow-x-auto">
+                        <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+                            <thead class="bg-yellow-50 dark:bg-yellow-900/30">
+                                <tr>
+                                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">Payment ID</th>
+                                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">Date</th>
+                                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">Status</th>
+                                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">Type</th>
+                                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">Apartment</th>
+                                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">Notes</th>
+                                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">Action</th>
+                                </tr>
+                            </thead>
+                            <tbody class="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
+                                {% for item in data_integrity.zero_amount_payments %}
+                                <tr class="hover:bg-yellow-50 dark:hover:bg-yellow-900/20">
+                                    <td class="px-4 py-3 text-sm font-medium text-gray-900 dark:text-white">#{{ item.id }}</td>
+                                    <td class="px-4 py-3 text-sm text-gray-700 dark:text-gray-300">{{ item.payment_date }}</td>
+                                    <td class="px-4 py-3 text-sm">
+                                        <span class="px-2 py-1 text-xs rounded bg-gray-100 dark:bg-gray-700">{{ item.status }}</span>
+                                    </td>
+                                    <td class="px-4 py-3 text-sm text-gray-700 dark:text-gray-300">{{ item.type }}</td>
+                                    <td class="px-4 py-3 text-sm text-gray-700 dark:text-gray-300">{{ item.apartment }}</td>
+                                    <td class="px-4 py-3 text-sm text-gray-500 dark:text-gray-400 max-w-xs truncate">{{ item.notes|default:"-" }}</td>
+                                    <td class="px-4 py-3 text-sm">
+                                        <a href="/payments/?q=id={{ item.id }}" class="text-blue-600 hover:text-blue-800 dark:text-blue-400 font-medium">Fix →</a>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    
+                    <!-- Pagination for Zero Amount Payments -->
+                    {% if data_integrity.zero_amount_pagination.total_pages > 1 %}
+                    <div class="mt-4 flex items-center justify-between border-t border-gray-200 dark:border-gray-700 pt-4">
+                        <div class="text-sm text-gray-500 dark:text-gray-400">
+                            Page {{ data_integrity.zero_amount_pagination.current_page }} of {{ data_integrity.zero_amount_pagination.total_pages }}
+                            ({{ data_integrity.zero_amount_pagination.total_count }} items)
+                        </div>
+                        <div class="flex space-x-2">
+                            {% if data_integrity.zero_amount_pagination.has_prev %}
+                            <a href="?zero_amount_page={{ data_integrity.zero_amount_pagination.prev_page }}&days={{ days }}" 
+                               class="px-3 py-1 text-sm bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded hover:bg-gray-300 dark:hover:bg-gray-600">
+                                ← Previous
+                            </a>
+                            {% endif %}
+                            {% if data_integrity.zero_amount_pagination.has_next %}
+                            <a href="?zero_amount_page={{ data_integrity.zero_amount_pagination.next_page }}&days={{ days }}" 
+                               class="px-3 py-1 text-sm bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded hover:bg-gray-300 dark:hover:bg-gray-600">
+                                Next →
+                            </a>
+                            {% endif %}
+                        </div>
+                    </div>
+                    {% endif %}
+                </div>
+                {% endif %}
+
+                <!-- MEDIUM: Missing Phone Numbers -->
+                {% if data_integrity.missing_phones %}
+                <div class="mb-8">
+                    <div class="flex items-center space-x-3 mb-4">
+                        <span class="px-3 py-1 text-sm font-bold bg-yellow-600 text-white rounded">MEDIUM</span>
+                        <h3 class="text-lg font-semibold text-gray-900 dark:text-white">📱 Tenants Missing Phone</h3>
+                        <span class="text-sm text-gray-500">({{ data_integrity.counts.missing_phones }} total)</span>
+                    </div>
+                    <p class="text-sm text-gray-600 dark:text-gray-400 mb-4">
+                        Tenants without phone numbers. Cannot send SMS notifications or contact in emergencies.
+                    </p>
+                    <div class="overflow-x-auto">
+                        <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+                            <thead class="bg-yellow-50 dark:bg-yellow-900/30">
+                                <tr>
+                                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">User ID</th>
+                                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">Name</th>
+                                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">Email</th>
+                                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">Created</th>
+                                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">Action</th>
+                                </tr>
+                            </thead>
+                            <tbody class="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
+                                {% for item in data_integrity.missing_phones|slice:":20" %}
+                                <tr class="hover:bg-yellow-50 dark:hover:bg-yellow-900/20">
+                                    <td class="px-4 py-3 text-sm font-medium text-gray-900 dark:text-white">#{{ item.id }}</td>
+                                    <td class="px-4 py-3 text-sm text-gray-700 dark:text-gray-300">{{ item.name }}</td>
+                                    <td class="px-4 py-3 text-sm text-gray-700 dark:text-gray-300">{{ item.email }}</td>
+                                    <td class="px-4 py-3 text-sm text-gray-700 dark:text-gray-300">{{ item.created_at|date:"Y-m-d" }}</td>
+                                    <td class="px-4 py-3 text-sm">
+                                        <a href="/users/?q=id={{ item.id }}" class="text-blue-600 hover:text-blue-800 dark:text-blue-400 font-medium">Fix →</a>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                {% endif %}
+
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
     <!-- Collapsible Statistics Section -->
     <div class="mb-6">
         <button 
@@ -436,7 +932,9 @@
                                 {% if error.traceback %}
                                 <details class="mt-2">
                                     <summary class="cursor-pointer text-sm text-red-600 dark:text-red-400 hover:underline">Show stack trace</summary>
-                                    <pre class="mt-2 bg-gray-900 text-gray-100 p-3 rounded text-xs overflow-x-auto">{{ error.traceback|truncatewords:100 }}</pre>
+                                    <div class="mt-2 max-h-96 overflow-auto rounded border border-gray-700">
+                                        <pre class="bg-gray-900 text-gray-100 p-3 text-xs whitespace-pre-wrap break-words">{{ error.traceback }}</pre>
+                                    </div>
                                 </details>
                                 {% endif %}
                             </div>
@@ -612,6 +1110,15 @@ function toggleSection(sectionId) {
 window.addEventListener('DOMContentLoaded', function() {
     const urlParams = new URLSearchParams(window.location.search);
     const hasFilters = urlParams.has('action') || urlParams.has('model') || urlParams.has('user') || urlParams.get('days') !== '3';
+    
+    // Data integrity section is auto-expanded via CSS if there are issues
+    // Set the icon rotation correctly if auto-expanded
+    {% if data_integrity.summary.total > 0 %}
+    const integrityIcon = document.getElementById('data-integrity-section-icon');
+    if (integrityIcon) {
+        integrityIcon.style.transform = 'rotate(180deg)';
+    }
+    {% endif %}
     
     if (hasFilters || {{ total_logs }} > 0) {
         toggleSection('db-activity-section');

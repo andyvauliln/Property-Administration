@@ -36,7 +36,14 @@ class DataIntegrityChecker:
         """
         Check for payments where the apartment field doesn't match the booking's apartment
         """
-        print("Checking payment apartment mismatches...")
+        print("\n" + "=" * 60)
+        print("🏠 PAYMENT APARTMENT MISMATCH CHECK")
+        print("=" * 60)
+        print("Problem: Payment has 'apartment' field set to a different")
+        print("         apartment than the booking it's linked to.")
+        print("Why it matters: This causes incorrect financial reports and")
+        print("               revenue attribution to wrong properties.")
+        print("-" * 60)
         
         # Get payments that have both an apartment and a booking
         payments_with_booking = Payment.objects.filter(
@@ -45,9 +52,24 @@ class DataIntegrityChecker:
         ).select_related('booking', 'apartment', 'booking__apartment')
         
         mismatches = []
+        example_shown = False
         for payment in payments_with_booking:
             if payment.booking.apartment and payment.apartment.id != payment.booking.apartment.id:
                 mismatches.append(payment)
+                
+                # Show first example
+                if not example_shown:
+                    print("📋 EXAMPLE:")
+                    print(f"   Payment ID: {payment.id}")
+                    print(f"   Amount: ${payment.amount}")
+                    print(f"   Payment Date: {payment.payment_date}")
+                    print(f"   Payment's Apartment: {payment.apartment.name} (ID: {payment.apartment.id})")
+                    print(f"   Booking ID: {payment.booking.id}")
+                    print(f"   Booking's Apartment: {payment.booking.apartment.name} (ID: {payment.booking.apartment.id})")
+                    print(f"   Tenant: {payment.booking.tenant.full_name if payment.booking.tenant else 'N/A'}")
+                    print(f"   ⚠️  Payment says '{payment.apartment.name}' but booking says '{payment.booking.apartment.name}'")
+                    example_shown = True
+                
                 self.add_issue(
                     category="Payment Apartment Mismatch",
                     severity="high",
@@ -63,21 +85,43 @@ class DataIntegrityChecker:
                     }
                 )
         
-        print(f"Found {len(mismatches)} payment apartment mismatches")
+        print(f"\n✅ Found {len(mismatches)} payment apartment mismatches")
         return len(mismatches)
     
     def check_orphaned_payments(self):
         """
         Check for payments without a booking or apartment reference
         """
-        print("Checking orphaned payments...")
+        print("\n" + "=" * 60)
+        print("💸 ORPHANED PAYMENTS CHECK")
+        print("=" * 60)
+        print("Problem: Payment exists without any link to a booking OR apartment.")
+        print("Why it matters: These payments cannot be attributed to any property")
+        print("               or tenant, making financial tracking impossible.")
+        print("               Money received but we don't know what it's for!")
+        print("-" * 60)
         
         orphaned = Payment.objects.filter(
             booking__isnull=True,
             apartment__isnull=True
-        ).exclude(payment_status='Completed')
+        ).exclude(payment_status='Completed').select_related('payment_type')
         
+        example_shown = False
         for payment in orphaned:
+            # Show first example
+            if not example_shown:
+                print("📋 EXAMPLE:")
+                print(f"   Payment ID: {payment.id}")
+                print(f"   Amount: ${payment.amount}")
+                print(f"   Payment Date: {payment.payment_date}")
+                print(f"   Status: {payment.payment_status}")
+                print(f"   Type: {payment.payment_type.name if payment.payment_type else 'N/A'}")
+                print(f"   Notes: {payment.notes[:100] if payment.notes else 'N/A'}")
+                print(f"   Booking: None ❌")
+                print(f"   Apartment: None ❌")
+                print(f"   ⚠️  This payment has no connection to any booking or apartment!")
+                example_shown = True
+            
             self.add_issue(
                 category="Orphaned Payment",
                 severity="medium",
@@ -93,23 +137,35 @@ class DataIntegrityChecker:
             )
         
         count = orphaned.count()
-        print(f"Found {count} orphaned payments")
+        print(f"\n✅ Found {count} orphaned payments")
         return count
     
     def check_booking_date_overlaps(self):
         """
         Check for overlapping bookings in the same apartment
         """
-        print("Checking booking date overlaps...")
+        print("\n" + "=" * 60)
+        print("📅 BOOKING DATE OVERLAPS CHECK")
+        print("=" * 60)
+        print("Problem: Two or more bookings for the SAME apartment have")
+        print("         overlapping dates (both claim the apartment at same time).")
+        print("Note: Same-day turnovers are OK (booking1 ends Aug 27, booking2")
+        print("      starts Aug 27) - only TRUE overlaps are flagged.")
+        print("Why it matters: Double-booking! Two tenants might show up for")
+        print("               the same apartment. This is a critical issue!")
+        print("-" * 60)
         
         overlaps = []
         bookings = Booking.objects.exclude(status='Blocked').select_related('apartment', 'tenant')
         
+        example_shown = False
         for booking in bookings:
             if not booking.apartment:
                 continue
                 
             # Find overlapping bookings for the same apartment
+            # Note: We use strict < and > to exclude same-day turnovers
+            # (e.g., booking1 ends Aug 27, booking2 starts Aug 27 is NOT an overlap)
             overlapping = Booking.objects.filter(
                 apartment=booking.apartment
             ).exclude(
@@ -117,13 +173,31 @@ class DataIntegrityChecker:
             ).exclude(
                 status='Blocked'
             ).filter(
-                Q(start_date__lte=booking.end_date, end_date__gte=booking.start_date)
-            )
+                Q(start_date__lt=booking.end_date, end_date__gt=booking.start_date)
+            ).select_related('tenant')
             
             for overlap in overlapping:
                 # Avoid duplicate reporting
                 if booking.id < overlap.id:
                     overlaps.append((booking, overlap))
+                    
+                    # Show first example
+                    if not example_shown:
+                        print("📋 EXAMPLE:")
+                        print(f"   Apartment: {booking.apartment.name}")
+                        print(f"   --- Booking 1 ---")
+                        print(f"   ID: {booking.id}")
+                        print(f"   Dates: {booking.start_date} to {booking.end_date}")
+                        print(f"   Status: {booking.status}")
+                        print(f"   Tenant: {booking.tenant.full_name if booking.tenant else 'N/A'}")
+                        print(f"   --- Booking 2 ---")
+                        print(f"   ID: {overlap.id}")
+                        print(f"   Dates: {overlap.start_date} to {overlap.end_date}")
+                        print(f"   Status: {overlap.status}")
+                        print(f"   Tenant: {overlap.tenant.full_name if overlap.tenant else 'N/A'}")
+                        print(f"   ⚠️  Both bookings claim '{booking.apartment.name}' during overlapping dates!")
+                        example_shown = True
+                    
                     self.add_issue(
                         category="Booking Date Overlap",
                         severity="critical",
@@ -139,19 +213,27 @@ class DataIntegrityChecker:
                         }
                     )
         
-        print(f"Found {len(overlaps)} booking overlaps")
+        print(f"\n✅ Found {len(overlaps)} booking overlaps")
         return len(overlaps)
     
     def check_invalid_phone_numbers(self):
         """
         Check for users with invalid or missing phone numbers
         """
-        print("Checking user phone numbers...")
+        print("\n" + "=" * 60)
+        print("📱 USER PHONE NUMBERS CHECK")
+        print("=" * 60)
+        print("Problem: Tenants without phone numbers or with invalid phone format.")
+        print("Why it matters: Cannot send SMS notifications, reminders, or")
+        print("               contact tenants in case of emergency.")
+        print("-" * 60)
         
         from mysite.models import validate_and_format_phone
         
         invalid_count = 0
         missing_count = 0
+        missing_example_shown = False
+        invalid_example_shown = False
         
         # Check all users with phone numbers
         users = User.objects.all()
@@ -162,6 +244,19 @@ class DataIntegrityChecker:
                 if user.role == 'Tenant':
                     # Missing phone for tenant is more critical
                     missing_count += 1
+                    
+                    # Show first example
+                    if not missing_example_shown:
+                        print("📋 EXAMPLE (Missing Phone):")
+                        print(f"   User ID: {user.id}")
+                        print(f"   Name: {user.full_name}")
+                        print(f"   Email: {user.email}")
+                        print(f"   Role: {user.role}")
+                        print(f"   Phone: None ❌")
+                        print(f"   Created: {user.created_at.date()}")
+                        print(f"   ⚠️  Tenant has no phone - cannot receive SMS notifications!")
+                        missing_example_shown = True
+                    
                     self.add_issue(
                         category="Missing Phone Number",
                         severity="medium",
@@ -182,6 +277,18 @@ class DataIntegrityChecker:
             if validated is None:
                 # Phone is invalid
                 invalid_count += 1
+                
+                # Show first example
+                if not invalid_example_shown:
+                    print("📋 EXAMPLE (Invalid Phone):")
+                    print(f"   User ID: {user.id}")
+                    print(f"   Name: {user.full_name}")
+                    print(f"   Email: {user.email}")
+                    print(f"   Role: {user.role}")
+                    print(f"   Phone: {user.phone} ❌")
+                    print(f"   ⚠️  Phone format is invalid - SMS will fail!")
+                    invalid_example_shown = True
+                
                 self.add_issue(
                     category="Invalid Phone Number",
                     severity="high",
@@ -211,14 +318,21 @@ class DataIntegrityChecker:
                     }
                 )
         
-        print(f"Found {invalid_count} invalid phones, {missing_count} missing phones")
+        print(f"\n✅ Found {invalid_count} invalid phones, {missing_count} missing phones")
         return invalid_count + missing_count
     
     def check_merged_payments_without_key(self):
         """
         Check for payments with status 'Merged' but without a merged_payment_key
         """
-        print("Checking merged payments without keys...")
+        print("\n" + "=" * 60)
+        print("🔗 MERGED PAYMENTS WITHOUT KEY CHECK")
+        print("=" * 60)
+        print("Problem: Payment has status='Merged' but no 'merged_payment_key'.")
+        print("Why it matters: Merged payments should link to a parent payment.")
+        print("               Without the key, we can't track which payments were")
+        print("               combined, causing accounting inconsistencies.")
+        print("-" * 60)
         
         # Find payments with status Merged but no merged_payment_key
         invalid_merged = Payment.objects.filter(
@@ -227,7 +341,28 @@ class DataIntegrityChecker:
             Q(merged_payment_key__isnull=True) | Q(merged_payment_key='')
         ).select_related('booking', 'apartment', 'payment_type')
         
+        example_shown = False
         for payment in invalid_merged:
+            # Show first example
+            if not example_shown:
+                apt_name = 'N/A'
+                if payment.booking and payment.booking.apartment:
+                    apt_name = payment.booking.apartment.name
+                elif payment.apartment:
+                    apt_name = payment.apartment.name
+                    
+                print("📋 EXAMPLE:")
+                print(f"   Payment ID: {payment.id}")
+                print(f"   Amount: ${payment.amount}")
+                print(f"   Payment Date: {payment.payment_date}")
+                print(f"   Status: {payment.payment_status}")
+                print(f"   Payment Type: {payment.payment_type.name if payment.payment_type else 'N/A'}")
+                print(f"   Merged Payment Key: None ❌")
+                print(f"   Booking ID: {payment.booking.id if payment.booking else 'N/A'}")
+                print(f"   Apartment: {apt_name}")
+                print(f"   ⚠️  Status is 'Merged' but missing merged_payment_key!")
+                example_shown = True
+            
             self.add_issue(
                 category="Merged Payment Without Key",
                 severity="high",
@@ -245,10 +380,63 @@ class DataIntegrityChecker:
             )
         
         count = invalid_merged.count()
-        print(f"Found {count} merged payments without keys")
+        print(f"\n✅ Found {count} merged payments without keys")
         return count
 
-    
+    def check_bookings_without_apartment(self):
+        """
+        Check for bookings that have no apartment assigned
+        """
+        print("\n" + "=" * 60)
+        print("🏚️  BOOKINGS WITHOUT APARTMENT CHECK")
+        print("=" * 60)
+        print("Problem: Booking exists but has no apartment assigned (apartment=NULL).")
+        print("Why it matters: A booking without an apartment is meaningless!")
+        print("               Tenant has a reservation but we don't know WHERE.")
+        print("               This breaks dashboard display and reporting.")
+        print("-" * 60)
+        
+        bookings_no_apartment = Booking.objects.filter(
+            apartment__isnull=True
+        ).select_related('tenant')
+        
+        example_shown = False
+        for booking in bookings_no_apartment:
+            # Show first example
+            if not example_shown:
+                print("📋 EXAMPLE:")
+                print(f"   Booking ID: {booking.id}")
+                print(f"   Start Date: {booking.start_date}")
+                print(f"   End Date: {booking.end_date}")
+                print(f"   Status: {booking.status}")
+                print(f"   Apartment: None ❌")
+                print(f"   Tenant: {booking.tenant.full_name if booking.tenant else 'N/A'}")
+                print(f"   Tenant Email: {booking.tenant.email if booking.tenant else 'N/A'}")
+                print(f"   Tenant Phone: {booking.tenant.phone if booking.tenant else 'N/A'}")
+                print(f"   Created At: {booking.created_at}")
+                print(f"   Notes: {booking.notes[:100] if booking.notes else 'N/A'}")
+                print(f"   ⚠️  Booking has no apartment - where should the tenant go?!")
+                example_shown = True
+            
+            self.add_issue(
+                category="Booking Without Apartment",
+                severity="critical",
+                description=f"Booking #{booking.id} has no apartment assigned",
+                details={
+                    'Booking ID': booking.id,
+                    'Start Date': str(booking.start_date),
+                    'End Date': str(booking.end_date),
+                    'Status': booking.status,
+                    'Tenant': booking.tenant.full_name if booking.tenant else 'N/A',
+                    'Tenant Email': booking.tenant.email if booking.tenant else 'N/A',
+                    'Created At': str(booking.created_at),
+                    'Issue': 'Every booking must have an apartment'
+                }
+            )
+        
+        count = bookings_no_apartment.count()
+        print(f"\n✅ Found {count} bookings without apartment")
+        return count
 
     
     def run_all_checks(self):
@@ -266,6 +454,7 @@ class DataIntegrityChecker:
         self.check_booking_date_overlaps()
         self.check_invalid_phone_numbers()
         self.check_merged_payments_without_key()
+        self.check_bookings_without_apartment()
         
         print("=" * 50)
         print(f"Total issues found: {len(self.issues)}")

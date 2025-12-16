@@ -64,19 +64,19 @@ def index(request):
     current_date = start_month
     while current_date <= end_date:
         for booking in bookings:
-            if booking.start_date <= current_date <= booking.end_date:
+            if booking.apartment and booking.start_date <= current_date <= booking.end_date:
                 key = (booking.apartment.id, current_date)
                 event_data[key]['booking'].append(booking)
 
         for cleaning in cleanings:
-            if cleaning.booking and cleaning.date == current_date:
+            if cleaning.booking and cleaning.booking.apartment and cleaning.date == current_date:
                 key = (cleaning.booking.apartment.id, current_date)
                 event_data[key]['cleaning'].append(cleaning)
 
         for payment in payments:
             if payment.payment_date == current_date:
                 apartment_id = None
-                if payment.booking:
+                if payment.booking and payment.booking.apartment:
                     apartment_id = payment.booking.apartment.id
                 elif payment.apartment:
                     apartment_id = payment.apartment.id

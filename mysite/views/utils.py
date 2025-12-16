@@ -3,6 +3,7 @@ from ..models import User, Apartment, ApartmentPrice, Booking, Cleaning, Notific
 from mysite.forms import CustomFieldMixin
 from django.db.models import Q
 from django.db import models
+from django.db.models import ProtectedError
 from datetime import datetime, date, timedelta
 from collections import defaultdict
 import calendar
@@ -45,6 +46,11 @@ def handle_post_request(request, model, form_class):
             instance.delete()
             form = form_class()
             return redirect(request.path)
+    except ProtectedError as e:
+        # Handle protected deletion errors (e.g., apartment with related data)
+        print(f"DEBUG - ProtectedError: {e}")
+        messages.error(request, str(e.args[0]) if e.args else "Cannot delete: this item has related data that must be removed first.")
+        return redirect(request.path)
     except Exception as e:
         print(f"DEBUG - Exception: {e}")
         log_exception(

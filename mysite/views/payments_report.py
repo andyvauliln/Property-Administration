@@ -87,13 +87,13 @@ def paymentReport(request):
             for payment in payments_within_range:
                 logger.info(f"Checking payment {payment.id}:")
                 logger.info(f"- Has booking: {bool(payment.booking)}")
-                if payment.booking:
+                if payment.booking and payment.booking.apartment:
                     logger.info(f"- Booking apartment: {payment.booking.apartment.name}")
                 logger.info(f"- Has direct apartment: {bool(payment.apartment)}")
                 if payment.apartment:
                     logger.info(f"- Direct apartment: {payment.apartment.name}")
                 
-                if payment.booking and payment.booking.apartment.name == apartment_filter:
+                if payment.booking and payment.booking.apartment and payment.booking.apartment.name == apartment_filter:
                     logger.info(f"✓ Payment {payment.id} matched through booking")
                     filtered_payments.append(payment)
                 elif payment.apartment and payment.apartment.name == apartment_filter:
@@ -106,7 +106,7 @@ def paymentReport(request):
 
     if apartment_type_filter:
         payments_within_range = [payment for payment in payments_within_range if (
-            (payment.booking and payment.booking.apartment.apartment_type == apartment_type_filter) or
+            (payment.booking and payment.booking.apartment and payment.booking.apartment.apartment_type == apartment_type_filter) or
             (payment.apartment and payment.apartment.apartment_type ==
              apartment_type_filter)
         )]
