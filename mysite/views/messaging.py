@@ -2,6 +2,7 @@
 from django.views.decorators.http import require_http_methods
 import os
 from twilio.rest import Client
+from twilio.base.exceptions import TwilioRestException
 from django.views.decorators.csrf import csrf_exempt
 import re
 from mysite.unified_logger import log_error, log_info, log_warning, logger
@@ -29,7 +30,7 @@ def get_twilio_client():
             raise ValueError(f"Invalid Twilio Account SID format: {account_sid[:10]}...")
             
     except Exception as e:
-        logger_sms.error(f"Failed to initialize Twilio client: {e}")
+        log_error(e, "Failed to initialize Twilio client", source='twilio')
         raise
 
 # Initialize client at module level
@@ -37,12 +38,12 @@ try:
     account_sid = os.environ.get("TWILIO_ACCOUNT_SID", "")
     auth_token = os.environ.get("TWILIO_AUTH_TOKEN", "")
     if not account_sid or not auth_token:
-        logger_sms.warning("Twilio credentials not found in environment variables")
+        log_warning("Twilio credentials not found in environment variables", category='twilio')
         client = None
     else:
         client = Client(account_sid, auth_token)
 except Exception as e:
-    logger_sms.error(f"Error initializing Twilio client: {e}")
+    log_error(e, "Error initializing Twilio client", source='twilio')
     client = None
 
 
@@ -116,12 +117,12 @@ def update_conversation_booking_link(conversation_sid, phone_number):
         
         conversation = TwilioConversation.objects.filter(conversation_sid=conversation_sid).first()
         if not conversation:
-            print_info(f"Conversation not found: {conversation_sid}")
+            log_info(f"Conversation not found: {conversation_sid}", category='sms')
             return False
             
         # Skip if already linked
         if conversation.booking and conversation.apartment:
-            print_info(f"Conversation already linked to booking: {conversation.booking}")
+            log_info(f"Conversation already linked to booking: {conversation.booking}", category='sms')
             return True
             
         # Try to find booking
@@ -130,14 +131,14 @@ def update_conversation_booking_link(conversation_sid, phone_number):
             conversation.booking = booking
             conversation.apartment = booking.apartment
             conversation.save()
-            print_info(f"Updated conversation {conversation_sid} with booking: {booking} and apartment: {booking.apartment}")
+            log_info(f"Updated conversation {conversation_sid} with booking: {booking} and apartment: {booking.apartment}", category='sms')
             return True
         else:
-            print_info(f"No booking found for phone: {phone_number}")
+            log_info(f"No booking found for phone: {phone_number}", category='sms')
             return False
             
     except Exception as e:
-        print_info(f"Error updating conversation booking link: {e}")
+        log_error(e, "Error updating conversation booking link", source='web')
         return False
 
 
@@ -156,10 +157,10 @@ def check_author_in_group_conversations_for_apartment(author_phone, apartment_id
     try:
         validated_phone = validate_phone_number(author_phone)
         if not validated_phone:
-            print_info(f"Invalid phone number for group check: {author_phone}")
+            log_info(f"Invalid phone number for group check: {author_phone}", category='sms')
             return False
             
-        print_info(f"Checking if {validated_phone} exists in group conversations for apartment {apartment_id}")
+        log_info(f"Checking if {validated_phone} exists in group conversations for apartment {apartment_id}", category='sms')
         
         # If apartment_id provided, check database first for more efficient lookup
         if apartment_id:
@@ -172,14 +173,14 @@ def check_author_in_group_conversations_for_apartment(author_phone, apartment_id
             ).first()
             
             if existing_conversation:
-                print_info(f"Found existing conversation {existing_conversation.conversation_sid} for apartment {apartment_id}")
+                log_info(f"Found existing conversation {existing_conversation.conversation_sid} for apartment {apartment_id}", category='sms')
                 return True
         
         # Fallback to original Twilio API check for all group conversations
         return check_author_in_group_conversations(author_phone)
         
     except Exception as e:
-        print_info(f"Error in check_author_in_group_conversations_for_apartment: {e}")
+        log_error(e, "Error in check_author_in_group_conversations_for_apartment", source='web')
         return check_author_in_group_conversations(author_phone)
 
 
@@ -228,17 +229,17 @@ def save_message_to_db(message_sid, conversation_sid, author, body, direction='i
             )
             
             if created:
-                print_info(f"Saved message to DB: {message_sid} from {author}")
+                log_info(f"Saved message to DB: {message_sid} from {author}", category='sms')
             else:
-                print_info(f"Message already exists in DB: {message_sid}")
+                log_info(f"Message already exists in DB: {message_sid}", category='sms')
                 
             return message
         else:
-            print_info(f"Could not find or create conversation for message: {message_sid}")
+            log_info(f"Could not find or create conversation for message: {message_sid}", category='sms')
             return None
             
     except Exception as e:
-        print_info(f"Error saving message to DB: {e}")
+        log_error(e, "Error saving message to DB", source='web')
         return None
 
 
@@ -276,7 +277,7 @@ def get_booking_from_phone(phone_number):
         return booking
         
     except Exception as e:
-        print_info(f"Error finding booking from phone {phone_number}: {e}")
+        log_error(e, f"Error finding booking from phone {phone_number}", source='web')
         return None
 
 
@@ -334,7 +335,7 @@ def create_conversation_with_participants(friendly_name, participants_config):
         # Ensure client is initialized
         global client
         if client is None:
-            print_info("Twilio client not initialized, attempting to initialize...")
+            log_info("Twilio client not initialized, attempting to initialize...", category='sms')
             client = get_twilio_client()
         
         participant_list = []
@@ -344,14 +345,14 @@ def create_conversation_with_participants(friendly_name, participants_config):
             if "phone" in config:
                 validated_phone = validate_phone_number(config["phone"])
                 if not validated_phone:
-                    print_info(f"Invalid phone number in config: {config}")
+                    log_info(f"Invalid phone number in config: {config}", category='sms')
                     continue
                 config["phone"] = validated_phone
             
             if "projected_address" in config:
                 validated_projected = validate_phone_number(config["projected_address"])
                 if not validated_projected:
-                    print_info(f"Invalid projected address in config: {config}")
+                    log_info(f"Invalid projected address in config: {config}", category='sms')
                     continue
                 config["projected_address"] = validated_projected
             
@@ -362,30 +363,49 @@ def create_conversation_with_participants(friendly_name, participants_config):
                 # Phone number participant
                 participant_json = f'{{"messaging_binding": {{"address": "{config["phone"]}"}}}}'
             else:
-                print_info(f"Invalid participant config: {config}")
+                log_info(f"Invalid participant config: {config}", category='sms')
                 continue
                 
             participant_list.append(participant_json)
         
-        print_info(f"Participant list: {participant_list}")
+        log_info(f"Participant list: {participant_list}", category='sms')
         if not participant_list:
             raise ValueError("No valid participants provided")
         
-        conversation_with_participant = client.conversations.v1.conversation_with_participants.create(
-            friendly_name=friendly_name,
-            participant=participant_list,
-        )
-        
-        conversation_sid = conversation_with_participant.sid
-        print_info(f'Created conversation "{friendly_name}" with {len(participant_list)} participants: {conversation_sid}')
-        
-        return conversation_sid
+        try:
+            conversation_with_participant = client.conversations.v1.conversation_with_participants.create(
+                friendly_name=friendly_name,
+                participant=participant_list,
+            )
+            
+            conversation_sid = conversation_with_participant.sid
+            log_info(
+                f'Created conversation "{friendly_name}" with {len(participant_list)} participants',
+                category='sms',
+                details={'conversation_sid': conversation_sid, 'participant_count': len(participant_list)}
+            )
+            
+            return conversation_sid
+            
+        except TwilioRestException as e:
+            # Handle duplicate conversation error (HTTP 409)
+            if e.status == 409:
+                # Extract existing conversation SID from error message
+                # Pattern: "Conversation CH[32 alphanumeric chars]"
+                match = re.search(r'Conversation (CH[a-z0-9]{32})', str(e))
+                if match:
+                    existing_sid = match.group(1)
+                    log_info(
+                        f'Conversation already exists, reusing: {existing_sid}',
+                        category='sms',
+                        details={'conversation_sid': existing_sid, 'friendly_name': friendly_name}
+                    )
+                    return existing_sid
+            # Re-raise if not a 409 or if we couldn't extract the SID
+            raise
         
     except Exception as e:
-        print_info(f"Error creating conversation with participants: {e}")
-        # Log more details about the error for debugging
-        import traceback
-        print_info(f"Full traceback: {traceback.format_exc()}")
+        log_error(e, "Error creating conversation with participants", source='twilio')
         raise
 
 
@@ -402,15 +422,15 @@ def check_author_in_group_conversations(author_phone):
     try:
         validated_phone = validate_phone_number(author_phone)
         if not validated_phone:
-            print_info(f"Invalid phone number for group check: {author_phone}")
+            log_info(f"Invalid phone number for group check: {author_phone}", category='sms')
             return False
             
-        print_info(f"Checking if {validated_phone} exists in group conversations")
+        log_info(f"Checking if {validated_phone} exists in group conversations", category='sms')
         
         # Ensure client is initialized
         global client
         if client is None:
-            print_info("Twilio client not initialized, attempting to initialize...")
+            log_info("Twilio client not initialized, attempting to initialize...", category='sms')
             client = get_twilio_client()
         
         # Get all conversations
@@ -422,7 +442,7 @@ def check_author_in_group_conversations(author_phone):
                 participants = client.conversations.v1.conversations(conv.sid).participants.list()
                 participant_count = len(participants)
                 
-                print_info(f"Conversation {conv.sid} has {participant_count} participants")
+                log_info(f"Conversation {conv.sid} has {participant_count} participants", category='sms')
                 
                 # Check if this conversation has more than 2 participants
                 if participant_count > 2:
@@ -432,18 +452,18 @@ def check_author_in_group_conversations(author_phone):
                             binding = participant.messaging_binding
                             participant_address = binding.get('address', '')
                             if participant_address == validated_phone:
-                                print_info(f"Found author {validated_phone} in group conversation {conv.sid}")
+                                log_info(f"Found author {validated_phone} in group conversation {conv.sid}", category='sms')
                                 return True
                                 
             except Exception as e:
-                print_info(f"Error checking conversation {conv.sid}: {e}")
+                log_error(e, f"Error checking conversation {conv.sid}", source='twilio')
                 continue
                 
-        print_info(f"Author {validated_phone} not found in any group conversations")
+        log_info(f"Author {validated_phone} not found in any group conversations", category='sms')
         return False
         
     except Exception as e:
-        print_info(f"Error in check_author_in_group_conversations: {e}")
+        log_error(e, "Error in check_author_in_group_conversations", source='twilio')
         return False
 
 
@@ -460,7 +480,7 @@ def forward_message_to_conversation(conversation_sid, author, message):
         # Ensure client is initialized
         global client
         if client is None:
-            print_info("Twilio client not initialized, attempting to initialize...")
+            log_info("Twilio client not initialized, attempting to initialize...", category='sms')
             client = get_twilio_client()
             
         formatted_message = f">>Customer: {author} - {message}"
@@ -471,7 +491,11 @@ def forward_message_to_conversation(conversation_sid, author, message):
             body=formatted_message
         )
         
-        print_info(f"Forwarded message to conversation {conversation_sid}: {formatted_message}")
+        log_info(
+            f"Forwarded message to conversation",
+            category='sms',
+            details={'conversation_sid': conversation_sid, 'message_sid': message_response.sid}
+        )
         
         # Save outbound forwarded message to database
         save_message_to_db(
@@ -485,7 +509,7 @@ def forward_message_to_conversation(conversation_sid, author, message):
         return message_response.sid
         
     except Exception as e:
-        print_info(f"Error forwarding message to conversation {conversation_sid}: {e}")
+        log_error(e, f"Error forwarding message to conversation {conversation_sid}", source='twilio')
         raise
 
 
@@ -500,25 +524,24 @@ def delete_conversation(conversation_sid):
         # Ensure client is initialized
         global client
         if client is None:
-            print_info("Twilio client not initialized, attempting to initialize...")
+            log_info("Twilio client not initialized, attempting to initialize...", category='sms')
             client = get_twilio_client()
             
         client.conversations.v1.conversations(conversation_sid).delete()
-        print_info(f"Deleted conversation: {conversation_sid}")
+        log_info(f"Deleted conversation: {conversation_sid}", category='sms')
         
     except Exception as e:
-        print_info(f"Error deleting conversation {conversation_sid}: {e}")
+        log_error(e, f"Error deleting conversation {conversation_sid}", source='twilio')
         raise
 
 
 @csrf_exempt
 @require_http_methods(["POST", "GET"])
 def twilio_webhook(request):
-    print_info("**********CONVERSATION_CREATED_WEBHOOK **********")
+    log_info("**********CONVERSATION_CREATED_WEBHOOK **********", category='sms')
     try:
         if request.method == 'POST':
             data = request.POST
-            print_info(f"Data: {data}")
             event_type = data.get('EventType', None)
             webhook_sid = data.get('WebhookSid', None)
             message_sid = data.get('MessageSid', None)  # Extract actual MessageSid from webhook
@@ -527,20 +550,27 @@ def twilio_webhook(request):
             body = data.get('Body', None)
             messaging_binding_address = data.get('MessagingBinding.Address', None)
             messaging_binding_proxy_address = data.get('MessagingBinding.ProxyAddress', None)
-            print_info(f"Body: {body}")
-            print_info(f"MessageSid: {message_sid}")
-            print_info(f"WebhookSid: {webhook_sid}")
-            print_info(f"ConversationSid: {conversation_sid}")
-            print_info(f"EventType: {event_type}")
-            print_info(f"Author: {author}")
-            print_info(f"Messaging Binding Address: {messaging_binding_address}")
-            print_info(f"Messaging Binding Proxy Address: {messaging_binding_proxy_address}")
+            
+            log_info(
+                "Webhook received",
+                category='sms',
+                details={
+                    'event_type': event_type,
+                    'message_sid': message_sid,
+                    'webhook_sid': webhook_sid,
+                    'conversation_sid': conversation_sid,
+                    'author': author,
+                    'body': body,
+                    'messaging_binding_address': messaging_binding_address,
+                    'messaging_binding_proxy_address': messaging_binding_proxy_address
+                }
+            )
             twilio_phone = "+13153524379"
             manager_phone = "+15612205252"
             
             
             if event_type == 'onMessageAdded':
-                print_info(f"Event type is onMessageAdded: {event_type}")
+                log_info(f"Event type is onMessageAdded: {event_type}", category='sms')
                 
                 # Save incoming message to database
                 if body and message_sid:  # Only save if there's actual message content and message_sid
@@ -566,13 +596,13 @@ def twilio_webhook(request):
                         messaging_binding_proxy_address=messaging_binding_proxy_address
                     )
                 elif body and not message_sid:
-                    print_info(f"Warning: Received message without MessageSid, skipping save to DB")
+                    log_warning("Received message without MessageSid, skipping save to DB", category='sms')
                 
                 # Check if author is not twilio_phone and not manager_phone
                 author_is_customer = (author != twilio_phone and author != manager_phone)
                 
                 if author_is_customer:
-                    print_info(f"Author {author} is a customer, checking for existing group conversations")
+                    log_info(f"Author {author} is a customer, checking for existing group conversations", category='sms')
                     
                     # Get customer's current booking context to determine if we need a new conversation
                     customer_booking = get_booking_from_phone(author)
@@ -582,7 +612,10 @@ def twilio_webhook(request):
                     author_in_group = check_author_in_group_conversations_for_apartment(author, apartment_id)
                     
                     if not author_in_group:
-                        print_info(f"Author {author} not found in group conversations, creating new group conversation and forwarding message")
+                        log_info(
+                            f"Author {author} not found in group conversations, creating new group conversation and forwarding message",
+                            category='sms'
+                        )
                         
                         # Create new group conversation with all participants
                         participants_config = []
@@ -603,7 +636,11 @@ def twilio_webhook(request):
                             "projected_address": twilio_phone
                         })
                         
-                        print_info(f"Creating new group conversation with participants: {participants_config}")
+                        log_info(
+                            f"Creating new group conversation",
+                            category='sms',
+                            details={'participants_config': participants_config}
+                        )
                         
                         friendly_name = f"Customer Support Group - {author}"
                         new_conversation_sid = create_conversation_with_participants(
@@ -627,9 +664,9 @@ def twilio_webhook(request):
                         if conversation_sid:
                             try:
                                 delete_conversation(conversation_sid)
-                                print_info(f"Deleted old conversation: {conversation_sid}")
+                                log_info(f"Deleted old conversation: {conversation_sid}", category='sms')
                             except Exception as e:
-                                print_info(f"Warning: Could not delete old conversation {conversation_sid}: {e}")
+                                log_warning(f"Could not delete old conversation {conversation_sid}", category='sms', details={'error': str(e)})
                         
                         # Print final participant list
                         print_participants(new_conversation_sid, "New Group Conversation Created")
@@ -655,7 +692,7 @@ def twilio_webhook(request):
 
         return JsonResponse({'status': 'success'}, status=200)
     except Exception as e:
-        print_info(f"Error in twilio_webhook: {e}")
+        log_error(e, "Error in twilio_webhook", source='web')
         return JsonResponse({'status': 'error', 'message': str(e)}, status=500)
 
 
@@ -702,11 +739,15 @@ def create_conversation_config(friendly_name, tenant_phone):
         # Save conversation to database with booking/apartment relationship
         save_conversation_to_db(conversation_sid, friendly_name, booking=booking, apartment=apartment)
         
-        print_info(f'Created conversation "{friendly_name}" with {len(participants_config)} participants: {conversation_sid}')
+        log_info(
+            f'Created conversation "{friendly_name}"',
+            category='sms',
+            details={'conversation_sid': conversation_sid, 'participant_count': len(participants_config)}
+        )
         return conversation_sid
         
     except Exception as e:
-        print_info(f"Error creating conversation with participants: {e}")
+        log_error(e, "Error creating conversation with participants", source='twilio')
         raise
 
 
@@ -715,7 +756,7 @@ def send_messsage_by_sid(conversation_sid, author, message, sender_phone, receiv
         # Ensure client is initialized
         global client
         if client is None:
-            print_info("Twilio client not initialized, attempting to initialize...")
+            log_info("Twilio client not initialized, attempting to initialize...", category='sms')
             client = get_twilio_client()
             
         # Retry sending in case the conversation is still initializing
@@ -729,7 +770,11 @@ def send_messsage_by_sid(conversation_sid, author, message, sender_phone, receiv
                     body=message,
                     author=author,
                 )
-                print_info(f"Message sent via Twilio: {twilio_message.sid}")
+                log_info(
+                    f"Message sent via Twilio",
+                    category='sms',
+                    details={'message_sid': twilio_message.sid, 'conversation_sid': conversation_sid}
+                )
                 
                 # Save outbound message to database
                 save_message_to_db(
@@ -745,18 +790,19 @@ def send_messsage_by_sid(conversation_sid, author, message, sender_phone, receiv
                 from twilio.base.exceptions import TwilioRestException
                 is_initializing = (getattr(e, "status", None) == 409) or ("initializing" in str(e).lower())
                 if is_initializing and attempt < max_attempts:
-                    print_info(
-                        f"Conversation {conversation_sid} is initializing; retrying in {delay_seconds}s (attempt {attempt}/{max_attempts})"
+                    log_info(
+                        f"Conversation {conversation_sid} is initializing; retrying in {delay_seconds}s (attempt {attempt}/{max_attempts})",
+                        category='sms'
                     )
                     time.sleep(delay_seconds)
                     delay_seconds = min(delay_seconds * 2, 4.0)
                     continue
                 else:
-                    print_info(f"Error sending message via Twilio (attempt {attempt}): {e}")
+                    log_error(e, f"Error sending message via Twilio (attempt {attempt})", source='twilio')
                     raise
         
     except Exception as e:
-        print_info(f"Error sending message via Twilio: {e}")
+        log_error(e, "Error sending message via Twilio", source='twilio')
         raise Exception(f"Error sending message via Twilio: {e}")
 
 
@@ -765,19 +811,25 @@ def sendContractToTwilio(booking, contract_url):
         twilio_phone_secondary = os.environ.get("TWILIO_PHONE_SECONDARY")
         
         # Log tenant phone for debugging
-        print_info(f"Attempting to send contract to tenant phone: {booking.tenant.phone}")
+        log_info(
+            f"Attempting to send contract to tenant",
+            category='sms',
+            details={'booking_id': booking.id, 'tenant_phone': booking.tenant.phone}
+        )
         
         # Validate tenant phone
         if not booking.tenant.phone:
-            print_info(f"ERROR: Tenant phone is empty/None for booking {booking.id}")
-            raise Exception(f"Tenant phone is empty/None for booking {booking.id}")
+            error_msg = f"Tenant phone is empty/None for booking {booking.id}"
+            log_error(Exception(error_msg), error_msg, source='web')
+            raise Exception(error_msg)
         
         validated_phone = validate_phone_number(booking.tenant.phone)
         if not validated_phone:
-            print_info(f"ERROR: Invalid tenant phone format: '{booking.tenant.phone}' (Type: {type(booking.tenant.phone).__name__}) for booking {booking.id}, tenant: {booking.tenant.full_name}")
+            error_msg = f"Invalid tenant phone format: '{booking.tenant.phone}' for booking {booking.id}, tenant: {booking.tenant.full_name}"
+            log_error(Exception(error_msg), error_msg, source='web')
             raise Exception(f"Invalid tenant phone format: '{booking.tenant.phone}' for booking {booking.id}")
         
-        print_info(f"Validated tenant phone: {validated_phone}")
+        log_info(f"Validated tenant phone: {validated_phone}", category='sms')
         
         conversation_sid = create_conversation_config(
             f" {booking.tenant.full_name or 'Tenant'} Chat Apt: {booking.apartment.name}",
@@ -785,13 +837,13 @@ def sendContractToTwilio(booking, contract_url):
         )
         
         if conversation_sid:
-            print_info(f"Conversation created: {conversation_sid}")
+            log_info(f"Conversation created: {conversation_sid}", category='sms')
             send_messsage_by_sid(conversation_sid, "ASSISTANT", f"Hi, {booking.tenant.full_name or 'Dear guest'}, this is your contract for booking apartment {booking.apartment.name}. from {booking.start_date} to {booking.end_date}. Please sign it here: {contract_url}", twilio_phone_secondary, validated_phone)
         else:
-            print_info("Conversation wasn't created")
+            log_warning("Conversation wasn't created", category='sms')
     except Exception as e:
         from twilio.base.exceptions import TwilioException
-        print_info(f"Error sending contract message: {e}")
+        log_error(e, "Error sending contract message", source='twilio')
         raise Exception(f"Error sending contract message: {e}")
 
 
@@ -800,19 +852,25 @@ def sendWelcomeMessageToTwilio(booking):
         twilio_phone_secondary = os.environ.get("TWILIO_PHONE_SECONDARY")
         
         # Log tenant phone for debugging
-        print_info(f"Attempting to send welcome message to tenant phone: {booking.tenant.phone}")
+        log_info(
+            f"Attempting to send welcome message to tenant",
+            category='sms',
+            details={'booking_id': booking.id, 'tenant_phone': booking.tenant.phone}
+        )
         
         # Validate tenant phone
         if not booking.tenant.phone:
-            print_info(f"ERROR: Tenant phone is empty/None for booking {booking.id}")
-            raise Exception(f"Tenant phone is empty/None for booking {booking.id}")
+            error_msg = f"Tenant phone is empty/None for booking {booking.id}"
+            log_error(Exception(error_msg), error_msg, source='web')
+            raise Exception(error_msg)
         
         validated_phone = validate_phone_number(booking.tenant.phone)
         if not validated_phone:
-            print_info(f"ERROR: Invalid tenant phone format: '{booking.tenant.phone}' (Type: {type(booking.tenant.phone).__name__}) for booking {booking.id}, tenant: {booking.tenant.full_name}")
+            error_msg = f"Invalid tenant phone format: '{booking.tenant.phone}' for booking {booking.id}, tenant: {booking.tenant.full_name}"
+            log_error(Exception(error_msg), error_msg, source='web')
             raise Exception(f"Invalid tenant phone format: '{booking.tenant.phone}' for booking {booking.id}")
         
-        print_info(f"Validated tenant phone: {validated_phone}")
+        log_info(f"Validated tenant phone: {validated_phone}", category='sms')
         
         conversation_sid = create_conversation_config(
             f" {booking.tenant.full_name or 'Tenant'} Chat Apt: {booking.apartment.name}",
@@ -820,13 +878,13 @@ def sendWelcomeMessageToTwilio(booking):
         )
         
         if conversation_sid:
-            print_info(f"Conversation created: {conversation_sid}")
+            log_info(f"Conversation created: {conversation_sid}", category='sms')
             send_messsage_by_sid(conversation_sid, "ASSISTANT", f"Hi, {booking.tenant.full_name or 'Dear guest'}, This chat for renting apartment {booking.apartment.name}. from {booking.start_date} to {booking.end_date}.", twilio_phone_secondary, validated_phone)
         else:
-            print_info("Conversation wasn't created")
+            log_warning("Conversation wasn't created", category='sms')
     except Exception as e:
         from twilio.base.exceptions import TwilioException
-        print_info(f"Error sending welcome message: {e}")
+        log_error(e, "Error sending welcome message", source='twilio')
         raise Exception(f"Error sending welcome message: {e}")
 
 
@@ -836,28 +894,42 @@ def print_participants(conversation_sid, label="Participants"):
         # Ensure client is initialized
         global client
         if client is None:
-            print_info("Twilio client not initialized, attempting to initialize...")
+            log_info("Twilio client not initialized, attempting to initialize...", category='sms')
             client = get_twilio_client()
             
         participants = client.conversations.v1.conversations(conversation_sid).participants.list()
-        print_info(f"\n========== {label} for Conversation {conversation_sid} ==========")
-        print_info(f"Total participants: {len(participants)}")
         
+        # Build participant details
+        participant_details = []
         for i, p in enumerate(participants, 1):
-            print_info(f"Participant {i}:")
-            print_info(f"  - SID: {p.sid}")
-            print_info(f"  - Identity: {getattr(p, 'identity', 'None')}")
-            print_info(f"  - Date Created: {getattr(p, 'date_created', 'None')}")
+            participant_info = {
+                'number': i,
+                'sid': p.sid,
+                'identity': getattr(p, 'identity', 'None'),
+                'date_created': str(getattr(p, 'date_created', 'None'))
+            }
             
             if hasattr(p, 'messaging_binding') and p.messaging_binding:
                 binding = p.messaging_binding
-                print_info(f"  - Messaging Binding:")
-                print_info(f"    - Address: {binding.get('address', 'None')}")
-                print_info(f"    - Projected Address: {binding.get('projected_address', 'None')}")
-                print_info(f"    - Type: {binding.get('type', 'None')}")
+                participant_info['messaging_binding'] = {
+                    'address': binding.get('address', 'None'),
+                    'projected_address': binding.get('projected_address', 'None'),
+                    'type': binding.get('type', 'None')
+                }
             else:
-                print_info(f"  - Messaging Binding: None")
-        print_info(f"========== End {label} ==========\n")
+                participant_info['messaging_binding'] = None
+                
+            participant_details.append(participant_info)
+        
+        log_info(
+            f"{label} for Conversation",
+            category='sms',
+            details={
+                'conversation_sid': conversation_sid,
+                'total_participants': len(participants),
+                'participants': participant_details
+            }
+        )
         
     except Exception as e:
-        print_info(f"Error printing participants: {e}")
+        log_error(e, f"Error printing participants for {conversation_sid}", source='twilio')

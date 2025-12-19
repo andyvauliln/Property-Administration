@@ -1,7 +1,7 @@
 from django.utils import timezone
 from django.http import JsonResponse
 import json
-from mysite.models import Booking
+from mysite.models import Booking, ParkingBooking
 from django.http import JsonResponse, HttpResponse
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_http_methods
@@ -105,6 +105,13 @@ def docuseal_callback(request):
                         booking.car_model = form_fields_dict["car_model"] if form_fields_dict["car_model"] else ""
                         logger.info(f"car_model: {form_fields_dict['car_model']}")
                     booking.save()
+                    
+                    # Update parking booking status if car info was set
+                    if 'car_info' in form_fields_dict or 'car_model' in form_fields_dict:
+                        has_car = booking.is_rent_car is not None or booking.car_model
+                        new_status = "Booked" if has_car else "No Car"
+                        updated_count = ParkingBooking.objects.filter(booking=booking).update(status=new_status)
+                        logger.info(f"parking_booking_status_updated: {new_status}, count: {updated_count}")
                     logger.info(f"booking status: {booking.status}")
                     logger.info("Booking Saved")
                     tenant = booking.tenant

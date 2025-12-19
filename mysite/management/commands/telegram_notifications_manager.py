@@ -64,7 +64,7 @@ def check_bookings_without_cleaning(chat_id, token):
         # Check if cleaning exists for this booking
         if not hasattr(booking, 'cleanings') or not booking.cleanings.exists():
             # Only send to manager responsible for this apartment
-            print_info(f"Found Booking: {booking.id} without cleaning")
+            log_info(f"Found Booking: {booking.id} without cleaning")
             if booking.apartment and booking.apartment.manager:
                 if booking.apartment.manager.telegram_chat_id == chat_id:
                     message = f"⚠️ WARNING: Booking ending soon without cleaning scheduled!\n"
@@ -86,7 +86,7 @@ def my_cron_job():
     active_managers = User.objects.filter(role="Manager", is_active=True)
     
     for manager in active_managers:
-        print_info(f"Manager {manager.full_name}: {manager.telegram_chat_id}")
+        log_info(f"Manager {manager.full_name}: {manager.telegram_chat_id}")
         if manager.telegram_chat_id:
             # Check for bookings without cleanings for this manager
             check_bookings_without_cleaning(manager.telegram_chat_id, telegram_token)

@@ -561,7 +561,7 @@ class BookingForm(forms.ModelForm):
         }
         parking_number = form_data.get("parking_number", None)
         if form_data.get("status") == "Blocked" or form_data.get("status") == "Pending" or form_data.get("status") == "Problem Booking":
-            instance.saveEmpty(form_data=form_data)
+            instance.saveEmpty(form_data=form_data, parking_number=parking_number)
 
         elif form_data:
             instance.save(form_data=form_data, payments_data=payments_data, parking_number=parking_number)

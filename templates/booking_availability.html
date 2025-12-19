@@ -186,11 +186,11 @@
                                                 {% if apt.days|get_dic_item:number|get_dic_item:'booking_ids' %}
                                                     <a href="/bookings/?q=id={{ apt.days|get_dic_item:number|get_dic_item:'booking_ids'|first }}" target="_blank"
                                                        class="block w-full h-full p-0 text-center align-middle relative">
-                                                        {{ number }}{% if apt.notes %}<sup class="text-red-500 font-bold text-[10px] absolute top-0 right-0">*</sup>{% endif %}
+                                                        {{ number }}
                                                     </a>
                                                 {% else %}
                                                     <div class="text-center relative">
-                                                        {{ number }}{% if apt.notes %}<sup class="text-red-500 font-bold text-[10px] absolute top-0 right-0">*</sup>{% endif %}
+                                                        {{ number }}
                                                     </div>
                                                 {% endif %}
                                             </td>

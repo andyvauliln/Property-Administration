@@ -31,6 +31,8 @@ def sent_pending_payments_message(chat_ids, token):
         details={'count': pending_payments.count()}
     )
     message = "\n\n🚨 PENDING PAYMENTS FROM PAST PERIODS:"
+    for payment in pending_payments:
+        message += f"\n- Amount: ${payment.amount}"
         message += f"\n  Payment Date: {payment.payment_date}"
         message += f"\n  Status: {payment.payment_status}"
         if payment.payment_type:

@@ -563,8 +563,24 @@ class Booking(models.Model):
 
     def saveEmpty(self, *args, **kwargs):
         form_data = kwargs.pop('form_data', None)
+        parking_number = kwargs.pop('parking_number', None)
+        
+        # Check if this is an update and if status changed
+        is_updating = self.pk is not None
+        if is_updating:
+            orig = Booking.objects.get(pk=self.pk)
+            status_changed = orig.status != self.status
+        
         self.get_or_create_tenant(form_data)
         super().save(*args, **kwargs)
+        
+        # Update parking booking status if status changed (e.g., to/from Blocked)
+        if is_updating and status_changed:
+            self._update_parking_booking_status()
+        
+        # Handle parking booking for blocked bookings
+        if parking_number:
+            self._create_parking_booking(parking_number)
 
     def update(self, *args, **kwargs):
         super().save(*args, **kwargs)
@@ -619,6 +635,10 @@ class Booking(models.Model):
                 start_date=self.start_date,
                 end_date=self.end_date
             )
+        
+        # Update parking booking status if car info changed or status changed to/from Blocked
+        if orig.is_rent_car != self.is_rent_car or orig.car_model != self.car_model or orig.status != self.status:
+            self._update_parking_booking_status()
         
         # Save the booking
         super().save()
@@ -782,8 +802,14 @@ class Booking(models.Model):
     def _create_parking_booking(self, parking_number):
         """Create parking booking associated with this booking"""
         parking = Parking.objects.get(id=parking_number)
-        status = "Booked" if (self.is_rent_car or self.car_model or 
-                              self.car_price or self.car_rent_days) else "No Car"
+        
+        # Determine parking booking status based on booking status and car info
+        if self.status == "Blocked":
+            status = "Unavailable"
+        elif self.is_rent_car or self.car_model or self.car_price or self.car_rent_days:
+            status = "Booked"
+        else:
+            status = "No Car"
         
         parking_booking = ParkingBooking(
             parking=parking,
@@ -794,6 +820,16 @@ class Booking(models.Model):
             apartment=self.apartment
         )
         parking_booking.save()
+    
+    def _update_parking_booking_status(self):
+        """Update parking booking status based on booking status and car info"""
+        if self.status == "Blocked":
+            new_status = "Unavailable"
+        elif self.is_rent_car is not None or self.car_model:
+            new_status = "Booked"
+        else:
+            new_status = "No Car"
+        ParkingBooking.objects.filter(booking=self).update(status=new_status)
        
     def deletePayments(self):
         payments_to_delete = Payment.objects.filter(
@@ -1848,11 +1884,20 @@ class ParkingBooking(models.Model):
         updated_by = kwargs.pop('updated_by', None)
         apply_user_tracking(self, updated_by)
 
-        # If booking is assigned, use booking dates
+        # If booking is assigned, use booking dates and update status based on booking
         if self.booking:
-            self.start_date = self.start_date or self.booking.start_date
-            self.end_date = self.end_date or self.booking.end_date
-            self.apartment = self.apartment or self.booking.apartment
+            self.start_date = self.booking.start_date
+            self.end_date = self.booking.end_date
+            self.apartment = self.booking.apartment
+            
+            # Update status based on booking status and car info
+            if self.booking.status == "Blocked":
+                self.status = "Unavailable"
+            elif self.booking.is_rent_car is not None or self.booking.car_model:
+                self.status = "Booked"
+            else:
+                self.status = "No Car"
+        
         if not (self.start_date and self.end_date):
             raise ValueError("Start date and end date are required")
 

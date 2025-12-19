@@ -137,7 +137,7 @@ def send_message(request, conversation_sid):
                 receiver_phone=None  # Not needed for conversation API
             )
             
-            print_info(f"Message sent from chat interface to conversation {conversation_sid}")
+            log_info(f"Message sent from chat interface to conversation {conversation_sid}")
             
             return JsonResponse({
                 'success': True,
@@ -145,13 +145,13 @@ def send_message(request, conversation_sid):
             })
             
         except Exception as e:
-            print_info(f"Error sending message from chat interface: {e}")
+            log_info(f"Error sending message from chat interface: {e}")
             log_exception(
                 error=e,
                 context="Chat - Send Message to Twilio",
                 additional_info={
                     'conversation_sid': conversation_sid,
-                    'message_length': len(message_body) if message_body else 0
+                    'message_length': len(message_content) if message_content else 0
                 }
             )
             return JsonResponse({
