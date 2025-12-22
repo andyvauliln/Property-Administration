@@ -21,7 +21,7 @@ def apartment(request):
     
     # Get only apartments that the user has access to
     if request.user.role == 'Manager':
-        apartments = Apartment.objects.filter(manager=request.user).order_by('name').values_list('id', 'name')
+        apartments = Apartment.objects.filter(managers=request.user).order_by('name').values_list('id', 'name')
     else:
         apartments = Apartment.objects.all().order_by('name').values_list('id', 'name')
 
@@ -52,7 +52,7 @@ def apartment(request):
 
     # Fetch data for the specified apartment
     apartment = Apartment.objects.get(id=apartment_id)
-    if request.user.role == 'Manager' and apartment.manager != request.user:
+    if request.user.role == 'Manager' and request.user not in apartment.managers.all():
         # If manager doesn't have access, redirect to their first available apartment
         if apartments:
             apartment = Apartment.objects.get(id=apartments[0][0])

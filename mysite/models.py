@@ -267,7 +267,7 @@ class User(AbstractBaseUser, PermissionsMixin):
         # For Manager
         if self.role == "Manager":
             links_list.append({"name": "Apartemnts: Manager Apartments",
-                              "link": f"/apartments/?q=manager.id={self.id}"})
+                              "link": f"/apartments/?q=managers.id={self.id}"})
 
         return links_list
 
@@ -302,11 +302,11 @@ class Apartment(models.Model):
     start_date = models.DateTimeField(blank=True, null=True, db_index=True)
     end_date = models.DateTimeField(blank=True, null=True, db_index=True)
     keywords = models.TextField(blank=True, null=True)
-    raiting = models.DecimalField(blank=True, null=True, default=0, max_digits=2, decimal_places=1)
+    raiting = models.DecimalField(blank=True, null=True, default=0, max_digits=3, decimal_places=1)
     default_price = models.DecimalField(blank=True, null=True, default=0, max_digits=10, decimal_places=2)
 
-    manager = models.ForeignKey(User, on_delete=models.SET_NULL, blank=True, db_index=True,
-                                related_name='managed_apartments', null=True, limit_choices_to={'role': 'Manager'})
+    managers = models.ManyToManyField(User, blank=True, related_name='managed_apartments', 
+                                       limit_choices_to={'role': 'Manager'})
     owner = models.ForeignKey(User, on_delete=models.SET_NULL, blank=True, db_index=True,
                               related_name='owned_apartments', null=True, limit_choices_to={'role': 'Owner'})
 
@@ -443,9 +443,9 @@ class Apartment(models.Model):
         links_list.append({"name": "Bookings: Apartment Bookings",
                           "link": f"/bookings/?q=apartment.id={self.id}"})
 
-        if self.manager:
-            links_list.append({"name": f"Manager:{self.manager.full_name}",
-                              "link": f"/users/?q=id={self.manager.id}"})
+        for manager in self.managers.all():
+            links_list.append({"name": f"Manager: {manager.full_name}",
+                              "link": f"/users/?q=id={manager.id}"})
 
         if self.owner:
             links_list.append(
@@ -1147,13 +1147,12 @@ class Booking(models.Model):
 
         if self.apartment:
 
-            manager = self.apartment.manager
             owner = self.apartment.owner
 
             links_list.append({"name": f"Apartment: {self.apartment.name}",
                               "link": f"/apartments/?q=id={self.apartment.id}"})
 
-            if manager:
+            for manager in self.apartment.managers.all():
                 links_list.append(
                     {"name": f"Manager: {manager.full_name}", "link": f"/users/?q=id={manager.id}"})
 

@@ -102,16 +102,16 @@ def generic_view(request, model_name, form_class, template_name, pages=30):
         items = items.prefetch_related('prices')
 
     if request.user.role == 'Manager' and model_name.lower() == 'apartment':
-        items = items.filter(manager=request.user)
+        items = items.filter(managers=request.user)
     if request.user.role == 'Manager' and model_name.lower() == 'booking':
-        items = items.filter(apartment__manager=request.user)
+        items = items.filter(apartment__managers=request.user)
     if request.user.role == 'Manager' and model_name.lower() == 'payment':
         items = items.filter(
-            Q(booking__apartment__manager=request.user) |
-            Q(apartment__manager=request.user)
+            Q(booking__apartment__managers=request.user) |
+            Q(apartment__managers=request.user)
         ).distinct()
     if request.user.role == 'Manager' and model_name.lower() == 'cleaning':
-        items = items.filter(apartment__manager=request.user)
+        items = items.filter(apartment__managers=request.user)
 
     # If there's a search query, apply the filters
     if search_query:
@@ -286,6 +286,10 @@ def generic_view(request, model_name, form_class, template_name, pages=30):
             # Add latest price date
             latest_price = original_obj.prices.first()  # Already ordered by -effective_date in model
             item['latest_price_date'] = latest_price.effective_date if latest_price else None
+            
+            # Add managers M2M serialization
+            item['managers'] = [m.id for m in original_obj.managers.all()]
+            item['manager_names'] = ', '.join([m.full_name for m in original_obj.managers.all()])
 
         # Add invoice_url for payment model
         if model_name.lower() == 'payment':
@@ -316,7 +320,7 @@ def generic_view(request, model_name, form_class, template_name, pages=30):
         from mysite.models import User, Apartment
         
         if request.user.role == 'Manager':
-            apartments = Apartment.objects.filter(manager=request.user).order_by('name')
+            apartments = Apartment.objects.filter(managers=request.user).order_by('name')
         else:
             apartments = Apartment.objects.all().order_by('name')
         
@@ -331,7 +335,7 @@ def generic_view(request, model_name, form_class, template_name, pages=30):
         from datetime import timedelta
         
         if request.user.role == 'Manager':
-            apartments = Apartment.objects.filter(manager=request.user).order_by('name')
+            apartments = Apartment.objects.filter(managers=request.user).order_by('name')
         else:
             apartments = Apartment.objects.all().order_by('name')
         
@@ -340,7 +344,7 @@ def generic_view(request, model_name, form_class, template_name, pages=30):
         bookings = Booking.objects.filter(start_date__gte=one_month_ago).select_related('tenant', 'apartment').order_by('start_date')
         
         if request.user.role == 'Manager':
-            bookings = bookings.filter(apartment__manager=request.user)
+            bookings = bookings.filter(apartment__managers=request.user)
         
         context['apartments'] = apartments
         context['bookings'] = bookings
@@ -350,7 +354,7 @@ def generic_view(request, model_name, form_class, template_name, pages=30):
         from mysite.models import Apartment
         
         if request.user.role == 'Manager':
-            apartments = Apartment.objects.filter(manager=request.user).order_by('name')
+            apartments = Apartment.objects.filter(managers=request.user).order_by('name')
         else:
             apartments = Apartment.objects.all().order_by('name')
         

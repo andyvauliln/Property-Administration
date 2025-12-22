@@ -38,15 +38,15 @@ def index(request):
         # Fetch properties managed by the current user
         apartments = Apartment.objects.filter(
             Q(end_date__gte=start_month) | Q(end_date__isnull=True),
-            manager=request.user).order_by('name')
+            managers=request.user).order_by('name')
         bookings = Booking.objects.filter(
             Q(start_date__lte=end_date, end_date__gte=start_month),
-            apartment__manager=request.user)
+            apartment__managers=request.user)
         cleanings = Cleaning.objects.filter(
-            booking__apartment__manager=request.user,
+            booking__apartment__managers=request.user,
             date__range=(start_month, end_date)).select_related('booking__apartment')
         payments = Payment.objects.filter(
-            Q(booking__apartment__manager=request.user) | Q(apartment__manager=request.user),
+            Q(booking__apartment__managers=request.user) | Q(apartment__managers=request.user),
             payment_date__range=(start_month, end_date)).select_related('booking__apartment')
     else:
         # Fetch all properties

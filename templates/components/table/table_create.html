@@ -110,7 +110,7 @@
                     {
                         "id": {{ option.value }},
                         "name": "{{ option.label|escapejs }}",
-                        "manager_id": {{ option.manager_id|default:"null" }},
+                        "manager_ids": {{ option.manager_ids|safe }},
                         "notes": "{{ option.notes|default:""|escapejs }}"
                     },
                 {% endfor %}

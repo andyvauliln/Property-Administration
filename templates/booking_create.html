@@ -123,14 +123,14 @@
                     {
                         "id": {{ option.value }},
                         "name": "{{ option.label|escapejs }}",
-                        "manager_id": {{ option.manager_id|default:"null" }},
+                        "manager_ids": {{ option.manager_ids|safe }},
                         "notes": "{{ option.notes|default:""|escapejs }}"
                     },
                 {% endfor %}
             ];
             console.log('🏠 Apartment data loaded:', apartmentsData);
             console.log('🏠 Number of apartments:', apartmentsData.length);
-            console.log('🏠 Apartments with managers:', apartmentsData.filter(apt => apt.manager_id !== null));
+            console.log('🏠 Apartments with managers:', apartmentsData.filter(apt => apt.manager_ids && apt.manager_ids.length > 0));
             console.log('🏠 Apartments with notes:', apartmentsData.filter(apt => apt.notes));
         {% endif %}
         {% if field_name == "parking_number" %}

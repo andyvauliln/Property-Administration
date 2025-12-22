@@ -48,12 +48,12 @@ def get_dropdown_options(identifier, isData=False, request=None):
     elif identifier == 'apartments':
         if request and hasattr(request, 'user') and request.user.role == 'Manager':
             items = Apartment.objects.filter(
-                manager=request.user).order_by('name')
+                managers=request.user).order_by('name')
         else:
             items = Apartment.objects.all().order_by('name')
         if isData:
             return items
-        return [{"value": item.id, "label": item.name, "manager_id": item.manager.id if item.manager else None, "notes": item.notes or ""} for item in items]
+        return [{"value": item.id, "label": item.name, "manager_ids": [m.id for m in item.managers.all()], "notes": item.notes or ""} for item in items]
 
     elif identifier == 'cleaners':
         items = User.objects.filter(role='Cleaner').order_by('full_name')
@@ -279,6 +279,10 @@ class ModelChoiceFieldEx(CustomFieldMixin, forms.ModelChoiceField):
     pass
 
 
+class ModelMultipleChoiceFieldEx(CustomFieldMixin, forms.ModelMultipleChoiceField):
+    pass
+
+
 class CustomUserForm(forms.ModelForm):
     def __init__(self, *args, **kwargs):
         self.request = kwargs.pop('request', None)
@@ -325,7 +329,7 @@ class ApartmentForm(forms.ModelForm):
     class Meta:
         model = Apartment
         fields = ['name', 'apartment_type', 'keywords', 'status', 'notes', 'web_link', 'building_n', 'street', 'apartment_n',
-                  'state', 'start_date', 'end_date', 'city', 'zip_index', 'bedrooms', 'bathrooms', 'manager', 'owner', 'raiting', 'default_price', 'current_price_display']
+                  'state', 'start_date', 'end_date', 'city', 'zip_index', 'bedrooms', 'bathrooms', 'managers', 'owner', 'raiting', 'default_price', 'current_price_display']
 
     def __init__(self, *args, **kwargs):
         self.request = kwargs.pop('request', None)
@@ -342,9 +346,9 @@ class ApartmentForm(forms.ModelForm):
 
     def clean_name(self):
         name = self.cleaned_data.get('name')
-        raiting = float(self.cleaned_data.get('raiting', 0))
-        if raiting > 5:
-            raise forms.ValidationError("Raiting must be between 0 and 10")
+        raiting = float(self.cleaned_data.get('raiting', 0) or 0)
+        if raiting > 10:
+            raise forms.ValidationError("Rating must be between 0 and 10")
 
         if name:
             existing_apartment = Apartment.objects.filter(name=name)
@@ -404,11 +408,11 @@ class ApartmentForm(forms.ModelForm):
                         required=False, isCreate=True, ui_element="textarea")
     keywords = CharFieldEx(isColumn=False, isEdit=True, initial="",
                         required=False, isCreate=True, ui_element="textarea")
-    manager = ModelChoiceFieldEx(
-        queryset=User.objects.all(),
-        isColumn=True, isEdit=True, required=False, isCreate=True, ui_element="dropdown",
+    managers = ModelMultipleChoiceFieldEx(
+        queryset=User.objects.filter(role='Manager'),
+        isColumn=True, isEdit=True, required=False, isCreate=True, ui_element="checkbox_group",
         _dropdown_options=lambda: get_dropdown_options("managers"),
-        display_field=["manager.full_name"])
+        display_field=["manager_names"])
     owner = ModelChoiceFieldEx(
         queryset=User.objects.all(),
         isColumn=True, isEdit=True, isCreate=True, ui_element="dropdown",
@@ -527,7 +531,7 @@ class BookingForm(forms.ModelForm):
 
         if self.request and hasattr(self.request, 'user') and self.request.user.role == 'Manager':
             self.fields['apartment'].queryset = Apartment.objects.filter(
-                manager=self.request.user).order_by('name')
+                managers=self.request.user).order_by('name')
 
         else:
             self.fields['apartment'].queryset = Apartment.objects.all().order_by(

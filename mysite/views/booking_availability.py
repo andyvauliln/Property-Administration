@@ -28,7 +28,7 @@ def booking_availability(request):
     )
 
     if request.user.role == 'Manager':
-        booking_queryset = booking_queryset.filter(apartment__manager=request.user)
+        booking_queryset = booking_queryset.filter(apartment__managers=request.user)
 
     if booking_status and booking_status != 'Available':
         booking_queryset = booking_queryset.filter(status=booking_status)
@@ -42,7 +42,7 @@ def booking_availability(request):
     apartments = Apartment.objects.all()
     
     if request.user.role == 'Manager':
-        apartments = apartments.filter(manager=request.user)
+        apartments = apartments.filter(managers=request.user)
 
     if current_apartment_type:
         apartments = apartments.filter(apartment_type=current_apartment_type)

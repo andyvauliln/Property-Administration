@@ -45,7 +45,7 @@ var modelsData = {
             ]
         },
         "relatedModels": {
-            "manager": "users",
+            "managers": "users",
             "owner": "users"
         }
     },

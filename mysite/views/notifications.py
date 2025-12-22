@@ -39,10 +39,10 @@ def notifications(request):
     # Filter notifications for managers based on their apartments
     if request.user.role == 'Manager':
         notifications = notifications.filter(
-            Q(cleaning__booking__apartment__manager=request.user) |
-            Q(booking__apartment__manager=request.user) |
-            Q(payment__booking__apartment__manager=request.user) |
-            Q(payment__apartment__manager=request.user)
+            Q(cleaning__booking__apartment__managers=request.user) |
+            Q(booking__apartment__managers=request.user) |
+            Q(payment__booking__apartment__managers=request.user) |
+            Q(payment__apartment__managers=request.user)
         )
 
     grouped_notifications = defaultdict(list)

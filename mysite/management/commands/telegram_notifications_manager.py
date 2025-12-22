@@ -63,20 +63,22 @@ def check_bookings_without_cleaning(chat_id, token):
     for booking in upcoming_end_bookings:
         # Check if cleaning exists for this booking
         if not hasattr(booking, 'cleanings') or not booking.cleanings.exists():
-            # Only send to manager responsible for this apartment
+            # Only send to managers responsible for this apartment
             log_info(f"Found Booking: {booking.id} without cleaning")
-            if booking.apartment and booking.apartment.manager:
-                if booking.apartment.manager.telegram_chat_id == chat_id:
-                    message = f"⚠️ WARNING: Booking ending soon without cleaning scheduled!\n"
-                    message += f"Booking Details:\n"
-                    message += f"- End Date: {booking.end_date}\n"
-                    if booking.apartment:
-                        message += f"- Apartment: {booking.apartment.name}\n"
-                    if booking.tenant:
-                        message += f"- Tenant: {booking.tenant.full_name}\n"
-                    message += f"Please schedule cleaning ASAP!"
-                    
-                    send_telegram_message(chat_id.strip(), token, message)
+            if booking.apartment and booking.apartment.managers.exists():
+                for apt_manager in booking.apartment.managers.all():
+                    if apt_manager.telegram_chat_id == chat_id:
+                        message = f"⚠️ WARNING: Booking ending soon without cleaning scheduled!\n"
+                        message += f"Booking Details:\n"
+                        message += f"- End Date: {booking.end_date}\n"
+                        if booking.apartment:
+                            message += f"- Apartment: {booking.apartment.name}\n"
+                        if booking.tenant:
+                            message += f"- Tenant: {booking.tenant.full_name}\n"
+                        message += f"Please schedule cleaning ASAP!"
+                        
+                        send_telegram_message(chat_id.strip(), token, message)
+                        break  # Only send once per booking per manager
 
 def my_cron_job():
     next_day = date.today() + timedelta(days=1)
@@ -98,19 +100,19 @@ def my_cron_job():
                     
                 if notification.payment and (notification.payment.payment_status == "Completed" or notification.payment.payment_status == "Merged"):
                     continue
-                elif notification.booking and notification.booking.apartment and notification.booking.apartment.manager and notification.booking.apartment.manager.phone == manager.phone:
+                elif notification.booking and notification.booking.apartment and notification.booking.apartment.managers.filter(phone=manager.phone).exists():
                     message = f"{notification.notification_message}"
                     send_telegram_message(manager.telegram_chat_id, telegram_token, message)
                     continue
-                elif notification.payment and notification.payment.booking and notification.payment.booking.apartment and notification.payment.booking.apartment.manager and notification.payment.booking.apartment.manager.phone == manager.phone:
+                elif notification.payment and notification.payment.booking and notification.payment.booking.apartment and notification.payment.booking.apartment.managers.filter(phone=manager.phone).exists():
                     message = f"{notification.notification_message}"
                     send_telegram_message(manager.telegram_chat_id, telegram_token, message)
                     continue
-                elif notification.payment and notification.payment.apartment and notification.payment.apartment.manager and notification.payment.apartment.manager.phone == manager.phone:
+                elif notification.payment and notification.payment.apartment and notification.payment.apartment.managers.filter(phone=manager.phone).exists():
                     message = f"{notification.notification_message}"
                     send_telegram_message(manager.telegram_chat_id, telegram_token, message)
                     continue
-                elif notification.cleaning and notification.cleaning.booking and notification.cleaning.booking.apartment and notification.cleaning.booking.apartment.manager and notification.cleaning.booking.apartment.manager.phone == manager.phone:
+                elif notification.cleaning and notification.cleaning.booking and notification.cleaning.booking.apartment and notification.cleaning.booking.apartment.managers.filter(phone=manager.phone).exists():
                     message = f"{notification.notification_message}"
                     send_telegram_message(manager.telegram_chat_id, telegram_token, message)
                     continue

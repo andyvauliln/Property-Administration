@@ -316,7 +316,7 @@ def apartments_analytics(request):
 @user_has_role('Admin', 'Manager')
 def apartment_report(request):
     if request.user.role == 'Manager':
-        bookings = Booking.objects.filter(apartment__manager=request.user)
+        bookings = Booking.objects.filter(apartment__managers=request.user)
     else:
         bookings = Booking.objects.all()
 
