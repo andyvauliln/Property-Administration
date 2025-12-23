@@ -366,6 +366,7 @@ def database_activity(request):
     action_filter = request.GET.get('action', '')
     model_filter = request.GET.get('model', '')
     user_filter = request.GET.get('user', '')
+    apartment_filter = request.GET.get('apartment', '')
     search_query = request.GET.get('search', '')
     
     # Error filters
@@ -378,8 +379,11 @@ def database_activity(request):
     log_level_filter = request.GET.get('log_level', '')
     log_category_filter = request.GET.get('log_category', '')
     
+    # Models to exclude from monitoring
+    EXCLUDED_MODELS = ['Migration', 'ErrorLog', 'SystemLog', 'TwilioConversation', 'TwilioMessage']
+    
     # === AUDIT LOGS ===
-    audit_logs = AuditLog.objects.filter(timestamp__gte=start_date)
+    audit_logs = AuditLog.objects.filter(timestamp__gte=start_date).exclude(model_name__in=EXCLUDED_MODELS)
     
     if action_filter:
         audit_logs = audit_logs.filter(action=action_filter)
@@ -387,6 +391,13 @@ def database_activity(request):
         audit_logs = audit_logs.filter(model_name__icontains=model_filter)
     if user_filter:
         audit_logs = audit_logs.filter(changed_by__icontains=user_filter)
+    if apartment_filter:
+        # Filter by apartment name in object_repr or in new_values/old_values fields
+        audit_logs = audit_logs.filter(
+            Q(object_repr__icontains=apartment_filter) |
+            Q(new_values__icontains=apartment_filter) |
+            Q(old_values__icontains=apartment_filter)
+        )
     if search_query:
         audit_logs = audit_logs.filter(
             Q(object_repr__icontains=search_query) |
@@ -479,10 +490,13 @@ def database_activity(request):
     warning_logs = system_logs.filter(level='warning').count()
     error_level_logs = system_logs.filter(level='error').count()
     
-    # Get unique values for filters
-    unique_models = AuditLog.objects.filter(timestamp__gte=start_date).values_list('model_name', flat=True).distinct().order_by('model_name')
-    unique_users = AuditLog.objects.filter(timestamp__gte=start_date).values_list('changed_by', flat=True).distinct().order_by('changed_by')
+    # Get unique values for filters (excluding unwanted models)
+    unique_models = AuditLog.objects.filter(timestamp__gte=start_date).exclude(model_name__in=EXCLUDED_MODELS).values_list('model_name', flat=True).distinct().order_by('model_name')
+    unique_users = AuditLog.objects.filter(timestamp__gte=start_date).exclude(model_name__in=EXCLUDED_MODELS).values_list('changed_by', flat=True).distinct().order_by('changed_by')
     unique_error_types = ErrorLog.objects.filter(timestamp__gte=start_date).values_list('error_type', flat=True).distinct().order_by('error_type')
+    
+    # Get unique apartments for filtering
+    unique_apartments = Apartment.objects.values_list('name', flat=True).order_by('name')
     
     # === DATA INTEGRITY CHECKS ===
     orphaned_page = int(request.GET.get('orphaned_page', 1))
@@ -536,12 +550,14 @@ def database_activity(request):
         'unique_models': unique_models,
         'unique_users': unique_users,
         'unique_error_types': unique_error_types,
+        'unique_apartments': unique_apartments,
         
         # Current filter values
         'days': days,
         'action_filter': action_filter,
         'model_filter': model_filter,
         'user_filter': user_filter,
+        'apartment_filter': apartment_filter,
         'search_query': search_query,
         'severity_filter': severity_filter,
         'source_filter': source_filter,

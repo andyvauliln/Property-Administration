@@ -41,6 +41,9 @@ def booking_availability(request):
     # Fetch apartments based on filters
     apartments = Apartment.objects.all()
     
+    # Exclude apartments with status 'Unavailable'
+    apartments = apartments.exclude(status='Unavailable')
+    
     if request.user.role == 'Manager':
         apartments = apartments.filter(managers=request.user)
 
@@ -111,20 +114,15 @@ def booking_availability(request):
             if apartment.notes:
                 print(f"  DEBUG: Apartment {apartment.name} has notes: {apartment.notes[:50]}...")
 
-            bookings = [b for b in apartment.all_relevant_bookings 
-                if b.start_date <= month_end and b.end_date >= month_start]
-
-            # Skip this apartment for this month if booking_status is 'Available' and there are bookings
-            if booking_status == 'Available' and bookings and any(b.start_date <= month_end and b.end_date >= current_date for b in bookings):
-                print(f"  SKIPPING {apartment.name}: has bookings while filtering for Available")
-                continue
-
-            # Check if the apartment has ended
-            if booking_status == 'Available' and apartment.end_date:
+            # Check if the apartment has ended before current period - always exclude these
+            if apartment.end_date:
                 apartment_end_date = apartment.end_date.date() if hasattr(apartment.end_date, 'date') else apartment.end_date
                 if apartment_end_date < month_start:
-                    print(f"  SKIPPING {apartment.name}: ended before month start")
+                    print(f"  SKIPPING {apartment.name}: ended before month start (end_date: {apartment_end_date})")
                     continue
+
+            bookings = [b for b in apartment.all_relevant_bookings 
+                if b.start_date <= month_end and b.end_date >= month_start]
 
             # apartment_payments = [p for p in apartment.pa 
             #             if month_start <= p.payment_date <= month_end]

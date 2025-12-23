@@ -206,6 +206,14 @@
                         <input type="url" name="web_link" id="create_web_link" class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-primary-600 focus:border-primary-600 block w-full p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:text-white">
                     </div>
                     <div>
+                        <label for="create_start_date" class="block mb-2 text-sm font-medium text-gray-900 dark:text-white">Start Date</label>
+                        <input type="date" name="start_date" id="create_start_date" class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-primary-600 focus:border-primary-600 block w-full p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:text-white">
+                    </div>
+                    <div>
+                        <label for="create_end_date" class="block mb-2 text-sm font-medium text-gray-900 dark:text-white">End Date</label>
+                        <input type="date" name="end_date" id="create_end_date" class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-primary-600 focus:border-primary-600 block w-full p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:text-white">
+                    </div>
+                    <div>
                         <label for="create_owner" class="block mb-2 text-sm font-medium text-gray-900 dark:text-white">Owner</label>
                         <select name="owner" id="create_owner" class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-primary-500 focus:border-primary-500 block w-full p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:text-white">
                             <option value="">None</option>
@@ -335,6 +343,14 @@
                     <div>
                         <label for="edit_web_link" class="block mb-2 text-sm font-medium text-gray-900 dark:text-white">Web Link</label>
                         <input type="url" name="web_link" id="edit_web_link" class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-primary-600 focus:border-primary-600 block w-full p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:text-white">
+                    </div>
+                    <div>
+                        <label for="edit_start_date" class="block mb-2 text-sm font-medium text-gray-900 dark:text-white">Start Date</label>
+                        <input type="date" name="start_date" id="edit_start_date" class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-primary-600 focus:border-primary-600 block w-full p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:text-white">
+                    </div>
+                    <div>
+                        <label for="edit_end_date" class="block mb-2 text-sm font-medium text-gray-900 dark:text-white">End Date</label>
+                        <input type="date" name="end_date" id="edit_end_date" class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-primary-600 focus:border-primary-600 block w-full p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:text-white">
                     </div>
                     <div>
                         <label for="edit_owner" class="block mb-2 text-sm font-medium text-gray-900 dark:text-white">Owner</label>
@@ -497,6 +513,8 @@ document.addEventListener('DOMContentLoaded', function() {
         document.getElementById('edit_raiting').value = item.raiting || '';
         document.getElementById('edit_default_price').value = item.default_price || '';
         document.getElementById('edit_web_link').value = item.web_link || '';
+        document.getElementById('edit_start_date').value = item.start_date || '';
+        document.getElementById('edit_end_date').value = item.end_date || '';
         document.getElementById('edit_owner').value = item.owner || '';
         document.getElementById('edit_notes').value = item.notes || '';
         document.getElementById('edit_keywords').value = item.keywords || '';
