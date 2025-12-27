@@ -108,3 +108,12 @@ cron.schedule('0 9 * * *', function () {
         '/home/superuser/site/'
     );
 });
+
+// Schedule daily manager activity report at 9 PM
+cron.schedule('0 21 * * *', function () {
+    executeCronCommand(
+        'Daily Manager Activity Report',
+        '/usr/bin/python3 /home/superuser/site/manage.py telegram_manager_activity',
+        '/home/superuser/site/'
+    );
+});

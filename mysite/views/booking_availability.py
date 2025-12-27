@@ -1,5 +1,5 @@
 from django.shortcuts import render
-from ..models import Apartment, Booking, Payment
+from ..models import Apartment, Booking, Payment, CalendarNote
 from django.db.models import Q
 from django.utils import timezone
 from dateutil.relativedelta import relativedelta
@@ -8,6 +8,7 @@ from datetime import timedelta
 from calendar import monthrange
 from django.db.models import Prefetch
 import datetime
+import json
 
 @user_has_role('Admin', "Manager")
 def booking_availability(request):
@@ -71,6 +72,34 @@ def booking_availability(request):
                 to_attr='all_relevant_apartment_payments'
         )
     )
+
+    # Fetch calendar notes overlapping the displayed window
+    apartment_ids = list(apartments.values_list('id', flat=True))
+    notes_qs = CalendarNote.objects.filter(
+        start_date__lte=end_date,
+        end_date__gte=start_date,
+    ).filter(
+        Q(apartment__isnull=True) | Q(apartment_id__in=apartment_ids)
+    )
+
+    # Expand notes into per-date maps (window is small: 3 months)
+    global_notes_by_date = {}
+    apt_notes_by_date = {}
+
+    def _daterange(d1, d2):
+        cur = d1
+        while cur <= d2:
+            yield cur
+            cur += timedelta(days=1)
+
+    for note in notes_qs:
+        clipped_start = max(note.start_date, start_date)
+        clipped_end = min(note.end_date, end_date)
+        for d in _daterange(clipped_start, clipped_end):
+            if note.apartment_id is None:
+                global_notes_by_date.setdefault(d, []).append(note.note)
+            else:
+                apt_notes_by_date.setdefault(note.apartment_id, {}).setdefault(d, []).append(note.note)
     
     # Prepare monthly data
     monthly_data = []
@@ -132,16 +161,21 @@ def booking_availability(request):
             
             for day in range(1, days_in_month + 1):
                 date_obj = current_month.replace(day=day)
+                calendar_notes = (global_notes_by_date.get(date_obj, []) +
+                                  apt_notes_by_date.get(apartment.id, {}).get(date_obj, []))
                 apartment_data['days'][day] = {
                     'status': 'Available',
                     'is_start': False,
                     'is_end': False,
                     'tenant_names': [],  # List of tenant names
                     'day': date_obj.strftime('%B %d %Y'),  # Date in 'Month Day Year' format
+                    'date_iso': date_obj.isoformat(),
                     'notes': [],  # List of notes
                     'booking_data': [],  # List of booking data strings
                     'booking_ids': [],  # List of booking IDs
                     'raiting': apartment.raiting,
+                    'has_calendar_note': bool(calendar_notes),
+                    'calendar_notes_json': json.dumps(calendar_notes),
                 }
 
                 day_bookings = [b for b in bookings if b.start_date <= date_obj <= b.end_date]

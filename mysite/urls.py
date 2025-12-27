@@ -35,6 +35,7 @@ urlpatterns = [
     path('handyman_calendar/', views.handyman_calendar, name='handyman_calendar'),
     path('parking_calendar/', views.parking_calendar, name='parking_calendar'),
     path('api/apartment-booking-dates/', views.ApartmentBookingDates.as_view(), name='apartment_booking_dates'),
+    path('api/calendar-notes/', views.create_calendar_note, name='create_calendar_note'),
     path('api/update-apartment-price-by-rooms/', views.UpdateApartmentPriceByRooms.as_view(), name='update_apartment_price_by_rooms'),
     path('api/update-single-apartment-price/', views.UpdateSingleApartmentPrice.as_view(), name='update_single_apartment_price'),
     # Chat interface URLs

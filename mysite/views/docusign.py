@@ -104,7 +104,8 @@ def docuseal_callback(request):
                         # Ensure car_model is never None - use empty string as default
                         booking.car_model = form_fields_dict["car_model"] if form_fields_dict["car_model"] else ""
                         logger.info(f"car_model: {form_fields_dict['car_model']}")
-                    booking.save()
+                    # Webhook: do not attribute to any logged-in user
+                    booking.save(updated_by='System')
                     
                     # Update parking booking status if car info was set
                     if 'car_info' in form_fields_dict or 'car_model' in form_fields_dict:
@@ -151,7 +152,7 @@ def docuseal_callback(request):
                     tenant.save()
                     logger.info("TENANT Saved")
                     # Save booking in case tenant was changed
-                    booking.save()
+                    booking.save(updated_by='System')
                     logger.info("SUCCESSFULLY UPDATED")
             
             return JsonResponse({'status': 'success', 'message': 'success'})

@@ -29,14 +29,23 @@ class BaseCommandWithErrorHandling(BaseCommand):
         
         try:
             # Call the actual command implementation
-            self.stdout.write(f'Starting command: {command_name}')
+            try:
+                self.stdout.write(f'Starting command: {command_name}')
+            except BrokenPipeError:
+                return
             result = self.execute_command(*args, **options)
-            self.stdout.write(self.style.SUCCESS(f'Successfully completed {command_name}'))
+            try:
+                self.stdout.write(self.style.SUCCESS(f'Successfully completed {command_name}'))
+            except BrokenPipeError:
+                return result
             return result
             
         except Exception as e:
             # Log the error
-            self.stdout.write(self.style.ERROR(f'Error in {command_name}: {str(e)}'))
+            try:
+                self.stdout.write(self.style.ERROR(f'Error in {command_name}: {str(e)}'))
+            except BrokenPipeError:
+                return
             
             # Send to Telegram
             log_error(

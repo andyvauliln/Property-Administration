@@ -454,6 +454,53 @@ class Apartment(models.Model):
         return links_list
 
 
+class CalendarNote(models.Model):
+    """
+    Date or date-range note displayed on the booking availability calendar.
+
+    If apartment is NULL, the note is global (applies to all apartments).
+    """
+
+    def __str__(self):
+        scope = self.apartment.name if self.apartment else "Global"
+        if self.start_date == self.end_date:
+            return f"{scope}: {self.start_date} - {self.note[:50]}"
+        return f"{scope}: {self.start_date}..{self.end_date} - {self.note[:50]}"
+
+    apartment = models.ForeignKey(
+        Apartment,
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        db_index=True,
+        related_name='calendar_notes',
+    )
+    start_date = models.DateField(db_index=True)
+    end_date = models.DateField(db_index=True)
+    note = models.TextField()
+
+    # Tracking fields
+    created_by = models.CharField(max_length=255, blank=True, null=True, editable=False)
+    last_updated_by = models.CharField(max_length=255, blank=True, null=True, editable=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-start_date', '-id']
+        constraints = [
+            models.CheckConstraint(
+                check=models.Q(start_date__lte=models.F('end_date')),
+                name='calendar_note_start_date_lte_end_date',
+            )
+        ]
+
+    def save(self, *args, **kwargs):
+        from mysite.request_context import apply_user_tracking
+        updated_by = kwargs.pop('updated_by', None)
+        apply_user_tracking(self, updated_by)
+        super().save(*args, **kwargs)
+
+
 class ApartmentPrice(models.Model):
     """Model to track apartment pricing history"""
     
