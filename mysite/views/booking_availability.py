@@ -9,6 +9,7 @@ from calendar import monthrange
 from django.db.models import Prefetch
 import datetime
 import json
+import base64
 
 @user_has_role('Admin', "Manager")
 def booking_availability(request):
@@ -75,16 +76,19 @@ def booking_availability(request):
 
     # Fetch calendar notes overlapping the displayed window
     apartment_ids = list(apartments.values_list('id', flat=True))
+    apartments_for_notes = list(apartments.values('id', 'name').order_by('name'))
     notes_qs = CalendarNote.objects.filter(
         start_date__lte=end_date,
         end_date__gte=start_date,
     ).filter(
         Q(apartment__isnull=True) | Q(apartment_id__in=apartment_ids)
-    )
+    ).select_related('apartment')
 
     # Expand notes into per-date maps (window is small: 3 months)
     global_notes_by_date = {}
     apt_notes_by_date = {}
+    global_note_items_by_date = {}
+    apt_note_items_by_date = {}
 
     def _daterange(d1, d2):
         cur = d1
@@ -98,8 +102,24 @@ def booking_availability(request):
         for d in _daterange(clipped_start, clipped_end):
             if note.apartment_id is None:
                 global_notes_by_date.setdefault(d, []).append(note.note)
+                global_note_items_by_date.setdefault(d, []).append({
+                    'id': note.id,
+                    'apartment_id': None,
+                    'apartment_name': None,
+                    'start_date': note.start_date.isoformat(),
+                    'end_date': note.end_date.isoformat(),
+                    'note': note.note,
+                })
             else:
                 apt_notes_by_date.setdefault(note.apartment_id, {}).setdefault(d, []).append(note.note)
+                apt_note_items_by_date.setdefault(note.apartment_id, {}).setdefault(d, []).append({
+                    'id': note.id,
+                    'apartment_id': note.apartment_id,
+                    'apartment_name': note.apartment.name if note.apartment else None,
+                    'start_date': note.start_date.isoformat(),
+                    'end_date': note.end_date.isoformat(),
+                    'note': note.note,
+                })
     
     # Prepare monthly data
     monthly_data = []
@@ -163,6 +183,10 @@ def booking_availability(request):
                 date_obj = current_month.replace(day=day)
                 calendar_notes = (global_notes_by_date.get(date_obj, []) +
                                   apt_notes_by_date.get(apartment.id, {}).get(date_obj, []))
+                calendar_note_items = (global_note_items_by_date.get(date_obj, []) +
+                                       apt_note_items_by_date.get(apartment.id, {}).get(date_obj, []))
+                calendar_notes_b64 = base64.b64encode(json.dumps(calendar_notes).encode('utf-8')).decode('ascii')
+                calendar_note_items_b64 = base64.b64encode(json.dumps(calendar_note_items).encode('utf-8')).decode('ascii')
                 apartment_data['days'][day] = {
                     'status': 'Available',
                     'is_start': False,
@@ -175,7 +199,8 @@ def booking_availability(request):
                     'booking_ids': [],  # List of booking IDs
                     'raiting': apartment.raiting,
                     'has_calendar_note': bool(calendar_notes),
-                    'calendar_notes_json': json.dumps(calendar_notes),
+                    'calendar_notes_b64': calendar_notes_b64,
+                    'calendar_note_items_b64': calendar_note_items_b64,
                 }
 
                 day_bookings = [b for b in bookings if b.start_date <= date_obj <= b.end_date]
@@ -329,11 +354,14 @@ def booking_availability(request):
     context = {
         'monthly_data': monthly_data,
         'apartments': Apartment.objects.values_list('name', flat=True).distinct(),
+        'apartments_for_notes': apartments_for_notes,
         'apartment_types': Apartment.TYPES,
         'current_apartment_type': current_apartment_type,
         'current_booking_status': booking_status,
         'start_date': start_date.strftime('%B %d %Y'),
         'end_date': end_date.strftime('%B %d %Y'),
+        'period_start_iso': start_date.isoformat(),
+        'period_end_iso': end_date.isoformat(),
         'prev_page': page_offset - 1,
         'next_page': page_offset + 1,
         'current_year': start_date.year,

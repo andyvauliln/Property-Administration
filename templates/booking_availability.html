@@ -47,6 +47,14 @@
                 <div class="flex w-full justify-center items-center mx-2">
                     <button class="block w-full bg-blue-500 text-white p-2 rounded" onclick="getReport()">Get Report</button>
                 </div>  
+                <div class="flex w-full justify-center items-center mx-2">
+                    <button id="open-calendar-note-modal"
+                            data-period-start="{{ period_start_iso }}"
+                            data-period-end="{{ period_end_iso }}"
+                            class="block w-full bg-fuchsia-600 text-white p-2 rounded">
+                        Add Note
+                    </button>
+                </div>
             </div>
             <div class="flex items-center justify-between flex-col w-full p-2">
                 <div class="flex items-center justify-center space-x-4">
@@ -169,7 +177,8 @@
                                                 data-tenant-names="{{ apt.days|get_dic_item:number|get_dic_item:'tenant_names'|join:', ' }}"
                                                 data-notes="{{ apt.days|get_dic_item:number|get_dic_item:'notes'|join:', ' }}"
                                                 data-booking-data="{{ apt.days|get_dic_item:number|get_dic_item:'booking_data'|join:', ' }}"
-                                                data-calendar-notes-json="{{ apt.days|get_dic_item:number|get_dic_item:'calendar_notes_json'|escapejs }}"
+                                                data-calendar-notes-b64="{{ apt.days|get_dic_item:number|get_dic_item:'calendar_notes_b64' }}"
+                                                data-calendar-note-items-b64="{{ apt.days|get_dic_item:number|get_dic_item:'calendar_note_items_b64' }}"
                                                 data-apartment-notes="{{ apt.notes|default:'' }}"
                                                 class="day border-r border-gray-500 relative p-0 w-3 h-3
                                                     {% if apt.days|get_dic_item:number|get_dic_item:'status' == 'Confirmed' %} bg-green-500 text-white
@@ -247,7 +256,7 @@
   
 
 <!-- Tooltip HTML -->
-<div id="dynamic-popover" class="hidden fixed z-10 w-[375px] max-w-[90%] text-sm text-gray-500 bg-white border border-gray-200 rounded-lg shadow-sm dark:text-gray-400 dark:border-gray-600 dark:bg-gray-800">
+<div id="dynamic-popover" class="hidden fixed z-10 w-[375px] max-w-[90%] text-sm text-gray-500 bg-white border border-gray-200 rounded-lg shadow-sm pointer-events-none dark:text-gray-400 dark:border-gray-600 dark:bg-gray-800">
     <div class="px-3 py-2 bg-gray-100 border-b border-gray-200 rounded-t-lg dark:border-gray-600 dark:bg-gray-700 flex justify-between items-center">
         <h3 class="font-semibold text-gray-900 dark:text-white" id="popover-title"></h3>
         <button id="close-popover" class="text-gray-600 hover:text-gray-800 dark:text-gray-300 dark:hover:text-white">
@@ -259,9 +268,82 @@
     </div>
 </div>
 
+<!-- Calendar Note Modal -->
+<div id="calendar-note-modal-backdrop" class="hidden fixed inset-0 bg-black/40 z-20"></div>
+<div id="calendar-note-modal" class="hidden fixed inset-0 z-30 flex items-center justify-center p-4">
+    <div class="w-full max-w-lg rounded-lg bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 shadow-lg">
+        <div class="px-4 py-3 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
+            <div class="font-semibold text-gray-900 dark:text-white" id="calendar-note-modal-title">Calendar Note</div>
+            <button data-calendar-note-cancel class="text-gray-600 hover:text-gray-800 dark:text-gray-300 dark:hover:text-white">&times;</button>
+        </div>
+        <div class="p-4 space-y-3">
+            <input type="hidden" id="calendar-note-id" value="" />
+
+            <div>
+                <label class="block text-xs font-semibold text-gray-700 dark:text-gray-200 mb-1">Existing notes for this day</label>
+                <select id="calendar-note-existing" class="w-full bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:text-white">
+                    <option value="">New note…</option>
+                </select>
+            </div>
+
+            <div class="grid grid-cols-2 gap-3">
+                <div>
+                    <label class="block text-xs font-semibold text-gray-700 dark:text-gray-200 mb-1">Start date</label>
+                    <input id="calendar-note-start" type="date" class="w-full bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:text-white" />
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-gray-700 dark:text-gray-200 mb-1">End date</label>
+                    <input id="calendar-note-end" type="date" class="w-full bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:text-white" />
+                </div>
+            </div>
+
+            <div>
+                <label class="block text-xs font-semibold text-gray-700 dark:text-gray-200 mb-1">Apartment</label>
+                <select id="calendar-note-apartment-id" class="w-full bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:text-white">
+                    <option value="">Global (all apartments)</option>
+                    {% for apt in apartments_for_notes %}
+                        <option value="{{ apt.id }}">{{ apt.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <div>
+                <label class="block text-xs font-semibold text-gray-700 dark:text-gray-200 mb-1">Note</label>
+                <textarea id="calendar-note-text" rows="5" class="w-full bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:text-white" placeholder="Write your note..."></textarea>
+            </div>
+
+            <div id="calendar-note-error" class="text-sm text-red-600"></div>
+        </div>
+        <div class="px-4 py-3 border-t border-gray-200 dark:border-gray-700 flex items-center justify-end gap-2">
+            <button data-calendar-note-cancel class="px-4 py-2 rounded bg-gray-200 text-gray-800 dark:bg-gray-700 dark:text-white">Cancel</button>
+            <button id="calendar-note-delete" class="hidden px-4 py-2 rounded bg-red-600 text-white hover:bg-red-700">Delete</button>
+            <button id="calendar-note-save" class="px-4 py-2 rounded bg-fuchsia-600 text-white hover:bg-fuchsia-700">Save</button>
+        </div>
+    </div>
+</div>
+
+<!-- Day Action Modal -->
+<div id="day-action-modal-backdrop" class="hidden fixed inset-0 bg-black/40 z-20"></div>
+<div id="day-action-modal" class="hidden fixed inset-0 z-30 flex items-center justify-center p-4">
+    <div class="w-full max-w-sm rounded-lg bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 shadow-lg">
+        <div class="px-4 py-3 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
+            <div class="font-semibold text-gray-900 dark:text-white" id="day-action-title">Day Actions</div>
+            <button id="day-action-close" class="text-gray-600 hover:text-gray-800 dark:text-gray-300 dark:hover:text-white">&times;</button>
+        </div>
+        <div class="p-4 space-y-2">
+            <button id="day-action-open-booking" class="hidden w-full px-4 py-2 rounded bg-blue-600 text-white hover:bg-blue-700">
+                Open booking
+            </button>
+            <button id="day-action-edit-notes" class="w-full px-4 py-2 rounded bg-fuchsia-600 text-white hover:bg-fuchsia-700">
+                Edit notes
+            </button>
+        </div>
+    </div>
+</div>
+
 <script>
-    // Select all the day cells in the calendar
-    const days = document.querySelectorAll('td.day');
+    // Calendar event delegation (more reliable than per-cell listeners, especially with inner <a> tags)
+    const calendarRoot = document.querySelector('table');
     const popover = document.getElementById('dynamic-popover');
     const popoverTitle = document.getElementById('popover-title');
     const popoverContent = document.getElementById('popover-content');
@@ -276,27 +358,129 @@
     // Modal elements for creating calendar notes
     const noteModal = document.getElementById('calendar-note-modal');
     const noteModalBackdrop = document.getElementById('calendar-note-modal-backdrop');
+    const noteModalTitle = document.getElementById('calendar-note-modal-title');
+    const noteIdInput = document.getElementById('calendar-note-id');
+    const noteExisting = document.getElementById('calendar-note-existing');
     const noteStart = document.getElementById('calendar-note-start');
     const noteEnd = document.getElementById('calendar-note-end');
-    const noteScope = document.getElementById('calendar-note-scope');
     const noteText = document.getElementById('calendar-note-text');
     const noteApartmentId = document.getElementById('calendar-note-apartment-id');
-    const noteApartmentName = document.getElementById('calendar-note-apartment-name');
     const noteError = document.getElementById('calendar-note-error');
     const noteSaveBtn = document.getElementById('calendar-note-save');
+    const noteDeleteBtn = document.getElementById('calendar-note-delete');
     const noteCancelBtns = document.querySelectorAll('[data-calendar-note-cancel]');
+    const openNoteBtn = document.getElementById('open-calendar-note-modal');
 
-    function openCalendarNoteModal({ dateIso, apartmentId, apartmentName }) {
-        noteError.textContent = '';
-        noteStart.value = dateIso;
-        noteEnd.value = dateIso;
-        noteText.value = '';
+    // Day action modal
+    const dayActionBackdrop = document.getElementById('day-action-modal-backdrop');
+    const dayActionModal = document.getElementById('day-action-modal');
+    const dayActionTitle = document.getElementById('day-action-title');
+    const dayActionClose = document.getElementById('day-action-close');
+    const dayActionOpenBooking = document.getElementById('day-action-open-booking');
+    const dayActionEditNotes = document.getElementById('day-action-edit-notes');
 
+    let currentDayAction = { dateIso: '', apartmentId: '', bookingHref: '', noteItemsJson: '[]' };
+
+    function openDayActionModal({ title, dateIso, apartmentId, bookingHref, noteItemsJson }) {
+        currentDayAction = { dateIso, apartmentId, bookingHref: bookingHref || '', noteItemsJson: noteItemsJson || '[]' };
+        dayActionTitle.textContent = title || 'Day Actions';
+
+        if (bookingHref) {
+            dayActionOpenBooking.classList.remove('hidden');
+        } else {
+            dayActionOpenBooking.classList.add('hidden');
+        }
+
+        dayActionModal.classList.remove('hidden');
+        dayActionBackdrop.classList.remove('hidden');
+    }
+
+    function closeDayActionModal() {
+        dayActionModal.classList.add('hidden');
+        dayActionBackdrop.classList.add('hidden');
+    }
+
+    dayActionClose.addEventListener('click', closeDayActionModal);
+    dayActionBackdrop.addEventListener('click', closeDayActionModal);
+    dayActionOpenBooking.addEventListener('click', function() {
+        if (!currentDayAction.bookingHref) return;
+        window.open(currentDayAction.bookingHref, '_blank');
+        closeDayActionModal();
+    });
+
+    function renderExistingNotesOptions(notes) {
+        noteExisting.innerHTML = '<option value="">New note…</option>';
+        notes.forEach((n) => {
+            const labelScope = n.apartment_name ? n.apartment_name : 'Global';
+            const labelRange = (n.start_date === n.end_date) ? n.start_date : `${n.start_date}..${n.end_date}`;
+            const opt = document.createElement('option');
+            opt.value = String(n.id);
+            opt.textContent = `${labelScope} | ${labelRange}`;
+            opt.dataset.note = JSON.stringify(n);
+            noteExisting.appendChild(opt);
+        });
+    }
+
+    function setModalFromNote(n) {
+        noteIdInput.value = String(n.id);
+        noteStart.value = n.start_date;
+        noteEnd.value = n.end_date;
+        noteApartmentId.value = n.apartment_id ? String(n.apartment_id) : '';
+        noteText.value = n.note || '';
+        noteDeleteBtn.classList.remove('hidden');
+        noteModalTitle.textContent = 'Edit Calendar Note';
+    }
+
+    function setModalForNew({ startIso, endIso, apartmentId }) {
+        noteIdInput.value = '';
+        noteStart.value = startIso;
+        noteEnd.value = endIso;
         noteApartmentId.value = apartmentId || '';
-        noteApartmentName.textContent = apartmentName || '';
+        noteText.value = '';
+        noteDeleteBtn.classList.add('hidden');
+        noteModalTitle.textContent = 'New Calendar Note';
+        noteExisting.value = '';
+    }
 
-        // Default to "apartment" when clicking inside a row; user can switch to global
-        noteScope.value = apartmentId ? 'apartment' : 'global';
+    function b64ToUtf8(b64) {
+        const bytes = Uint8Array.from(atob(b64 || ''), (c) => c.charCodeAt(0));
+        return new TextDecoder('utf-8').decode(bytes);
+    }
+
+    function openCalendarNoteModalForDay({ dateIso, apartmentId, noteItemsB64 }) {
+        noteError.textContent = '';
+        noteDeleteBtn.classList.add('hidden');
+        noteModalTitle.textContent = 'Calendar Note';
+
+        // default new note on that date, for that apartment row (can change dropdown to global/other)
+        setModalForNew({ startIso: dateIso, endIso: dateIso, apartmentId: apartmentId || '' });
+
+        let items = [];
+        try {
+            const raw = b64ToUtf8(noteItemsB64 || '');
+            items = JSON.parse(raw || '[]') || [];
+        } catch (e) {
+            items = [];
+        }
+
+        // Prefer apartment notes first, then global
+        // De-duplicate by id (in case global + apartment look identical)
+        const uniq = new Map();
+        items.forEach((it) => { if (it && it.id != null) uniq.set(String(it.id), it); });
+        items = Array.from(uniq.values());
+
+        items.sort((a, b) => {
+            const aIsGlobal = !a.apartment_id;
+            const bIsGlobal = !b.apartment_id;
+            if (aIsGlobal !== bIsGlobal) return aIsGlobal ? 1 : -1;
+            return String(b.id).localeCompare(String(a.id));
+        });
+
+        renderExistingNotesOptions(items);
+        if (items.length > 0) {
+            noteExisting.value = String(items[0].id);
+            setModalFromNote(items[0]);
+        }
 
         noteModal.classList.remove('hidden');
         noteModalBackdrop.classList.remove('hidden');
@@ -310,61 +494,41 @@
     noteCancelBtns.forEach((btn) => btn.addEventListener('click', closeCalendarNoteModal));
     noteModalBackdrop.addEventListener('click', closeCalendarNoteModal);
 
-    days.forEach(function(day) {
-        day.addEventListener('click', function(event) {
-            const dateIso = day.dataset.dateIso;
-            if (!dateIso) return;
+    openNoteBtn.addEventListener('click', function() {
+        const startIso = openNoteBtn.dataset.periodStart;
+        const endIso = openNoteBtn.dataset.periodEnd;
+        if (!startIso || !endIso) return;
+        // header button: start/end = period, default = global
+        renderExistingNotesOptions([]);
+        setModalForNew({ startIso, endIso, apartmentId: '' });
+        noteModal.classList.remove('hidden');
+        noteModalBackdrop.classList.remove('hidden');
+    });
 
-            const row = day.closest('tr[data-id]');
-            const apartmentId = row ? row.dataset.id : '';
-            const nameCell = row ? row.querySelector('td.apartment-name') : null;
-            const apartmentName = nameCell ? (nameCell.textContent || '').trim() : '';
+    let activeDayCell = null;
 
-            openCalendarNoteModal({ dateIso, apartmentId, apartmentName });
-        });
-
-        day.addEventListener('mouseenter', function(event) {
-            // Retrieve data from data attributes
+    function buildDayPopoverContent(day) {
             const date = day.dataset.day;
-
-            const tenantNames = day.dataset.tenantNames ? day.dataset.tenantNames.split(', ') : [];
-            const notes = day.dataset.notes ? day.dataset.notes.split(', ') : [];
             const bookingData = day.dataset.bookingData ? day.dataset.bookingData.split(', ') : [];
             const apartmentNotes = day.dataset.apartmentNotes || '';
-            let calendarNotes = [];
-            try {
-                calendarNotes = JSON.parse(day.dataset.calendarNotesJson || '[]');
-            } catch (e) {
-                calendarNotes = [];
-            }
+        let calendarNotes = [];
+        try {
+            const raw = b64ToUtf8(day.dataset.calendarNotesB64 || '');
+            calendarNotes = JSON.parse(raw || '[]');
+        } catch (e) {
+            calendarNotes = [];
+        }
             
-            // Debug: Log all data attributes
-            console.log('=== DAY CELL DEBUG ===');
-            console.log('Date:', date);
-            console.log('Apartment Notes (raw):', day.dataset.apartmentNotes);
-            console.log('Apartment Notes (processed):', apartmentNotes);
-            console.log('Apartment Notes length:', apartmentNotes.length);
-            console.log('Apartment Notes truthy?:', !!apartmentNotes);
-            console.log('=====================');
+        popoverTitle.textContent = date || '';
 
-            // Set the title of the popover with the date
-            popoverTitle.textContent = date;
-
-            // Prepare the content for the popover
             let content = '';
+        if (calendarNotes.length > 0) {
+            const joined = calendarNotes.join('\n\n');
+            content += `<div class="mb-3"><strong class="text-fuchsia-600 dark:text-fuchsia-400">Calendar Notes:</strong><div class="pl-5 whitespace-pre-wrap">${joined}</div></div>`;
+        }
 
-            // Display calendar notes if they exist
-            if (calendarNotes.length > 0) {
-                const joined = calendarNotes.join('\n\n');
-                content += `<div class="mb-3"><strong class="text-fuchsia-600 dark:text-fuchsia-400">Calendar Notes:</strong><div class="pl-5 whitespace-pre-wrap">${joined}</div></div>`;
-            }
-
-            // Display apartment notes if they exist
             if (apartmentNotes && apartmentNotes.trim() !== '') {
-                console.log('ADDING APARTMENT NOTES TO POPUP');
                 content += `<div class="mb-3"><strong class="text-red-500">Apartment Notes:</strong><div class="pl-5 whitespace-pre-wrap">${apartmentNotes}</div></div>`;
-            } else {
-                console.log('NO APARTMENT NOTES TO ADD');
             }
 
             if (bookingData.length > 0 && bookingData[0]) {
@@ -378,63 +542,94 @@
                 content += `</div>`;
             }
 
-        
-
-            // Update the popover content
-            console.log('Final popup content:', content);
             popoverContent.innerHTML = content || 'No events for this day';
+    }
 
+    function positionPopover(event) {
             // Display the popover off-screen to get accurate dimensions
             popover.style.left = '-9999px';
             popover.style.top = '-9999px';
             popover.classList.remove('hidden');
 
-            // Get tooltip dimensions
             const tooltipWidth = popover.offsetWidth;
             const tooltipHeight = popover.offsetHeight;
-
-            // Get window dimensions
             const windowWidth = window.innerWidth;
             const windowHeight = window.innerHeight;
 
-            // Calculate desired position
             let leftPos, topPos;
-
-            // Check if there is enough space to the right of the cursor
             if (event.clientX + tooltipWidth + 15 < windowWidth) {
-                // Position tooltip to the right of the cursor
                 leftPos = event.clientX + 15;
             } else {
-                // Position tooltip to the left of the cursor
                 leftPos = event.clientX - tooltipWidth - 15;
             }
+        if (leftPos < 0) leftPos = 0;
 
-            // Prevent tooltip from going off the left edge
-            if (leftPos < 0) {
-                leftPos = 0;
-            }
+        topPos = event.clientY - tooltipHeight / 2;
+        if (topPos + tooltipHeight > windowHeight) topPos = windowHeight - tooltipHeight - 10;
+        if (topPos < 0) topPos = 10;
 
-            // Calculate vertical position to center the tooltip relative to the cursor
-            topPos = event.clientY - tooltipHeight / 2;
+        popover.style.left = `${leftPos}px`;
+        popover.style.top = `${topPos}px`;
+    }
 
-            // Prevent tooltip from going off the top or bottom of the viewport
-            if (topPos + tooltipHeight > windowHeight) {
-                topPos = windowHeight - tooltipHeight - 10;
-            }
-            if (topPos < 0) {
-                topPos = 10;
-            }
+    function showDayPopover(day, event) {
+        buildDayPopoverContent(day);
+        positionPopover(event);
+    }
 
-            // Position the popover
-            popover.style.left = `${leftPos}px`;
-            popover.style.top = `${topPos}px`;
-        });
+    function hideDayPopover() {
+        popover.classList.add('hidden');
+        activeDayCell = null;
+    }
 
-        // Hide the popover when the mouse leaves the day cell
-        day.addEventListener('mouseleave', function(event) {
-            popover.classList.add('hidden');
+    document.addEventListener('mouseover', function(event) {
+        const day = event.target.closest('td.day');
+        if (!day) return;
+        if (activeDayCell === day) return;
+        activeDayCell = day;
+        showDayPopover(day, event);
+    });
+
+    document.addEventListener('mousemove', function(event) {
+        if (!activeDayCell || popover.classList.contains('hidden')) return;
+        positionPopover(event);
+    });
+
+    document.addEventListener('mouseout', function(event) {
+        const fromDay = event.target.closest('td.day');
+        if (!fromDay) return;
+        const toEl = event.relatedTarget;
+        if (toEl && fromDay.contains(toEl)) return;
+        if (activeDayCell === fromDay) hideDayPopover();
+    });
+
+    document.addEventListener('click', function(event) {
+        const day = event.target.closest('td.day');
+        if (!day) return;
+
+        const dateIso = day.dataset.dateIso;
+        if (!dateIso) return;
+
+        const row = day.closest('tr[data-id]');
+        const apartmentId = row ? row.dataset.id : '';
+
+        const bookingLink = day.querySelector('a');
+        const bookingHref = bookingLink ? bookingLink.href : '';
+        if (bookingLink) {
+            event.preventDefault();
+            event.stopPropagation();
+        }
+
+        openDayActionModal({
+            title: day.dataset.day || 'Day Actions',
+            dateIso,
+            apartmentId,
+            bookingHref,
+            noteItemsJson: day.dataset.calendarNoteItemsB64 || '',
         });
     });
+
+    // (day hover handlers moved to delegated listeners above)
 
     // Add hover functionality for apartment name cells
     const apartmentNames = document.querySelectorAll('td.apartment-name');
@@ -507,6 +702,32 @@
         });
     });
 
+    dayActionEditNotes.addEventListener('click', function() {
+        closeDayActionModal();
+        if (!currentDayAction.dateIso) return;
+        openCalendarNoteModalForDay({
+            dateIso: currentDayAction.dateIso,
+            apartmentId: currentDayAction.apartmentId,
+            noteItemsB64: currentDayAction.noteItemsJson,
+        });
+    });
+
+    noteExisting.addEventListener('change', function() {
+        noteError.textContent = '';
+        const selected = noteExisting.options[noteExisting.selectedIndex];
+        const noteJson = selected ? selected.dataset.note : null;
+        if (!noteExisting.value) {
+            // New note defaults back to chosen day (if we have one in currentDayAction), else keep current values
+            const d = currentDayAction.dateIso || noteStart.value || '';
+            if (d) setModalForNew({ startIso: d, endIso: d, apartmentId: currentDayAction.apartmentId || '' });
+            return;
+        }
+        try {
+            const n = JSON.parse(noteJson || '{}');
+            if (n && n.id) setModalFromNote(n);
+        } catch (e) {}
+    });
+
     noteSaveBtn.addEventListener('click', async function() {
         noteError.textContent = '';
         noteSaveBtn.disabled = true;
@@ -515,15 +736,15 @@
             const payload = {
                 start_date: noteStart.value,
                 end_date: noteEnd.value,
-                scope: noteScope.value,
                 note: noteText.value,
             };
 
-            if (payload.scope === 'apartment') {
-                payload.apartment_id = noteApartmentId.value;
-            }
+            if (noteApartmentId.value) payload.apartment_id = noteApartmentId.value;
 
-            const resp = await fetch('/api/calendar-notes/', {
+            const isEdit = !!noteIdInput.value;
+            const url = isEdit ? `/api/calendar-notes/${noteIdInput.value}/update/` : '/api/calendar-notes/';
+
+            const resp = await fetch(url, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -547,54 +768,32 @@
             noteSaveBtn.disabled = false;
         }
     });
+
+    noteDeleteBtn.addEventListener('click', async function() {
+        noteError.textContent = '';
+        if (!noteIdInput.value) return;
+        noteDeleteBtn.disabled = true;
+        try {
+            const resp = await fetch(`/api/calendar-notes/${noteIdInput.value}/delete/`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': getCookie('csrftoken') || '',
+                },
+                body: JSON.stringify({}),
+            });
+            const data = await resp.json().catch(() => ({}));
+            if (!resp.ok || !data.ok) {
+                noteError.textContent = (data && data.error) ? data.error : 'Failed to delete note';
+                return;
+            }
+            location.reload();
+        } catch (e) {
+            noteError.textContent = 'Failed to delete note';
+        } finally {
+            noteDeleteBtn.disabled = false;
+        }
+    });
 </script>
 
 {% endblock content %}
-
-<!-- Calendar Note Modal -->
-<div id="calendar-note-modal-backdrop" class="hidden fixed inset-0 bg-black/40 z-20"></div>
-<div id="calendar-note-modal" class="hidden fixed inset-0 z-30 flex items-center justify-center p-4">
-    <div class="w-full max-w-lg rounded-lg bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 shadow-lg">
-        <div class="px-4 py-3 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
-            <div class="font-semibold text-gray-900 dark:text-white">Add Calendar Note</div>
-            <button data-calendar-note-cancel class="text-gray-600 hover:text-gray-800 dark:text-gray-300 dark:hover:text-white">&times;</button>
-        </div>
-        <div class="p-4 space-y-3">
-            <div class="text-xs text-gray-600 dark:text-gray-300">
-                Apartment: <span id="calendar-note-apartment-name" class="font-semibold"></span>
-            </div>
-
-            <input type="hidden" id="calendar-note-apartment-id" value="" />
-
-            <div class="grid grid-cols-2 gap-3">
-                <div>
-                    <label class="block text-xs font-semibold text-gray-700 dark:text-gray-200 mb-1">Start date</label>
-                    <input id="calendar-note-start" type="date" class="w-full bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:text-white" />
-                </div>
-                <div>
-                    <label class="block text-xs font-semibold text-gray-700 dark:text-gray-200 mb-1">End date</label>
-                    <input id="calendar-note-end" type="date" class="w-full bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:text-white" />
-                </div>
-            </div>
-
-            <div>
-                <label class="block text-xs font-semibold text-gray-700 dark:text-gray-200 mb-1">Scope</label>
-                <select id="calendar-note-scope" class="w-full bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:text-white">
-                    <option value="global">Global (all apartments)</option>
-                    <option value="apartment">This apartment only</option>
-                </select>
-            </div>
-
-            <div>
-                <label class="block text-xs font-semibold text-gray-700 dark:text-gray-200 mb-1">Note</label>
-                <textarea id="calendar-note-text" rows="5" class="w-full bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:text-white" placeholder="Write your note..."></textarea>
-            </div>
-
-            <div id="calendar-note-error" class="text-sm text-red-600"></div>
-        </div>
-        <div class="px-4 py-3 border-t border-gray-200 dark:border-gray-700 flex items-center justify-end gap-2">
-            <button data-calendar-note-cancel class="px-4 py-2 rounded bg-gray-200 text-gray-800 dark:bg-gray-700 dark:text-white">Cancel</button>
-            <button id="calendar-note-save" class="px-4 py-2 rounded bg-fuchsia-600 text-white hover:bg-fuchsia-700">Save</button>
-        </div>
-    </div>
-</div>
