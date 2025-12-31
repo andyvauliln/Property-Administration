@@ -28,6 +28,8 @@ urlpatterns = [
     path('apartment-report/', views.apartment_report, name='apartment_report'),
     path('payments-sync/', views.sync_payments, name='sync_payments'),
     path('payments-sync-v2/', views.sync_payments_v2, name='sync_payments_v2'),
+    path('payments-sync-v2/fetch-db-payments/', views.fetch_db_payments_for_matching, name='fetch_db_payments_for_matching'),
+    path('payments-sync-v2/match-selection/', views.match_selection_v2, name='match_selection_v2'),
     path('booking-availability/', views.booking_availability, name='booking_availability'),
     path('create-booking/', views.create_booking_by_link, name='create_booking_by_link'),
     path('handyman_calendar/', views.handyman_calendar, name='handyman_calendar'),
@@ -40,6 +42,8 @@ urlpatterns = [
     path('chat/<str:conversation_sid>/', views.chat_detail, name='chat_detail'),
     path('chat/<str:conversation_sid>/send/', views.send_message, name='send_message'),
     path('chat/<str:conversation_sid>/load-more/', views.load_more_messages, name='load_more_messages'),
+    path('chat/templates/', views.chat_template_list, name='chat_template_list'),
+    path('chat/templates/create/', views.chat_template_create, name='chat_template_create'),
     # Database Activity Monitoring
     path('database-activity/', views.database_activity, name='database_activity'),
 

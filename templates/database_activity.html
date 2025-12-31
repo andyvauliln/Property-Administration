@@ -734,12 +734,12 @@
                     <nav class="flex items-center justify-between">
                         <div class="flex-1 flex justify-between sm:hidden">
                             {% if page_obj.has_previous %}
-                            <a href="?page={{ page_obj.previous_page_number }}&days={{ days }}&action={{ action_filter }}&model={{ model_filter }}&user={{ user_filter }}&apartment={{ apartment_filter }}" class="relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50">
+                            <a href="?page={{ page_obj.previous_page_number }}&days={{ days }}&action={{ action_filter }}&model={{ model_filter }}&user={{ user_filter }}&apartment={{ apartment_filter }}&search={{ search_query }}" class="relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 dark:bg-gray-700 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-600">
                                 Previous
                             </a>
                             {% endif %}
                             {% if page_obj.has_next %}
-                            <a href="?page={{ page_obj.next_page_number }}&days={{ days }}&action={{ action_filter }}&model={{ model_filter }}&user={{ user_filter }}&apartment={{ apartment_filter }}" class="ml-3 relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50">
+                            <a href="?page={{ page_obj.next_page_number }}&days={{ days }}&action={{ action_filter }}&model={{ model_filter }}&user={{ user_filter }}&apartment={{ apartment_filter }}&search={{ search_query }}" class="ml-3 relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 dark:bg-gray-700 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-600">
                                 Next
                             </a>
                             {% endif %}
@@ -753,12 +753,12 @@
                             <div>
                                 <nav class="relative z-0 inline-flex rounded-md shadow-sm -space-x-px">
                                     {% if page_obj.has_previous %}
-                                    <a href="?page={{ page_obj.previous_page_number }}&days={{ days }}&action={{ action_filter }}&model={{ model_filter }}&user={{ user_filter }}&apartment={{ apartment_filter }}" class="relative inline-flex items-center px-2 py-2 rounded-l-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50 dark:bg-gray-700 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-600">
+                                    <a href="?page={{ page_obj.previous_page_number }}&days={{ days }}&action={{ action_filter }}&model={{ model_filter }}&user={{ user_filter }}&apartment={{ apartment_filter }}&search={{ search_query }}" class="relative inline-flex items-center px-2 py-2 rounded-l-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50 dark:bg-gray-700 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-600">
                                         Previous
                                     </a>
                                     {% endif %}
                                     {% if page_obj.has_next %}
-                                    <a href="?page={{ page_obj.next_page_number }}&days={{ days }}&action={{ action_filter }}&model={{ model_filter }}&user={{ user_filter }}&apartment={{ apartment_filter }}" class="relative inline-flex items-center px-2 py-2 rounded-r-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50 dark:bg-gray-700 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-600">
+                                    <a href="?page={{ page_obj.next_page_number }}&days={{ days }}&action={{ action_filter }}&model={{ model_filter }}&user={{ user_filter }}&apartment={{ apartment_filter }}&search={{ search_query }}" class="relative inline-flex items-center px-2 py-2 rounded-r-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50 dark:bg-gray-700 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-600">
                                         Next
                                     </a>
                                     {% endif %}

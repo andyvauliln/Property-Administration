@@ -572,31 +572,35 @@ def twilio_webhook(request):
             if event_type == 'onMessageAdded':
                 log_info(f"Event type is onMessageAdded: {event_type}", category='sms')
                 
-                # Save incoming message to database
-                if body and message_sid:  # Only save if there's actual message content and message_sid
+                # Ensure conversation exists in database (do NOT gate this on Body presence).
+                # Some Twilio Conversation events can have an empty Body (e.g. media/system messages),
+                # and we still want the conversation row created.
+                if conversation_sid:
+                    save_conversation_to_db(
+                        conversation_sid=conversation_sid,
+                        friendly_name=f"Conversation {conversation_sid}",
+                        author=author  # Pass author for smart linking logic
+                    )
+
+                # Save message to database (Body can be empty; MessageSid is the true unique identifier).
+                if message_sid:
+                    body_to_save = body or ''
+
                     # Determine direction based on author
                     direction = 'inbound' if author not in [twilio_phone, 'ASSISTANT', manager_phone] else 'outbound'
-                    
-                    # Ensure conversation exists in database with smart linking
-                    if conversation_sid:
-                        save_conversation_to_db(
-                            conversation_sid=conversation_sid,
-                            friendly_name=f"Conversation {conversation_sid}",
-                            author=author  # Pass author for smart linking logic
-                        )
-                    
+
                     save_message_to_db(
                         message_sid=message_sid,  # Use the actual MessageSid from Twilio
                         conversation_sid=conversation_sid,
                         author=author,
-                        body=body,
+                        body=body_to_save,
                         direction=direction,
                         webhook_sid=webhook_sid,
                         messaging_binding_address=messaging_binding_address,
                         messaging_binding_proxy_address=messaging_binding_proxy_address
                     )
-                elif body and not message_sid:
-                    log_warning("Received message without MessageSid, skipping save to DB", category='sms')
+                else:
+                    log_warning("Received onMessageAdded without MessageSid, skipping message save to DB", category='sms')
                 
                 # Check if author is not twilio_phone and not manager_phone
                 author_is_customer = (author != twilio_phone and author != manager_phone)

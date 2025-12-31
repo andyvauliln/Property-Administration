@@ -147,7 +147,13 @@ class Command(BaseCommand):
             conversation_sid=conversation_sid
         ).first()
         
-        if existing_conversation and not self.dry_run:
+        if existing_conversation:
+            if self.dry_run:
+                # IMPORTANT: In dry-run we must not claim we'd create an existing conversation.
+                self.stdout.write(f'  Conversation already exists: {conversation_sid}')
+                self.preview_conversation_messages(conversation_sid)
+                return True
+
             self.stdout.write(f'  Conversation already exists: {conversation_sid}')
             db_conversation = existing_conversation
         else:
@@ -272,10 +278,10 @@ class Command(BaseCommand):
     def sync_conversation_messages(self, conversation_sid, db_conversation):
         """Sync all messages for a conversation"""
         try:
-            # Fetch messages
+            # Fetch messages (stream to avoid dropping messages due to default page size)
             messages = self.client.conversations.v1.conversations(
                 conversation_sid
-            ).messages.list()
+            ).messages.stream(page_size=200)
             
             messages_synced = 0
             messages_skipped = 0
@@ -294,11 +300,8 @@ class Command(BaseCommand):
     def preview_conversation_messages(self, conversation_sid):
         """Preview messages that would be synced (dry run)"""
         try:
-            messages = self.client.conversations.v1.conversations(
-                conversation_sid
-            ).messages.list()
-            
-            self.stdout.write(f'    Would sync {len(messages)} messages')
+            # Avoid misleading counts: list() returns only the first page by default.
+            self.stdout.write('    Would sync messages (streamed, all pages)')
             
         except Exception as e:
             self.stdout.write(f'    Error previewing messages: {e}')

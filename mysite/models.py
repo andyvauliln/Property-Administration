@@ -2027,6 +2027,29 @@ class TwilioMessage(models.Model):
         return links_list
 
 
+class ChatMessageTemplate(models.Model):
+    """
+    Saved message templates for the chat UI.
+    """
+    name = models.CharField(max_length=120, db_index=True)
+    body = models.TextField()
+    created_by_user = models.ForeignKey(
+        'User',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='chat_message_templates',
+    )
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['name', '-created_at']
+
+    def __str__(self):
+        return self.name
+
+
 class AuditLog(models.Model):
     """
     Comprehensive audit log to track all database changes (creates, updates, deletes).

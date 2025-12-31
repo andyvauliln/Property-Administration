@@ -404,13 +404,22 @@ def database_activity(request):
             Q(model_name__icontains=search_query) |
             Q(changed_by__icontains=search_query)
         )
+    # Summary statistics for audit logs (calculated before pagination)
+    total_audit_logs = audit_logs.count()
+    creates_count = audit_logs.filter(action='create').count()
+    updates_count = audit_logs.filter(action='update').count()
+    deletes_count = audit_logs.filter(action='delete').count()
     
-    # Get statistics grouped by date and model - LIMIT to prevent OOM
-    # Use aggregation for stats instead of loading all logs
+    # Pagination - paginate the full queryset (Django will handle it efficiently)
+    page = request.GET.get('page', 1)
+    # Use 50 items per page
+    paginator = Paginator(audit_logs.order_by('-timestamp'), 50)
+    page_obj = paginator.get_page(page)
+    
+    # Build logs_by_date from the CURRENT PAGE's logs
     logs_by_date = {}
-    MAX_LOGS_DISPLAY = 500  # Limit to prevent memory issues on low-memory servers
     
-    for log in audit_logs.order_by('-timestamp')[:MAX_LOGS_DISPLAY]:
+    for log in page_obj.object_list:
         date_key = log.timestamp.date()
         if date_key not in logs_by_date:
             logs_by_date[date_key] = {}
@@ -425,15 +434,8 @@ def database_activity(request):
             }
         
         logs_by_date[date_key][model_name][f"{log.action}s"] += 1
-        # Only store first 20 logs per model per day for display
-        if len(logs_by_date[date_key][model_name]['logs']) < 20:
-            logs_by_date[date_key][model_name]['logs'].append(log)
-    
-    # Summary statistics for audit logs
-    total_audit_logs = audit_logs.count()
-    creates_count = audit_logs.filter(action='create').count()
-    updates_count = audit_logs.filter(action='update').count()
-    deletes_count = audit_logs.filter(action='delete').count()
+        # Store all logs from current page
+        logs_by_date[date_key][model_name]['logs'].append(log)
     
     # === ERROR LOGS ===
     error_logs = ErrorLog.objects.filter(timestamp__gte=start_date)
@@ -491,8 +493,22 @@ def database_activity(request):
     error_level_logs = system_logs.filter(level='error').count()
     
     # Get unique values for filters (excluding unwanted models)
-    unique_models = AuditLog.objects.filter(timestamp__gte=start_date).exclude(model_name__in=EXCLUDED_MODELS).values_list('model_name', flat=True).distinct().order_by('model_name')
-    unique_users = AuditLog.objects.filter(timestamp__gte=start_date).exclude(model_name__in=EXCLUDED_MODELS).values_list('changed_by', flat=True).distinct().order_by('changed_by')
+    # Don't filter by date - show ALL models that have ever been logged
+    unique_models = AuditLog.objects.exclude(model_name__in=EXCLUDED_MODELS).values_list('model_name', flat=True).distinct().order_by('model_name')
+    
+    # Get all managers and admins for the "Changed By" filter
+    manager_admin_users = User.objects.filter(
+        Q(role='Manager') | Q(role='Admin')
+    ).values_list('full_name', flat=True).order_by('full_name')
+    
+    # Also include unique users from audit logs (for "System" and other automated entries)
+    audit_users = AuditLog.objects.exclude(
+        model_name__in=EXCLUDED_MODELS
+    ).values_list('changed_by', flat=True).distinct()
+    
+    # Combine both lists and remove duplicates
+    unique_users = sorted(set(list(manager_admin_users) + list(audit_users)))
+    
     unique_error_types = ErrorLog.objects.filter(timestamp__gte=start_date).values_list('error_type', flat=True).distinct().order_by('error_type')
     
     # Get unique apartments for filtering
@@ -510,12 +526,6 @@ def database_activity(request):
         merged_page=merged_page
     )
     
-    # Pagination - use a limited queryset to prevent memory issues
-    page = request.GET.get('page', 1)
-    # Limit the total entries for pagination to prevent OOM
-    paginator = Paginator(audit_logs.order_by('-timestamp')[:2000], 50)
-    page_obj = paginator.get_page(page)
-    
     context = {
         'title': 'Administration Dashboard',
         
@@ -523,7 +533,6 @@ def database_activity(request):
         'logs_by_date': dict(sorted(logs_by_date.items(), reverse=True)),
         'page_obj': page_obj,
         'total_logs': total_audit_logs,
-        'logs_display_limit': MAX_LOGS_DISPLAY,
         'creates_count': creates_count,
         'updates_count': updates_count,
         'deletes_count': deletes_count,

@@ -1,13 +1,32 @@
 {% extends '_base.html' %}
 
 {% block content %}
-<div class="h-full flex flex-col bg-white dark:bg-gray-800">
+<style>
+  /* Chat pages: keep header/buttons visible; only inner list scrolls */
+  body#calendar-container { overflow: hidden; }
+  .chat-viewport {
+    position: fixed;
+    top: 5rem; /* navbar height (pt-20) */
+    right: 0;
+    bottom: 0;
+    left: 0;
+    padding: 1rem; /* match p-4 */
+  }
+  @media (min-width: 768px) {
+    .chat-viewport { left: 16rem; } /* sidebar width (w-64) */
+  }
+</style>
+
+<div class="chat-viewport">
+<div class="h-full min-h-0 overflow-hidden flex flex-col bg-white dark:bg-gray-800">
     <!-- Header -->
     <div class="flex-shrink-0 p-4 bg-white border-b border-gray-200 dark:bg-gray-800 dark:border-gray-700">
         <div class="flex items-center justify-between">
             <div>
                 <h1 class="text-xl font-semibold text-gray-900 dark:text-white">Chat Interface</h1>
-                <p class="text-sm text-gray-500 dark:text-gray-400">Manage customer conversations</p>
+                <p class="text-sm text-gray-500 dark:text-gray-400">
+                    {{ total_conversations }}/{{ total_all_conversations }}
+                </p>
             </div>
             
             <!-- Search Bar -->
@@ -37,8 +56,8 @@
     </div>
 
     <!-- Conversations Content -->
-    <div class="flex-1 overflow-y-auto">
-        <div class="h-full">
+    <div class="flex-1 min-h-0 overflow-y-auto">
+        <div>
                 <!-- Conversations List -->
                 {% if conversations %}
                     <div class="divide-y divide-gray-200 dark:divide-gray-600">
@@ -60,6 +79,12 @@
                                             <div class="text-sm font-medium text-gray-900 dark:text-white truncate">
                                                 {{ conv_data.display_info.name }}
                                             </div>
+
+                                            {% if conv_data.display_info.participants_text %}
+                                            <div class="text-xs text-gray-500 dark:text-gray-400 truncate">
+                                                👥 {{ conv_data.display_info.participants_text }}
+                                            </div>
+                                            {% endif %}
                                             
                                             {% if conv_data.display_info.apartment %}
                                             <div class="text-sm text-gray-500 dark:text-gray-400">
@@ -134,6 +159,7 @@
                 {% endif %}
         </div>
     </div>
+</div>
 </div>
 
 <script>

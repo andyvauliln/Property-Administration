@@ -41,12 +41,17 @@ LOGIN_REDIRECT_URL = '/'
 # FORM SUBMISSION
 # Comment out the following line and place your railway URL, and your production URL in the array.
 # CSRF_TRUSTED_ORIGINS = ["*"]
+os.makedirs(BASE_DIR / "logs", exist_ok=True)
 LOGGING = {
     'version': 1,
     'disable_existing_loggers': False,
     'formatters': {
         'verbose': {
             'format': '{levelname} {asctime} {module} {message}',
+            'style': '{',
+        },
+        'jsonl': {
+            'format': '{message}',
             'style': '{',
         },
     },
@@ -81,6 +86,12 @@ LOGGING = {
             'filename': 'logs/debug.log',
             'formatter': 'verbose',
         },
+        'payment_sync_v2_trace': {
+            'level': 'DEBUG',
+            'class': 'logging.FileHandler',
+            'filename': str(BASE_DIR / 'logs' / 'payment_sync_v2_trace.jsonl'),
+            'formatter': 'jsonl',
+        },
     },
     'loggers': {
         'mysite.sms_nofitications': {
@@ -105,6 +116,11 @@ LOGGING = {
         },
         'mysite.common': {
             'handlers': ['common'],
+            'level': 'DEBUG',
+            'propagate': False,
+        },
+        'mysite.payment_sync_v2_trace': {
+            'handlers': ['payment_sync_v2_trace'],
             'level': 'DEBUG',
             'propagate': False,
         },
