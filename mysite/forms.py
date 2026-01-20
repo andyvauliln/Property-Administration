@@ -843,15 +843,10 @@ class PaymentForm(forms.ModelForm):
         if not status:
             cleaned_data['payment_status'] = 'Pending'
 
-        # Validate that booking and apartment are consistent
-        booking = cleaned_data.get('booking')
-        apartment = cleaned_data.get('apartment')
-        
-        if booking and apartment and booking.apartment and booking.apartment != apartment:
-            raise forms.ValidationError(
-                f"Payment apartment ({apartment.name}) does not match booking apartment ({booking.apartment.name}). "
-                "Please ensure the apartment matches the booking's apartment."
-            )
+        # Single source of truth: if booking is set, apartment is derived from booking.apartment
+        # and stored ONLY via the booking relation.
+        if cleaned_data.get('booking') is not None:
+            cleaned_data['apartment'] = None
 
         return cleaned_data
 

@@ -621,6 +621,16 @@ class Booking(models.Model):
         self.get_or_create_tenant(form_data)
         super().save(*args, **kwargs)
         
+        if is_updating:
+            dates_changed = (orig.start_date != self.start_date) or (orig.end_date != self.end_date)
+            apartment_changed = orig.apartment_id != self.apartment_id
+            if dates_changed or apartment_changed:
+                ParkingBooking.objects.filter(booking=self).update(
+                    start_date=self.start_date,
+                    end_date=self.end_date,
+                    apartment=self.apartment,
+                )
+        
         # Update parking booking status if status changed (e.g., to/from Blocked)
         if is_updating and status_changed:
             self._update_parking_booking_status()
@@ -676,11 +686,15 @@ class Booking(models.Model):
         if orig.end_date != self.end_date:
             self._handle_end_date_change(orig)
         
-        # Update parking booking dates if dates changed
-        if orig.start_date != self.start_date or orig.end_date != self.end_date:
+        dates_changed = (orig.start_date != self.start_date) or (orig.end_date != self.end_date)
+        apartment_changed = orig.apartment_id != self.apartment_id
+        
+        # Keep linked parking bookings in sync with booking (dates + apartment)
+        if dates_changed or apartment_changed:
             ParkingBooking.objects.filter(booking=self).update(
                 start_date=self.start_date,
-                end_date=self.end_date
+                end_date=self.end_date,
+                apartment=self.apartment,
             )
         
         # Update parking booking status if car info changed or status changed to/from Blocked
@@ -1340,6 +1354,17 @@ class Payment(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
+    class Meta:
+        constraints = [
+            # Single source of truth:
+            # If a payment is linked to a booking, the apartment is derived from booking.apartment
+            # and MUST be NULL on the payment row to avoid dual-link inconsistencies.
+            models.CheckConstraint(
+                name="payment_booking_or_apartment_not_both",
+                check=models.Q(booking__isnull=True) | models.Q(apartment__isnull=True),
+            ),
+        ]
+
     def save(self, *args, **kwargs):
         from django.core.exceptions import ValidationError
         from mysite.request_context import apply_user_tracking
@@ -1358,13 +1383,11 @@ class Payment(models.Model):
             # Apply automatic user tracking
             apply_user_tracking(self, updated_by)
 
-            # Validate that booking and apartment are consistent
-            if self.booking and self.apartment and self.booking.apartment:
-                if self.booking.apartment != self.apartment:
-                    raise ValidationError(
-                        f"Payment apartment ({self.apartment.name}) does not match booking apartment ({self.booking.apartment.name}). "
-                        "Please ensure the apartment matches the booking's apartment."
-                    )
+            # Single source of truth:
+            # When booking is set, apartment is derived from booking.apartment.
+            # Always store ONLY booking link (apartment must be NULL).
+            if self.booking_id is not None:
+                self.apartment = None
 
             # Check if it's an update
             if self.pk is not None:
