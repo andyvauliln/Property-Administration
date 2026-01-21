@@ -8,6 +8,7 @@ import json
 from datetime import timedelta
 import re
 import csv
+import io
 from .utils import get_model_fields
 from django.core import serializers
 
@@ -139,19 +140,33 @@ def get_json(db_model):
     return items_json
   
 def preprocess_csv_line(line):
-    splited = line.split(',')
-    if len(splited) > 4:
-        corrected_line = splited[0] + ',' + ' '.join(splited[1:-2]) + ',' + splited[-2] + ',' + splited[-1]
-    else:
-        corrected_line = line
-    return corrected_line
+    # Parse the line respecting quoted fields
+    reader = csv.reader(io.StringIO(line))
+    try:
+        parts = next(reader)
+    except StopIteration:
+        return line
+    
+    # If more than 4 columns, merge middle columns as description
+    if len(parts) > 4:
+        date = parts[0]
+        description = ' '.join(parts[1:-2])
+        amount = parts[-2]
+        running_bal = parts[-1]
+        # Rebuild with proper CSV quoting
+        output = io.StringIO()
+        writer = csv.writer(output)
+        writer.writerow([date, description, amount, running_bal])
+        return output.getvalue().strip()
+    return line
 
 def update_payments(request, payments_to_update):
     for payment_info in payments_to_update:
         payment_id = None
         try:
             # Validate amount is not zero
-            amount = float(payment_info['amount'])
+            amount_str = str(payment_info['amount']).replace(',', '')
+            amount = float(amount_str)
             if amount == 0:
                 messages.error(request, f"Cannot create/update payment with 0 amount. Skipping.")
                 continue
@@ -208,7 +223,7 @@ def update_payments(request, payments_to_update):
             messages.error(request, f"Failed to {'update' if payment_id else 'create'}  payment: {payment_id or ''} due  {str(e)}")
 
 def remove_trailing_zeros_from_str(amount_str):
-    amount_float = float(amount_str)
+    amount_float = float(str(amount_str).replace(',', ''))
     return ('%f' % abs(amount_float)).rstrip('0').rstrip('.')
 
 def parse_payment_date(date_str):
@@ -290,8 +305,9 @@ def get_payment_data(request, csv_file, payment_methods, apartments, payment_typ
             if match:
                 extracted_id = int(match.group(1))
         
-        # Convert amount to float, handling empty strings
-        amount_float = float(amount.strip()) if amount.strip() else 0.0
+        # Convert amount to float, handling empty strings and comma separators
+        amount_str = amount.strip().replace(',', '')
+        amount_float = float(amount_str) if amount_str else 0.0
         
         if amount_float == 0:
             continue
