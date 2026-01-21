@@ -1,0 +1,1041 @@
+{
+  "generated_at": "2026-01-21T13:30:13.737245+00:00",
+  "period": "Last 40 hours (since 2026-01-19T21:30:13.597754+00:00)",
+  "criteria": "Merged payments from last 40h with duplicates (same date and amount) in all time",
+  "total_duplicate_groups": 23,
+  "total_duplicate_payments": 67,
+  "duplicates": [
+    {
+      "payment_date": "2025-10-06",
+      "amount": "130.00",
+      "count": 3,
+      "payments": [
+        {
+          "id": 15299,
+          "payment_date": "2025-10-06",
+          "amount": "130.00",
+          "apartment": null,
+          "booking_id": 1374,
+          "payment_type": "Clealing",
+          "payment_method": "Zelle",
+          "notes": "Zelle payment to DKS CLEANING LLC for 720-402 cleaning\"; Conf# wndu4yts3\"",
+          "merged_payment_key": "10/06/2025130Zelle payment to DKS CLEANING LLC for 720-402 cleaning\"; Conf# wndu4yts3\"",
+          "updated_at": "2026-01-21T03:02:33.185274+00:00",
+          "last_updated_by": "Janna Balich"
+        },
+        {
+          "id": 15285,
+          "payment_date": "2025-10-06",
+          "amount": "130.00",
+          "apartment": "780-408",
+          "booking_id": null,
+          "payment_type": "Clealing",
+          "payment_method": "Zelle",
+          "notes": "Zelle payment to DKS CLEANING LLC for 780-408 cleaning\"; Conf# zelhm8dpb\"",
+          "merged_payment_key": "10/06/2025130Zelle payment to DKS CLEANING LLC for 780-408 cleaning\"; Conf# zelhm8dpb\"",
+          "updated_at": "2025-10-09T02:30:40.271692+00:00",
+          "last_updated_by": null
+        },
+        {
+          "id": 15286,
+          "payment_date": "2025-10-06",
+          "amount": "130.00",
+          "apartment": "105 Wilson",
+          "booking_id": null,
+          "payment_type": "Clealing",
+          "payment_method": "Zelle",
+          "notes": "Zelle payment to DKS CLEANING LLC for 105 wealson cleaning\"; Conf# u0h87ic8h\"",
+          "merged_payment_key": "10/06/2025130Zelle payment to DKS CLEANING LLC for 105 wealson cleaning\"; Conf# u0h87ic8h\"",
+          "updated_at": "2025-10-09T02:30:40.278610+00:00",
+          "last_updated_by": null
+        }
+      ]
+    },
+    {
+      "payment_date": "2026-01-02",
+      "amount": "2300.00",
+      "count": 2,
+      "payments": [
+        {
+          "id": 16312,
+          "payment_date": "2026-01-02",
+          "amount": "2300.00",
+          "apartment": "630-233",
+          "booking_id": 1462,
+          "payment_type": "Rent",
+          "payment_method": "Zelle",
+          "notes": " [Zelle payment from CHRISTOPHER M DUERRMEIER for airbnb extension\"; Conf# 99c0qtq9s\"]",
+          "merged_payment_key": "01/02/20262300Zelle payment from CHRISTOPHER M DUERRMEIER for airbnb extension\"; Conf# 99c0qtq9s\"",
+          "updated_at": "2026-01-04T18:46:48.973894+00:00",
+          "last_updated_by": "Janna Balich"
+        },
+        {
+          "id": 16330,
+          "payment_date": "2026-01-02",
+          "amount": "2300.00",
+          "apartment": "780-512",
+          "booking_id": null,
+          "payment_type": "Rent",
+          "payment_method": "Wire",
+          "notes": "[TRANSFER IT PRODUCTS DEVELOPM:Vinette Turner Confirmation# XXXXX05372]",
+          "merged_payment_key": "01/02/20262300TRANSFER IT PRODUCTS DEVELOPM:Vinette Turner Confirmation# XXXXX05372",
+          "updated_at": "2026-01-21T13:30:00.530037+00:00",
+          "last_updated_by": "Janna Balich"
+        }
+      ]
+    },
+    {
+      "payment_date": "2026-01-02",
+      "amount": "64.90",
+      "count": 2,
+      "payments": [
+        {
+          "id": 16319,
+          "payment_date": "2026-01-02",
+          "amount": "64.90",
+          "apartment": "630-214",
+          "booking_id": null,
+          "payment_type": "Utilities",
+          "payment_method": "DIRECT DEBIT",
+          "notes": "FPL DIRECT DEBIT DES:ELEC PYMT ID:4534164027 PPDA INDN:FARID GAZIZOV CO ID:3590247775 PPD",
+          "merged_payment_key": "01/02/202664.9FPL DIRECT DEBIT DES:ELEC PYMT ID:4534164027 PPDA INDN:FARID GAZIZOV CO ID:3590247775 PPD",
+          "updated_at": "2026-01-04T18:46:48.728095+00:00",
+          "last_updated_by": "Janna Balich"
+        },
+        {
+          "id": 16596,
+          "payment_date": "2026-01-02",
+          "amount": "64.90",
+          "apartment": "630-214",
+          "booking_id": null,
+          "payment_type": "Utilities",
+          "payment_method": "DIRECT DEBIT",
+          "notes": "FPL DIRECT DEBIT DES:ELEC PYMT ID:XXXXX64027 PPDA INDN:FARID GAZIZOV CO ID:XXXXX47775 PPD",
+          "merged_payment_key": "01/02/202664.9FPL DIRECT DEBIT DES:ELEC PYMT ID:XXXXX64027 PPDA INDN:FARID GAZIZOV CO ID:XXXXX47775 PPD",
+          "updated_at": "2026-01-20T18:14:57.558691+00:00",
+          "last_updated_by": "Janna Balich"
+        }
+      ]
+    },
+    {
+      "payment_date": "2026-01-02",
+      "amount": "98.65",
+      "count": 2,
+      "payments": [
+        {
+          "id": 16320,
+          "payment_date": "2026-01-02",
+          "amount": "98.65",
+          "apartment": "630-107",
+          "booking_id": null,
+          "payment_type": "Utilities",
+          "payment_method": "DIRECT DEBIT",
+          "notes": "FPL DIRECT DEBIT DES:ELEC PYMT ID:9089123153 PPDA INDN:FARID ANVAROVICH GAZIZ CO ID:3590247775 PPD",
+          "merged_payment_key": "01/02/202698.65FPL DIRECT DEBIT DES:ELEC PYMT ID:9089123153 PPDA INDN:FARID ANVAROVICH GAZIZ CO ID:3590247775 PPD",
+          "updated_at": "2026-01-04T18:46:48.754805+00:00",
+          "last_updated_by": "Janna Balich"
+        },
+        {
+          "id": 16594,
+          "payment_date": "2026-01-02",
+          "amount": "98.65",
+          "apartment": "630-107",
+          "booking_id": null,
+          "payment_type": "Utilities",
+          "payment_method": "DIRECT DEBIT",
+          "notes": "FPL DIRECT DEBIT DES:ELEC PYMT ID:XXXXX23153 PPDA INDN:FARID ANVAROVICH GAZIZ CO ID:XXXXX47775 PPD",
+          "merged_payment_key": "01/02/202698.65FPL DIRECT DEBIT DES:ELEC PYMT ID:XXXXX23153 PPDA INDN:FARID ANVAROVICH GAZIZ CO ID:XXXXX47775 PPD",
+          "updated_at": "2026-01-20T18:12:32.549854+00:00",
+          "last_updated_by": "Janna Balich"
+        }
+      ]
+    },
+    {
+      "payment_date": "2026-01-02",
+      "amount": "1.00",
+      "count": 6,
+      "payments": [
+        {
+          "id": 16323,
+          "payment_date": "2026-01-02",
+          "amount": "1.00",
+          "apartment": null,
+          "booking_id": null,
+          "payment_type": "Other",
+          "payment_method": "Wire",
+          "notes": "External transfer fee - 3 Day - 12/31/2025 Confirmation: 589746088",
+          "merged_payment_key": "01/02/20261External transfer fee - 3 Day - 12/31/2025 Confirmation: 589746088",
+          "updated_at": "2026-01-04T18:46:48.815741+00:00",
+          "last_updated_by": "Janna Balich"
+        },
+        {
+          "id": 16324,
+          "payment_date": "2026-01-02",
+          "amount": "1.00",
+          "apartment": null,
+          "booking_id": null,
+          "payment_type": "Other",
+          "payment_method": "Wire",
+          "notes": "External transfer fee - 3 Day - 12/31/2025 Confirmation: 589747428",
+          "merged_payment_key": "01/02/20261External transfer fee - 3 Day - 12/31/2025 Confirmation: 589747428",
+          "updated_at": "2026-01-04T18:46:48.831885+00:00",
+          "last_updated_by": "Janna Balich"
+        },
+        {
+          "id": 16325,
+          "payment_date": "2026-01-02",
+          "amount": "1.00",
+          "apartment": null,
+          "booking_id": null,
+          "payment_type": "Other",
+          "payment_method": "Wire",
+          "notes": "External transfer fee - 3 Day - 12/31/2025 Confirmation: 589749336",
+          "merged_payment_key": "01/02/20261External transfer fee - 3 Day - 12/31/2025 Confirmation: 589749336",
+          "updated_at": "2026-01-04T18:46:48.849742+00:00",
+          "last_updated_by": "Janna Balich"
+        },
+        {
+          "id": 16570,
+          "payment_date": "2026-01-02",
+          "amount": "1.00",
+          "apartment": null,
+          "booking_id": null,
+          "payment_type": "Other",
+          "payment_method": "Wire",
+          "notes": "External transfer fee - 3 Day - 12/31/2025 Confirmation: XXXXX6088",
+          "merged_payment_key": "01/02/20261External transfer fee - 3 Day - 12/31/2025 Confirmation: XXXXX6088",
+          "updated_at": "2026-01-20T18:03:24.164593+00:00",
+          "last_updated_by": "Janna Balich"
+        },
+        {
+          "id": 16571,
+          "payment_date": "2026-01-02",
+          "amount": "1.00",
+          "apartment": null,
+          "booking_id": null,
+          "payment_type": "Other",
+          "payment_method": "Wire",
+          "notes": "External transfer fee - 3 Day - 12/31/2025 Confirmation: XXXXX7428",
+          "merged_payment_key": "01/02/20261External transfer fee - 3 Day - 12/31/2025 Confirmation: XXXXX7428",
+          "updated_at": "2026-01-20T18:03:24.180061+00:00",
+          "last_updated_by": "Janna Balich"
+        },
+        {
+          "id": 16572,
+          "payment_date": "2026-01-02",
+          "amount": "1.00",
+          "apartment": null,
+          "booking_id": null,
+          "payment_type": "Other",
+          "payment_method": "Wire",
+          "notes": "External transfer fee - 3 Day - 12/31/2025 Confirmation: XXXXX9336",
+          "merged_payment_key": "01/02/20261External transfer fee - 3 Day - 12/31/2025 Confirmation: XXXXX9336",
+          "updated_at": "2026-01-20T18:03:24.210983+00:00",
+          "last_updated_by": "Janna Balich"
+        }
+      ]
+    },
+    {
+      "payment_date": "2026-01-02",
+      "amount": "1000.00",
+      "count": 4,
+      "payments": [
+        {
+          "id": 16326,
+          "payment_date": "2026-01-02",
+          "amount": "1000.00",
+          "apartment": null,
+          "booking_id": null,
+          "payment_type": "Other",
+          "payment_method": "CC",
+          "notes": "AMERICAN EXPRESS DES:ACH PMT ID:M9934 INDN:Farid Gazizov CO ID:1133133497 CCD",
+          "merged_payment_key": "01/02/20261000AMERICAN EXPRESS DES:ACH PMT ID:M9934 INDN:Farid Gazizov CO ID:1133133497 CCD",
+          "updated_at": "2026-01-04T18:46:48.868858+00:00",
+          "last_updated_by": "Janna Balich"
+        },
+        {
+          "id": 16327,
+          "payment_date": "2026-01-02",
+          "amount": "1000.00",
+          "apartment": null,
+          "booking_id": null,
+          "payment_type": "Other",
+          "payment_method": "CC",
+          "notes": "AMERICAN EXPRESS DES:ACH PMT ID:M0672 INDN:Farid Gazizov CO ID:1133133497 CCD",
+          "merged_payment_key": "01/02/20261000AMERICAN EXPRESS DES:ACH PMT ID:M0672 INDN:Farid Gazizov CO ID:1133133497 CCD",
+          "updated_at": "2026-01-04T18:46:48.887539+00:00",
+          "last_updated_by": "Janna Balich"
+        },
+        {
+          "id": 16579,
+          "payment_date": "2026-01-02",
+          "amount": "1000.00",
+          "apartment": null,
+          "booking_id": null,
+          "payment_type": "Other",
+          "payment_method": "CC",
+          "notes": "AMERICAN EXPRESS DES:ACH PMT ID:M9934 INDN:Farid Gazizov CO ID:XXXXX33497 CCD",
+          "merged_payment_key": "01/02/20261000AMERICAN EXPRESS DES:ACH PMT ID:M9934 INDN:Farid Gazizov CO ID:XXXXX33497 CCD",
+          "updated_at": "2026-01-20T18:03:24.367073+00:00",
+          "last_updated_by": "Janna Balich"
+        },
+        {
+          "id": 16580,
+          "payment_date": "2026-01-02",
+          "amount": "1000.00",
+          "apartment": null,
+          "booking_id": null,
+          "payment_type": "Other",
+          "payment_method": "CC",
+          "notes": "AMERICAN EXPRESS DES:ACH PMT ID:M0672 INDN:Farid Gazizov CO ID:XXXXX33497 CCD",
+          "merged_payment_key": "01/02/20261000AMERICAN EXPRESS DES:ACH PMT ID:M0672 INDN:Farid Gazizov CO ID:XXXXX33497 CCD",
+          "updated_at": "2026-01-20T18:03:24.382742+00:00",
+          "last_updated_by": "Janna Balich"
+        }
+      ]
+    },
+    {
+      "payment_date": "2026-01-02",
+      "amount": "60.03",
+      "count": 2,
+      "payments": [
+        {
+          "id": 16335,
+          "payment_date": "2026-01-02",
+          "amount": "60.03",
+          "apartment": "630-429",
+          "booking_id": null,
+          "payment_type": "Utilities",
+          "payment_method": "DIRECT DEBIT",
+          "notes": "FPL DIRECT DEBIT DES:ELEC PYMT ID:4247119151 PPDA INDN:FARID GAZIZOV CO ID:3590247775 PPD",
+          "merged_payment_key": "01/02/202660.03FPL DIRECT DEBIT DES:ELEC PYMT ID:4247119151 PPDA INDN:FARID GAZIZOV CO ID:3590247775 PPD",
+          "updated_at": "2026-01-05T16:46:49.665314+00:00",
+          "last_updated_by": "Janna Balich"
+        },
+        {
+          "id": 16595,
+          "payment_date": "2026-01-02",
+          "amount": "60.03",
+          "apartment": "630-429",
+          "booking_id": null,
+          "payment_type": "Utilities",
+          "payment_method": "DIRECT DEBIT",
+          "notes": "FPL DIRECT DEBIT DES:ELEC PYMT ID:XXXXX19151 PPDA INDN:FARID GAZIZOV CO ID:XXXXX47775 PPD",
+          "merged_payment_key": "01/02/202660.03FPL DIRECT DEBIT DES:ELEC PYMT ID:XXXXX19151 PPDA INDN:FARID GAZIZOV CO ID:XXXXX47775 PPD",
+          "updated_at": "2026-01-20T18:12:32.569874+00:00",
+          "last_updated_by": "Janna Balich"
+        }
+      ]
+    },
+    {
+      "payment_date": "2026-01-02",
+      "amount": "55.44",
+      "count": 2,
+      "payments": [
+        {
+          "id": 16336,
+          "payment_date": "2026-01-02",
+          "amount": "55.44",
+          "apartment": "630-531",
+          "booking_id": null,
+          "payment_type": "Utilities",
+          "payment_method": "DIRECT DEBIT",
+          "notes": "FPL DIRECT DEBIT DES:ELEC PYMT ID:0788477198 PPDA INDN:FARID ANVAROVICH GAZIZ CO ID:3590247775 PPD",
+          "merged_payment_key": "01/02/202655.44FPL DIRECT DEBIT DES:ELEC PYMT ID:0788477198 PPDA INDN:FARID ANVAROVICH GAZIZ CO ID:3590247775 PPD",
+          "updated_at": "2026-01-05T16:46:49.687748+00:00",
+          "last_updated_by": "Janna Balich"
+        },
+        {
+          "id": 16593,
+          "payment_date": "2026-01-02",
+          "amount": "55.44",
+          "apartment": "630-531",
+          "booking_id": null,
+          "payment_type": "Utilities",
+          "payment_method": "DIRECT DEBIT",
+          "notes": "FPL DIRECT DEBIT DES:ELEC PYMT ID:XXXXX77198 PPDA INDN:FARID ANVAROVICH GAZIZ CO ID:XXXXX47775 PPD",
+          "merged_payment_key": "01/02/202655.44FPL DIRECT DEBIT DES:ELEC PYMT ID:XXXXX77198 PPDA INDN:FARID ANVAROVICH GAZIZ CO ID:XXXXX47775 PPD",
+          "updated_at": "2026-01-20T18:12:32.526672+00:00",
+          "last_updated_by": "Janna Balich"
+        }
+      ]
+    },
+    {
+      "payment_date": "2026-01-05",
+      "amount": "13.99",
+      "count": 2,
+      "payments": [
+        {
+          "id": 16353,
+          "payment_date": "2026-01-05",
+          "amount": "13.99",
+          "apartment": null,
+          "booking_id": null,
+          "payment_type": "Software development",
+          "payment_method": "DEBIT CARD",
+          "notes": "SL.NORD* PRODUCTS 01/03 PURCHASE 3022619338 NY DEBIT CARD *0321",
+          "merged_payment_key": "01/05/202613.99SL.NORD* PRODUCTS 01/03 PURCHASE 3022619338 NY DEBIT CARD *0321",
+          "updated_at": "2026-01-07T04:03:26.253032+00:00",
+          "last_updated_by": "Janna Balich"
+        },
+        {
+          "id": 16597,
+          "payment_date": "2026-01-05",
+          "amount": "13.99",
+          "apartment": null,
+          "booking_id": null,
+          "payment_type": "Software development",
+          "payment_method": "DEBIT CARD",
+          "notes": "SL.NORD* PRODUCTS 01/03 PURCHASE XXXXX19338 NY DEBIT CARD *0321",
+          "merged_payment_key": "01/05/202613.99SL.NORD* PRODUCTS 01/03 PURCHASE XXXXX19338 NY DEBIT CARD *0321",
+          "updated_at": "2026-01-20T18:14:57.599990+00:00",
+          "last_updated_by": "Janna Balich"
+        }
+      ]
+    },
+    {
+      "payment_date": "2026-01-05",
+      "amount": "59.00",
+      "count": 2,
+      "payments": [
+        {
+          "id": 16355,
+          "payment_date": "2026-01-05",
+          "amount": "59.00",
+          "apartment": null,
+          "booking_id": null,
+          "payment_type": "Utilities",
+          "payment_method": "DEBIT CARD",
+          "notes": "COMCAST / XFINITY 01/04 PURCHASE 8002662278 FL DEBIT CARD *0731",
+          "merged_payment_key": "01/05/202659COMCAST / XFINITY 01/04 PURCHASE 8002662278 FL DEBIT CARD *0731",
+          "updated_at": "2026-01-07T04:03:26.284983+00:00",
+          "last_updated_by": "Janna Balich"
+        },
+        {
+          "id": 16574,
+          "payment_date": "2026-01-05",
+          "amount": "59.00",
+          "apartment": null,
+          "booking_id": null,
+          "payment_type": "Utilities",
+          "payment_method": "DEBIT CARD",
+          "notes": "COMCAST / XFINITY 01/04 PURCHASE XXXXX62278 FL DEBIT CARD *0731",
+          "merged_payment_key": "01/05/202659COMCAST / XFINITY 01/04 PURCHASE XXXXX62278 FL DEBIT CARD *0731",
+          "updated_at": "2026-01-20T18:03:24.273433+00:00",
+          "last_updated_by": "Janna Balich"
+        }
+      ]
+    },
+    {
+      "payment_date": "2026-01-05",
+      "amount": "1.00",
+      "count": 4,
+      "payments": [
+        {
+          "id": 16357,
+          "payment_date": "2026-01-05",
+          "amount": "1.00",
+          "apartment": null,
+          "booking_id": null,
+          "payment_type": "Other",
+          "payment_method": "Wire",
+          "notes": "External transfer fee - 3 Day - 01/02/2026 Confirmation: 590171362",
+          "merged_payment_key": "01/05/20261External transfer fee - 3 Day - 01/02/2026 Confirmation: 590171362",
+          "updated_at": "2026-01-07T04:03:26.315132+00:00",
+          "last_updated_by": "Janna Balich"
+        },
+        {
+          "id": 16358,
+          "payment_date": "2026-01-05",
+          "amount": "1.00",
+          "apartment": null,
+          "booking_id": null,
+          "payment_type": "Other",
+          "payment_method": "Wire",
+          "notes": "External transfer fee - 3 Day - 01/02/2026 Confirmation: 590177706",
+          "merged_payment_key": "01/05/20261External transfer fee - 3 Day - 01/02/2026 Confirmation: 590177706",
+          "updated_at": "2026-01-07T04:03:26.328552+00:00",
+          "last_updated_by": "Janna Balich"
+        },
+        {
+          "id": 16575,
+          "payment_date": "2026-01-05",
+          "amount": "1.00",
+          "apartment": null,
+          "booking_id": null,
+          "payment_type": "Other",
+          "payment_method": "Wire",
+          "notes": "External transfer fee - 3 Day - 01/02/2026 Confirmation: XXXXX1362",
+          "merged_payment_key": "01/05/20261External transfer fee - 3 Day - 01/02/2026 Confirmation: XXXXX1362",
+          "updated_at": "2026-01-20T18:03:24.293859+00:00",
+          "last_updated_by": "Janna Balich"
+        },
+        {
+          "id": 16576,
+          "payment_date": "2026-01-05",
+          "amount": "1.00",
+          "apartment": null,
+          "booking_id": null,
+          "payment_type": "Other",
+          "payment_method": "Wire",
+          "notes": "External transfer fee - 3 Day - 01/02/2026 Confirmation: XXXXX7706",
+          "merged_payment_key": "01/05/20261External transfer fee - 3 Day - 01/02/2026 Confirmation: XXXXX7706",
+          "updated_at": "2026-01-20T18:03:24.320957+00:00",
+          "last_updated_by": "Janna Balich"
+        }
+      ]
+    },
+    {
+      "payment_date": "2026-01-05",
+      "amount": "320.76",
+      "count": 2,
+      "payments": [
+        {
+          "id": 16360,
+          "payment_date": "2026-01-05",
+          "amount": "320.76",
+          "apartment": null,
+          "booking_id": null,
+          "payment_type": "Other",
+          "payment_method": null,
+          "notes": "CITYOFWESTPALMBE DES:WEBPAYMENT ID: INDN:FARID GAZIZOV CO ID:911925808M WEB",
+          "merged_payment_key": "01/05/2026320.76CITYOFWESTPALMBE DES:WEBPAYMENT ID: INDN:FARID GAZIZOV CO ID:911925808M WEB",
+          "updated_at": "2026-01-07T04:03:26.378172+00:00",
+          "last_updated_by": "Janna Balich"
+        },
+        {
+          "id": 16581,
+          "payment_date": "2026-01-05",
+          "amount": "320.76",
+          "apartment": null,
+          "booking_id": null,
+          "payment_type": "Other",
+          "payment_method": null,
+          "notes": "CITYOFWESTPALMBE DES:WEBPAYMENT ID: INDN:FARID GAZIZOV CO ID:XXXXX5808M WEB",
+          "merged_payment_key": "01/05/2026320.76CITYOFWESTPALMBE DES:WEBPAYMENT ID: INDN:FARID GAZIZOV CO ID:XXXXX5808M WEB",
+          "updated_at": "2026-01-20T18:03:24.396839+00:00",
+          "last_updated_by": "Janna Balich"
+        }
+      ]
+    },
+    {
+      "payment_date": "2026-01-06",
+      "amount": "1.00",
+      "count": 4,
+      "payments": [
+        {
+          "id": 16365,
+          "payment_date": "2026-01-06",
+          "amount": "1.00",
+          "apartment": null,
+          "booking_id": null,
+          "payment_type": "Other",
+          "payment_method": "Wire",
+          "notes": "External transfer fee - 3 Day - 01/05/2026 Confirmation: 590514708",
+          "merged_payment_key": "01/06/20261External transfer fee - 3 Day - 01/05/2026 Confirmation: 590514708",
+          "updated_at": "2026-01-07T16:39:33.700747+00:00",
+          "last_updated_by": "Janna Balich"
+        },
+        {
+          "id": 16366,
+          "payment_date": "2026-01-06",
+          "amount": "1.00",
+          "apartment": null,
+          "booking_id": null,
+          "payment_type": "Other",
+          "payment_method": "Wire",
+          "notes": "External transfer fee - 3 Day - 01/05/2026 Confirmation: 590505086",
+          "merged_payment_key": "01/06/20261External transfer fee - 3 Day - 01/05/2026 Confirmation: 590505086",
+          "updated_at": "2026-01-07T16:39:33.717446+00:00",
+          "last_updated_by": "Janna Balich"
+        },
+        {
+          "id": 16577,
+          "payment_date": "2026-01-06",
+          "amount": "1.00",
+          "apartment": null,
+          "booking_id": null,
+          "payment_type": "Other",
+          "payment_method": "Wire",
+          "notes": "External transfer fee - 3 Day - 01/05/2026 Confirmation: XXXXX4708",
+          "merged_payment_key": "01/06/20261External transfer fee - 3 Day - 01/05/2026 Confirmation: XXXXX4708",
+          "updated_at": "2026-01-20T18:03:24.335700+00:00",
+          "last_updated_by": "Janna Balich"
+        },
+        {
+          "id": 16578,
+          "payment_date": "2026-01-06",
+          "amount": "1.00",
+          "apartment": null,
+          "booking_id": null,
+          "payment_type": "Other",
+          "payment_method": "Wire",
+          "notes": "External transfer fee - 3 Day - 01/05/2026 Confirmation: XXXXX5086",
+          "merged_payment_key": "01/06/20261External transfer fee - 3 Day - 01/05/2026 Confirmation: XXXXX5086",
+          "updated_at": "2026-01-20T18:03:24.350142+00:00",
+          "last_updated_by": "Janna Balich"
+        }
+      ]
+    },
+    {
+      "payment_date": "2026-01-07",
+      "amount": "1.00",
+      "count": 2,
+      "payments": [
+        {
+          "id": 16393,
+          "payment_date": "2026-01-07",
+          "amount": "1.00",
+          "apartment": null,
+          "booking_id": null,
+          "payment_type": "Other",
+          "payment_method": "Wire",
+          "notes": "External transfer fee - 3 Day - 01/06/2026 Confirmation: 590737718",
+          "merged_payment_key": "01/07/20261External transfer fee - 3 Day - 01/06/2026 Confirmation: 590737718",
+          "updated_at": "2026-01-08T16:10:56.123824+00:00",
+          "last_updated_by": "Janna Balich"
+        },
+        {
+          "id": 16582,
+          "payment_date": "2026-01-07",
+          "amount": "1.00",
+          "apartment": null,
+          "booking_id": null,
+          "payment_type": "Other",
+          "payment_method": "Wire",
+          "notes": "External transfer fee - 3 Day - 01/06/2026 Confirmation: XXXXX7718",
+          "merged_payment_key": "01/07/20261External transfer fee - 3 Day - 01/06/2026 Confirmation: XXXXX7718",
+          "updated_at": "2026-01-20T18:03:24.409397+00:00",
+          "last_updated_by": "Janna Balich"
+        }
+      ]
+    },
+    {
+      "payment_date": "2026-01-09",
+      "amount": "3200.00",
+      "count": 2,
+      "payments": [
+        {
+          "id": 16396,
+          "payment_date": "2026-01-09",
+          "amount": "3200.00",
+          "apartment": "780-111",
+          "booking_id": null,
+          "payment_type": "Rent",
+          "payment_method": "Wire",
+          "notes": " [TRANSFER IT PRODUCTS DEVELOPM:Tiffany Lomas Confirmation# 0696208666]",
+          "merged_payment_key": "01/09/20263200TRANSFER IT PRODUCTS DEVELOPM:Tiffany Lomas Confirmation# 0696208666",
+          "updated_at": "2026-01-12T03:22:04.899656+00:00",
+          "last_updated_by": "Janna Balich"
+        },
+        {
+          "id": 16445,
+          "payment_date": "2026-01-09",
+          "amount": "3200.00",
+          "apartment": null,
+          "booking_id": 1552,
+          "payment_type": "Rent",
+          "payment_method": "Check",
+          "notes": "BKOFAMERICA MOBILE 01/09 3834725541 DEPOSIT *MOBILE FL",
+          "merged_payment_key": "01/09/20263200BKOFAMERICA MOBILE 01/09 3834725541 DEPOSIT *MOBILE FL",
+          "updated_at": "2026-01-21T02:21:08.153623+00:00",
+          "last_updated_by": "Andrei"
+        }
+      ]
+    },
+    {
+      "payment_date": "2026-01-08",
+      "amount": "1.00",
+      "count": 2,
+      "payments": [
+        {
+          "id": 16417,
+          "payment_date": "2026-01-08",
+          "amount": "1.00",
+          "apartment": null,
+          "booking_id": null,
+          "payment_type": "Other",
+          "payment_method": "Wire",
+          "notes": "External transfer fee - 3 Day - 01/07/2026 Confirmation: 590940530",
+          "merged_payment_key": "01/08/20261External transfer fee - 3 Day - 01/07/2026 Confirmation: 590940530",
+          "updated_at": "2026-01-10T02:48:47.440059+00:00",
+          "last_updated_by": "Janna Balich"
+        },
+        {
+          "id": 16589,
+          "payment_date": "2026-01-08",
+          "amount": "1.00",
+          "apartment": null,
+          "booking_id": null,
+          "payment_type": "Other",
+          "payment_method": "Wire",
+          "notes": "External transfer fee - 3 Day - 01/07/2026 Confirmation: XXXXX0530",
+          "merged_payment_key": "01/08/20261External transfer fee - 3 Day - 01/07/2026 Confirmation: XXXXX0530",
+          "updated_at": "2026-01-20T18:03:24.508724+00:00",
+          "last_updated_by": "Janna Balich"
+        }
+      ]
+    },
+    {
+      "payment_date": "2026-01-12",
+      "amount": "3.99",
+      "count": 2,
+      "payments": [
+        {
+          "id": 16485,
+          "payment_date": "2026-01-12",
+          "amount": "3.99",
+          "apartment": null,
+          "booking_id": null,
+          "payment_type": "Software development",
+          "payment_method": "Paypal",
+          "notes": "SHEN ZHEN SHI WU DES:IAT PAYPAL ID:1047539977267 INDN:FARID GAZIZOV CO ID:770510487C IAT PMT INFO: WEB 000000000000000399",
+          "merged_payment_key": "01/12/20263.99SHEN ZHEN SHI WU DES:IAT PAYPAL ID:1047539977267 INDN:FARID GAZIZOV CO ID:770510487C IAT PMT INFO: WEB 000000000000000399",
+          "updated_at": "2026-01-14T00:38:07.160660+00:00",
+          "last_updated_by": "Janna Balich"
+        },
+        {
+          "id": 16573,
+          "payment_date": "2026-01-12",
+          "amount": "3.99",
+          "apartment": null,
+          "booking_id": null,
+          "payment_type": "Other",
+          "payment_method": "Paypal",
+          "notes": "SHEN ZHEN SHI WU DES:IAT PAYPAL ID:XXXXX39977267 INDN:FARID GAZIZOV CO ID:XXXXX0487C IAT PMT INFO: WEB XXXXXXXXXXXXXXX399",
+          "merged_payment_key": "01/12/20263.99SHEN ZHEN SHI WU DES:IAT PAYPAL ID:XXXXX39977267 INDN:FARID GAZIZOV CO ID:XXXXX0487C IAT PMT INFO: WEB XXXXXXXXXXXXXXX399",
+          "updated_at": "2026-01-20T18:03:24.230556+00:00",
+          "last_updated_by": "Janna Balich"
+        }
+      ]
+    },
+    {
+      "payment_date": "2026-01-12",
+      "amount": "2500.00",
+      "count": 2,
+      "payments": [
+        {
+          "id": 16486,
+          "payment_date": "2026-01-12",
+          "amount": "2500.00",
+          "apartment": null,
+          "booking_id": null,
+          "payment_type": "Other",
+          "payment_method": "CC",
+          "notes": "AMERICAN EXPRESS DES:ACH PMT ID:M1386 INDN:Farid Gazizov CO ID:1133133497 CCD",
+          "merged_payment_key": "01/12/20262500AMERICAN EXPRESS DES:ACH PMT ID:M1386 INDN:Farid Gazizov CO ID:1133133497 CCD",
+          "updated_at": "2026-01-14T00:38:07.179752+00:00",
+          "last_updated_by": "Janna Balich"
+        },
+        {
+          "id": 16602,
+          "payment_date": "2026-01-12",
+          "amount": "2500.00",
+          "apartment": null,
+          "booking_id": null,
+          "payment_type": "Other",
+          "payment_method": "CC",
+          "notes": "AMERICAN EXPRESS DES:ACH PMT ID:M1386 INDN:Farid Gazizov CO ID:XXXXX33497 CCD",
+          "merged_payment_key": "01/12/20262500AMERICAN EXPRESS DES:ACH PMT ID:M1386 INDN:Farid Gazizov CO ID:XXXXX33497 CCD",
+          "updated_at": "2026-01-20T18:14:57.673580+00:00",
+          "last_updated_by": "Janna Balich"
+        }
+      ]
+    },
+    {
+      "payment_date": "2026-01-12",
+      "amount": "2000.00",
+      "count": 2,
+      "payments": [
+        {
+          "id": 16487,
+          "payment_date": "2026-01-12",
+          "amount": "2000.00",
+          "apartment": null,
+          "booking_id": null,
+          "payment_type": "Other",
+          "payment_method": "CC",
+          "notes": "AMERICAN EXPRESS DES:ACH PMT ID:M0266 INDN:Farid Gazizov CO ID:1133133497 CCD",
+          "merged_payment_key": "01/12/20262000AMERICAN EXPRESS DES:ACH PMT ID:M0266 INDN:Farid Gazizov CO ID:1133133497 CCD",
+          "updated_at": "2026-01-14T00:38:07.192687+00:00",
+          "last_updated_by": "Janna Balich"
+        },
+        {
+          "id": 16598,
+          "payment_date": "2026-01-12",
+          "amount": "2000.00",
+          "apartment": null,
+          "booking_id": null,
+          "payment_type": "Other",
+          "payment_method": "CC",
+          "notes": "AMERICAN EXPRESS DES:ACH PMT ID:M0266 INDN:Farid Gazizov CO ID:XXXXX33497 CCD",
+          "merged_payment_key": "01/12/20262000AMERICAN EXPRESS DES:ACH PMT ID:M0266 INDN:Farid Gazizov CO ID:XXXXX33497 CCD",
+          "updated_at": "2026-01-20T18:14:57.612614+00:00",
+          "last_updated_by": "Janna Balich"
+        }
+      ]
+    },
+    {
+      "payment_date": "2026-01-12",
+      "amount": "1.00",
+      "count": 4,
+      "payments": [
+        {
+          "id": 16493,
+          "payment_date": "2026-01-12",
+          "amount": "1.00",
+          "apartment": null,
+          "booking_id": null,
+          "payment_type": "Other",
+          "payment_method": "Wire",
+          "notes": "External transfer fee - 3 Day - 01/09/2026 Confirmation: 591477126",
+          "merged_payment_key": "01/12/20261External transfer fee - 3 Day - 01/09/2026 Confirmation: 591477126",
+          "updated_at": "2026-01-14T00:39:48.366732+00:00",
+          "last_updated_by": "Janna Balich"
+        },
+        {
+          "id": 16494,
+          "payment_date": "2026-01-12",
+          "amount": "1.00",
+          "apartment": null,
+          "booking_id": null,
+          "payment_type": "Other",
+          "payment_method": "Wire",
+          "notes": "External transfer fee - 3 Day - 01/09/2026 Confirmation: 591343984",
+          "merged_payment_key": "01/12/20261External transfer fee - 3 Day - 01/09/2026 Confirmation: 591343984",
+          "updated_at": "2026-01-14T00:39:48.381590+00:00",
+          "last_updated_by": "Janna Balich"
+        },
+        {
+          "id": 16590,
+          "payment_date": "2026-01-12",
+          "amount": "1.00",
+          "apartment": null,
+          "booking_id": null,
+          "payment_type": "Other",
+          "payment_method": "Wire",
+          "notes": "External transfer fee - 3 Day - 01/09/2026 Confirmation: XXXXX3984",
+          "merged_payment_key": "01/12/20261External transfer fee - 3 Day - 01/09/2026 Confirmation: XXXXX3984",
+          "updated_at": "2026-01-20T18:03:24.521261+00:00",
+          "last_updated_by": "Janna Balich"
+        },
+        {
+          "id": 16591,
+          "payment_date": "2026-01-12",
+          "amount": "1.00",
+          "apartment": null,
+          "booking_id": null,
+          "payment_type": "Other",
+          "payment_method": "Wire",
+          "notes": "External transfer fee - 3 Day - 01/09/2026 Confirmation: XXXXX7126",
+          "merged_payment_key": "01/12/20261External transfer fee - 3 Day - 01/09/2026 Confirmation: XXXXX7126",
+          "updated_at": "2026-01-20T18:03:24.536155+00:00",
+          "last_updated_by": "Janna Balich"
+        }
+      ]
+    },
+    {
+      "payment_date": "2026-01-13",
+      "amount": "14.95",
+      "count": 2,
+      "payments": [
+        {
+          "id": 16504,
+          "payment_date": "2026-01-13",
+          "amount": "14.95",
+          "apartment": null,
+          "booking_id": null,
+          "payment_type": "Utilities",
+          "payment_method": "DIRECT DEBIT",
+          "notes": "COMCAST-XFINITY DES:CABLE SVCS ID:4656515 INDN:FARID *GAZIZOV CO ID:0000213249 PPD",
+          "merged_payment_key": "01/13/202614.95COMCAST-XFINITY DES:CABLE SVCS ID:4656515 INDN:FARID *GAZIZOV CO ID:0000213249 PPD",
+          "updated_at": "2026-01-14T15:45:58.134609+00:00",
+          "last_updated_by": "Janna Balich"
+        },
+        {
+          "id": 16584,
+          "payment_date": "2026-01-13",
+          "amount": "14.95",
+          "apartment": null,
+          "booking_id": null,
+          "payment_type": "Utilities",
+          "payment_method": "DIRECT DEBIT",
+          "notes": "COMCAST-XFINITY DES:CABLE SVCS ID:4656515 INDN:FARID *GAZIZOV CO ID:XXXXX13249 PPD",
+          "merged_payment_key": "01/13/202614.95COMCAST-XFINITY DES:CABLE SVCS ID:4656515 INDN:FARID *GAZIZOV CO ID:XXXXX13249 PPD",
+          "updated_at": "2026-01-20T18:03:24.436103+00:00",
+          "last_updated_by": "Janna Balich"
+        }
+      ]
+    },
+    {
+      "payment_date": "2026-01-13",
+      "amount": "1.00",
+      "count": 6,
+      "payments": [
+        {
+          "id": 16506,
+          "payment_date": "2026-01-13",
+          "amount": "1.00",
+          "apartment": null,
+          "booking_id": null,
+          "payment_type": "Other",
+          "payment_method": "Wire",
+          "notes": "External transfer fee - 3 Day - 01/12/2026 Confirmation: 591732170",
+          "merged_payment_key": "01/13/20261External transfer fee - 3 Day - 01/12/2026 Confirmation: 591732170",
+          "updated_at": "2026-01-14T15:45:58.172520+00:00",
+          "last_updated_by": "Janna Balich"
+        },
+        {
+          "id": 16507,
+          "payment_date": "2026-01-13",
+          "amount": "1.00",
+          "apartment": null,
+          "booking_id": null,
+          "payment_type": "Other",
+          "payment_method": "Wire",
+          "notes": "External transfer fee - 3 Day - 01/12/2026 Confirmation: 591734914",
+          "merged_payment_key": "01/13/20261External transfer fee - 3 Day - 01/12/2026 Confirmation: 591734914",
+          "updated_at": "2026-01-14T15:45:58.184719+00:00",
+          "last_updated_by": "Janna Balich"
+        },
+        {
+          "id": 16508,
+          "payment_date": "2026-01-13",
+          "amount": "1.00",
+          "apartment": null,
+          "booking_id": null,
+          "payment_type": "Other",
+          "payment_method": "Wire",
+          "notes": "External transfer fee - 3 Day - 01/12/2026 Confirmation: 591635500",
+          "merged_payment_key": "01/13/20261External transfer fee - 3 Day - 01/12/2026 Confirmation: 591635500",
+          "updated_at": "2026-01-14T15:45:58.199110+00:00",
+          "last_updated_by": "Janna Balich"
+        },
+        {
+          "id": 16585,
+          "payment_date": "2026-01-13",
+          "amount": "1.00",
+          "apartment": null,
+          "booking_id": null,
+          "payment_type": "Other",
+          "payment_method": "Wire",
+          "notes": "External transfer fee - 3 Day - 01/12/2026 Confirmation: XXXXX4914",
+          "merged_payment_key": "01/13/20261External transfer fee - 3 Day - 01/12/2026 Confirmation: XXXXX4914",
+          "updated_at": "2026-01-20T18:03:24.448958+00:00",
+          "last_updated_by": "Janna Balich"
+        },
+        {
+          "id": 16587,
+          "payment_date": "2026-01-13",
+          "amount": "1.00",
+          "apartment": null,
+          "booking_id": null,
+          "payment_type": "Other",
+          "payment_method": "Wire",
+          "notes": "External transfer fee - 3 Day - 01/12/2026 Confirmation: XXXXX5500",
+          "merged_payment_key": "01/13/20261External transfer fee - 3 Day - 01/12/2026 Confirmation: XXXXX5500",
+          "updated_at": "2026-01-20T18:03:24.480061+00:00",
+          "last_updated_by": "Janna Balich"
+        },
+        {
+          "id": 16588,
+          "payment_date": "2026-01-13",
+          "amount": "1.00",
+          "apartment": null,
+          "booking_id": null,
+          "payment_type": "Other",
+          "payment_method": "Wire",
+          "notes": "External transfer fee - 3 Day - 01/12/2026 Confirmation: XXXXX2170",
+          "merged_payment_key": "01/13/20261External transfer fee - 3 Day - 01/12/2026 Confirmation: XXXXX2170",
+          "updated_at": "2026-01-20T18:03:24.494520+00:00",
+          "last_updated_by": "Janna Balich"
+        }
+      ]
+    },
+    {
+      "payment_date": "2025-08-20",
+      "amount": "130.00",
+      "count": 6,
+      "payments": [
+        {
+          "id": 14934,
+          "payment_date": "2025-08-20",
+          "amount": "130.00",
+          "apartment": null,
+          "booking_id": 1254,
+          "payment_type": "Clealing",
+          "payment_method": "Check",
+          "notes": "[Check 1944]",
+          "merged_payment_key": "08/20/20251480Check 1944",
+          "updated_at": "2026-01-21T01:54:53.076240+00:00",
+          "last_updated_by": "Janna Balich"
+        },
+        {
+          "id": 14936,
+          "payment_date": "2025-08-20",
+          "amount": "130.00",
+          "apartment": "720-409",
+          "booking_id": null,
+          "payment_type": "Clealing",
+          "payment_method": "Check",
+          "notes": "[Check 1944]",
+          "merged_payment_key": "08/20/20251480Check 1944",
+          "updated_at": "2025-09-16T17:39:25.364636+00:00",
+          "last_updated_by": null
+        },
+        {
+          "id": 14938,
+          "payment_date": "2025-08-20",
+          "amount": "130.00",
+          "apartment": "630-521",
+          "booking_id": null,
+          "payment_type": "Clealing",
+          "payment_method": "Check",
+          "notes": "[Check 1944]",
+          "merged_payment_key": "08/20/20251480Check 1944",
+          "updated_at": "2025-09-16T17:39:25.386200+00:00",
+          "last_updated_by": null
+        },
+        {
+          "id": 14939,
+          "payment_date": "2025-08-20",
+          "amount": "130.00",
+          "apartment": "780-311",
+          "booking_id": null,
+          "payment_type": "Clealing",
+          "payment_method": "Check",
+          "notes": "[Check 1944]",
+          "merged_payment_key": "08/20/20251480Check 1944",
+          "updated_at": "2025-09-16T17:39:25.402165+00:00",
+          "last_updated_by": null
+        },
+        {
+          "id": 14940,
+          "payment_date": "2025-08-20",
+          "amount": "130.00",
+          "apartment": "780-109",
+          "booking_id": null,
+          "payment_type": "Clealing",
+          "payment_method": "Check",
+          "notes": "[Check 1944]",
+          "merged_payment_key": "08/20/20251480Check 1944",
+          "updated_at": "2025-09-16T17:39:25.413389+00:00",
+          "last_updated_by": null
+        },
+        {
+          "id": 14944,
+          "payment_date": "2025-08-20",
+          "amount": "130.00",
+          "apartment": "780-109",
+          "booking_id": null,
+          "payment_type": "Clealing",
+          "payment_method": "Check",
+          "notes": "[Check 1944]",
+          "merged_payment_key": "08/20/20251480Check 1944",
+          "updated_at": "2025-09-16T17:39:25.457126+00:00",
+          "last_updated_by": null
+        }
+      ]
+    }
+  ]
+}

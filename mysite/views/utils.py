@@ -42,6 +42,11 @@ def handle_post_request(request, model, form_class):
                         messages.error(request, f"{field}: {error}")
             return redirect(request.path)
         elif 'delete' in request.POST or 'delete_booking' in request.POST:
+            # Only Admin can delete payments, bookings, apartments, and users
+            admin_only_models = (User, Apartment, Booking, Payment)
+            if model in admin_only_models and request.user.role != 'Admin':
+                messages.error(request, "Only Admin can delete this item. Ask admin to delete it.")
+                return redirect(request.path)
             instance = model.objects.get(id=request.POST['id'])
             instance.delete()
             form = form_class()
@@ -227,7 +232,7 @@ def parse_date(value):
         # If date_str is already a date object, return it as is
         return value
     # Define the possible date formats to check
-    date_formats = ['%B %d %Y']
+    date_formats = ['%m/%d/%Y', '%Y-%m-%d', '%B %d %Y']
 
     for date_format in date_formats:
         try:

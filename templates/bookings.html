@@ -5,7 +5,7 @@
 <script src="https://cdn.docuseal.co/js/form.js"></script>
 {% #table  model_fields=model_fields items_json=items_json title=title model="bookings" search_query=request.GET.q items=items %}
 <div class="flex flex-col md:flex-row items-center justify-between space-y-3 md:space-y-0 md:space-x-4 p-4">
-    <select onchange="updateSearchInput()" name="status" class="filter bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-primary-500 focus:border-primary-500 block w-1/5 p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white dark:focus:ring-primary-500 dark:focus:border-primary-500">
+    <select onchange="updateSearchInput()" name="status" class="filter bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-primary-500 focus:border-primary-500 block w-1/6 p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white dark:focus:ring-primary-500 dark:focus:border-primary-500">
         <option value="">All Statuses</option>
         <option class="text-yellow-500" value="Waiting Contract" {% if current_status == 'Waiting Contract' %}selected{% endif %}>Waiting Contract</option>
         <option class="text-orange-500" value="Waiting Payment" {% if current_status == 'Waiting Payment' %}selected{% endif %}>Waiting Payment</option>
@@ -14,7 +14,7 @@
         <option class="text-green-300" value="Pending" {% if current_status == 'Pending' %}selected{% endif %}>Pending</option>
         <option class="text-red-500" value="Problem Booking" {% if current_status == 'Problem Booking' %}selected{% endif %}>Problem Booking</option>
     </select>
-    <select onchange="updateSearchInput()" name="apartment.id" class="filter bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-primary-500 focus:border-primary-500 block w-1/5 p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white dark:focus:ring-primary-500 dark:focus:border-primary-500">
+    <select onchange="updateSearchInput()" name="apartment.id" class="filter bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-primary-500 focus:border-primary-500 block w-1/6 p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white dark:focus:ring-primary-500 dark:focus:border-primary-500">
         <option value="">All Apartments</option>
         {% for field_name, field_instance in model_fields %}
             {% if field_name == "apartment" %}
@@ -24,10 +24,10 @@
             {% endif %}
         {% endfor %}
     </select>
-    <input id="filter_start_date" name="start_date" onchange="updateSearchInput()" datepicker datepicker-format="MM dd yyyy" type="text" value="" class="filter bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-1/5 p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white dark:focus:ring-blue-500 dark:focus:border-blue-500" placeholder="Select date">
-
-    <input id="filter_end_date" name="end_date" onchange="updateSearchInput()" datepicker datepicker-format="MM dd yyyy" type="text" value="" class="filter bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-1/5 p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white dark:focus:ring-blue-500 dark:focus:border-blue-500" placeholder="Select date">
-    <select onchange="updateSearchInput()" name="owner.id" class="filter bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-primary-500 focus:border-primary-500 block w-1/5 p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white dark:focus:ring-primary-500 dark:focus:border-primary-500">
+    <input id="filter_tenant_name" name="tenant.full_name" oninput="updateSearchInput()" type="text" value="" class="filter bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-1/6 p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white dark:focus:ring-blue-500 dark:focus:border-blue-500" placeholder="Tenant name">
+    <input id="filter_start_date" name="start_date" onchange="updateSearchInput()" datepicker datepicker-format="mm/dd/yyyy" type="text" value="" class="filter bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-1/6 p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white dark:focus:ring-blue-500 dark:focus:border-blue-500" placeholder="Start date">
+    <input id="filter_end_date" name="end_date" onchange="updateSearchInput()" datepicker datepicker-format="mm/dd/yyyy" type="text" value="" class="filter bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-1/6 p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white dark:focus:ring-blue-500 dark:focus:border-blue-500" placeholder="End date">
+    <select onchange="updateSearchInput()" name="owner.id" class="filter bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-primary-500 focus:border-primary-500 block w-1/6 p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white dark:focus:ring-primary-500 dark:focus:border-primary-500">
         <option value="">All Owners</option>
         {% for field_name, field_instance in model_fields %}
             {% if field_name == "owner" %}
