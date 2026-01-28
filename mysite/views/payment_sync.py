@@ -92,26 +92,31 @@ def sync_payments(request):
 
 #05/06/20244500Check 283
 def remove_handled_payments(db_payments, file_payments):
-    # Collect merged_payment_keys from db_payments with status "Merged" and ensure they are not None
+    # Collect ALL merged_payment_keys from the database (not just from the date-filtered queryset)
+    # This ensures we catch payments that were merged but have dates outside the current file's range
+    all_merged_payments = Payment.objects.filter(
+        payment_status="Merged",
+        merged_payment_key__isnull=False
+    ).exclude(merged_payment_key='')
+    
     db_payment_keys = set()
-    for payment in db_payments:
-        if payment.payment_status == "Merged" and payment.merged_payment_key is not None:
-            # Check if this is a grouped payment key (contains separator)
-            if PAYMENT_KEY_SEPARATOR in payment.merged_payment_key:
-                # Split the grouped key and add each individual key
-                individual_keys = payment.merged_payment_key.split(PAYMENT_KEY_SEPARATOR)
-                db_payment_keys.update(individual_keys)
-            else:
-                # Single payment key
-                db_payment_keys.add(payment.merged_payment_key)
+    for payment in all_merged_payments:
+        # Check if this is a grouped payment key (contains separator)
+        if PAYMENT_KEY_SEPARATOR in payment.merged_payment_key:
+            # Split the grouped key and add each individual key
+            individual_keys = payment.merged_payment_key.split(PAYMENT_KEY_SEPARATOR)
+            db_payment_keys.update(individual_keys)
+        else:
+            # Single payment key
+            db_payment_keys.add(payment.merged_payment_key)
     
     # Filter out db_payments with status "Merged"
     db_payments_cleaned = [payment for payment in db_payments if payment.payment_status != "Merged"]
     
-    # Filter out file_payments where merged_payment_key matches any of the individual keys
+    # Filter out file_payments where merged_payment_key matches any of the db keys
     file_payments_cleaned = [
         payment for payment in file_payments 
-        if not any(db_key in payment['merged_payment_key'] for db_key in db_payment_keys)
+        if payment['merged_payment_key'] not in db_payment_keys
     ]
     
     return db_payments_cleaned, file_payments_cleaned
@@ -187,11 +192,16 @@ def update_payments(request, payments_to_update):
                     payment.bank_id = payment_info['bank']
                     payment.apartment_id = payment_info['apartment']
                     payment.payment_status = "Merged"
-                    merged_payment_key = payment_info.get('merged_payment_key') or (
-                        parse_date(payment_info.get('file_date', '')) + 
-                        remove_trailing_zeros_from_str(payment_info.get('file_amount', '')) + 
-                        payment_info.get('file_notes', '')
-                    )
+                    # Always construct merged_payment_key from file data if available
+                    # This ensures the key is updated when bank format changes (e.g., masked confirmation numbers)
+                    if payment_info.get('file_date') and payment_info.get('file_notes'):
+                        merged_payment_key = (
+                            parse_date(payment_info.get('file_date', '')) + 
+                            remove_trailing_zeros_from_str(payment_info.get('file_amount', '')) + 
+                            payment_info.get('file_notes', '')
+                        )
+                    else:
+                        merged_payment_key = payment_info.get('merged_payment_key', '')
                     payment.merged_payment_key = merged_payment_key
                     payment.save(updated_by=request.user if request.user else None)
                     messages.success(request, f"Updated Payment: {payment.id}")
@@ -202,6 +212,16 @@ def update_payments(request, payments_to_update):
                 date_str = payment_info.get('payment_date') or payment_info.get('file_date', '')
                 if not date_str:
                     raise ValueError("Payment date is required (payment_date or file_date)")
+                # Always construct merged_payment_key from file data if available
+                if payment_info.get('file_date') and payment_info.get('file_notes'):
+                    merged_payment_key = (
+                        parse_date(payment_info.get('file_date', '')) + 
+                        remove_trailing_zeros_from_str(payment_info.get('file_amount', '')) + 
+                        payment_info.get('file_notes', '')
+                    )
+                else:
+                    merged_payment_key = payment_info.get('merged_payment_key', '')
+                    
                 payment = Payment(
                     amount=amount,
                     payment_date= parse_payment_date(date_str),
@@ -210,11 +230,7 @@ def update_payments(request, payments_to_update):
                     payment_method_id=payment_info['payment_method'] or None,
                     bank_id=payment_info['bank'] or None,
                     apartment_id=payment_info['apartment'] or None,
-                    merged_payment_key = payment_info.get('merged_payment_key') or (
-                        parse_date(payment_info.get('file_date', '')) + 
-                        remove_trailing_zeros_from_str(payment_info.get('file_amount', '')) + 
-                        payment_info.get('file_notes', '')
-                    ),
+                    merged_payment_key=merged_payment_key,
                     payment_status="Merged",
                 )
                 payment.save(updated_by=request.user if request.user else None)
