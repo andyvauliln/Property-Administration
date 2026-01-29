@@ -10,7 +10,7 @@ from .login import CustomLogoutView, custom_login_view
 from .generic_view import users, apartment_prices, bookings, cleanings, payment_methods, payment_types, payments 
 from .apartments_view import apartments_view as apartments
 from .payment_sync import sync_payments
-from .payment_sync_v2 import sync_payments_v2, fetch_db_payments_for_matching, match_selection_v2
+from .payment_sync_v2 import sync_payments_v2, fetch_db_payments_for_matching, match_selection_v2, fetch_merged_db_payments_for_file
 from .docusign import docuseal_callback
 from .booking_availability import booking_availability
 from .one_link_contract import create_booking_by_link

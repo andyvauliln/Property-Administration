@@ -2,20 +2,49 @@
 {% load static %}
 
 {% block content %}
-<div id="payment_sync_v2_page" class="w-full px-1 py-2 overflow-hidden flex flex-col min-h-0">
+<style>
+    /* Override layout padding for this page only */
+    #payment_sync_v2_page {
+        margin: -1rem;
+        margin-top: -1.5rem;
+        padding: 5px;
+        padding-bottom: 40px;
+        width: calc(100% + 2rem);
+    }
+    #matching_workspace {
+        height: calc(100vh - 11rem);
+    }
+    #columns_row {
+        height: 100%;
+    }
+    #columns_row > section {
+        height: 100%;
+        overflow: hidden;
+    }
+    #merge_bar {
+        position: fixed;
+        bottom: 0;
+        left: 256px;
+        right: 0;
+        background: white;
+        border-top: 1px solid #e5e7eb;
+        z-index: 10;
+    }
+</style>
+<div id="payment_sync_v2_page" class="w-full overflow-hidden flex flex-col min-h-0">
 
     <!-- Upload Section Card -->
-    <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-xl border border-gray-200 dark:border-gray-700 overflow-hidden mb-3 mx-1">
+    <div class="overflow-hidden">
         <form method="POST" enctype="multipart/form-data" id="upload_form">
             {% csrf_token %}
             
-            <div class="p-4 space-y-4">
+            <div class="flex flex-col gap-1">
                 <!-- Initial State: Upload Only -->
                 <div id="upload_initial_state" class="text-center {% if data.file_payments_json %}hidden{% endif %}">
                     <label class="block mb-4 text-lg font-semibold text-gray-700 dark:text-gray-300">
                         Start by uploading your bank statement CSV
                     </label>
-                    <div class="max-w-xl mx-auto">
+                    <div class="w-full">
                         <label class="flex flex-col items-center justify-center w-full h-64 border-2 border-blue-300 border-dashed rounded-2xl cursor-pointer bg-gray-50 dark:bg-gray-700 hover:bg-blue-50 dark:hover:bg-gray-600 transition duration-300">
                             <div class="flex flex-col items-center justify-center pt-5 pb-6">
                                 <svg class="w-12 h-12 mb-4 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -37,92 +66,90 @@
                     </div>
                 </div>
                 <!-- After Upload: Action Buttons in One Line -->
-                <div id="upload_after_state" class="flex flex-wrap items-center gap-4 {% if not data.file_payments_json %}hidden{% endif %}">
+                <div id="upload_after_state" class="flex flex-wrap items-center gap-2 mb-2 {% if not data.file_payments_json %}hidden{% endif %}">
                     <!-- Merge with AI -->
                     <button id="btn_merge_ai" type="button" onclick="mergeWithAI()"
-                            class="w-full sm:w-auto flex items-center justify-center gap-2 px-4 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600
+                            class="w-full sm:w-auto flex items-center justify-center gap-2 px-3 py-1.5 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600
                                    hover:border-blue-500 hover:bg-blue-50 dark:hover:bg-gray-600 hover:text-blue-700
-                                   text-gray-800 dark:text-gray-200 text-sm sm:text-base font-semibold whitespace-nowrap rounded-lg
+                                   text-gray-800 dark:text-gray-200 text-sm font-semibold whitespace-nowrap rounded-lg
                                    shadow-md hover:shadow-lg transition duration-200
                                    focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-50">
-                        <svg class="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path>
-                        </svg>
+                        <span class="text-blue-600 text-base leading-none">⚡</span>
                         Merge with AI
                     </button>
 
                     <!-- Merge with AI custom -->
                     <button id="btn_merge_ai_custom" type="button" onclick="openAICustomPromptModal()"
-                            class="w-full sm:w-auto flex items-center justify-center gap-2 px-4 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600
+                            class="w-full sm:w-auto flex items-center justify-center gap-2 px-3 py-1.5 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600
                                    hover:border-blue-500 hover:bg-blue-50 dark:hover:bg-gray-600 hover:text-blue-700
-                                   text-gray-800 dark:text-gray-200 text-sm sm:text-base font-semibold whitespace-nowrap rounded-lg
+                                   text-gray-800 dark:text-gray-200 text-sm font-semibold whitespace-nowrap rounded-lg
                                    shadow-md hover:shadow-lg transition duration-200
                                    focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-50">
-                        <svg class="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"></path>
-                        </svg>
+                        <span class="text-blue-600 text-base leading-none">🧠</span>
                         Merge with AI custom
                     </button>
 
                     <!-- Merge manually -->
                     <button id="btn_merge_manual" type="button" onclick="mergeManually()"
-                            class="w-full sm:w-auto flex items-center justify-center gap-2 px-4 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600
+                            class="w-full sm:w-auto flex items-center justify-center gap-2 px-3 py-1.5 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600
                                    hover:border-blue-500 hover:bg-blue-50 dark:hover:bg-gray-600 hover:text-blue-700
-                                   text-gray-800 dark:text-gray-200 text-sm sm:text-base font-semibold whitespace-nowrap rounded-lg
+                                   text-gray-800 dark:text-gray-200 text-sm font-semibold whitespace-nowrap rounded-lg
                                    shadow-md hover:shadow-lg transition duration-200
                                    focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-50">
-                        <svg class="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
-                        </svg>
+                        <span class="text-blue-600 text-base leading-none">✓</span>
                         Merge manually
                     </button>
 
                     <!-- Merge both -->
                     <button id="btn_merge_both" type="button" onclick="mergeBoth()"
-                            class="w-full sm:w-auto flex items-center justify-center gap-2 px-4 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600
+                            class="w-full sm:w-auto flex items-center justify-center gap-2 px-3 py-1.5 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600
                                    hover:border-blue-500 hover:bg-blue-50 dark:hover:bg-gray-600 hover:text-blue-700
-                                   text-gray-800 dark:text-gray-200 text-sm sm:text-base font-semibold whitespace-nowrap rounded-lg
+                                   text-gray-800 dark:text-gray-200 text-sm font-semibold whitespace-nowrap rounded-lg
                                    shadow-md hover:shadow-lg transition duration-200
                                    focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-50">
-                        <svg class="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path>
-                        </svg>
+                        <span class="text-blue-600 text-base leading-none">＋</span>
                         Merge both
                     </button>
 
                     <!-- Edit Matching Criteria Button -->
                     <button type="button" onclick="openMatchingConfigModal()"
-                            class="w-full sm:w-auto flex items-center justify-center gap-2 px-4 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600
+                            class="w-full sm:w-auto flex items-center justify-center gap-2 px-3 py-1.5 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600
                                    hover:border-blue-500 hover:bg-blue-50 dark:hover:bg-gray-600 hover:text-blue-700
-                                   text-gray-800 dark:text-gray-200 text-sm sm:text-base font-semibold whitespace-nowrap rounded-lg
+                                   text-gray-800 dark:text-gray-200 text-sm font-semibold whitespace-nowrap rounded-lg
                                    shadow-md hover:shadow-lg transition duration-200
                                    focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-50">
-                        <svg class="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path>
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
-                        </svg>
+                        <span class="text-blue-600 text-base leading-none">⚙</span>
                         Edit Criteria
                     </button>
 
                     <!-- Upload File Button -->
                     <button type="button" onclick="document.getElementById('hidden_file_input').click()"
-                            class="w-full sm:w-auto flex items-center justify-center gap-2 px-4 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600
+                            class="w-full sm:w-auto flex items-center justify-center gap-2 px-3 py-1.5 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600
                                    hover:border-blue-500 hover:bg-blue-50 dark:hover:bg-gray-600 hover:text-blue-700
-                                   text-gray-800 dark:text-gray-200 text-sm sm:text-base font-semibold whitespace-nowrap rounded-lg
+                                   text-gray-800 dark:text-gray-200 text-sm font-semibold whitespace-nowrap rounded-lg
                                    shadow-md hover:shadow-lg transition duration-200
                                    focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-50">
-                        <svg class="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"></path>
-                        </svg>
+                        <span class="text-blue-600 text-base leading-none">⬆</span>
                         Upload New File
                     </button>
                     <input type="file" name="csv_file" id="hidden_file_input" accept=".csv" class="hidden" onchange="this.form.submit()">
 
+                    <!-- Reload DB Payments Button -->
+                    <button type="button" onclick="reloadDbPayments()"
+                            class="w-full sm:w-auto flex items-center justify-center gap-2 px-3 py-1.5 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600
+                                   hover:border-green-500 hover:bg-green-50 dark:hover:bg-gray-600 hover:text-green-700
+                                   text-gray-800 dark:text-gray-200 text-sm font-semibold whitespace-nowrap rounded-lg
+                                   shadow-md hover:shadow-lg transition duration-200
+                                   focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-opacity-50">
+                        <span class="text-green-600 text-base leading-none">🔄</span>
+                        Reload DB Payments
+                    </button>
+
                     <!-- Load Mock Data Button (also visible after resume/demo) -->
                     <a href="?demo=1"
-                       class="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-4 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600
+                       class="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-3 py-1.5 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600
                               hover:border-blue-500 hover:bg-blue-50 dark:hover:bg-gray-600 hover:text-blue-700
-                              text-gray-800 dark:text-gray-200 text-sm sm:text-base font-semibold whitespace-nowrap rounded-lg
+                              text-gray-800 dark:text-gray-200 text-sm font-semibold whitespace-nowrap rounded-lg
                               shadow-md hover:shadow-lg transition duration-200
                               focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-50">
                         <svg class="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -130,10 +157,9 @@
                         </svg>
                         Load Mock Data
                     </a>
-
-                    <div id="selection_required_hint" class="w-full text-xs text-gray-600 dark:text-gray-300">
-                        Select at least 1 bank payment to enable merge actions.
-                    </div>
+                </div>
+                <div id="selection_required_hint" class="text-xs text-red-600 dark:text-red-400 mb-2">
+                    Select at least 1 bank payment to enable merge actions.
                 </div>
 
                 <!-- Hidden Configuration Fields -->
@@ -286,77 +312,79 @@
     </div>
 
     <!-- Matching Workspace -->
-    <div id="matching_workspace" class="space-y-3 px-1 flex-1 min-h-0 overflow-hidden flex flex-col {% if not data.file_payments_json %}hidden{% endif %}">
+    <div id="matching_workspace" class="flex-1 min-h-0 overflow-hidden flex flex-col {% if not data.file_payments_json %}hidden{% endif %}">
         <!-- Dual Columns -->
-        <div id="columns_row" class="flex flex-col lg:flex-row gap-4 flex-1 min-h-0">
+        <div id="columns_row" class="flex flex-col lg:flex-row gap-2 flex-1 min-h-0">
             <!-- Bank Column -->
-            <section class="flex-1 min-w-0 bg-white rounded-2xl shadow-xl border border-gray-200 flex flex-col min-h-0">
-                <header class="px-5 py-4 border-b border-gray-100">
-                    <div class="flex items-center justify-between">
-                        <div>
-                            <p class="text-xs font-semibold uppercase text-gray-400 tracking-wide">Bank Payments</p>
-                            <p class="text-2xl font-bold text-gray-900"><span id="bank_payments_count">0</span> items</p>
+            <section class="flex-1 min-w-0 border border-gray-200 dark:border-gray-700 flex flex-col min-h-0">
+                <div class="px-2 py-2 border-b border-gray-100 space-y-3">
+                    <div class="flex flex-wrap items-center justify-between gap-2">
+                        <div class="flex items-center gap-2 text-sm font-semibold text-gray-600">
+                            <span class="text-xs font-semibold uppercase text-gray-400 tracking-wide">Bank Payments</span>
+                            <span class="text-gray-500">(</span>
+                            <span id="bank_merged_count">0</span>
+                            <span class="text-gray-500">merged /</span>
+                            <span id="bank_payments_count">0</span>
+                            <span class="text-gray-500">total)</span>
                         </div>
-                        <div class="inline-flex items-center gap-2 bg-gray-50 px-3 py-1 rounded-full text-sm text-gray-500">
-                            <span class="h-2 w-2 rounded-full bg-green-500"></span>
-                            <span id="bank_not_merged_badge">0 not merged</span>
+                        <div class="flex gap-2">
+                            <button id="bank_filter_all" onclick="setBankFilter('all')"
+                                    class="bank-filter-chip px-4 py-1.5 rounded-full text-sm font-semibold bg-blue-600 text-white transition-colors">
+                                All
+                            </button>
+                            <button id="bank_filter_not_merged" onclick="setBankFilter('not_merged')"
+                                    class="bank-filter-chip px-4 py-1.5 rounded-full text-sm font-semibold text-gray-600 bg-gray-100 hover:bg-gray-200 transition-colors">
+                                Not Merged
+                            </button>
+                            <button id="bank_filter_merged" onclick="setBankFilter('merged')"
+                                    class="bank-filter-chip px-4 py-1.5 rounded-full text-sm font-semibold text-gray-600 bg-gray-100 hover:bg-gray-200 transition-colors">
+                                Merged
+                            </button>
                         </div>
                     </div>
-                </header>
-                <div class="px-5 py-4 border-b border-gray-100 space-y-3">
-                    <input id="bank_filter_input" type="text" placeholder="All fields filter input"
-                           onkeyup="filterBankPayments()"
-                           class="w-full rounded-xl border border-gray-200 px-4 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
-                    <div class="flex gap-2">
-                        <button id="bank_filter_all" onclick="setBankFilter('all')" 
-                                class="bank-filter-chip px-4 py-1.5 rounded-full text-sm font-semibold text-gray-600 bg-gray-100 hover:bg-gray-200 transition-colors">
-                            All
-                        </button>
-                        <button id="bank_filter_not_merged" onclick="setBankFilter('not_merged')" 
-                                class="bank-filter-chip px-4 py-1.5 rounded-full text-sm font-semibold bg-blue-600 text-white transition-colors">
-                            Not Merged
-                        </button>
-                        <button id="bank_filter_merged" onclick="setBankFilter('merged')" 
-                                class="bank-filter-chip px-4 py-1.5 rounded-full text-sm font-semibold text-gray-600 bg-gray-100 hover:bg-gray-200 transition-colors">
-                            Merged
-                        </button>
+                    <div class="relative">
+                        <input id="bank_filter_input" type="text" placeholder="All fields filter input"
+                               onkeyup="filterBankPayments()"
+                               class="w-full rounded-xl border border-gray-200 px-4 py-2 pr-8 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+                        <button type="button" onclick="document.getElementById('bank_filter_input').value=''; filterBankPayments();"
+                                class="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 text-lg font-bold">&times;</button>
                     </div>
                 </div>
-                <div id="bank_payments_list" class="flex-1 overflow-y-auto px-5 py-4 space-y-4 custom-scroll"></div>
+                <div id="bank_payments_list" class="flex-1 overflow-y-auto px-2 py-2 space-y-4 custom-scroll"></div>
             </section>
 
             <!-- DB Column -->
-            <section class="flex-1 min-w-0 bg-white rounded-2xl shadow-xl border border-gray-200 flex flex-col min-h-0">
-                <header class="px-5 py-4 border-b border-gray-100">
-                    <div class="flex items-center justify-between">
-                        <div>
-                            <p class="text-xs font-semibold uppercase text-gray-400 tracking-wide">DB Payments</p>
-                            <p class="text-2xl font-bold text-gray-900"><span id="db_payments_count">0</span> items</p>
+            <section class="flex-1 min-w-0 border border-gray-200 dark:border-gray-700 flex flex-col min-h-0">
+                <div class="px-2 py-2 border-b border-gray-100 space-y-3">
+                    <div class="flex flex-wrap items-center justify-between gap-2">
+                        <div class="flex items-center gap-2 text-sm font-semibold text-gray-600">
+                            <span class="text-xs font-semibold uppercase text-gray-400 tracking-wide">DB Payments</span>
+                            <span class="text-gray-500">(</span>
+                            <span id="db_payments_count">0</span>
+                            <span class="text-gray-500">total)</span>
+                            <span id="db_matched_count" class="hidden">0</span>
                         </div>
-                        <div class="inline-flex items-center gap-2 bg-gray-50 px-3 py-1 rounded-full text-sm text-gray-500">
-                            <span class="h-2 w-2 rounded-full bg-violet-500"></span>
-                            <span id="db_matched_badge">0 matched</span>
-                        </div>
+                        <div id="db_filter_buttons" class="flex gap-2"></div>
                     </div>
-                </header>
-                <div class="px-5 py-4 border-b border-gray-100 space-y-3">
-                    <input id="db_filter_input" type="text" placeholder="All fields filter input"
-                           onkeyup="filterDBPayments()"
-                           class="w-full rounded-xl border border-gray-200 px-4 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
-                    <div id="db_filter_buttons" class="flex gap-2"></div>
+                    <div class="relative">
+                        <input id="db_filter_input" type="text" placeholder="All fields filter input"
+                               onkeyup="filterDBPayments()"
+                               class="w-full rounded-xl border border-gray-200 px-4 py-2 pr-8 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+                        <button type="button" onclick="document.getElementById('db_filter_input').value=''; filterDBPayments();"
+                                class="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 text-lg font-bold">&times;</button>
+                    </div>
                 </div>
-                <div id="db_payments_list" class="flex-1 overflow-y-auto px-5 py-4 space-y-4 custom-scroll"></div>
+                <div id="db_payments_list" class="flex-1 overflow-y-auto px-2 py-2 space-y-4 custom-scroll"></div>
             </section>
         </div>
 
-        <!-- Merge Button -->
-        <div id="merge_bar" class="flex justify-end pt-2 pb-2 flex-none">
-            <button id="merge_button" onclick="mergeSelectedPayments()"
-                    class="inline-flex items-center gap-2 px-6 py-3 rounded-2xl bg-gradient-to-r from-blue-600 to-indigo-600 text-white font-semibold shadow-lg hover:from-blue-700 hover:to-indigo-700 transition">
-                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
-                Merge Selection
-            </button>
-        </div>
+    </div>
+    <!-- Merge Footer -->
+    <div id="merge_bar" class="flex justify-end items-center px-2 py-1 border-t border-gray-200 bg-gray-50">
+        <button id="merge_button" onclick="mergeSelectedPayments()"
+                class="inline-flex items-center gap-1.5 px-3 py-1 text-sm rounded-md bg-gradient-to-r from-blue-600 to-indigo-600 text-white font-medium shadow-sm hover:from-blue-700 hover:to-indigo-700 transition">
+            ⚡ Merge Selection
+        </button>
     </div>
 </div>
 
@@ -425,8 +453,10 @@
     const STORAGE_KEY_SETTINGS = 'payment_sync_v2_settings';
     const STORAGE_KEY_MATCHING_MODE = 'payment_sync_v2_matching_mode';
     const STORAGE_KEY_MATCH_CACHE = 'payment_sync_v2_match_cache';
+    const PAYMENT_KEY_SEPARATOR = "###||###";
     const MATCH_SELECTION_URL = "{% url 'match_selection_v2' %}";
     const FETCH_DB_URL = "{% url 'fetch_db_payments_for_matching' %}";
+    const FETCH_MERGED_DB_URL = "{% url 'fetch_merged_db_payments_for_file' %}";
 
     // Global data (mutable)
     let db_payments_json = {{ data.db_payments_json|default:"[]"|safe }};
@@ -450,9 +480,9 @@
     // Filter state
     let bank_filter_query = '';
     let db_filter_query = '';
-    let bank_filter_type = 'not_merged';
+    let bank_filter_type = 'all';
     let db_filter_mode = 'all'; // all | manual | ai | both
-    
+
     // Track which matching sources have been loaded
     let loaded_matching_sources = { manual: false, ai: false };
     
@@ -468,16 +498,16 @@
         // Simplest approach: compute list heights directly from viewport
         const bankList = document.getElementById('bank_payments_list');
         const dbList = document.getElementById('db_payments_list');
-        
+
         if (!bankList && !dbList) return;
-        
+
         // Get the top position of the first list to know where content starts
         const refList = bankList || dbList;
         const listTop = refList.getBoundingClientRect().top;
-        
-        // Leave space for merge button (about 70px) and some padding
-        const listHeight = Math.max(200, window.innerHeight - listTop - 80);
-        
+
+        // Merge button is fixed at bottom, leave small padding for fixed button bar
+        const listHeight = Math.max(200, window.innerHeight - listTop - 38);
+
         if (bankList) {
             bankList.style.height = listHeight + 'px';
             bankList.style.maxHeight = listHeight + 'px';
@@ -561,15 +591,15 @@
 
         // Update AI button
         const aiIcon = loaded_matching_sources.ai 
-            ? `<svg class="w-4 h-4 ${aiIconColor}" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>`
-            : `<svg class="w-4 h-4 ${aiIconColor}" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>`;
+            ? `<span class="${aiIconColor} text-base leading-none">✓</span>`
+            : `<span class="${aiIconColor} text-base leading-none">⚡</span>`;
         const aiText = loaded_matching_sources.ai ? 'AI Loaded' : 'Match with AI';
         btnAI.innerHTML = `${aiIcon} ${aiText}`;
 
         // Update Manual button
         const manualIcon = loaded_matching_sources.manual
-            ? `<svg class="w-4 h-4 ${manualIconColor}" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>`
-            : `<svg class="w-4 h-4 ${manualIconColor}" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"></path></svg>`;
+            ? `<span class="${manualIconColor} text-base leading-none">✓</span>`
+            : `<span class="${manualIconColor} text-base leading-none">🧾</span>`;
         const manualText = loaded_matching_sources.manual ? 'Manual Loaded' : 'Match Manually';
         btnManual.innerHTML = `${manualIcon} ${manualText}`;
     }
@@ -679,20 +709,23 @@
             // If user explicitly asked for demo, clear old data and start fresh
             const params = new URLSearchParams(window.location.search || '');
             const isDemo = params.get('demo') === '1';
+            // Check if server provided fresh db_payments (from demo or CSV upload)
+            const serverProvidedDbPayments = db_payments_json && db_payments_json.length > 0;
+            
             if (isDemo) {
                 localStorage.removeItem(STORAGE_KEY_FILE_PAYMENTS);
                 localStorage.removeItem(STORAGE_KEY_DB_PAYMENTS);
                 localStorage.removeItem(STORAGE_KEY_MATCHING_MODE);
                 localStorage.removeItem(STORAGE_KEY_MATCH_CACHE);
-                // Reset loaded sources and clear DB payments for fresh demo
+                // Reset loaded sources but keep server-provided DB payments
                 loaded_matching_sources = { manual: false, ai: false };
-                db_payments_json = [];
+                // Don't clear db_payments_json if server provided it
                 selected_bank_payments = new Set();
                 selected_db_payments = new Set();
                 current_selection_key = '';
             }
 
-            // If we have new file payments from server (CSV upload), clear DB payments
+            // If we have new file payments from server (CSV upload), clear cached state
             const hasNewFilePayments = file_payments_json && file_payments_json.length > 0;
             const hasStoredFilePayments = storedPayments && JSON.parse(storedPayments).length > 0;
             
@@ -701,8 +734,7 @@
                 const storedIds = JSON.parse(storedPayments).map(p => p.id).sort().join(',');
                 const currentIds = file_payments_json.map(p => p.id).sort().join(',');
                 if (storedIds !== currentIds) {
-                    // New file uploaded - clear all local cache state except settings
-                    db_payments_json = [];
+                    // New file uploaded - clear cached state but keep server-provided DB payments
                     loaded_matching_sources = { manual: false, ai: false };
                     current_selection_key = '';
                     selected_bank_payments = new Set();
@@ -721,11 +753,12 @@
                 localStorage.setItem(STORAGE_KEY_FILE_PAYMENTS, JSON.stringify(file_payments_json));
             }
 
-            // Load DB payments from localStorage if not already loaded from server
-            if ((!db_payments_json || db_payments_json.length === 0) && storedDBPayments && !isDemo) {
+            // Load DB payments from localStorage only if server didn't provide any
+            if (!serverProvidedDbPayments && storedDBPayments && !isDemo) {
                 const parsed = JSON.parse(storedDBPayments);
                 if (Array.isArray(parsed)) db_payments_json = parsed;
-            } else if (db_payments_json && db_payments_json.length > 0 && !isDemo) {
+            } else if (db_payments_json && db_payments_json.length > 0) {
+                // Save server-provided DB payments to localStorage for future sessions
                 localStorage.setItem(STORAGE_KEY_DB_PAYMENTS, JSON.stringify(db_payments_json));
             }
 
@@ -812,6 +845,7 @@
 
         normalizeLocalFilePaymentsForUI();
         normalizeDBPaymentsForUI();
+        refreshMergedBankPaymentsFromDB();
         ensureNewPaymentPlaceholder();
         saveToLocalStorage();
 
@@ -822,15 +856,23 @@
         renderDBPayments();
         updateCounts();
         requestAnimationFrame(fitPageToViewport);
+
+        loadMergedDBPaymentsForFile().then(() => {
+            renderBankPayments();
+            renderDBPayments();
+            updateCounts();
+        });
     }
     
     function updateCounts() {
-        const bankNotMerged = file_payments_json.filter(p => !p.is_merged).length;
-        const dbMatched = db_payments_json.filter(p => p.id !== 'new' && p.is_matched).length;
+        const bankMerged = file_payments_json.filter(p => p.is_merged).length;
         document.getElementById('bank_payments_count').textContent = file_payments_json.length;
-        document.getElementById('db_payments_count').textContent = db_payments_json.length - 1;
-        document.getElementById('bank_not_merged_badge').textContent = `${bankNotMerged} not merged`;
-        document.getElementById('db_matched_badge').textContent = `${dbMatched} matched`;
+        document.getElementById('bank_merged_count').textContent = bankMerged;
+    }
+
+    function setDbCounts(total, matched) {
+        document.getElementById('db_payments_count').textContent = total;
+        document.getElementById('db_matched_count').textContent = matched;
     }
 
     // Bank Payments Functions
@@ -864,6 +906,7 @@
             const isMerged = payment.is_merged;
             const amountColor = parseFloat(payment.amount) >= 0 ? 'text-green-600' : 'text-red-600';
             
+            const isOut = payment.payment_type_name && payment.payment_type_name.includes('Out');
             html += `
                 <div class="border-2 ${isSelected ? 'border-blue-500 bg-blue-50' : 'border-gray-200'} rounded-xl overflow-hidden hover:shadow-lg transition-all duration-200 bg-white cursor-pointer"
                      onclick="toggleBankPayment('${payment.id}')">
@@ -876,19 +919,26 @@
                                class="mt-1.5 w-5 h-5 text-blue-600 rounded border-gray-300 focus:ring-2 focus:ring-blue-500 cursor-pointer">
                         
                         <div class="flex-1 min-w-0">
-                            <!-- Header with Amount and Status -->
+                            <!-- Header with Amount and Tags -->
                             <div class="flex items-start justify-between mb-3">
                                 <div>
                                     <div class="text-2xl font-bold ${amountColor}">
                                         $${Math.abs(parseFloat(payment.amount)).toFixed(2)}
                                     </div>
-                                    <div class="text-xs text-gray-500 mt-1">
-                                        ${payment.payment_type_name || 'Unknown Type'}
-                                    </div>
                                 </div>
-                                <span class="px-3 py-1 text-xs font-bold rounded-full ${isMerged ? 'bg-green-100 text-green-700' : 'bg-orange-100 text-orange-700'}">
-                                    ${isMerged ? '✓ Merged' : '⚠ Not Merged'}
-                                </span>
+                                <div class="flex flex-wrap gap-1 items-center justify-end">
+                                    <span class="px-2 py-1 text-xs font-bold rounded-full ${isMerged ? 'bg-green-100 text-green-700' : 'bg-orange-100 text-orange-700'}">
+                                        ${isMerged ? '✓ Merged' : '⚠ Not Merged'}
+                                    </span>
+                                    <span class="px-2 py-1 text-xs font-semibold rounded-full ${isOut ? 'bg-red-100 text-red-700' : 'bg-blue-100 text-blue-700'}">
+                                        ${payment.payment_type_name || 'Unknown'}
+                                    </span>
+                                    ${payment.payment_method_name ? `
+                                        <span class="px-2 py-1 text-xs font-semibold rounded-full bg-purple-100 text-purple-700">
+                                            ${payment.payment_method_name}
+                                        </span>
+                                    ` : ''}
+                                </div>
                             </div>
                             
                             <!-- Payment Details Grid -->
@@ -909,12 +959,12 @@
                                 </div>
                                 ` : ''}
                                 
-                                ${payment.payment_method_name ? `
+                                ${payment.tenant_name ? `
                                 <div class="flex items-center text-sm">
                                     <svg class="w-4 h-4 mr-2 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z"></path>
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"></path>
                                     </svg>
-                                    <span class="text-gray-700"><strong>Method:</strong> ${payment.payment_method_name}</span>
+                                    <span class="text-gray-700"><strong>Tenant:</strong> ${payment.tenant_name}</span>
                                 </div>
                                 ` : ''}
                                 
@@ -1009,13 +1059,17 @@
         const hasSelection = !!current_selection_key;
         const manualCandidates = hasSelection ? normalizeCachedCandidateList(getCachedMatch(current_selection_key, 'manual')) : [];
         const aiCandidates = hasSelection ? normalizeCachedCandidateList(getCachedMatch(current_selection_key, 'ai')) : [];
+        const mergedSelectionMatches = hasSelection ? getMergedDBPaymentsForSelectedBank() : [];
+        const usingMergedSelection = hasSelection && mergedSelectionMatches.length > 0;
 
         let matchInfoById = {};
         let filtered = [];
 
         const newPlaceholder = (db_payments_json || []).find(p => p && p.id === 'new');
 
-        if (candidateMode === 'all') {
+        if (usingMergedSelection) {
+            filtered = mergedSelectionMatches;
+        } else if (candidateMode === 'all') {
             filtered = db_payments_json || [];
         } else if (!hasSelection) {
             container.innerHTML = `
@@ -1024,7 +1078,9 @@
                     <p class="text-sm">Pick 1+ bank payments, then use the merge buttons above.</p>
                 </div>
             `;
-            updateCounts();
+            const allCount = (Array.isArray(db_payments_json) ? db_payments_json.filter(p => p && p.id !== 'new').length : 0);
+            const matchedCount = (Array.isArray(db_payments_json) ? db_payments_json.filter(p => p && p.id !== 'new' && p.is_matched).length : 0);
+            setDbCounts(allCount, matchedCount);
             return;
         } else {
             if (candidateMode === 'manual' && manualCandidates.length > 0) {
@@ -1081,7 +1137,7 @@
                         <p class="text-sm">Run a merge action (manual / AI / both) to populate suggestions.</p>
                     </div>
                 `;
-                updateCounts();
+                setDbCounts(0, 0);
                 return;
             }
 
@@ -1109,11 +1165,12 @@
                     <p class="text-sm">Select bank payments and use merge actions to load suggestions.</p>
                 </div>
             `;
-            updateCounts();
+            setDbCounts(0, 0);
             return;
         }
         if (filtered.length === 0) {
             container.innerHTML = '<div class="text-center py-8 text-gray-500"><svg class="w-12 h-12 mx-auto mb-3 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4"></path></svg><p class="font-medium">No payments found</p></div>';
+            setDbCounts(0, 0);
             return;
         }
         
@@ -1147,11 +1204,6 @@
                                     </div>
                                 </div>
                                 
-                                <div class="p-3 bg-white rounded-lg border-2 border-green-200">
-                                    <div class="text-sm text-gray-700">
-                                        Select this option along with bank payment(s) to create a new payment entry in the database.
-                                    </div>
-                                </div>
                             </div>
                         </div>
                     </div>
@@ -1175,18 +1227,15 @@
                                class="mt-1.5 w-5 h-5 text-blue-600 rounded border-gray-300 focus:ring-2 focus:ring-blue-500 cursor-pointer">
                         
                         <div class="flex-1 min-w-0">
-                            <!-- Header with ID, Amount and Status -->
+                            <!-- Header with ID, Amount and Tags -->
                             <div class="flex items-start justify-between mb-3">
                                 <div>
-                                    <div class="text-xs font-bold text-gray-400 mb-1">ID #${payment.id}</div>
+                                    <a href="/payments/?q=id=${payment.id}" target="_blank" onclick="event.stopPropagation()" class="text-xs font-bold text-blue-500 hover:text-blue-700 hover:underline mb-1 inline-block">ID #${payment.id}</a>
                                     <div class="text-2xl font-bold ${amountColor}">
                                         ${amountPrefix}$${Math.abs(parseFloat(payment.amount)).toFixed(2)}
                                     </div>
-                                    <div class="text-xs text-gray-500 mt-1">
-                                        ${payment_types_dictionary[payment.payment_type] || 'Unknown Type'}
-                                    </div>
                                 </div>
-                                <div class="flex flex-col gap-1 items-end">
+                                <div class="flex flex-wrap gap-1 items-center justify-end">
                                     ${payment.payment_status ? `
                                         <span class="px-2 py-1 text-xs font-semibold rounded-full ${
                                             payment.payment_status === 'Confirmed' ? 'bg-green-100 text-green-700' : 
@@ -1194,6 +1243,14 @@
                                             'bg-gray-100 text-gray-700'
                                         }">
                                             ${payment.payment_status}
+                                        </span>
+                                    ` : ''}
+                                    <span class="px-2 py-1 text-xs font-semibold rounded-full ${payment_type_obj.type === 'Out' ? 'bg-red-100 text-red-700' : 'bg-blue-100 text-blue-700'}">
+                                        ${payment.payment_type_name || payment_types_dictionary[payment.payment_type] || 'Unknown'}
+                                    </span>
+                                    ${payment.payment_method_name ? `
+                                        <span class="px-2 py-1 text-xs font-semibold rounded-full bg-purple-100 text-purple-700">
+                                            ${payment.payment_method_name}
                                         </span>
                                     ` : ''}
                                 </div>
@@ -1208,57 +1265,44 @@
                                     <span class="font-medium text-gray-700">${formatDate(payment.payment_date)}</span>
                                 </div>
                                 
-                                ${payment.apartment_name ? `
+                                ${(payment.apartment_name || payment.tenant_name || payment.booking) ? `
                                 <div class="flex items-center text-sm">
                                     <svg class="w-4 h-4 mr-2 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"></path>
                                     </svg>
-                                    <span class="text-gray-700"><strong>Apt:</strong> ${payment.apartment_name}</span>
+                                    <span class="text-gray-700">
+                                        ${payment.apartment_name ? `<strong>Apt:</strong> ${payment.apartment_name}` : ''}${payment.apartment_name && (payment.tenant_name || payment.booking) ? '. ' : ''}${(payment.tenant_name || payment.booking) ? `<strong>Tenant:</strong> ${payment.tenant_name || 'N/A'}` : ''}
+                                    </span>
                                 </div>
                                 ` : ''}
                                 
-                                ${payment.tenant_name ? `
-                                <div class="flex items-center text-sm">
-                                    <svg class="w-4 h-4 mr-2 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"></path>
-                                    </svg>
-                                    <span class="text-gray-700"><strong>Tenant:</strong> ${payment.tenant_name}</span>
-                                </div>
-                                ` : ''}
-                                
-                                ${payment.payment_method ? `
-                                <div class="flex items-center text-sm">
-                                    <svg class="w-4 h-4 mr-2 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z"></path>
-                                    </svg>
-                                    <span class="text-gray-700"><strong>Method:</strong> ${payment_methods_dictionary[payment.payment_method] || 'N/A'}</span>
-                                </div>
-                                ` : ''}
-                                
-                                ${payment.notes ? `
-                                <div class="mt-3 p-3 bg-gray-50 rounded-lg border border-gray-200">
-                                    <div class="flex items-start">
-                                        <svg class="w-4 h-4 mr-2 mt-0.5 text-gray-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
-                                        </svg>
-                                        <span class="text-sm text-gray-600 leading-relaxed">${payment.notes}</span>
-                                    </div>
-                                </div>
-                                ` : ''}
-                                
-                                ${(candidateMode !== 'all' && matchInfoById[String(payment.id)]) ? buildMatchBlocksHtml(matchInfoById[String(payment.id)], candidateMode) : `
-                                    <div class="mt-3 p-3 bg-indigo-50 rounded-lg border border-indigo-200">
-                                        <div class="text-xs font-bold text-indigo-700 mb-2 flex items-center">
-                                            <svg class="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"></path>
+                                ${(payment.notes || (candidateMode !== 'all' && matchInfoById[String(payment.id)]) || payment.matched_criteria) ? `
+                                <div class="mt-3 flex items-start gap-2">
+                                    ${payment.notes ? `
+                                    <div class="flex-1 p-3 bg-gray-50 rounded-lg border border-gray-200">
+                                        <div class="flex items-start">
+                                            <svg class="w-4 h-4 mr-2 mt-0.5 text-gray-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
                                             </svg>
-                                            Matched Criteria
-                                        </div>
-                                        <div class="text-xs text-indigo-600">
-                                            ${payment.matched_criteria || 'No matching criteria set yet'}
+                                            <span class="text-sm text-gray-600 leading-relaxed">${payment.notes}</span>
                                         </div>
                                     </div>
-                                `}
+                                    ` : '<div class="flex-1"></div>'}
+                                    ${(candidateMode !== 'all' && matchInfoById[String(payment.id)]) || payment.matched_criteria ? `
+                                    <button type="button" onclick="event.stopPropagation(); toggleMatchCriteria(${payment.id})" class="px-2 py-1 rounded-full bg-indigo-100 hover:bg-indigo-200 text-indigo-600 transition-colors text-sm flex-shrink-0" title="Show match criteria">
+                                        📋
+                                    </button>
+                                    ` : ''}
+                                </div>
+                                ` : ''}
+                                
+                                ${(candidateMode !== 'all' && matchInfoById[String(payment.id)]) ? buildCollapsibleMatchContentHtml(matchInfoById[String(payment.id)], candidateMode, payment.id) : (payment.matched_criteria ? `
+                                    <div id="match-criteria-${payment.id}" class="hidden mt-2 p-2 bg-indigo-50 rounded-lg border border-indigo-200">
+                                        <div class="text-xs text-indigo-600">
+                                            ${payment.matched_criteria}
+                                        </div>
+                                    </div>
+                                ` : '')}
                             </div>
                         </div>
                     </div>
@@ -1267,7 +1311,17 @@
         });
         
         container.innerHTML = html;
-        updateCounts();
+        const visibleDb = filtered.filter(p => p && p.id !== 'new');
+        const totalVisible = visibleDb.length;
+        let matchedVisible = 0;
+        if (usingMergedSelection) {
+            matchedVisible = totalVisible;
+        } else if (hasSelection && candidateMode !== 'all') {
+            matchedVisible = totalVisible;
+        } else {
+            matchedVisible = (Array.isArray(db_payments_json) ? db_payments_json.filter(p => p && p.id !== 'new' && p.is_matched).length : 0);
+        }
+        setDbCounts(totalVisible, matchedVisible);
     }
     
     function filterDBPayments() {
@@ -1334,6 +1388,56 @@
         `;
     }
 
+    function buildCollapsibleMatchContentHtml(matchInfo, mode, paymentId) {
+        const hasManual = !!matchInfo?.manual;
+        const hasAI = !!matchInfo?.ai;
+        const combined = matchInfo?.combined_score;
+
+        let header = '';
+        if (mode === 'both' && (hasManual || hasAI)) {
+            const combinedText = (typeof combined === 'number') ? combined.toFixed(1) : String(combined ?? '');
+            header = `<div class="text-xs font-bold text-indigo-700 mb-2">Combined score: ${combinedText}</div>`;
+        }
+
+        const blocks = [];
+        if (hasManual) {
+            blocks.push(`
+                <div class="p-2 rounded-lg border border-blue-200 bg-blue-50">
+                    <div class="flex items-center justify-between mb-1">
+                        <div class="text-xs font-bold text-blue-700">Manual</div>
+                        <div class="text-xs font-bold text-blue-800">${matchInfo.manual.score}</div>
+                    </div>
+                    <div class="text-xs text-blue-700">${escapeHtml(matchInfo.manual.criteria || '')}</div>
+                </div>
+            `);
+        }
+        if (hasAI) {
+            blocks.push(`
+                <div class="p-2 rounded-lg border border-green-200 bg-green-50">
+                    <div class="flex items-center justify-between mb-1">
+                        <div class="text-xs font-bold text-green-700">AI</div>
+                        <div class="text-xs font-bold text-green-800">${matchInfo.ai.score}</div>
+                    </div>
+                    <div class="text-xs text-green-700">${escapeHtml(matchInfo.ai.criteria || '')}</div>
+                </div>
+            `);
+        }
+
+        return `
+            <div id="match-criteria-${paymentId}" class="hidden mt-2 p-2 bg-indigo-50 rounded-lg border border-indigo-200 space-y-2">
+                ${header}
+                ${blocks.join('')}
+            </div>
+        `;
+    }
+
+    function toggleMatchCriteria(paymentId) {
+        const el = document.getElementById('match-criteria-' + paymentId);
+        if (el) {
+            el.classList.toggle('hidden');
+        }
+    }
+
     function extractAIMatchFileId(matchedCriteria) {
         if (!matchedCriteria) return null;
         const s = String(matchedCriteria);
@@ -1347,6 +1451,88 @@
         const m = s.match(/Merged with Bank Payment\(s\):\s*(.*)$/i);
         if (!m || !m[1]) return [];
         return m[1].split(',').map(x => x.trim()).filter(Boolean);
+    }
+
+    function splitMergedPaymentKey(key) {
+        if (!key) return [];
+        return String(key).split(PAYMENT_KEY_SEPARATOR).map(x => x.trim()).filter(Boolean);
+    }
+
+    function getMergedDBPaymentsForSelectedBank() {
+        if (!Array.isArray(db_payments_json) || !Array.isArray(file_payments_json)) return [];
+        const selectedIds = Array.from(selected_bank_payments || []).map(String);
+        if (!selectedIds.length) return [];
+
+        const selectedBankPayments = file_payments_json.filter(p => p && selectedIds.includes(String(p.id)));
+        const mergedSelected = selectedBankPayments.filter(p => p && p.is_merged);
+        if (!mergedSelected.length) return [];
+
+        const selectedKeys = mergedSelected
+            .map(p => p.merged_payment_key)
+            .filter(Boolean)
+            .map(String);
+
+        const byId = new Map();
+        db_payments_json.forEach(p => {
+            if (!p || p.id === 'new') return;
+            const selectedMatch = isManualMatchForSelectedBank(p, selectedIds);
+            let keyMatch = false;
+            if (!selectedMatch && selectedKeys.length > 0) {
+                const parts = splitMergedPaymentKey(p.merged_payment_key);
+                keyMatch = parts.some(part => selectedKeys.includes(part));
+            }
+            if (selectedMatch || keyMatch) {
+                byId.set(String(p.id), p);
+            }
+        });
+        return Array.from(byId.values());
+    }
+
+    function refreshMergedBankPaymentsFromDB() {
+        if (!Array.isArray(db_payments_json) || !Array.isArray(file_payments_json)) return;
+        const mergedKeys = new Set();
+        db_payments_json.forEach(p => {
+            if (!p || p.id === 'new') return;
+            if (!p.merged_payment_key) return;
+            if (p.payment_status && String(p.payment_status).toLowerCase() !== 'merged') return;
+            splitMergedPaymentKey(p.merged_payment_key).forEach(k => mergedKeys.add(k));
+        });
+        if (!mergedKeys.size) return;
+        file_payments_json.forEach(p => {
+            if (!p || !p.merged_payment_key) return;
+            if (mergedKeys.has(String(p.merged_payment_key))) {
+                p.is_merged = true;
+            }
+        });
+    }
+
+    function loadMergedDBPaymentsForFile() {
+        if (!Array.isArray(file_payments_json) || file_payments_json.length === 0) return Promise.resolve([]);
+        const payload = { file_payments: file_payments_json };
+        return fetch(FETCH_MERGED_DB_URL, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': getCSRFToken(),
+            },
+            body: JSON.stringify(payload),
+        })
+        .then(r => r.json())
+        .then(data => {
+            if (data.error) throw new Error(data.error);
+            const newDBPayments = Array.isArray(data.db_payments) ? data.db_payments : [];
+            if (newDBPayments.length > 0) {
+                mergeDBPayments(newDBPayments);
+                normalizeDBPaymentsForUI();
+                refreshMergedBankPaymentsFromDB();
+                saveToLocalStorage();
+            }
+            return newDBPayments;
+        })
+        .catch(err => {
+            console.error(err);
+            return [];
+        });
     }
 
     function isAIMatchForSelectedBank(dbPayment, selectedBankIds) {
@@ -1376,10 +1562,6 @@
 
         if (!hasSelection) {
             db_filter_mode = 'all';
-        } else {
-            if (db_filter_mode === 'manual' && !hasManual) db_filter_mode = 'all';
-            if (db_filter_mode === 'ai' && !hasAI) db_filter_mode = 'all';
-            if (db_filter_mode === 'both' && !hasBoth) db_filter_mode = 'all';
         }
 
         const chipBase = 'db-filter-chip px-4 py-1.5 rounded-full text-sm font-semibold transition-colors';
@@ -1389,9 +1571,9 @@
 
         const chips = [
             { id: 'all', label: 'All', enabled: true },
-            { id: 'manual', label: 'Manual', enabled: hasSelection && hasManual },
-            { id: 'ai', label: 'AI', enabled: hasSelection && hasAI },
-            { id: 'both', label: 'Both', enabled: hasSelection && hasBoth },
+            { id: 'manual', label: 'Manual', enabled: hasSelection },
+            { id: 'ai', label: 'AI', enabled: hasSelection },
+            { id: 'both', label: 'Both', enabled: hasSelection },
         ];
 
         container.innerHTML = chips.map(c => {
@@ -1540,6 +1722,61 @@
         mergeSelectionMatch('both', '');
     }
 
+    function reloadDbPayments() {
+        if (!Array.isArray(file_payments_json) || file_payments_json.length === 0) {
+            alert('No file payments loaded. Please upload a CSV file or load mock data first.');
+            return;
+        }
+
+        showLoading('Reloading DB Payments…', 'Fetching payments from database for the period');
+
+        const payload = {
+            matching_mode: 'manual',
+            file_payments: file_payments_json,
+            db_days_before: document.getElementById('db_days_before').value,
+            db_days_after: document.getElementById('db_days_after').value,
+            with_confirmed: document.getElementById('with_confirmed').checked,
+        };
+
+        fetch(FETCH_DB_URL, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': getCSRFToken(),
+            },
+            body: JSON.stringify(payload),
+        })
+        .then(r => r.json())
+        .then(data => {
+            hideLoading();
+            if (data.error) {
+                alert('Error: ' + data.error);
+                return;
+            }
+
+            const newDbPayments = Array.isArray(data.db_payments) ? data.db_payments : [];
+            
+            // Merge new DB payments into db_payments_json
+            mergeDBPayments(newDbPayments);
+            normalizeDBPaymentsForUI();
+            refreshMergedBankPaymentsFromDB();
+            
+            // Re-render lists
+            renderDBPayments();
+            renderBankPayments();
+            
+            // Save to local storage
+            saveToLocalStorage();
+
+            alert(`Reloaded ${newDbPayments.length} DB payments for the period.`);
+        })
+        .catch(err => {
+            hideLoading();
+            console.error('Error reloading DB payments:', err);
+            alert('Failed to reload DB payments: ' + err.message);
+        });
+    }
+
     function mergeSelectionMatch(mode, aiCustomPrompt) {
         if (!selected_bank_payments || selected_bank_payments.size === 0) {
             alert('Select at least one bank payment first.');
@@ -1611,13 +1848,20 @@
             if (data.error) throw new Error(data.error);
             const matchedPayments = Array.isArray(data.matched_payments) ? data.matched_payments : [];
 
+            const manualMatches = matchedPayments.filter(x => String(x?.type).toLowerCase() === 'manual');
+            const aiMatches = matchedPayments.filter(x => String(x?.type).toLowerCase() === 'ai');
+
             if (mode === 'manual') {
-                setCachedMatch(selectionKey, 'manual', matchedPayments.filter(x => String(x?.type).toLowerCase() === 'manual'));
+                setCachedMatch(selectionKey, 'manual', manualMatches);
+                if (manualMatches.length > 0) loaded_matching_sources.manual = true;
             } else if (mode === 'ai') {
-                setCachedMatch(selectionKey, 'ai', matchedPayments.filter(x => String(x?.type).toLowerCase() === 'ai'));
+                setCachedMatch(selectionKey, 'ai', aiMatches);
+                if (aiMatches.length > 0) loaded_matching_sources.ai = true;
             } else if (mode === 'both') {
-                setCachedMatch(selectionKey, 'manual', matchedPayments.filter(x => String(x?.type).toLowerCase() === 'manual'));
-                setCachedMatch(selectionKey, 'ai', matchedPayments.filter(x => String(x?.type).toLowerCase() === 'ai'));
+                setCachedMatch(selectionKey, 'manual', manualMatches);
+                setCachedMatch(selectionKey, 'ai', aiMatches);
+                if (manualMatches.length > 0) loaded_matching_sources.manual = true;
+                if (aiMatches.length > 0) loaded_matching_sources.ai = true;
             }
 
             // Build/refresh the "All" list from candidate db_payments
@@ -1629,6 +1873,9 @@
                 mergeDBPayments(dbFromCandidates);
                 normalizeDBPaymentsForUI();
                 ensureNewPaymentPlaceholder();
+                saveToLocalStorage();
+            }
+            if (loaded_matching_sources.manual || loaded_matching_sources.ai) {
                 saveToLocalStorage();
             }
 
@@ -1804,6 +2051,7 @@
         }
         
         db_payments_json = merged;
+        refreshMergedBankPaymentsFromDB();
     }
     
     // Utility Functions

@@ -252,8 +252,62 @@ def build_demo_matching_data():
     ]
     
     # DB payments will be loaded via "Match Manually" or "Match with AI" buttons
-    # Start with empty DB payments - user can click Match buttons to populate
-    db_payments = []
+    # Seed merged payments from real DB data (last 2 merged)
+    merged_qs = Payment.objects.filter(payment_status='Merged').order_by('-id')[:2]
+    merged_payments = list(merged_qs)
+    seeded_file_payments = []
+    seeded_db_payments = []
+    for p in merged_payments:
+        if not p or not p.merged_payment_key:
+            continue
+        keys = [k.strip() for k in str(p.merged_payment_key).split(PAYMENT_KEY_SEPARATOR) if k.strip()]
+        first_key = keys[0] if keys else str(p.merged_payment_key)
+
+        apartment_name = ''
+        if hasattr(p, 'apartmentName'):
+            apartment_name = p.apartmentName or ''
+        elif getattr(p, 'apartment', None):
+            apartment_name = p.apartment.name or ''
+
+        seeded_file_payments.append({
+            "id": f"bank-merged-{p.id}",
+            "amount": float(p.amount or 0),
+            "payment_date": p.payment_date.isoformat() if p.payment_date else None,
+            "notes": p.notes or f"Merged payment #{p.id}",
+            "apartment_name": apartment_name or None,
+            "payment_method": p.payment_method.id if p.payment_method else None,
+            "payment_method_name": p.payment_method.name if p.payment_method else None,
+            "bank": p.bank.id if p.bank else None,
+            "bank_name": p.bank.name if p.bank else None,
+            "payment_type": p.payment_type.id if p.payment_type else None,
+            "payment_type_name": f"{p.payment_type.name} ({p.payment_type.type})" if p.payment_type else None,
+            "payment_type_type": p.payment_type.type if p.payment_type else None,
+            "merged_payment_key": first_key,
+            "is_merged": True,
+        })
+
+        db_payment = _payment_to_rich_dict(p)
+        db_payment["is_matched"] = True
+        db_payment["matched_criteria"] = db_payment.get("matched_criteria") or "Merged payment from DB"
+        seeded_db_payments.append(db_payment)
+
+    if seeded_file_payments:
+        file_payments = seeded_file_payments + file_payments
+    db_payments = seeded_db_payments
+
+    # Query all DB payments for period based on file dates + config days
+    db_days_before = 30
+    db_days_after = 30
+    start_date, end_date = extract_date_range(file_payments)
+    if start_date and end_date:
+        all_db_qs = query_db_payments_custom(start_date, end_date, db_days_before, db_days_after, with_confirmed=False)
+        all_db_payments_list = get_json_list(all_db_qs)
+        # Merge seeded merged payments with all db payments (avoid duplicates)
+        existing_ids = {p.get('id') for p in all_db_payments_list}
+        for p in db_payments:
+            if p.get('id') not in existing_ids:
+                all_db_payments_list.append(p)
+        db_payments = all_db_payments_list
     
     return {
         'file_payments_json': json.dumps(file_payments),
@@ -329,12 +383,21 @@ def process_csv_upload(request):
             'payment_types': get_json(payment_types),
         }
 
+    # Query all DB payments for period based on file dates + config days
+    serialized_file_payments = [serialize_payment(p) for p in file_payments]
+    start_date, end_date = extract_date_range(serialized_file_payments)
+    db_payments_list = []
+    if start_date and end_date:
+        all_db_qs = query_db_payments_custom(start_date, end_date, db_days_before, db_days_after, with_confirmed)
+        db_payments_list = get_json_list(all_db_qs)
+    _log("process_csv_upload.db_payments", rid=rid, count=len(db_payments_list))
+
     return {
-        'file_payments_json': json.dumps([serialize_payment(p) for p in file_payments], default=str),
-        'db_payments_json': json.dumps([]),
+        'file_payments_json': json.dumps(serialized_file_payments, default=str),
+        'db_payments_json': json.dumps(db_payments_list),
         'matched_groups': json.dumps([]),
         'total_file_payments': len(file_payments),
-        'total_db_payments': 0,
+        'total_db_payments': len(db_payments_list),
         'model_fields': get_model_fields(PaymentForm(request)),
         'amount_delta': amount_delta,
         'date_delta': date_delta,
@@ -406,6 +469,22 @@ def get_json_list(db_model):
             item['bank_name'] = original_obj.bank.name
         else:
             item['bank_name'] = None
+        # Add payment_type_name and payment_type_obj
+        if hasattr(original_obj, 'payment_type') and original_obj.payment_type:
+            item['payment_type_name'] = f"{original_obj.payment_type.name} ({original_obj.payment_type.type})"
+            item['payment_type_obj'] = {
+                'id': original_obj.payment_type.id,
+                'name': original_obj.payment_type.name,
+                'type': original_obj.payment_type.type,
+            }
+        else:
+            item['payment_type_name'] = None
+            item['payment_type_obj'] = None
+        # Add payment_method_name
+        if hasattr(original_obj, 'payment_method') and original_obj.payment_method:
+            item['payment_method_name'] = original_obj.payment_method.name
+        else:
+            item['payment_method_name'] = None
 
     return items_list
 
@@ -431,6 +510,27 @@ def normalize_file_payments_for_matching(file_payments):
                 p2['payment_type_type'] = payment_type_map.get(int(pt_id))
         normalized.append(p2)
     return normalized
+
+
+def _extract_merged_keys_from_file_payments(file_payments):
+    keys = []
+    for p in file_payments or []:
+        key = p.get('merged_payment_key')
+        if not key:
+            continue
+        keys.append(str(key).strip())
+    return [k for k in keys if k]
+
+
+def _query_merged_db_payments_for_keys(keys):
+    if not keys:
+        return Payment.objects.none()
+    q = Q()
+    for key in keys:
+        q |= Q(merged_payment_key__icontains=key)
+    return Payment.objects.filter(payment_status='Merged').filter(q).select_related(
+        'payment_type', 'payment_method', 'apartment', 'booking__tenant', 'bank'
+    )
 
 
 def apply_ai_suggestions_to_db_payments(db_payments_list, matched_groups):
@@ -503,6 +603,14 @@ def fetch_db_payments_for_matching(request):
 
     db_payments_qs = query_db_payments_custom(start_date, end_date, db_days_before, db_days_after, with_confirmed)
     db_payments_list = get_json_list(db_payments_qs)
+    merged_keys = _extract_merged_keys_from_file_payments(file_payments)
+    merged_db_qs = _query_merged_db_payments_for_keys(merged_keys)
+    merged_db_list = get_json_list(merged_db_qs)
+    if merged_db_list:
+        existing_ids = {p.get('id') for p in db_payments_list}
+        for p in merged_db_list:
+            if p.get('id') not in existing_ids:
+                db_payments_list.append(p)
     _trace_event(
         request,
         "fetch_db_payments_for_matching.db_payments_list",
@@ -563,6 +671,34 @@ def fetch_db_payments_for_matching(request):
         'matched_groups': serialize_matched_groups(matched_groups),
     }
     _trace_event(request, "fetch_db_payments_for_matching.response_json", resp)
+    return JsonResponse(resp)
+
+
+@user_has_role('Admin')
+def fetch_merged_db_payments_for_file(request):
+    if request.method != 'POST':
+        return JsonResponse({'error': 'Method not allowed'}, status=405)
+
+    try:
+        data = json.loads(request.body.decode('utf-8') or '{}')
+    except Exception:
+        return JsonResponse({'error': 'Invalid JSON'}, status=400)
+
+    rid = _request_id(request)
+    _trace_event(request, "fetch_merged_db_payments_for_file.request_json", data)
+    file_payments = data.get('file_payments') or []
+    merged_keys = _extract_merged_keys_from_file_payments(file_payments)
+    _log(
+        "fetch_merged_db_payments_for_file.enter",
+        rid=rid,
+        file_payments=len(file_payments),
+        merged_keys=len(merged_keys),
+    )
+
+    merged_db_qs = _query_merged_db_payments_for_keys(merged_keys)
+    merged_db_list = get_json_list(merged_db_qs)
+    resp = {'db_payments': merged_db_list}
+    _trace_event(request, "fetch_merged_db_payments_for_file.response_json", resp)
     return JsonResponse(resp)
 
 
@@ -710,6 +846,7 @@ def _payment_to_rich_dict(p):
         'booking': p.booking.id if p.booking else None,
         'tenant_name': tenant_name or '',
         'payment_status': p.payment_status or '',
+        'merged_payment_key': p.merged_payment_key or '',
         'notes': p.notes or '',
         'keywords': p.keywords or '',
     }
@@ -1282,40 +1419,35 @@ def parse_csv_file(request, csv_file, payment_methods, apartments, payment_types
     """Parse CSV file and extract payment data"""
     rid = _request_id(request)
     file_data = csv_file.read().decode("utf-8")
-    lines = file_data.split("\n")
-    
-    # Preprocess lines
-    corrected_lines = [preprocess_csv_line(line) for line in lines if line.strip()]
-    reader = csv.reader(corrected_lines)
-    lines_list = list(reader)
-    
+    lines = [line for line in file_data.splitlines() if line.strip()]
+
     # Find header row
-    try:
-        start_index = next(
-            i for i, line in enumerate(lines_list) 
-            if 'Date' in line and 'Description' in line and 'Amount' in line and 'Running Bal.' in line
-        ) + 1
-    except StopIteration:
+    start_index = None
+    for i, line in enumerate(lines):
+        if _is_payment_header_line(line):
+            start_index = i + 1
+            break
+
+    if start_index is None:
         messages.error(request, "CSV file does not contain the expected header.")
         _log("parse_csv_file.no_header", rid=rid, filename=getattr(csv_file, "name", None))
         return []
-    
+
     payment_data = []
-    
+
     # Process each line
-    for idx, parts in enumerate(lines_list[start_index:], start=start_index):
-        if not parts or all(not part.strip() for part in parts):
+    for idx, line in enumerate(lines[start_index:], start=start_index):
+        if not line or not line.strip():
             continue
-        
         try:
-            payment = parse_csv_row(parts, idx, payment_methods, apartments, payment_types)
+            payment = parse_csv_row(line, idx, payment_methods, apartments, payment_types)
             if payment:
                 payment_data.append(payment)
         except Exception as e:
             messages.warning(request, f"Error parsing row {idx}: {str(e)}")
             _log("parse_csv_file.row_error", rid=rid, row=idx, error=str(e))
             continue
-    
+
     _log("parse_csv_file.done", rid=rid, parsed=len(payment_data))
     return payment_data
 
@@ -1330,39 +1462,45 @@ def preprocess_csv_line(line):
     return corrected_line
 
 
-def parse_csv_row(parts, idx, payment_methods, apartments, payment_types):
+def parse_csv_row(line, idx, payment_methods, apartments, payment_types):
     """Parse a single CSV row into payment data"""
-    date = parts[0]
-    description = parts[1]
-    amount = parts[2] if len(parts) > 2 else ''
-    running_bal = parts[3] if len(parts) > 3 else ''
-    
+    parsed = _split_payment_csv_line(line)
+    if not parsed:
+        return None
+
+    date_str, description, amount_str, running_bal = parsed
+
     # Parse amount
-    amount_float = float(amount.strip()) if amount.strip() else 0.0
+    amount_float = _parse_amount_value(amount_str)
     if amount_float == 0:
         return None
-    
+
     # Determine payment type based on amount
     if amount_float > 0:
         payment_type = payment_types.filter(name="Other", type="In").first()
     else:
         payment_type = payment_types.filter(name="Other", type="Out").first()
-    
+
     # Match payment method
     payment_method_to_assign = match_payment_method(description, payment_methods)
-    
+
     # Match apartment
     apartment_to_assign = match_apartment(description, apartments)
-    
+
     # Extract ID if present
     extracted_id = extract_id_from_description(description)
-    
+
     # Get bank
     ba_bank = payment_methods.filter(name="BA").first()
-    
+
+    parsed_date = parse_payment_date(date_str.strip())
+    if not parsed_date:
+        raise ValueError(f"Unsupported date format: {date_str}")
+    payment_date = parsed_date if isinstance(parsed_date, datetime) else datetime.combine(parsed_date, datetime.min.time())
+
     return {
         'id': extracted_id or f'id_{idx}',
-        'payment_date': datetime.strptime(date.strip(), '%m/%d/%Y'),
+        'payment_date': payment_date,
         'payment_type': payment_type.id,
         'payment_type_name': f'{payment_type.name} ({payment_type.type})',
         'payment_type_type': payment_type.type,
@@ -1370,12 +1508,83 @@ def parse_csv_row(parts, idx, payment_methods, apartments, payment_types):
         'amount': abs(amount_float),
         'payment_method': payment_method_to_assign.id if payment_method_to_assign else None,
         'payment_method_name': payment_method_to_assign.name if payment_method_to_assign else None,
-        'merged_payment_key': generate_payment_key(date.strip(), amount_float, description.strip()),
+        'merged_payment_key': generate_payment_key(date_str.strip(), amount_float, description.strip()),
         'bank': ba_bank.id if ba_bank else None,
         'bank_name': ba_bank.name if ba_bank else None,
         'apartment': apartment_to_assign.id if apartment_to_assign else None,
         'apartment_name': apartment_to_assign.name if apartment_to_assign else None,
     }
+
+
+def _is_payment_header_line(line):
+    normalized = line.replace('"', '').strip().lower()
+    if not normalized.startswith('date,description,amount'):
+        return False
+    return 'running' in normalized
+
+
+def _strip_wrapping_quotes(value):
+    if value is None:
+        return ''
+    s = str(value).strip()
+    if len(s) >= 2 and s[0] == '"' and s[-1] == '"':
+        return s[1:-1]
+    return s
+
+
+def _parse_amount_value(value):
+    s = _strip_wrapping_quotes(value).replace(',', '').strip()
+    if not s:
+        return 0.0
+    is_paren_negative = s.startswith('(') and s.endswith(')')
+    if is_paren_negative:
+        s = s[1:-1].strip()
+    try:
+        amount = float(s)
+    except Exception:
+        return 0.0
+    return -amount if is_paren_negative else amount
+
+
+def _split_payment_csv_line(line):
+    raw = (line or '').strip()
+    if not raw:
+        return None
+
+    # Try CSV parsing first (handles proper quoting)
+    try:
+        row = next(csv.reader([raw]))
+    except Exception:
+        row = None
+
+    if row and len(row) >= 4:
+        date_str = row[0]
+        amount_str = row[-2] if len(row) >= 2 else ''
+        running_bal = row[-1] if len(row) >= 1 else ''
+        if len(row) > 4:
+            description = ','.join(row[1:-2])
+        else:
+            description = row[1]
+        return date_str, description, amount_str, running_bal
+
+    # Fallback: split by last two comma-separated numeric fields
+    base_match = re.match(r'^\s*([^,]+)\s*,(.*)\s*$', raw)
+    if not base_match:
+        return None
+    date_str = base_match.group(1).strip()
+    rest = base_match.group(2)
+
+    tail_match = re.match(
+        r'^(?P<desc>.*),(?P<amount>"?[-\d,().]*"?),(?P<running>"?[-\d,().]*"?)\s*$',
+        rest,
+    )
+    if not tail_match:
+        return None
+
+    description = _strip_wrapping_quotes(tail_match.group('desc'))
+    amount_str = tail_match.group('amount')
+    running_bal = tail_match.group('running')
+    return date_str, description, amount_str, running_bal
 
 
 def match_payment_method(description, payment_methods):
@@ -1742,6 +1951,7 @@ def serialize_matched_groups(matched_groups):
                     'booking': db_payment.booking.id if db_payment.booking else None,
                     'tenant_name': db_payment.booking.tenant.full_name if (db_payment.booking and db_payment.booking.tenant) else '',
                     'payment_status': db_payment.payment_status or '',
+                    'merged_payment_key': db_payment.merged_payment_key or '',
                 },
                 'score': match['score'],
                 'match_type': match['match_type'],

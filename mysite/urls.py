@@ -30,6 +30,7 @@ urlpatterns = [
     path('payments-sync-v2/', views.sync_payments_v2, name='sync_payments_v2'),
     path('payments-sync-v2/fetch-db-payments/', views.fetch_db_payments_for_matching, name='fetch_db_payments_for_matching'),
     path('payments-sync-v2/match-selection/', views.match_selection_v2, name='match_selection_v2'),
+    path('payments-sync-v2/fetch-merged-db-payments/', views.fetch_merged_db_payments_for_file, name='fetch_merged_db_payments_for_file'),
     path('booking-availability/', views.booking_availability, name='booking_availability'),
     path('create-booking/', views.create_booking_by_link, name='create_booking_by_link'),
     path('handyman_calendar/', views.handyman_calendar, name='handyman_calendar'),
