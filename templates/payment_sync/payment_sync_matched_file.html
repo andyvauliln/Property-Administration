@@ -350,7 +350,7 @@
             if (merged_payment.merged_payment_key !== "") {
                 merged_payment.merged_payment_key += PAYMENT_KEY_SEPARATOR;
             }
-            merged_payment.merged_payment_key += formatDateTime(file_payment.payment_date)  + file_payment.amount + file_payment.notes;
+            merged_payment.merged_payment_key += (file_payment.merged_payment_key || (formatDateTime(file_payment.payment_date) + file_payment.amount + file_payment.notes));
             console.log(merged_payment.merged_payment_key, "merged_payment_key");
           
             merged_payment.id = String(merged_payment.id);
@@ -388,7 +388,7 @@
             if (merged_payment.merged_payment_key !== "") {
                 merged_payment.merged_payment_key += PAYMENT_KEY_SEPARATOR;
             }
-            merged_payment.merged_payment_key += formatDateTime(file_payment.payment_date)  + file_payment.amount + file_payment.notes;
+            merged_payment.merged_payment_key += (file_payment.merged_payment_key || (formatDateTime(file_payment.payment_date) + file_payment.amount + file_payment.notes));
             
           
         });

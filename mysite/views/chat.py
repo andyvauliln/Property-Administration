@@ -14,11 +14,12 @@ import json
 
 
 MANAGER_PHONE = "+15612205252"
+MANAGER_PHONE_2 = "+15614603904"
 ASSISTANT_IDENTITY = "ASSISTANT"
 # This is the projected address used for the assistant participant in Twilio Conversations.
 ASSISTANT_PROJECTED_PHONE = "+13153524379"
 # Other system phones that can appear as authors.
-SYSTEM_PHONES = {"+13153524379", "+17282001917", MANAGER_PHONE}
+SYSTEM_PHONES = {"+13153524379", "+17282001917", MANAGER_PHONE, MANAGER_PHONE_2}
 
 
 def _is_e164(value: str) -> bool:
@@ -71,7 +72,7 @@ def _build_conversation_participants(conversation):
         pass
 
     # Ensure we always include manager + assistant.
-    raw_candidates.extend([MANAGER_PHONE, ASSISTANT_IDENTITY])
+    raw_candidates.extend([MANAGER_PHONE, MANAGER_PHONE_2, ASSISTANT_IDENTITY])
 
     raw_candidates = _dedupe_preserve_order([str(x).strip() for x in raw_candidates if str(x).strip()])
 
@@ -103,7 +104,7 @@ def _build_conversation_participants(conversation):
             name = None
             if tenant_phone and raw == tenant_phone and tenant_name:
                 name = tenant_name
-            elif raw == MANAGER_PHONE:
+            elif raw in (MANAGER_PHONE, MANAGER_PHONE_2):
                 # Prefer a real user name if present, fallback to "Manager"
                 u = users_by_phone.get(raw)
                 name = (u.full_name or "").strip() if u and u.full_name else "Manager"
@@ -465,7 +466,7 @@ def get_conversation_display_info(conversation):
         # If no booking info, try to get tenant phone from messages
         if not display_info['has_booking']:
             # Get customer phone numbers (excluding system phones)
-            system_phones = ["+13153524379", "+17282001917"]
+            system_phones = list(SYSTEM_PHONES)
             system_identities = ["ASSISTANT"]
             
             customer_messages = conversation.messages.exclude(

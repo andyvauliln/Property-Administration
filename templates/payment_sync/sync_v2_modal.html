@@ -161,6 +161,37 @@
 </div>
 
 <script>
+    function uniqNonEmptyStrings(values) {
+        const out = [];
+        const seen = new Set();
+        (values || []).forEach(v => {
+            const s = String(v ?? '').trim();
+            if (!s) return;
+            if (seen.has(s)) return;
+            seen.add(s);
+            out.push(s);
+        });
+        return out;
+    }
+
+    function getFileApartmentCandidates(p) {
+        if (!p) return [];
+        return uniqNonEmptyStrings([p.apartment_name, ...(p.apartment_candidates || [])]);
+    }
+
+    function getFileTenantCandidates(p) {
+        if (!p) return [];
+        return uniqNonEmptyStrings([p.tenant_name, ...(p.tenant_candidates || [])]);
+    }
+
+    function formatCandidatesInline(list, max = 3) {
+        const arr = uniqNonEmptyStrings(list);
+        if (!arr.length) return '';
+        const shown = arr.slice(0, max).join(', ');
+        const more = arr.length > max ? ` +${arr.length - max} more` : '';
+        return `${shown}${more}`;
+    }
+
     // Extract bookings data for filtering
     let bookingsDataSync = [];
     {% for field_name, field_instance in data.model_fields %}
@@ -241,7 +272,10 @@
         
         // Update info display
         document.getElementById('info_db_payment').textContent = db_payment ? `#${db_payment.id}` : 'New';
-        document.getElementById('info_file_payment').textContent = `${formatDate(file_payment.payment_date)} - $${file_payment.amount}`;
+        const aptInline = formatCandidatesInline(getFileApartmentCandidates(file_payment), 3);
+        const tenantInline = formatCandidatesInline(getFileTenantCandidates(file_payment), 2);
+        const extra = `${aptInline ? ` | Apt: ${aptInline}` : ''}${tenantInline ? ` | Tenant: ${tenantInline}` : ''}`;
+        document.getElementById('info_file_payment').textContent = `${formatDate(file_payment.payment_date)} - $${file_payment.amount}${extra}`;
         
         // Merge payment data
         const merged_payment = mergePaymentData(db_payment, file_payment, create_mode);
@@ -258,11 +292,21 @@
     }
     
     function mergePaymentData(db_payment, file_payment, create_mode) {
+        const fileApts = getFileApartmentCandidates(file_payment);
+        const fileTenants = getFileTenantCandidates(file_payment);
+        const dbApts = uniqNonEmptyStrings([db_payment?.apartment_name]);
+        const dbTenants = uniqNonEmptyStrings([db_payment?.tenant_name]);
+        const aptCandidates = uniqNonEmptyStrings([...dbApts, ...fileApts]);
+        const tenantCandidates = uniqNonEmptyStrings([...dbTenants, ...fileTenants]);
+
         const merged = {
             id: db_payment ? db_payment.id : file_payment.id,
             file_id: file_payment.id,
             apartment: db_payment?.apartment || file_payment.apartment,
-            apartment_name: db_payment?.apartment_name || file_payment.apartment_name,
+            apartment_name: (aptCandidates.length === 1 ? aptCandidates[0] : (db_payment?.apartment_name || file_payment.apartment_name || '')),
+            apartment_candidates: aptCandidates,
+            tenant_name: (tenantCandidates.length === 1 ? tenantCandidates[0] : (db_payment?.tenant_name || file_payment.tenant_name || '')),
+            tenant_candidates: tenantCandidates,
             booking: db_payment?.booking ?? file_payment.booking ?? null,
             payment_date: file_payment.payment_date,
             amount: Math.abs(file_payment.amount),

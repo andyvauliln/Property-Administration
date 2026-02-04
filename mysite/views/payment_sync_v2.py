@@ -1,5 +1,5 @@
 from django.shortcuts import render
-from ..models import PaymentMethod, Payment, Apartment, PaymenType
+from ..models import PaymentMethod, Payment, Apartment, PaymenType, Booking
 from ..forms import PaymentForm
 from datetime import datetime
 from ..decorators import user_has_role
@@ -169,7 +169,6 @@ def sync_payments_v2(request):
         'data': {
             'amount_delta': 100,
             'date_delta': 4,
-            'with_confirmed': False,
             'db_days_before': 30,
             'db_days_after': 30,
             'file_payments_json': '',
@@ -300,7 +299,7 @@ def build_demo_matching_data():
     db_days_after = 30
     start_date, end_date = extract_date_range(file_payments)
     if start_date and end_date:
-        all_db_qs = query_db_payments_custom(start_date, end_date, db_days_before, db_days_after, with_confirmed=False)
+        all_db_qs = query_db_payments_custom(start_date, end_date, db_days_before, db_days_after)
         all_db_payments_list = get_json_list(all_db_qs)
         # Merge seeded merged payments with all db payments (avoid duplicates)
         existing_ids = {p.get('id') for p in all_db_payments_list}
@@ -317,7 +316,6 @@ def build_demo_matching_data():
         'total_db_payments': len(db_payments),
         'amount_delta': 100,
         'date_delta': 4,
-        'with_confirmed': False,
         'db_days_before': 30,
         'db_days_after': 30,
         'payment_methods': json.dumps(payment_methods),
@@ -342,7 +340,6 @@ def process_csv_upload(request):
     date_delta = int(request.POST.get('date_delta', 4))
     db_days_before = int(request.POST.get('db_days_before', 30))
     db_days_after = int(request.POST.get('db_days_after', 30))
-    with_confirmed = request.POST.get('with_confirmed') == 'on'
     _log(
         "process_csv_upload.settings",
         rid=rid,
@@ -351,7 +348,6 @@ def process_csv_upload(request):
         date_delta=date_delta,
         db_days_before=db_days_before,
         db_days_after=db_days_after,
-        with_confirmed=with_confirmed,
     )
     
     # Load reference data
@@ -374,7 +370,6 @@ def process_csv_upload(request):
             'date_delta': date_delta,
             'db_days_before': db_days_before,
             'db_days_after': db_days_after,
-            'with_confirmed': with_confirmed,
             'total_file_payments': 0,
             'total_db_payments': 0,
             'model_fields': get_model_fields(PaymentForm(request)),
@@ -383,12 +378,23 @@ def process_csv_upload(request):
             'payment_types': get_json(payment_types),
         }
 
+    # Enrich file payments with booking-derived apartment candidates (same window as matching)
+    start_date_raw, end_date_raw = extract_date_range(file_payments)
+    if start_date_raw and end_date_raw:
+        date_from = start_date_raw - timedelta(days=int(db_days_before))
+        date_to = end_date_raw + timedelta(days=int(db_days_after))
+        bookings_qs = Booking.objects.filter(
+            start_date__lte=date_to,
+            end_date__gte=date_from,
+        ).select_related("tenant", "apartment")
+        file_payments = enrich_file_payments_with_booking_apartments(file_payments, list(bookings_qs))
+
     # Query all DB payments for period based on file dates + config days
     serialized_file_payments = [serialize_payment(p) for p in file_payments]
     start_date, end_date = extract_date_range(serialized_file_payments)
     db_payments_list = []
     if start_date and end_date:
-        all_db_qs = query_db_payments_custom(start_date, end_date, db_days_before, db_days_after, with_confirmed)
+        all_db_qs = query_db_payments_custom(start_date, end_date, db_days_before, db_days_after)
         db_payments_list = get_json_list(all_db_qs)
     _log("process_csv_upload.db_payments", rid=rid, count=len(db_payments_list))
 
@@ -403,7 +409,6 @@ def process_csv_upload(request):
         'date_delta': date_delta,
         'db_days_before': db_days_before,
         'db_days_after': db_days_after,
-        'with_confirmed': with_confirmed,
         'payment_methods': get_json(payment_methods),
         'apartments': get_json(apartments),
         'payment_types': get_json(payment_types),
@@ -435,19 +440,17 @@ def extract_date_range(file_payments):
     return min(dates), max(dates)
 
 
-def query_db_payments_custom(start_date, end_date, db_days_before, db_days_after, with_confirmed):
+def query_db_payments_custom(start_date, end_date, db_days_before, db_days_after):
+    """Query all DB payments in date range (all statuses)."""
     if start_date is None or end_date is None:
         return Payment.objects.none()
 
     date_from = start_date - timedelta(days=int(db_days_before))
     date_to = end_date + timedelta(days=int(db_days_after))
 
-    qs = Payment.objects.filter(payment_date__range=(date_from, date_to)).select_related(
+    return Payment.objects.filter(payment_date__range=(date_from, date_to)).select_related(
         'payment_type', 'payment_method', 'apartment', 'booking__tenant', 'bank'
     )
-    if with_confirmed:
-        return qs
-    return qs.filter(payment_status='Pending')
 
 
 def get_json_list(db_model):
@@ -457,7 +460,8 @@ def get_json_list(db_model):
 
     for item, original_obj in zip(items_list, db_model):
         if hasattr(original_obj, 'booking') and original_obj.booking:
-            item["tenant_name"] = original_obj.booking.tenant.full_name
+            tenant = getattr(original_obj.booking, 'tenant', None)
+            item["tenant_name"] = (getattr(tenant, 'full_name', '') or '') if tenant else ''
         else:
             item["tenant_name"] = ""
         if hasattr(original_obj, 'apartmentName'):
@@ -518,8 +522,38 @@ def _extract_merged_keys_from_file_payments(file_payments):
         key = p.get('merged_payment_key')
         if not key:
             continue
-        keys.append(str(key).strip())
-    return [k for k in keys if k]
+        keys.extend(_split_merged_payment_key(key))
+    return _unique_non_empty(keys)
+
+
+def _split_merged_payment_key(value):
+    if not value:
+        return []
+    parts = str(value).split(PAYMENT_KEY_SEPARATOR)
+    return [p.strip() for p in parts if str(p).strip()]
+
+
+def _generate_merged_payment_key_from_payment_info(payment_info):
+    """
+    Prefer UI-provided merged_payment_key.
+    If missing, generate with the SAME format as CSV parsing:
+      MM/DD/YYYY + normalized_amount + notes
+    """
+    provided = payment_info.get('merged_payment_key')
+    if provided and str(provided).strip():
+        return str(provided).strip()
+
+    # Prefer original file fields if present
+    date_value = payment_info.get('file_date') or payment_info.get('payment_date')
+    amount_value = payment_info.get('file_amount') or payment_info.get('amount')
+    notes_value = payment_info.get('file_notes') or payment_info.get('notes') or ''
+
+    d = _parse_iso_or_mdy_date(date_value)
+    if not d:
+        return ''
+    date_formatted = d.strftime('%m/%d/%Y').zfill(10)
+    amount_norm = remove_trailing_zeros_from_str(str(_safe_float(amount_value, 0.0)))
+    return date_formatted + amount_norm + str(notes_value)
 
 
 def _query_merged_db_payments_for_keys(keys):
@@ -578,7 +612,6 @@ def fetch_db_payments_for_matching(request):
     file_payments = data.get('file_payments') or []
     db_days_before = int(data.get('db_days_before', 30))
     db_days_after = int(data.get('db_days_after', 30))
-    with_confirmed = bool(data.get('with_confirmed', False))
 
     _log(
         "fetch_db_payments_for_matching.enter",
@@ -587,7 +620,6 @@ def fetch_db_payments_for_matching(request):
         file_payments=len(file_payments),
         db_days_before=db_days_before,
         db_days_after=db_days_after,
-        with_confirmed=with_confirmed,
     )
 
     start_date, end_date = extract_date_range(file_payments)
@@ -601,7 +633,7 @@ def fetch_db_payments_for_matching(request):
         {"start_date": start_date, "end_date": end_date},
     )
 
-    db_payments_qs = query_db_payments_custom(start_date, end_date, db_days_before, db_days_after, with_confirmed)
+    db_payments_qs = query_db_payments_custom(start_date, end_date, db_days_before, db_days_after)
     db_payments_list = get_json_list(db_payments_qs)
     merged_keys = _extract_merged_keys_from_file_payments(file_payments)
     merged_db_qs = _query_merged_db_payments_for_keys(merged_keys)
@@ -762,6 +794,7 @@ def _build_composite_from_selected_file_payments(selected_file_payments):
     amounts = []
     dates = []
     apartments = []
+    tenants = []
     methods = []
     banks = []
     notes_list = []
@@ -773,6 +806,11 @@ def _build_composite_from_selected_file_payments(selected_file_payments):
         if d:
             dates.append(d)
         apartments.append(p.get('apartment_name') or '')
+        for cand in (p.get('apartment_candidates') or []):
+            apartments.append(cand)
+        tenants.append(p.get('tenant_name') or '')
+        for cand in (p.get('tenant_candidates') or []):
+            tenants.append(cand)
         methods.append(p.get('payment_method_name') or '')
         banks.append(p.get('bank_name') or '')
         notes_list.append(p.get('notes') or '')
@@ -784,10 +822,12 @@ def _build_composite_from_selected_file_payments(selected_file_payments):
     date_to = max(dates) if dates else None
 
     apt_candidates = _unique_non_empty(apartments)
+    tenant_candidates = _unique_non_empty(tenants)
     method_candidates = _unique_non_empty(methods)
     bank_candidates = _unique_non_empty(banks)
 
     apartment_name = apt_candidates[0] if len(apt_candidates) == 1 else ''
+    tenant_name = tenant_candidates[0] if len(tenant_candidates) == 1 else ''
     payment_method_name = method_candidates[0] if len(method_candidates) == 1 else ''
     bank_name = bank_candidates[0] if len(bank_candidates) == 1 else ''
 
@@ -800,7 +840,11 @@ def _build_composite_from_selected_file_payments(selected_file_payments):
         'date_from': date_from,
         'date_to': date_to,
         'apartment_name': apartment_name,
-        'apartment_candidates': apt_candidates if apartment_name == '' else [],
+        # ALWAYS include candidates (even when unique) so matching never loses info.
+        'apartment_candidates': apt_candidates,
+        'tenant_name': tenant_name,
+        # ALWAYS include candidates (even when unique) so matching never loses info.
+        'tenant_candidates': tenant_candidates,
         'payment_method_name': payment_method_name,
         'payment_method_candidates': method_candidates if payment_method_name == '' else [],
         'bank_name': bank_name,
@@ -860,15 +904,29 @@ def _tokenize(s):
     return set(parts)
 
 
-def _manual_score_db_payment(db_payment_obj, composite, amount_delta):
+def _manual_score_db_payment(db_payment_obj, composite, amount_delta, date_delta=4):
     """
-    Returns (score, match_type, criteria) or None (filtered out).
+    Returns a dict with score breakdown, or None (filtered out).
+    
+    Scoring:
+    - Amount: 20 if diff <= amount_delta, 0 if more
+    - Date: 20 if diff <= date_delta, 0 if more
+    - Apartment: 20 if matched
+    - Tenant: 20 if matched
+    - Bank: 0 pts, but -30 penalty if not BA or Null
+    - Payment Type: 20 if matched and not "Other", 5 if "Other" matched
+    - Payment Method: 5 if matched
+    - Keywords: 50 if payment.keywords matched
     """
     # Type filter (hard) when direction is known
     direction = composite.get('direction')
     if direction and db_payment_obj.payment_type and db_payment_obj.payment_type.type != direction:
         return None
 
+    breakdown_details = []
+    penalties = []
+
+    # --- Amount scoring ---
     amount_total = float(composite.get('amount_total') or 0)
     db_amount = float(db_payment_obj.amount or 0)
     selected_count = int(composite.get('selected_count') or 1)
@@ -878,132 +936,256 @@ def _manual_score_db_payment(db_payment_obj, composite, amount_delta):
     if delta_amount <= 0:
         delta_amount = 1.0
 
-    # Amount score: 0..45
-    if diff_amount > delta_amount:
-        amount_score = max(0.0, 45.0 - (diff_amount - delta_amount) * 2.0)
+    if diff_amount <= delta_amount:
+        amount_score = 20.0
     else:
-        amount_score = 45.0 * (1.0 - (diff_amount / delta_amount))
+        amount_score = 0.0
+    
+    breakdown_details.append({
+        'field': 'amount',
+        'label': 'Amount',
+        'value': f"diff ${diff_amount:.2f}",
+        'score': amount_score,
+        'max': 20,
+        'matched': diff_amount <= delta_amount,
+    })
 
-    # Date score: 0..30
+    # --- Date scoring ---
     d = db_payment_obj.payment_date
     date_from = composite.get('date_from')
     date_to = composite.get('date_to')
     date_score = 0.0
-    date_reason = ''
+    date_diff_days = None
+    
     if d and date_from and date_to:
         if date_from <= d <= date_to:
-            date_score = 30.0
-            date_reason = f"date inside range {date_from.isoformat()}..{date_to.isoformat()}"
+            date_diff_days = 0
+            date_score = 20.0
         else:
-            # distance to nearest edge
-            dist = (date_from - d).days if d < date_from else (d - date_to).days
-            date_score = max(0.0, 30.0 - float(abs(dist)) * 2.0)
-            date_reason = f"date {d.isoformat()} is {abs(dist)}d outside range"
-    else:
-        date_reason = "missing date"
+            date_diff_days = (date_from - d).days if d < date_from else (d - date_to).days
+            if abs(date_diff_days) <= date_delta:
+                date_score = 20.0
+            else:
+                date_score = 0.0
+    
+    breakdown_details.append({
+        'field': 'date',
+        'label': 'Date',
+        'value': f"diff {abs(date_diff_days) if date_diff_days is not None else '?'} days",
+        'score': date_score,
+        'max': 20,
+        'matched': date_score > 0,
+    })
 
-    # Apartment / method / bank scoring: 0..15
-    meta_score = 0.0
-    meta_reasons = []
-
+    # --- Apartment scoring ---
     apt = (db_payment_obj.apartmentName or '').strip() if hasattr(db_payment_obj, 'apartmentName') else ''
     if not apt and getattr(db_payment_obj, 'apartment', None):
         apt = (db_payment_obj.apartment.name or '').strip()
 
     comp_apt = (composite.get('apartment_name') or '').strip()
     comp_apt_candidates = composite.get('apartment_candidates') or []
-    if comp_apt:
-        if apt and apt == comp_apt:
-            meta_score += 8.0
-            meta_reasons.append(f"apt match {apt}")
-    elif comp_apt_candidates:
-        if apt and apt in comp_apt_candidates:
-            meta_score += 6.0
-            meta_reasons.append(f"apt match {apt}")
+    comp_apt_all = _unique_non_empty([comp_apt] + list(comp_apt_candidates))
+    apt_matched = False
+    apt_score = 0.0
+    
+    if apt:
+        if comp_apt_all and apt in comp_apt_all:
+            apt_matched = True
+            apt_score = 20.0
+    
+    breakdown_details.append({
+        'field': 'apartment',
+        'label': 'Apartment',
+        'value': apt if apt else '(none)',
+        'score': apt_score,
+        'max': 20,
+        'matched': apt_matched,
+    })
 
+    # --- Tenant scoring ---
+    tenant_name = ''
+    if getattr(db_payment_obj, 'booking', None) and getattr(db_payment_obj.booking, 'tenant', None):
+        tenant_name = (db_payment_obj.booking.tenant.full_name or '').strip()
+    
+    tenant_score = 0.0
+    tenant_matched = False
+    composite_notes = (composite.get('notes_combined') or '').lower()
+    comp_tenant = (composite.get('tenant_name') or '').strip()
+    comp_tenant_candidates = composite.get('tenant_candidates') or []
+    comp_tenant_all = _unique_non_empty([comp_tenant] + list(comp_tenant_candidates))
+    
+    if tenant_name:
+        # Primary: exact match against selected tenant candidates (if available)
+        if comp_tenant_all and tenant_name in comp_tenant_all:
+            tenant_matched = True
+            tenant_score = 20.0
+        else:
+            # Fallback: token match in notes (legacy behavior)
+            tenant_parts = [p.strip().lower() for p in tenant_name.split() if len(p.strip()) >= 3]
+            if tenant_parts:
+                matches = sum(1 for p in tenant_parts if p in composite_notes)
+                if matches >= 1:
+                    tenant_matched = True
+                    tenant_score = 20.0
+    
+    breakdown_details.append({
+        'field': 'tenant',
+        'label': 'Tenant',
+        'value': tenant_name if tenant_name else '(none)',
+        'score': tenant_score,
+        'max': 20,
+        'matched': tenant_matched,
+    })
+
+    # --- Bank scoring (penalty if not BA or Null) ---
+    db_bank = (db_payment_obj.bank.name if db_payment_obj.bank else '') or ''
+    bank_penalty = 0.0
+    
+    if db_bank and db_bank.upper() != 'BA':
+        bank_penalty = -30.0
+        penalties.append({
+            'field': 'bank',
+            'label': 'Bank',
+            'value': f"not BA ({db_bank})",
+            'penalty': bank_penalty,
+        })
+    else:
+        breakdown_details.append({
+            'field': 'bank',
+            'label': 'Bank',
+            'value': db_bank if db_bank else '(none/BA)',
+            'score': 0,
+            'max': 0,
+            'matched': True if db_bank else False,
+        })
+
+    # --- Payment Type scoring ---
+    pt_score = 0.0
+    pt_matched = False
+    pt_name = ''
+    pt_type = ''
+    
+    if db_payment_obj.payment_type:
+        pt_name = db_payment_obj.payment_type.name or ''
+        pt_type = db_payment_obj.payment_type.type or ''
+        
+        # Check if payment type matches composite direction
+        if direction and pt_type == direction:
+            pt_matched = True
+            if pt_name.lower() != 'other':
+                pt_score = 20.0
+            else:
+                pt_score = 5.0
+    
+    breakdown_details.append({
+        'field': 'payment_type',
+        'label': 'Payment Type',
+        'value': f"{pt_name} ({pt_type})" if pt_name else '(none)',
+        'score': pt_score,
+        'max': 20,
+        'matched': pt_matched,
+    })
+
+    # --- Payment Method scoring ---
+    db_method = (db_payment_obj.payment_method.name if db_payment_obj.payment_method else '') or ''
     comp_method = (composite.get('payment_method_name') or '').strip()
     comp_method_candidates = composite.get('payment_method_candidates') or []
-    db_method = (db_payment_obj.payment_method.name if db_payment_obj.payment_method else '') or ''
-    if comp_method:
-        if db_method and db_method == comp_method:
-            meta_score += 4.0
-            meta_reasons.append(f"method match {db_method}")
-    elif comp_method_candidates:
-        if db_method and db_method in comp_method_candidates:
-            meta_score += 3.0
-            meta_reasons.append(f"method match {db_method}")
+    method_score = 0.0
+    method_matched = False
+    
+    if db_method:
+        if comp_method and db_method.lower() == comp_method.lower():
+            method_matched = True
+            method_score = 5.0
+        elif comp_method_candidates and db_method in comp_method_candidates:
+            method_matched = True
+            method_score = 5.0
+    
+    breakdown_details.append({
+        'field': 'payment_method',
+        'label': 'Payment Method',
+        'value': db_method if db_method else '(none)',
+        'score': method_score,
+        'max': 5,
+        'matched': method_matched,
+    })
 
-    comp_bank = (composite.get('bank_name') or '').strip()
-    comp_bank_candidates = composite.get('bank_candidates') or []
-    db_bank = (db_payment_obj.bank.name if db_payment_obj.bank else '') or ''
-    if comp_bank:
-        if db_bank and db_bank == comp_bank:
-            meta_score += 3.0
-            meta_reasons.append(f"bank match {db_bank}")
-    elif comp_bank_candidates:
-        if db_bank and db_bank in comp_bank_candidates:
-            meta_score += 2.0
-            meta_reasons.append(f"bank match {db_bank}")
+    # --- Keywords scoring (from db_payment.keywords field) ---
+    db_payment_keywords = (db_payment_obj.keywords or '').strip()
+    keywords_score = 0.0
+    matched_keywords = []
+    
+    if db_payment_keywords:
+        # Split keywords and check against composite notes
+        kw_list = [k.strip().lower() for k in db_payment_keywords.split(',') if k.strip()]
+        for kw in kw_list:
+            if kw and len(kw) >= 3 and kw in composite_notes:
+                matched_keywords.append(kw)
+        
+        if matched_keywords:
+            keywords_score = 50.0
+    
+    breakdown_details.append({
+        'field': 'keywords',
+        'label': 'Keywords',
+        'value': ', '.join(matched_keywords) if matched_keywords else (f"({db_payment_keywords[:30]}...)" if db_payment_keywords and len(db_payment_keywords) > 30 else f"({db_payment_keywords})" if db_payment_keywords else '(none)'),
+        'score': keywords_score,
+        'max': 50,
+        'matched': len(matched_keywords) > 0,
+    })
 
-    # Keyword overlap: 0..10
-    composite_tokens = set()
-    composite_tokens |= _tokenize(composite.get('notes_combined') or '')
-    for s in (composite.get('apartment_candidates') or []):
-        composite_tokens |= _tokenize(s)
-    for s in (composite.get('payment_method_candidates') or []):
-        composite_tokens |= _tokenize(s)
-    for s in (composite.get('bank_candidates') or []):
-        composite_tokens |= _tokenize(s)
-    if composite.get('apartment_name'):
-        composite_tokens |= _tokenize(composite.get('apartment_name'))
-    if composite.get('payment_method_name'):
-        composite_tokens |= _tokenize(composite.get('payment_method_name'))
-    if composite.get('bank_name'):
-        composite_tokens |= _tokenize(composite.get('bank_name'))
+    # --- Calculate total ---
+    total = amount_score + date_score + apt_score + tenant_score + pt_score + method_score + keywords_score + bank_penalty
+    total = max(0.0, total)
 
-    db_tokens = set()
-    db_tokens |= _tokenize(db_payment_obj.notes or '')
-    db_tokens |= _tokenize(db_payment_obj.keywords or '')
-    if getattr(db_payment_obj, 'booking', None) and getattr(db_payment_obj.booking, 'tenant', None):
-        db_tokens |= _tokenize(db_payment_obj.booking.tenant.full_name or '')
-        db_tokens |= _tokenize(db_payment_obj.booking.tenant.email or '')
-        db_tokens |= _tokenize(db_payment_obj.booking.tenant.phone or '')
-    if getattr(db_payment_obj, 'apartment', None):
-        db_tokens |= _tokenize(db_payment_obj.apartment.name or '')
-        db_tokens |= _tokenize(db_payment_obj.apartment.keywords or '')
-    if getattr(db_payment_obj, 'payment_type', None):
-        db_tokens |= _tokenize(db_payment_obj.payment_type.name or '')
-        db_tokens |= _tokenize(db_payment_obj.payment_type.keywords or '')
+    # Apply penalty for non-Pending payments (push to end)
+    status_penalty = False
+    payment_status = getattr(db_payment_obj, 'payment_status', None) or ''
+    if payment_status in ('Confirmed', 'Merged'):
+        total = total * 0.5
+        status_penalty = True
+        penalties.append({
+            'field': 'status',
+            'label': 'Status',
+            'value': payment_status,
+            'penalty': -total,  # Already halved
+        })
 
-    overlap = composite_tokens.intersection(db_tokens)
-    overlap_score = min(10.0, float(len(overlap)) * 2.0) if overlap else 0.0
+    # Determine quality
+    if total >= 70:
+        quality = 'high'
+    elif total >= 40:
+        quality = 'medium'
+    else:
+        quality = 'low'
 
-    total = amount_score + date_score + meta_score + overlap_score
-    total = max(0.0, min(100.0, total))
+    # Build criteria string (legacy format for backward compatibility)
+    criteria_parts = []
+    for bd in breakdown_details:
+        criteria_parts.append(f"{bd['label']}: {bd['value']} [{bd['score']:.0f}]")
+    for pen in penalties:
+        criteria_parts.append(f"{pen['label']}: {pen['value']} [{pen['penalty']:.0f}]")
 
-    criteria_parts = [
-        f"composite amount_total={amount_total:.2f} (Δ={delta_amount:.2f}, diff={diff_amount:.2f})",
-    ]
-    if date_from and date_to:
-        criteria_parts.append(f"composite dates={date_from.isoformat()}..{date_to.isoformat()} ({date_reason})")
-    if composite.get('apartment_name'):
-        criteria_parts.append(f"apt={composite.get('apartment_name')}")
-    elif composite.get('apartment_candidates'):
-        criteria_parts.append(f"apts={', '.join(composite.get('apartment_candidates')[:6])}")
-    if composite.get('payment_method_name'):
-        criteria_parts.append(f"method={composite.get('payment_method_name')}")
-    elif composite.get('payment_method_candidates'):
-        criteria_parts.append(f"methods={', '.join(composite.get('payment_method_candidates')[:6])}")
-    if composite.get('bank_name'):
-        criteria_parts.append(f"bank={composite.get('bank_name')}")
-    elif composite.get('bank_candidates'):
-        criteria_parts.append(f"banks={', '.join(composite.get('bank_candidates')[:6])}")
-    if meta_reasons:
-        criteria_parts.append("meta: " + "; ".join(meta_reasons))
-    if overlap:
-        criteria_parts.append("tokens: " + ", ".join(sorted(list(overlap))[:8]))
-
-    return round(total, 2), 'manual_composite', " | ".join(criteria_parts)
+    return {
+        'total': round(total, 2),
+        'match_type': 'manual_composite',
+        'criteria': " | ".join(criteria_parts),
+        'breakdown': {
+            'amount': round(amount_score, 1),
+            'date': round(date_score, 1),
+            'apartment': round(apt_score, 1),
+            'tenant': round(tenant_score, 1),
+            'payment_type': round(pt_score, 1),
+            'payment_method': round(method_score, 1),
+            'keywords': round(keywords_score, 1),
+            'bank_penalty': round(bank_penalty, 1),
+        },
+        'breakdown_details': breakdown_details,
+        'penalties': penalties,
+        'matched_keywords': matched_keywords,
+        'quality': quality,
+        'status_penalty': status_penalty,
+    }
 
 
 def _ai_prefilter_top100(db_payments_qs, composite, amount_delta):
@@ -1034,8 +1216,12 @@ def _ai_prefilter_top100(db_payments_qs, composite, amount_delta):
     composite_tokens = _tokenize(composite.get('notes_combined') or '')
     for s in (composite.get('apartment_candidates') or []):
         composite_tokens |= _tokenize(s)
+    for s in (composite.get('tenant_candidates') or []):
+        composite_tokens |= _tokenize(s)
     if composite.get('apartment_name'):
         composite_tokens |= _tokenize(composite.get('apartment_name'))
+    if composite.get('tenant_name'):
+        composite_tokens |= _tokenize(composite.get('tenant_name'))
     if composite.get('payment_method_name'):
         composite_tokens |= _tokenize(composite.get('payment_method_name'))
     if composite.get('bank_name'):
@@ -1057,10 +1243,11 @@ def _ai_prefilter_top100(db_payments_qs, composite, amount_delta):
         apt = (p.apartmentName or '').strip() if hasattr(p, 'apartmentName') else ''
         if not apt and getattr(p, 'apartment', None):
             apt = (p.apartment.name or '').strip()
-        if composite.get('apartment_name') and apt and apt == composite.get('apartment_name'):
-            score += 10.0
-        elif composite.get('apartment_candidates') and apt and apt in (composite.get('apartment_candidates') or []):
-            score += 7.0
+        comp_apt = (composite.get('apartment_name') or '').strip()
+        comp_apt_candidates = composite.get('apartment_candidates') or []
+        comp_apt_all = _unique_non_empty([comp_apt] + list(comp_apt_candidates))
+        if apt and comp_apt_all and apt in comp_apt_all:
+            score += 10.0 if (comp_apt and apt == comp_apt) else 7.0
 
         # Keyword overlap
         db_tokens = _tokenize(p.notes or '') | _tokenize(p.keywords or '')
@@ -1170,6 +1357,8 @@ def _ai_match_with_openrouter(model, base_prompt, custom_prompt, composite, cand
         'direction': composite.get('direction'),
         'apartment_name': composite.get('apartment_name') or None,
         'apartment_candidates': composite.get('apartment_candidates') or [],
+        'tenant_name': composite.get('tenant_name') or None,
+        'tenant_candidates': composite.get('tenant_candidates') or [],
         'payment_method_name': composite.get('payment_method_name') or None,
         'payment_method_candidates': composite.get('payment_method_candidates') or [],
         'bank_name': composite.get('bank_name') or None,
@@ -1285,8 +1474,8 @@ def match_selection_v2(request):
     selected_file_payments = data.get('selected_file_payments') or []
 
     # Settings / knobs
-    with_confirmed = bool(data.get('with_confirmed', False))
     amount_delta = int(data.get('amount_delta', 100))
+    date_delta = int(data.get('date_delta', 4))
     ai_model = (data.get('ai_model') or 'anthropic/claude-3.5-sonnet').strip()
     ai_base_prompt = (data.get('ai_base_prompt') or data.get('ai_prompt') or '').strip()
     ai_custom_prompt = (data.get('ai_custom_prompt') or '').strip()
@@ -1304,7 +1493,6 @@ def match_selection_v2(request):
         selection_key=selection_key,
         selected_file_ids=len(selected_file_ids),
         selected_file_payments=len(selected_file_payments),
-        with_confirmed=with_confirmed,
         amount_delta=amount_delta,
         ai_model=ai_model,
         ai_custom_prompt_len=len(ai_custom_prompt or ""),
@@ -1317,11 +1505,10 @@ def match_selection_v2(request):
     db_from = composite['date_from'] - timedelta(days=30)
     db_to = composite['date_to'] + timedelta(days=30)
 
+    # Query all payments regardless of status (Confirmed/Merged get score penalty in scoring)
     db_qs = Payment.objects.filter(payment_date__range=(db_from, db_to)).select_related(
         'payment_type', 'payment_method', 'apartment', 'booking__tenant', 'bank'
     )
-    if not with_confirmed:
-        db_qs = db_qs.filter(payment_status='Pending')
     _log("match_selection_v2.db_window", rid=rid, db_from=db_from, db_to=db_to, db_qs_count=db_qs.count())
     _trace_event(request, "match_selection_v2.db_window", {"db_from": db_from, "db_to": db_to, "db_qs_count": db_qs.count()})
 
@@ -1330,18 +1517,23 @@ def match_selection_v2(request):
     if mode in ('manual', 'both'):
         candidates = []
         for p in db_qs:
-            scored = _manual_score_db_payment(p, composite, amount_delta)
+            scored = _manual_score_db_payment(p, composite, amount_delta, date_delta)
             if not scored:
                 continue
-            score, match_type, criteria = scored
-            if score <= 0:
+            if scored['total'] <= 0:
                 continue
             candidates.append({
                 'type': 'manual',
                 'db_payment': _payment_to_rich_dict(p),
-                'score': score,
-                'match_type': match_type,
-                'criteria': criteria,
+                'score': scored['total'],
+                'match_type': scored['match_type'],
+                'criteria': scored['criteria'],
+                'breakdown': scored['breakdown'],
+                'breakdown_details': scored.get('breakdown_details', []),
+                'penalties': scored.get('penalties', []),
+                'matched_keywords': scored['matched_keywords'],
+                'quality': scored['quality'],
+                'status_penalty': scored.get('status_penalty', False),
             })
         candidates.sort(key=lambda c: c.get('score', 0), reverse=True)
         candidates = candidates[:50]
@@ -1452,6 +1644,34 @@ def parse_csv_file(request, csv_file, payment_methods, apartments, payment_types
     return payment_data
 
 
+def enrich_file_payments_with_booking_apartments(file_payments, bookings):
+    """
+    Adds booking-derived apartments into file payment `apartment_candidates`.
+    If after enrichment there is exactly one unique candidate, set `apartment_name`
+    (and keep `apartment` as-is; UI can choose if ambiguous).
+    """
+    for p in file_payments or []:
+        desc = p.get("notes") or ""
+        existing = p.get("apartment_candidates") or []
+        booking_apts, booking_tenants = match_booking_context_candidates(desc, bookings)
+        merged = _unique_non_empty(list(existing) + list(booking_apts))
+        p["apartment_candidates"] = merged
+
+        tenant_existing = (p.get("tenant_candidates") or []) + ([p.get("tenant_name")] if p.get("tenant_name") else [])
+        tenant_merged = _unique_non_empty(list(tenant_existing) + list(booking_tenants))
+        p["tenant_candidates"] = tenant_merged
+        if not p.get("tenant_name"):
+            if len(tenant_merged) == 1:
+                p["tenant_name"] = tenant_merged[0]
+
+        # If we didn't confidently set apartment_name already, set it if unique.
+        if not p.get("apartment_name"):
+            if len(merged) == 1:
+                p["apartment_name"] = merged[0]
+
+    return file_payments
+
+
 def preprocess_csv_line(line):
     """Preprocess CSV line to handle malformed data"""
     splited = line.split(',')
@@ -1475,23 +1695,23 @@ def parse_csv_row(line, idx, payment_methods, apartments, payment_types):
     if amount_float == 0:
         return None
 
-    # Determine payment type based on amount
-    if amount_float > 0:
-        payment_type = payment_types.filter(name="Other", type="In").first()
-    else:
-        payment_type = payment_types.filter(name="Other", type="Out").first()
+    # Determine payment type based on amount + keywords
+    payment_type = match_payment_type(description, amount_float, payment_types)
 
     # Match payment method
     payment_method_to_assign = match_payment_method(description, payment_methods)
 
-    # Match apartment
-    apartment_to_assign = match_apartment(description, apartments)
+    # Match apartment (name/keywords only). Booking-based candidates are added later.
+    apartment_candidates = match_apartment_candidates(description, apartments)
+    apartment_to_assign = apartment_candidates[0] if len(apartment_candidates) == 1 else None
 
     # Extract ID if present
     extracted_id = extract_id_from_description(description)
 
-    # Get bank
-    ba_bank = payment_methods.filter(name="BA").first()
+    # Get bank (PaymentMethod rows with type='Bank')
+    ba_bank = payment_methods.filter(type="Bank", name__iexact="BA").first()
+    if not ba_bank:
+        ba_bank = payment_methods.filter(type="Bank", name__icontains="bank of america").first()
 
     parsed_date = parse_payment_date(date_str.strip())
     if not parsed_date:
@@ -1513,6 +1733,7 @@ def parse_csv_row(line, idx, payment_methods, apartments, payment_types):
         'bank_name': ba_bank.name if ba_bank else None,
         'apartment': apartment_to_assign.id if apartment_to_assign else None,
         'apartment_name': apartment_to_assign.name if apartment_to_assign else None,
+        'apartment_candidates': [a.name for a in apartment_candidates],
     }
 
 
@@ -1593,6 +1814,8 @@ def match_payment_method(description, payment_methods):
     
     # Check for direct name match
     for payment_method in payment_methods:
+        if getattr(payment_method, "type", None) != "Payment Method":
+            continue
         if payment_method.name.lower() in description_lower:
             return payment_method
     
@@ -1602,6 +1825,8 @@ def match_payment_method(description, payment_methods):
     
     # Check for keyword match
     for payment_method in payment_methods:
+        if getattr(payment_method, "type", None) != "Payment Method":
+            continue
         if payment_method.keywords:
             keywords_array = [keyword.strip() for keyword in payment_method.keywords.split(",")]
             if any(keyword.strip().lower() in description_lower for keyword in keywords_array):
@@ -1610,11 +1835,194 @@ def match_payment_method(description, payment_methods):
     return None
 
 
+def match_payment_type(description, amount_float, payment_types):
+    """
+    Choose PaymenType based on:
+    - direction from amount sign (In if >0 else Out)
+    - keyword/name hits in the description
+    - fallback to Other (In/Out)
+    """
+    description_lower = (description or "").strip().lower()
+    direction = "In" if amount_float > 0 else "Out"
+
+    candidates = payment_types.filter(type=direction)
+
+    # 1) direct name match
+    for pt in candidates:
+        if pt.name and pt.name.strip().lower() in description_lower:
+            return pt
+
+    # 2) keyword match - pick best by (hit count, longest hit)
+    best = None
+    best_hits = 0
+    best_longest = 0
+    for pt in candidates:
+        if not pt.keywords:
+            continue
+        kws = [k.strip() for k in pt.keywords.split(",") if k.strip()]
+        hits = [kw for kw in kws if kw.lower() in description_lower]
+        if not hits:
+            continue
+        longest = max(len(h) for h in hits)
+        if len(hits) > best_hits or (len(hits) == best_hits and longest > best_longest):
+            best = pt
+            best_hits = len(hits)
+            best_longest = longest
+
+    if best:
+        return best
+
+    # 3) default
+    other = payment_types.filter(name="Other", type=direction).first()
+    if other:
+        return other
+    return candidates.first()
+
+
+def _normalize_match_text(s):
+    return (str(s or "")).strip().lower()
+
+
+def _split_keywords_csv(value):
+    if not value:
+        return []
+    return [k.strip().lower() for k in str(value).split(",") if k and str(k).strip()]
+
+
+def _best_keyword_hit(candidates, desc_lower):
+    """
+    candidates: iterable of tuples (obj, keywords_list, name_string)
+    returns best obj or None using (hit_count, longest_hit)
+    """
+    best_obj = None
+    best_hits = 0
+    best_longest = 0
+    for obj, kws, _name in candidates:
+        hits = [kw for kw in kws if kw and kw in desc_lower]
+        if not hits:
+            continue
+        longest = max(len(h) for h in hits)
+        if len(hits) > best_hits or (len(hits) == best_hits and longest > best_longest):
+            best_obj = obj
+            best_hits = len(hits)
+            best_longest = longest
+    return best_obj
+
+
+def match_apartment_candidates(description, apartments):
+    """
+    Return list of matching Apartment objects.
+    Matching order:
+    - full apartment name substring match
+    - apartment.keywords substring match (comma-separated)
+    """
+    desc = _normalize_match_text(description)
+    if not desc:
+        return []
+
+    full_matches = []
+    for apt in apartments:
+        full = _normalize_match_text(getattr(apt, "name", ""))
+        if full and full in desc:
+            full_matches.append(apt)
+    if full_matches:
+        return full_matches
+
+    keyword_matches = []
+    for apt in apartments:
+        kws = _split_keywords_csv(getattr(apt, "keywords", None))
+        if not kws:
+            continue
+        if any(kw in desc for kw in kws):
+            keyword_matches.append(apt)
+    return keyword_matches
+
+
 def match_apartment(description, apartments):
-    """Match apartment based on description"""
-    for apartment in apartments:
-        if apartment.name in description:
-            return apartment
+    """
+    Backward-compatible single-apartment matcher.
+    Uses full name, then best keyword hit.
+    """
+    desc = _normalize_match_text(description)
+    if not desc:
+        return None
+
+    # full name first
+    for apt in apartments:
+        full = _normalize_match_text(getattr(apt, "name", ""))
+        if full and full in desc:
+            return apt
+
+    # best keyword match
+    candidates = []
+    for apt in apartments:
+        kws = _split_keywords_csv(getattr(apt, "keywords", None))
+        candidates.append((apt, kws, getattr(apt, "name", "")))
+    return _best_keyword_hit(candidates, desc)
+
+
+def match_booking_context_candidates(description, bookings):
+    """
+    Return (apartment_names, tenant_names) derived from bookings when description matches:
+    - booking.keywords (comma-separated)
+    - tenant full name
+    - tenant name tokens (split by space)
+    """
+    desc = _normalize_match_text(description)
+    if not desc:
+        return [], []
+
+    matched_apartment_names = []
+    seen_apts = set()
+    matched_tenant_names = []
+    seen_tenants = set()
+
+    for b in bookings or []:
+        apt = getattr(b, "apartment", None)
+        apt_name = _normalize_match_text(getattr(apt, "name", ""))
+        if not apt_name:
+            continue
+
+        keywords = _split_keywords_csv(getattr(b, "keywords", None))
+
+        tenant = getattr(b, "tenant", None)
+        tenant_full = _normalize_match_text(getattr(tenant, "full_name", ""))
+        tenant_tokens = [t for t in tenant_full.split() if t and len(t) >= 2]
+
+        matched = False
+        if tenant_full and tenant_full in desc:
+            matched = True
+        elif any(t and t in desc for t in tenant_tokens):
+            matched = True
+        elif keywords and any(k in desc for k in keywords):
+            matched = True
+
+        if matched and apt_name not in seen_apts:
+            seen_apts.add(apt_name)
+            # keep original casing as stored on model if possible
+            matched_apartment_names.append(getattr(apt, "name", "") or apt_name)
+
+        if matched:
+            tenant_display = (getattr(tenant, "full_name", "") or "").strip()
+            tenant_key = _normalize_match_text(tenant_display)
+            if tenant_key and tenant_key not in seen_tenants:
+                seen_tenants.add(tenant_key)
+                matched_tenant_names.append(tenant_display)
+
+    return matched_apartment_names, matched_tenant_names
+
+def _match_apartment_token_split_legacy(description, apartments):
+    """
+    Legacy token-splitting matcher (kept for reference).
+    Current V2 flow uses full name + keywords only via `match_apartment_candidates` / `match_apartment`.
+    """
+    desc = (description or "").strip().lower()
+    if not desc:
+        return None
+    for apt in apartments:
+        full = str(getattr(apt, "name", "") or "").strip().lower()
+        if full and full in desc:
+            return apt
     return None
 
 
@@ -1649,8 +2057,8 @@ def get_date_range(payment_data):
     return min(dates), max(dates)
 
 
-def query_db_payments(start_date, end_date, with_confirmed):
-    """Query database payments within date range"""
+def query_db_payments(start_date, end_date):
+    """Query all database payments within date range."""
     if start_date is None or end_date is None:
         return Payment.objects.none()
     
@@ -1658,40 +2066,10 @@ def query_db_payments(start_date, end_date, with_confirmed):
     date_from = start_date - timedelta(days=45)
     date_to = end_date + timedelta(days=45)
     
-    if with_confirmed:
-        return Payment.objects.filter(
-            payment_date__range=(date_from, date_to)
-        ).select_related('payment_type', 'payment_method', 'apartment', 'booking__tenant')
-    else:
-        return Payment.objects.filter(
-            payment_date__range=(date_from, date_to),
-            payment_status='Pending'
-        ).select_related('payment_type', 'payment_method', 'apartment', 'booking__tenant')
+    return Payment.objects.filter(
+        payment_date__range=(date_from, date_to)
+    ).select_related('payment_type', 'payment_method', 'apartment', 'booking__tenant')
 
-
-def filter_handled_payments(db_payments, file_payments):
-    """Remove already handled/merged payments"""
-    # Collect merged payment keys from database
-    db_payment_keys = set()
-    for payment in db_payments:
-        if payment.payment_status == "Merged" and payment.merged_payment_key:
-            if PAYMENT_KEY_SEPARATOR in payment.merged_payment_key:
-                # Split grouped keys
-                individual_keys = payment.merged_payment_key.split(PAYMENT_KEY_SEPARATOR)
-                db_payment_keys.update(individual_keys)
-            else:
-                db_payment_keys.add(payment.merged_payment_key)
-    
-    # Filter out merged payments from database
-    db_payments_cleaned = [p for p in db_payments if p.payment_status != "Merged"]
-    
-    # Filter out file payments that were already merged
-    file_payments_cleaned = [
-        p for p in file_payments 
-        if not any(db_key in p['merged_payment_key'] for db_key in db_payment_keys)
-    ]
-    
-    return db_payments_cleaned, file_payments_cleaned
 
 
 def match_payments(db_payments, file_payments, amount_delta, date_delta):
@@ -1821,14 +2199,37 @@ def calculate_match_score(db_payment, file_payment, amount_delta, date_delta):
         details['keywords'] = 'No Match'
     
     # Apartment matching (weight: low-medium)
-    if db_payment.apartmentName and file_payment.get('apartment_name'):
-        if db_payment.apartmentName == file_payment['apartment_name']:
-            score += 10
-            details['apartment'] = 'Exact Match'
+    db_apt = (db_payment.apartmentName or '').strip()
+    fp_apt = (file_payment.get('apartment_name') or '').strip()
+    fp_candidates = [str(x).strip() for x in (file_payment.get('apartment_candidates') or []) if str(x).strip()]
+    fp_all = _unique_non_empty([fp_apt] + list(fp_candidates))
+    if db_apt and fp_all:
+        if db_apt in fp_all:
+            score += 10 if (fp_apt and db_apt == fp_apt) else 7
+            details['apartment'] = 'Exact Match' if (fp_apt and db_apt == fp_apt) else 'Candidate Match'
         else:
             details['apartment'] = 'Different'
     else:
         details['apartment'] = 'N/A'
+
+    # Tenant matching (weight: low)
+    fp_tenant = (file_payment.get('tenant_name') or '').strip()
+    fp_tenant_candidates = [str(x).strip() for x in (file_payment.get('tenant_candidates') or []) if str(x).strip()]
+    fp_tenant_all = _unique_non_empty([fp_tenant] + list(fp_tenant_candidates))
+    db_tenant = ''
+    try:
+        if db_payment.booking and db_payment.booking.tenant:
+            db_tenant = (db_payment.booking.tenant.full_name or '').strip()
+    except Exception:
+        db_tenant = ''
+    if db_tenant and fp_tenant_all:
+        if db_tenant in fp_tenant_all:
+            score += 6 if (fp_tenant and fp_tenant == db_tenant) else 4
+            details['tenant'] = 'Exact Match' if (fp_tenant and fp_tenant == db_tenant) else 'Candidate Match'
+        else:
+            details['tenant'] = 'No Match'
+    else:
+        details['tenant'] = 'N/A'
     
     # Notes similarity (weight: low)
     if db_payment.notes and file_payment['notes']:
@@ -1980,7 +2381,8 @@ def get_json(db_model):
     
     for item, original_obj in zip(items_list, db_model):
         if hasattr(original_obj, 'booking') and original_obj.booking:
-            item["tenant_name"] = original_obj.booking.tenant.full_name
+            tenant = getattr(original_obj.booking, 'tenant', None)
+            item["tenant_name"] = (getattr(tenant, 'full_name', '') or '') if tenant else ''
         else:
             item["tenant_name"] = ""
         if hasattr(original_obj, 'apartmentName'):
@@ -2059,11 +2461,7 @@ def update_payment_fields(payment, payment_info):
     payment.payment_status = "Merged"
     
     # Set merged payment key
-    merged_payment_key = payment_info.get('merged_payment_key') or (
-        parse_date(payment_info.get('file_date', '')) + 
-        remove_trailing_zeros_from_str(payment_info.get('file_amount', '0')) + 
-        payment_info.get('file_notes', '')
-    )
+    merged_payment_key = _generate_merged_payment_key_from_payment_info(payment_info)
     payment.merged_payment_key = merged_payment_key
 
 
@@ -2078,11 +2476,7 @@ def create_new_payment(payment_info):
     if amount == 0:
         raise ValueError("Payment amount cannot be 0")
     
-    merged_payment_key = payment_info.get('merged_payment_key') or (
-        parse_date(payment_info.get('file_date', '')) + 
-        remove_trailing_zeros_from_str(payment_info.get('file_amount', '0')) + 
-        payment_info.get('file_notes', '')
-    )
+    merged_payment_key = _generate_merged_payment_key_from_payment_info(payment_info)
     
     return Payment(
         amount=amount,

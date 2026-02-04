@@ -61,6 +61,7 @@ class Command(BaseCommand):
         # Phone numbers for direction detection
         self.twilio_phone = "+13153524379"
         self.manager_phone = "+15612205252"
+        self.manager_phone_2 = "+15614603904"
         
         # Sync conversations and messages
         try:
@@ -202,7 +203,7 @@ class Command(BaseCommand):
                     address = participant.messaging_binding.get('address', '')
                     
                     # Skip system phones
-                    if address in [self.twilio_phone, self.manager_phone]:
+                    if address in [self.twilio_phone, self.manager_phone, self.manager_phone_2]:
                         continue
                     
                     # Try to find booking from this phone number
@@ -316,7 +317,7 @@ class Command(BaseCommand):
         
         # Determine direction
         author = twilio_message.author
-        direction = 'inbound' if author not in [self.twilio_phone, 'ASSISTANT', self.manager_phone] else 'outbound'
+        direction = 'inbound' if author not in [self.twilio_phone, 'ASSISTANT', self.manager_phone, self.manager_phone_2] else 'outbound'
         
         # Create message
         message = TwilioMessage(

@@ -30,7 +30,6 @@ class TestCase:
     description: str
     selected_file_payments: List[Dict[str, Any]]
     amount_delta: int
-    with_confirmed: bool
     expected_db_ids: List[int]
     ai_model: str = "openai/gpt-4o"
     ai_base_prompt: str = (
@@ -103,7 +102,6 @@ def _build_testcases(real_payments) -> List[TestCase]:
             description="Bank payment equals a real DB payment (amount/date/apt/type).",
             selected_file_payments=[_payment_to_file_payment_dict(p1, "bank-tc1")],
             amount_delta=150,
-            with_confirmed=False,
             expected_db_ids=[int(p1.id)],
         )
     )
@@ -123,7 +121,6 @@ def _build_testcases(real_payments) -> List[TestCase]:
                 _payment_to_file_payment_dict(p2, "bank-tc2-2", amount=a2, payment_date=d0 + timedelta(days=1)),
             ],
             amount_delta=200,
-            with_confirmed=False,
             expected_db_ids=[int(p2.id)],
         )
     )
@@ -137,7 +134,6 @@ def _build_testcases(real_payments) -> List[TestCase]:
             description="Same amount/date but apartment is wrong.",
             selected_file_payments=[fp4],
             amount_delta=150,
-            with_confirmed=False,
             expected_db_ids=[],
         )
     )
@@ -168,7 +164,6 @@ def _build_testcases(real_payments) -> List[TestCase]:
                 description="File date is 5 days after DB date, with competing nearby dates.",
                 selected_file_payments=[fp5],
                 amount_delta=150,
-                with_confirmed=False,
                 expected_db_ids=[int(date_test_anchor.id)],
             )
         )
@@ -200,7 +195,6 @@ def _build_testcases(real_payments) -> List[TestCase]:
                 description="File amount = DB amount + delta, with competing similar amounts.",
                 selected_file_payments=[fp6],
                 amount_delta=delta,
-                with_confirmed=False,
                 expected_db_ids=[int(amount_test_anchor.id)],
             )
         )
@@ -224,7 +218,6 @@ def _build_testcases(real_payments) -> List[TestCase]:
                 description="File notes contain tenant name + apartment (should boost score).",
                 selected_file_payments=[fp7],
                 amount_delta=150,
-                with_confirmed=False,
                 expected_db_ids=[int(keyword_anchor.id)],
             )
         )
@@ -268,7 +261,6 @@ def _build_testcases(real_payments) -> List[TestCase]:
                 description=f"Multiple DB payments with same amount ({float(target.amount or 0)}), different apartments; AI should pick by apartment match.",
                 selected_file_payments=[fp8],
                 amount_delta=150,
-                with_confirmed=False,
                 expected_db_ids=[int(target.id)],
             )
         )
@@ -300,7 +292,6 @@ def _build_testcases(real_payments) -> List[TestCase]:
                 description="File payment has no apartment/notes, multiple similar DB payments; tests fallback to amount/date only.",
                 selected_file_payments=[fp9],
                 amount_delta=150,
-                with_confirmed=False,
                 expected_db_ids=[int(sparse_anchor.id)],
             )
         )
@@ -323,8 +314,6 @@ def _match_one_case(tc: TestCase, *, run_ai: bool) -> Dict[str, Any]:
         Payment.objects.filter(payment_date__range=(db_from, db_to))
         .select_related("payment_type", "payment_method", "apartment", "booking__tenant", "bank")
     )
-    if not tc.with_confirmed:
-        db_qs = db_qs.filter(payment_status="Pending")
 
     db_candidates = list(db_qs)
 
@@ -333,15 +322,19 @@ def _match_one_case(tc: TestCase, *, run_ai: bool) -> Dict[str, Any]:
         scored = v2._manual_score_db_payment(p, composite, tc.amount_delta)
         if not scored:
             continue
-        score, match_type, criteria = scored
-        if score <= 0:
+        if scored['total'] <= 0:
             continue
         manual.append(
             {
                 "db_id": int(p.id),
-                "score": float(score),
-                "match_type": match_type,
-                "criteria": criteria,
+                "score": float(scored['total']),
+                "match_type": scored['match_type'],
+                "criteria": scored['criteria'],
+                "breakdown": scored.get('breakdown'),
+                "breakdown_details": scored.get('breakdown_details'),
+                "penalties": scored.get('penalties'),
+                "matched_keywords": scored.get('matched_keywords'),
+                "quality": scored.get('quality'),
                 "db_payment": v2._payment_to_rich_dict(p),
             }
         )
@@ -400,7 +393,7 @@ def _match_one_case(tc: TestCase, *, run_ai: bool) -> Dict[str, Any]:
     return {
         "name": tc.name,
         "description": tc.description,
-        "settings": {"amount_delta": tc.amount_delta, "with_confirmed": tc.with_confirmed},
+        "settings": {"amount_delta": tc.amount_delta},
         "expected_db_ids": tc.expected_db_ids,
         "input": {
             "selected_file_payments": tc.selected_file_payments,

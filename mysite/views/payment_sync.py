@@ -104,11 +104,11 @@ def remove_handled_payments(db_payments, file_payments):
         # Check if this is a grouped payment key (contains separator)
         if PAYMENT_KEY_SEPARATOR in payment.merged_payment_key:
             # Split the grouped key and add each individual key
-            individual_keys = payment.merged_payment_key.split(PAYMENT_KEY_SEPARATOR)
-            db_payment_keys.update(individual_keys)
+            individual_keys = [k.strip() for k in payment.merged_payment_key.split(PAYMENT_KEY_SEPARATOR)]
+            db_payment_keys.update([k for k in individual_keys if k])
         else:
             # Single payment key
-            db_payment_keys.add(payment.merged_payment_key)
+            db_payment_keys.add(str(payment.merged_payment_key).strip())
     
     # Filter out db_payments with status "Merged"
     db_payments_cleaned = [payment for payment in db_payments if payment.payment_status != "Merged"]
@@ -116,7 +116,7 @@ def remove_handled_payments(db_payments, file_payments):
     # Filter out file_payments where merged_payment_key matches any of the db keys
     file_payments_cleaned = [
         payment for payment in file_payments 
-        if payment['merged_payment_key'] not in db_payment_keys
+        if str(payment.get('merged_payment_key') or '').strip() not in db_payment_keys
     ]
     
     return db_payments_cleaned, file_payments_cleaned
