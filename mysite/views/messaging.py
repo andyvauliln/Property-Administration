@@ -80,9 +80,10 @@ def save_conversation_to_db(conversation_sid, friendly_name, booking=None, apart
                 # Only try to link if author is a customer (not system phones)
                 twilio_phone = "+13153524379"
                 manager_phone = "+15612205252"
-                manager_phone_2 = "+15614603904"
+                manager_phone_2 = "+17282001917"
+                manager_phone_3 = "+15614603904"
                 
-                if author not in [twilio_phone, 'ASSISTANT', manager_phone, manager_phone_2]:
+                if author not in [twilio_phone, 'ASSISTANT', manager_phone, manager_phone_2, manager_phone_3]:
                     booking = get_booking_from_phone(author)
                     if booking:
                         conversation.booking = booking
@@ -568,7 +569,8 @@ def twilio_webhook(request):
             )
             twilio_phone = "+13153524379"
             manager_phone = "+15612205252"
-            manager_phone_2 = "+15614603904"
+            manager_phone_2 = "+17282001917"
+            manager_phone_3 = "+15614603904"
             
             
             if event_type == 'onMessageAdded':
@@ -589,7 +591,7 @@ def twilio_webhook(request):
                     body_to_save = body or ''
 
                     # Determine direction based on author
-                    direction = 'inbound' if author not in [twilio_phone, 'ASSISTANT', manager_phone, manager_phone_2] else 'outbound'
+                    direction = 'inbound' if author not in [twilio_phone, 'ASSISTANT', manager_phone, manager_phone_2, manager_phone_3] else 'outbound'
 
                     save_message_to_db(
                         message_sid=message_sid,  # Use the actual MessageSid from Twilio
@@ -605,7 +607,7 @@ def twilio_webhook(request):
                     log_warning("Received onMessageAdded without MessageSid, skipping message save to DB", category='sms')
                 
                 # Check if author is not twilio_phone and not manager_phone
-                author_is_customer = (author != twilio_phone and author not in [manager_phone, manager_phone_2])
+                author_is_customer = (author != twilio_phone and author not in [manager_phone, manager_phone_2, manager_phone_3])
                 
                 if author_is_customer:
                     log_info(f"Author {author} is a customer, checking for existing group conversations", category='sms')
@@ -639,6 +641,11 @@ def twilio_webhook(request):
                         # Add manager 2
                         participants_config.append({
                             "phone": manager_phone_2
+                        })
+
+                        # Add manager 3
+                        participants_config.append({
+                            "phone": manager_phone_3
                         })
                         
                         # Add assistant
@@ -724,7 +731,8 @@ def create_conversation_config(friendly_name, tenant_phone):
         participants_config = []
         twilio_phone = "+13153524379"
         manager_phone = "+15612205252"
-        manager_phone_2 = "+15614603904"
+        manager_phone_2 = "+17282001917"
+        manager_phone_3 = "+15614603904"
         
         # Add customer
         participants_config.append({
@@ -739,6 +747,11 @@ def create_conversation_config(friendly_name, tenant_phone):
         # Add manager 2
         participants_config.append({
             "phone": manager_phone_2
+        })
+
+        # Add manager 3
+        participants_config.append({
+            "phone": manager_phone_3
         })
         
         # Add assistant
