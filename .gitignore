@@ -39,6 +39,8 @@ db_backups/
 
 .env.prod
 
+.env.doku
+
 
 data/
 
