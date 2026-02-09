@@ -92,6 +92,35 @@ cron.schedule('0 8 * * *', function () {
     );
 });
 
+cron.schedule('0 8 * * *', function () {
+    executeCronCommand(
+        'Telegram Group: Cleaning',
+        '/usr/bin/python3 /home/superuser/site/manage.py telegram_group_cleaning',
+        '/home/superuser/site/'
+    );
+});
+cron.schedule('0 8 * * *', function () {
+    executeCronCommand(
+        'Telegram Group: Checkout',
+        '/usr/bin/python3 /home/superuser/site/manage.py telegram_group_checkout',
+        '/home/superuser/site/'
+    );
+});
+cron.schedule('0 8 * * *', function () {
+    executeCronCommand(
+        'Telegram Group: Checkin',
+        '/usr/bin/python3 /home/superuser/site/manage.py telegram_group_checkin',
+        '/home/superuser/site/'
+    );
+});
+cron.schedule('0 8 * * *', function () {
+    executeCronCommand(
+        'Telegram Group: Payment',
+        '/usr/bin/python3 /home/superuser/site/manage.py telegram_group_payment',
+        '/home/superuser/site/'
+    );
+});
+
 // Schedule data integrity check to run daily at 9 PM
 cron.schedule('0 21 * * *', function () {
     executeCronCommand(
