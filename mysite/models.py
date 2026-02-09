@@ -320,6 +320,8 @@ class Apartment(models.Model):
         from mysite.request_context import apply_user_tracking
         updated_by = kwargs.pop('updated_by', None)
         apply_user_tracking(self, updated_by)
+        if self.default_price is None:
+            self.default_price = 0
         super().save(*args, **kwargs)
 
     def delete(self, *args, **kwargs):

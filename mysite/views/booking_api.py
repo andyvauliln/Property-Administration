@@ -26,7 +26,13 @@ class ApartmentBookingDates(APIView):
         # Get apartment_ids from query parameters
         apartment_ids = request.GET.get('apartment_ids', '')
         if apartment_ids:
-            apartment_ids = [int(id_) for id_ in apartment_ids.split(',')]
+            try:
+                apartment_ids = [int(id_) for id_ in apartment_ids.split(',') if str(id_).strip()]
+            except (TypeError, ValueError):
+                return Response(
+                    {"error": "apartment_ids must be a comma-separated list of integers"},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
             apartments = Apartment.objects.filter(
                 id__in=apartment_ids,
                 status='Available'
@@ -46,6 +52,19 @@ class ApartmentBookingDates(APIView):
         response_data = {
             "apartments": []
         }
+
+        def safe_float(value):
+            if value is None:
+                return None
+            try:
+                return float(value)
+            except (TypeError, ValueError):
+                return None
+
+        def add_surcharge(base_price, surcharge):
+            if base_price is None:
+                return None
+            return base_price + (surcharge or 0)
         
         # For each apartment, get its bookings and pricing
         for apartment in apartments:
@@ -64,16 +83,17 @@ class ApartmentBookingDates(APIView):
             
             # Calculate rating surcharge (daily rate needs to be converted to monthly)
             rating_surcharge_per_day = apartment.get_rating_surcharge_per_day()
-            rating_surcharge_per_month = rating_surcharge_per_day * 30  # Convert daily to monthly
+            rating_surcharge_per_month = (rating_surcharge_per_day or 0) * 30  # Convert daily to monthly
             
             # Build pricing data - include current period and future prices with rating surcharge applied
             pricing_data = []
             
             # Add current active price if it exists
             if current_active_price:
+                base_price = safe_float(current_active_price.price)
                 pricing_data.append({
-                    "price": float(current_active_price.price) + rating_surcharge_per_month,
-                    "base_price": float(current_active_price.price),
+                    "price": add_surcharge(base_price, rating_surcharge_per_month),
+                    "base_price": base_price,
                     "effective_date": current_active_price.effective_date.strftime("%Y-%m-%d"),
                     # "default_price": float(apartment.default_price),
                     "notes": current_active_price.notes or ""
@@ -81,9 +101,10 @@ class ApartmentBookingDates(APIView):
             
             # Add future prices
             for price in future_prices:
+                base_price = safe_float(price.price)
                 pricing_data.append({
-                    "price": float(price.price) + rating_surcharge_per_month,
-                    "base_price": float(price.price),
+                    "price": add_surcharge(base_price, rating_surcharge_per_month),
+                    "base_price": base_price,
                     "effective_date": price.effective_date.strftime("%Y-%m-%d"),
                     # "default_price": float(apartment.default_price),
                     "notes": price.notes or ""
@@ -92,13 +113,21 @@ class ApartmentBookingDates(APIView):
             # Sort pricing data by effective_date to ensure chronological order
             pricing_data.sort(key=lambda x: x["effective_date"])
             
+            default_price_value = safe_float(apartment.default_price)
+            if default_price_value is None:
+                default_price_value = safe_float(
+                    (current_active_price.price if current_active_price else None) or current_price
+                )
+            if default_price_value is None:
+                default_price_value = 0
+
             apartment_data = {
                 "apartment_id": apartment.id,
                 # "current_price": float(current_price) if current_price else None,
-                "default_price": float(apartment.default_price),
+                "default_price": default_price_value,
                 "apartment_name": apartment.name,
-                "rating": float(apartment.raiting) if apartment.raiting else None,
-                "rating_surcharge_per_day": float(rating_surcharge_per_day),
+                "rating": safe_float(apartment.raiting),
+                "rating_surcharge_per_day": safe_float(rating_surcharge_per_day),
                 "pricing_history": pricing_data,
                 "bookings": []
             }
