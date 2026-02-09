@@ -29,9 +29,9 @@ def parking_calendar(request):
 
     if request.method == 'POST':
         if 'add_booking' in request.POST or 'edit_booking' in request.POST or 'delete_booking' in request.POST:
-            handle_post_request(request, ParkingBooking, ParkingBookingForm)
+            return handle_post_request(request, ParkingBooking, ParkingBookingForm)
         else:
-            handle_post_request(request, Parking, ParkingForm)
+            return handle_post_request(request, Parking, ParkingForm)
     
     current_date = timezone.now().date()
     page_offset = int(request.GET.get('page', 0))

@@ -1955,19 +1955,20 @@ class ParkingBooking(models.Model):
         updated_by = kwargs.pop('updated_by', None)
         apply_user_tracking(self, updated_by)
 
-        # If booking is assigned, use booking dates and update status based on booking
+        # If booking is assigned, use booking dates and apartment
         if self.booking:
             self.start_date = self.booking.start_date
             self.end_date = self.booking.end_date
             self.apartment = self.booking.apartment
             
-            # Update status based on booking status and car info
-            if self.booking.status == "Blocked":
-                self.status = "Unavailable"
-            elif self.booking.is_rent_car is not None or self.booking.car_model:
-                self.status = "Booked"
-            else:
-                self.status = "No Car"
+            # Only auto-set status for new records, allow manual override on edit
+            if not self.pk:
+                if self.booking.status == "Blocked":
+                    self.status = "Unavailable"
+                elif self.booking.is_rent_car is not None or self.booking.car_model:
+                    self.status = "Booked"
+                else:
+                    self.status = "No Car"
         
         if not (self.start_date and self.end_date):
             raise ValueError("Start date and end date are required")
