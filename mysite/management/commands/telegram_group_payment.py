@@ -5,12 +5,27 @@ import os
 from mysite.management.commands.base_command import BaseCommandWithErrorHandling
 
 
-def send_telegram_message(chat_id, token, message):
-    base_url = f"https://api.telegram.org/bot{token}/sendMessage?chat_id={chat_id}&text={message}"
-    requests.get(base_url)
+def normalize_group_chat_id(chat_id):
+    s = (chat_id or "").strip()
+    if not s or not s.lstrip("-").isdigit():
+        return s
+    if s.startswith("-100"):
+        return s
+    if s.startswith("-"):
+        return "-100" + s[1:]
+    return s
 
 
-def send_pending_payments(chat_id, token):
+def send_telegram_message(chat_id, token, message, dry_run=False, stdout=None):
+    if dry_run and stdout:
+        stdout.write(message)
+        stdout.write("\n" + "-" * 40 + "\n")
+        return
+    url = f"https://api.telegram.org/bot{token}/sendMessage"
+    requests.get(url, params={"chat_id": chat_id, "text": message})
+
+
+def send_pending_payments(chat_id, token, dry_run=False, stdout=None):
     tomorrow = date.today() + timedelta(days=1)
     month_ago = date.today() - timedelta(days=30)
     pending_payments = Payment.objects.filter(
@@ -19,8 +34,9 @@ def send_pending_payments(chat_id, token):
         payment_date__gte=month_ago,
     ).order_by('payment_date')
 
+    sent = 0
     if not pending_payments.exists():
-        return
+        return sent
 
     for payment in pending_payments:
         message = "🚨 PENDING PAYMENTS FROM PAST PERIODS:"
@@ -37,17 +53,20 @@ def send_pending_payments(chat_id, token):
             message += f"\n  Apartment: {payment.apartment.name}"
         if payment.notes:
             message += f"\n  Notes: {payment.notes}"
-        send_telegram_message(chat_id.strip(), token, message)
+        send_telegram_message(normalize_group_chat_id(chat_id), token, message, dry_run=dry_run, stdout=stdout)
+        sent += 1
+    return sent
 
 
-def my_cron_job():
+def my_cron_job(dry_run=False, stdout=None):
     next_day = date.today() + timedelta(days=1)
     chat_id = os.environ.get("TELEGRAM_GROUP_PAYMENT")
     token = os.environ.get("TELEGRAM_TOKEN")
     if not chat_id or not token:
-        return
+        if not dry_run:
+            return
 
-    send_pending_payments(chat_id, token)
+    sent = send_pending_payments(normalize_group_chat_id(chat_id), token, dry_run=dry_run, stdout=stdout)
 
     notifications = Notification.objects.filter(
         date=next_day,
@@ -64,13 +83,23 @@ def my_cron_job():
             message += f"\n- Type: {notification.payment.payment_type.name if notification.payment.payment_type else 'N/A'}"
             if notification.payment.notes:
                 message += f"\n- Notes: {notification.payment.notes}"
-        send_telegram_message(chat_id.strip(), token, message)
+        send_telegram_message(normalize_group_chat_id(chat_id), token, message, dry_run=dry_run, stdout=stdout)
+        sent += 1
+    if sent == 0:
+        send_telegram_message(normalize_group_chat_id(chat_id), token, "No payment notifications for tomorrow.", dry_run=dry_run, stdout=stdout)
 
 
 class Command(BaseCommandWithErrorHandling):
     help = 'Send daily payment notifications to Payment Telegram group'
 
+    def add_arguments(self, parser):
+        parser.add_argument("--dry-run", action="store_true", help="Print messages only, do not send")
+
     def execute_command(self, *args, **options):
-        self.stdout.write('Running telegram group payment...')
-        my_cron_job()
-        self.stdout.write('Telegram group payment completed')
+        dry_run = options.get("dry_run", False)
+        if dry_run:
+            self.stdout.write("DRY RUN - messages that would be sent to Payment group:\n")
+        else:
+            self.stdout.write('Running telegram group payment...')
+        my_cron_job(dry_run=dry_run, stdout=self.stdout)
+        self.stdout.write('Telegram group payment completed' if not dry_run else 'Dry run done.')
