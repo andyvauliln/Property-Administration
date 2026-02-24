@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Django 4.2.4 property management web application backed by PostgreSQL. Single Django app (`mysite`) with Tailwind CSS frontend, Twilio for SMS/conversations, DocuSeal for contracts, Telegram bots for notifications, and OpenAI integration.
+Django 4.2.4 property management web application backed by PostgreSQL. Single Django app (`mysite`) with Tailwind CSS frontend, Twilio for SMS/conversations, DocuSeal for contracts, Telegram bots for notifications, and Open Router integration.
 
 ## Commands
 
@@ -16,13 +16,6 @@ python ./start --no-sync
 
 ```
 
-### Database
-
-```bash
-python manage.py makemigrations   # after model changes
-python manage.py migrate
-
-
 ### Cron / Process Management
 
 ```bash
@@ -30,13 +23,6 @@ pm2 start pm2.config.js    # start cron.js (runs management commands daily at 8a
 pm2 logs telegram-notifications
 ```
 
-### Python Environment
-
-```bash
-source myenv/bin/activate
-pip install -r requirements.txt
-npm install
-```
 
 ## Architecture
 

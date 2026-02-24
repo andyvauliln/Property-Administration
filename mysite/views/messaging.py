@@ -537,6 +537,265 @@ def delete_conversation(conversation_sid):
         raise
 
 
+
+def _is_skippable_message(text):
+    """Returns True for short acknowledgment messages that don't need AI processing."""
+    if not text:
+        return True
+    text = text.strip()
+    return len(text) <= 15 and '?' not in text
+
+
+def _get_ai_client():
+    """Initialize OpenRouter client."""
+    try:
+        from openai import OpenAI
+        api_key = os.environ.get('OPENROUTER_API_KEY', '')
+        if not api_key:
+            return None
+        return OpenAI(base_url="https://openrouter.ai/api/v1", api_key=api_key)
+    except Exception as e:
+        log_error(e, "Failed to initialize AI client", source='web')
+        return None
+
+
+def _apartment_fields_context(apartment):
+    """Returns all apartment structured fields as formatted text. Excludes notes, keywords, metadata."""
+    owner_name = apartment.owner.full_name if apartment.owner else 'N/A'
+    manager_names = ', '.join(m.full_name for m in apartment.managers.all()) or 'N/A'
+    return (
+        f"Name: {apartment.name}\n"
+        f"Type: {apartment.apartment_type}\n"
+        f"Status: {apartment.status}\n"
+        f"Address: {apartment.address}\n"
+        f"Building: {apartment.building_n}, Apt: {apartment.apartment_n or 'N/A'}\n"
+        f"City: {apartment.city}, State: {apartment.state}, Zip: {apartment.zip_index}\n"
+        f"Bedrooms: {apartment.bedrooms}, Bathrooms: {apartment.bathrooms}\n"
+        f"Rating: {apartment.raiting}\n"
+        f"Default price: ${apartment.default_price}\n"
+        f"Web link: {apartment.web_link or 'N/A'}\n"
+        f"Start date: {apartment.start_date or 'N/A'}, End date: {apartment.end_date or 'N/A'}\n"
+        f"Owner: {owner_name}\n"
+        f"Managers: {manager_names}"
+    )
+
+
+def build_full_context(conversation_sid, apartment, booking):
+    """
+    Full context for AI: apartment notes + structured fields + booking (all fields) +
+    parking + cleanings + payments + handyman + recent chat history.
+    Both apartment and booking are guaranteed non-None when called.
+    """
+    from mysite.models import ParkingBooking, HandymanCalendar, Cleaning, Payment, TwilioMessage
+    from datetime import date
+
+    parts = []
+    today = date.today()
+
+    # Apartment notes / knowledge base
+    if apartment.notes and apartment.notes.strip():
+        parts.append(f"=== APARTMENT NOTES / KNOWLEDGE BASE ===\n{apartment.notes}")
+
+    # Apartment structured fields
+    parts.append(f"=== APARTMENT FIELDS DATA ===\n{_apartment_fields_context(apartment)}")
+
+    # Booking — all fields except keywords/metadata
+    tenant = booking.tenant
+    car_info = ""
+    if booking.is_rent_car:
+        car_info = f", {booking.car_model} for {booking.car_rent_days} days at ${booking.car_price}"
+    parts.append(
+        f"=== CURRENT BOOKING ===\n"
+        f"Tenant: {tenant.full_name if tenant else 'N/A'}\n"
+        f"Tenant phone: {tenant.phone if tenant else 'N/A'}\n"
+        f"Check-in: {booking.start_date}, Check-out: {booking.end_date}\n"
+        f"Status: {booking.status}\n"
+        f"Tenants count: {booking.tenants_n or 'N/A'}\n"
+        f"Animals: {booking.animals or 'N/A'}\n"
+        f"Visit purpose: {booking.visit_purpose or 'N/A'}\n"
+        f"Source: {booking.source or 'N/A'}\n"
+        f"Other tenants: {booking.other_tenants or 'N/A'}\n"
+        f"Notes: {booking.notes or 'N/A'}\n"
+        f"Contract status: {booking.contract_send_status}\n"
+        f"Car rental: {'Yes' if booking.is_rent_car else 'No'}{car_info}"
+    )
+
+    # Parking booked for this booking
+    parking = ParkingBooking.objects.filter(booking=booking).select_related('parking')
+    if parking.exists():
+        lines = [
+            f"- Spot #{p.parking.number} ({p.parking.notes or ''}, building: {p.parking.building or 'N/A'})"
+            for p in parking
+        ]
+        parts.append("=== PARKING ===\n" + "\n".join(lines))
+
+    # Cleanings for this booking
+    cleanings = Cleaning.objects.filter(booking=booking).order_by('date')[:5]
+    if cleanings.exists():
+        lines = [f"- {c.date}: {c.status}" for c in cleanings]
+        parts.append("=== CLEANINGS ===\n" + "\n".join(lines))
+
+    # Payments for this booking — all records with payment type
+    payments = Payment.objects.filter(booking=booking).select_related('payment_type').order_by('-payment_date')
+    if payments.exists():
+        lines = [
+            f"- {p.payment_date}: ${p.amount} ({p.payment_status})"
+            f" | Type: {p.payment_type.name if p.payment_type else 'N/A'}"
+            for p in payments
+        ]
+        parts.append("=== BOOKING PAYMENTS ===\n" + "\n".join(lines))
+
+    # Handyman appointments for this tenant
+    if tenant and tenant.phone:
+        handyman = HandymanCalendar.objects.filter(
+            tenant_phone=tenant.phone, date__gte=today
+        ).order_by('date')[:3]
+        if handyman.exists():
+            lines = [f"- {h.date} {h.start_time}-{h.end_time}: {h.notes}" for h in handyman]
+            parts.append("=== HANDYMAN APPOINTMENTS ===\n" + "\n".join(lines))
+
+    # Recent chat history (last 10 messages)
+    messages = TwilioMessage.objects.filter(
+        conversation_sid=conversation_sid
+    ).order_by('-message_timestamp')[:10]
+    if messages.exists():
+        history = [
+            f"{'Customer' if m.direction == 'inbound' else 'Assistant'}: {m.body}"
+            for m in reversed(list(messages))
+        ]
+        parts.append("=== RECENT CHAT HISTORY ===\n" + "\n".join(history))
+
+    return "\n\n".join(parts)
+
+
+def ai_answer_customer(conversation_sid, message_body, apartment, booking):
+    """
+    Customer path: AI answers the tenant's message using full context.
+    Returns answer/clarifying-question string, or None if no relevant info.
+    """
+    try:
+        ai_client = _get_ai_client()
+        if not ai_client:
+            log_warning("OPENROUTER_API_KEY not set, skipping AI response", category='sms')
+            return None
+
+        context = build_full_context(conversation_sid, apartment, booking)
+
+        system_prompt = (
+            "You are an AI assistant for a property management company. "
+            "You help tenants in a group chat with questions about their apartment stay.\n\n"
+            "For each tenant message, choose ONE of:\n"
+            "1. ANSWER: You have enough info → give a concise, helpful answer (max 3 sentences).\n"
+            "2. CLARIFY: You have relevant info about the topic but need one detail to answer precisely "
+            "→ ask ONE short clarifying question.\n"
+            "3. NO_ANSWER: You have no relevant info → respond ONLY with: NO_ANSWER\n\n"
+            "RULES:\n"
+            "- Never fabricate — only use facts from the context.\n"
+            "- Be friendly and professional.\n"
+            "- Answer in the same language as the tenant's message."
+        )
+        user_prompt = (
+            f"Context:\n{context}\n\n"
+            f"Tenant message: {message_body}\n\n"
+            "Respond with an answer, a clarifying question, or NO_ANSWER."
+        )
+
+        response = ai_client.chat.completions.create(
+            model="openai/gpt-4o-mini",
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_prompt},
+            ],
+            temperature=0.3,
+            max_tokens=300,
+        )
+
+        answer = response.choices[0].message.content.strip()
+        if not answer or answer.upper() == "NO_ANSWER":
+            log_info(f"AI: no answer for customer message in {conversation_sid}", category='sms')
+            return None
+
+        log_info(f"AI responded to customer in {conversation_sid}", category='sms')
+        return answer
+
+    except Exception as e:
+        log_error(e, "Error in ai_answer_customer", source='web')
+        return None
+
+
+def ai_extract_knowledge(conversation_sid, message_body, apartment):
+    """
+    Manager path — two-step knowledge extraction:
+    Step 1: Check if message has new OPERATIONAL info not already in structured fields (YES/NO).
+    Step 2: If YES, AI merges info into existing notes and returns updated notes text.
+    Silent — no chat reply.
+    """
+    try:
+        ai_client = _get_ai_client()
+        if not ai_client:
+            return
+
+        # Step 1: Check if message has valuable operational info
+        fields_ctx = _apartment_fields_context(apartment)
+        check_response = ai_client.chat.completions.create(
+            model="openai/gpt-4o-mini",
+            messages=[{
+                "role": "user",
+                "content": (
+                    "You evaluate whether a manager's message contains OPERATIONAL knowledge "
+                    "about an apartment that should be saved in the free-text notes.\n\n"
+                    "The following information is ALREADY stored in structured database fields "
+                    "and must NOT be flagged as new — do not save it to notes:\n"
+                    f"{fields_ctx}\n\n"
+                    "Only reply YES if the message contains new OPERATIONAL knowledge such as:\n"
+                    "- WiFi network name or password\n"
+                    "- Door/gate/lock access codes\n"
+                    "- Specific parking instructions\n"
+                    "- House rules (noise, pets, smoking, guests, etc.)\n"
+                    "- Appliance instructions or quirks\n"
+                    "- Local tips, nearby amenities\n"
+                    "- Any other operational detail NOT covered by the fields above\n\n"
+                    f"Manager message: {message_body}\n\n"
+                    "Reply with YES or NO only."
+                )
+            }],
+            temperature=0,
+            max_tokens=5,
+        )
+
+        has_value = check_response.choices[0].message.content.strip().upper().startswith("YES")
+        if not has_value:
+            log_info(f"AI: manager message has no extractable knowledge", category='sms')
+            return
+
+        log_info(f"AI: extracting knowledge from manager message for apartment {apartment.id}", category='sms')
+
+        # Step 2: Merge new operational info into existing notes
+        update_response = ai_client.chat.completions.create(
+            model="openai/gpt-4o-mini",
+            messages=[{
+                "role": "user",
+                "content": (
+                    f"Current apartment notes:\n{apartment.notes or '(empty)'}\n\n"
+                    f"New information to add: {message_body}\n\n"
+                    "Merge the new information into the notes. Keep them clear and organized.\n"
+                    "Return ONLY the updated notes text, nothing else."
+                )
+            }],
+            temperature=0.2,
+            max_tokens=1000,
+        )
+
+        updated_notes = update_response.choices[0].message.content.strip()
+        if updated_notes and updated_notes != (apartment.notes or ''):
+            apartment.notes = updated_notes
+            apartment.save()
+            log_info(f"AI updated notes for apartment {apartment.id}", category='sms')
+
+    except Exception as e:
+        log_error(e, "Error in ai_extract_knowledge", source='web')
+
+
 @csrf_exempt
 @require_http_methods(["POST", "GET"])
 def twilio_webhook(request):
@@ -605,7 +864,31 @@ def twilio_webhook(request):
                     )
                 else:
                     log_warning("Received onMessageAdded without MessageSid, skipping message save to DB", category='sms')
-                
+
+                # --- AI processing ---
+                if os.environ.get('AI_ASSISTANT_ENABLED', 'true').lower() == 'true' and body and author and author != 'ASSISTANT':
+                    try:
+                        from mysite.models import TwilioConversation, Apartment, Booking
+                        _conv = TwilioConversation.objects.filter(conversation_sid=conversation_sid).first()
+
+                        if _conv and _conv.apartment_id and _conv.booking_id:
+                            _apartment = Apartment.objects.prefetch_related('managers').select_related('owner').get(id=_conv.apartment_id)
+                            _booking = Booking.objects.select_related('tenant').get(id=_conv.booking_id)
+                            _is_customer = author not in [twilio_phone, manager_phone, manager_phone_2, manager_phone_3]
+
+                            if _is_customer:
+                                # Customer → skip short ack messages, then AI tries to answer/clarify
+                                if not _is_skippable_message(body):
+                                    _ai_resp = ai_answer_customer(conversation_sid, body, _apartment, _booking)
+                                    if _ai_resp:
+                                        send_messsage_by_sid(conversation_sid, 'ASSISTANT', _ai_resp, twilio_phone, None)
+                            else:
+                                # Manager → AI extracts knowledge silently
+                                ai_extract_knowledge(conversation_sid, body, _apartment)
+
+                    except Exception as e:
+                        log_error(e, "Error in AI message routing", source='web')
+                # --- end AI processing ---
                 # Check if author is not twilio_phone and not manager_phone
                 author_is_customer = (author != twilio_phone and author not in [manager_phone, manager_phone_2, manager_phone_3])
                 
@@ -694,19 +977,6 @@ def twilio_webhook(request):
                 print_participants(conversation_sid, "Conversation Created with All Participants")
                 return JsonResponse({'status': 'success', 'conversation_sid': conversation_sid}, status=200)
             
-            
-    #         if event_type == 'onParticipantAdded':
-    #             print_participants(conversation_sid, "WEBHOOK ON PARTICIPANT ADDED")
-                
-    #             return JsonResponse({'status': 'success'}, status=200)
-    #         if event_type == 'onConversationUpdated':
-    #             print_info(f"Event type is onConversationUpdated: {event_type}")
-    #             return JsonResponse({'status': 'success'}, status=200)
-
-           
-
-    #         if event_type == 'onConversationAdded' and conversation_sid:
-    #             print_info(f"Event type is onConversationAdded: {event_type}")
 
         return JsonResponse({'status': 'success'}, status=200)
     except Exception as e:

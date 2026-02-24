@@ -1179,6 +1179,10 @@ input:checked + .toggle-bg {
   z-index: 60;
 }
 
+.z-\[70\] {
+  z-index: 70;
+}
+
 .col-span-2 {
   grid-column: span 2 / span 2;
 }
@@ -1478,6 +1482,10 @@ input:checked + .toggle-bg {
 
 .h-\[100vh\] {
   height: 100vh;
+}
+
+.h-\[85vh\] {
+  height: 85vh;
 }
 
 .h-\[calc\(100\%-1rem\)\] {
@@ -1884,6 +1892,10 @@ input:checked + .toggle-bg {
 
 .cursor-pointer {
   cursor: pointer;
+}
+
+.resize-none {
+  resize: none;
 }
 
 .resize {
@@ -2648,6 +2660,10 @@ input:checked + .toggle-bg {
 
 .bg-opacity-50 {
   --tw-bg-opacity: 0.5;
+}
+
+.bg-opacity-60 {
+  --tw-bg-opacity: 0.6;
 }
 
 .bg-opacity-75 {
