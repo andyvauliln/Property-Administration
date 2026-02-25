@@ -328,7 +328,7 @@ class CustomUserForm(forms.ModelForm):
 class ApartmentForm(forms.ModelForm):
     class Meta:
         model = Apartment
-        fields = ['name', 'apartment_type', 'keywords', 'status', 'notes', 'web_link', 'building_n', 'street', 'apartment_n',
+        fields = ['name', 'apartment_type', 'keywords', 'status', 'notes', 'knowledge_base', 'web_link', 'building_n', 'street', 'apartment_n',
                   'state', 'start_date', 'end_date', 'city', 'zip_index', 'bedrooms', 'bathrooms', 'managers', 'owner', 'raiting', 'default_price', 'current_price_display']
 
     def __init__(self, *args, **kwargs):
@@ -405,6 +405,8 @@ class ApartmentForm(forms.ModelForm):
         choices=Apartment.STATUS, required=False, isColumn=True, isEdit=True, isCreate=True, ui_element="dropdown",
         _dropdown_options=lambda: get_dropdown_options("apart_status"))
     notes = CharFieldEx(isColumn=False, isEdit=True, initial="",
+                        required=False, isCreate=True, ui_element="textarea")
+    knowledge_base = CharFieldEx(isColumn=False, isEdit=True, initial="",
                         required=False, isCreate=True, ui_element="textarea")
     keywords = CharFieldEx(isColumn=False, isEdit=True, initial="",
                         required=False, isCreate=True, ui_element="textarea")

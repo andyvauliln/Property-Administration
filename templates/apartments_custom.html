@@ -240,6 +240,10 @@
                         <textarea name="notes" id="create_notes" rows="3" class="block p-2.5 w-full text-sm text-gray-900 bg-gray-50 rounded-lg border border-gray-300 focus:ring-primary-500 focus:border-primary-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"></textarea>
                     </div>
                     <div class="col-span-3">
+                        <label for="create_knowledge_base" class="block mb-2 text-sm font-medium text-gray-900 dark:text-white">Knowledge Base</label>
+                        <textarea name="knowledge_base" id="create_knowledge_base" rows="3" class="block p-2.5 w-full text-sm text-gray-900 bg-gray-50 rounded-lg border border-gray-300 focus:ring-primary-500 focus:border-primary-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"></textarea>
+                    </div>
+                    <div class="col-span-3">
                         <label for="create_keywords" class="block mb-2 text-sm font-medium text-gray-900 dark:text-white">Keywords</label>
                         <textarea name="keywords" id="create_keywords" rows="2" class="block p-2.5 w-full text-sm text-gray-900 bg-gray-50 rounded-lg border border-gray-300 focus:ring-primary-500 focus:border-primary-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"></textarea>
                     </div>
@@ -377,9 +381,16 @@
                     <div class="col-span-3">
                         <div class="flex justify-between items-center mb-2">
                             <label for="edit_notes" class="text-sm font-medium text-gray-900 dark:text-white">Notes</label>
-                            <button type="button" onclick="openNotesExpand()" class="text-xs text-blue-600 hover:text-blue-800 font-medium">Expand ↗</button>
+                            <button type="button" onclick="openExpand('edit_notes', 'Notes')" class="text-xs text-blue-600 hover:text-blue-800 font-medium">Expand ↗</button>
                         </div>
                         <textarea name="notes" id="edit_notes" rows="3" class="block p-2.5 w-full text-sm text-gray-900 bg-gray-50 rounded-lg border border-gray-300 focus:ring-primary-500 focus:border-primary-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"></textarea>
+                    </div>
+                    <div class="col-span-3">
+                        <div class="flex justify-between items-center mb-2">
+                            <label for="edit_knowledge_base" class="text-sm font-medium text-gray-900 dark:text-white">Knowledge Base</label>
+                            <button type="button" onclick="openExpand('edit_knowledge_base', 'Knowledge Base')" class="text-xs text-blue-600 hover:text-blue-800 font-medium">Expand ↗</button>
+                        </div>
+                        <textarea name="knowledge_base" id="edit_knowledge_base" rows="3" class="block p-2.5 w-full text-sm text-gray-900 bg-gray-50 rounded-lg border border-gray-300 focus:ring-primary-500 focus:border-primary-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"></textarea>
                     </div>
                     <div class="col-span-3">
                         <label for="edit_keywords" class="block mb-2 text-sm font-medium text-gray-900 dark:text-white">Keywords</label>
@@ -426,7 +437,7 @@
 <div id="notesExpandModal" class="hidden fixed inset-0 z-[70] bg-black bg-opacity-60 flex items-center justify-center">
     <div class="bg-white rounded-lg shadow-xl w-full max-w-4xl h-[85vh] flex flex-col mx-4">
         <div class="flex justify-between items-center px-6 py-4 border-b">
-            <h3 class="text-lg font-semibold text-gray-900">Notes / Knowledge Base</h3>
+            <h3 id="notesExpandModalTitle" class="text-lg font-semibold text-gray-900">Notes</h3>
             <button onclick="closeNotesExpand()" class="text-gray-400 hover:text-gray-600">
                 <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd"></path></svg>
             </button>
@@ -542,6 +553,7 @@ document.addEventListener('DOMContentLoaded', function() {
         document.getElementById('edit_end_date').value = item.end_date || '';
         document.getElementById('edit_owner').value = item.owner || '';
         document.getElementById('edit_notes').value = item.notes || '';
+        document.getElementById('edit_knowledge_base').value = item.knowledge_base || '';
         document.getElementById('edit_keywords').value = item.keywords || '';
         
         // Set manager checkboxes
@@ -589,19 +601,24 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 });
 
-function openNotesExpand() {
-    const content = document.getElementById('edit_notes').value;
-    document.getElementById('notes-expand-content').value = content;
+let _expandSourceId = null;
+
+function openExpand(fieldId, title) {
+    _expandSourceId = fieldId;
+    document.getElementById('notes-expand-content').value = document.getElementById(fieldId).value;
+    document.getElementById('notesExpandModalTitle').textContent = title || 'Edit';
     document.getElementById('notesExpandModal').classList.remove('hidden');
 }
 
 function closeNotesExpand() {
     document.getElementById('notesExpandModal').classList.add('hidden');
+    _expandSourceId = null;
 }
 
 function applyNotesExpand() {
-    const content = document.getElementById('notes-expand-content').value;
-    document.getElementById('edit_notes').value = content;
+    if (_expandSourceId) {
+        document.getElementById(_expandSourceId).value = document.getElementById('notes-expand-content').value;
+    }
     closeNotesExpand();
 }
 </script>

@@ -114,6 +114,7 @@ def apartments_view(request):
             'apartment_type': apt.apartment_type,
             'status': apt.status,
             'notes': apt.notes,
+            'knowledge_base': apt.knowledge_base,
             'keywords': apt.keywords,
             'raiting': float(apt.raiting) if apt.raiting else 0,
             'default_price': float(apt.default_price) if apt.default_price else 0,

@@ -592,9 +592,9 @@ def build_full_context(conversation_sid, apartment, booking):
     parts = []
     today = date.today()
 
-    # Apartment notes / knowledge base
-    if apartment.notes and apartment.notes.strip():
-        parts.append(f"=== APARTMENT NOTES / KNOWLEDGE BASE ===\n{apartment.notes}")
+    # Apartment knowledge base
+    if apartment.knowledge_base and apartment.knowledge_base.strip():
+        parts.append(f"=== APARTMENT KNOWLEDGE BASE ===\n{apartment.knowledge_base}")
 
     # Apartment structured fields
     parts.append(f"=== APARTMENT FIELDS DATA ===\n{_apartment_fields_context(apartment)}")
@@ -776,10 +776,10 @@ def ai_extract_knowledge(conversation_sid, message_body, apartment):
             messages=[{
                 "role": "user",
                 "content": (
-                    f"Current apartment notes:\n{apartment.notes or '(empty)'}\n\n"
+                    f"Current knowledge base:\n{apartment.knowledge_base or '(empty)'}\n\n"
                     f"New information to add: {message_body}\n\n"
-                    "Merge the new information into the notes. Keep them clear and organized.\n"
-                    "Return ONLY the updated notes text, nothing else."
+                    "Merge the new information into the knowledge base. Keep it clear and organized.\n"
+                    "Return ONLY the updated knowledge base text, nothing else."
                 )
             }],
             temperature=0.2,
@@ -787,10 +787,10 @@ def ai_extract_knowledge(conversation_sid, message_body, apartment):
         )
 
         updated_notes = update_response.choices[0].message.content.strip()
-        if updated_notes and updated_notes != (apartment.notes or ''):
-            apartment.notes = updated_notes
+        if updated_notes and updated_notes != (apartment.knowledge_base or ''):
+            apartment.knowledge_base = updated_notes
             apartment.save()
-            log_info(f"AI updated notes for apartment {apartment.id}", category='sms')
+            log_info(f"AI updated knowledge base for apartment {apartment.id}", category='sms')
 
     except Exception as e:
         log_error(e, "Error in ai_extract_knowledge", source='web')
