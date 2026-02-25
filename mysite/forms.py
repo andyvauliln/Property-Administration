@@ -1,7 +1,7 @@
 # mysite/forms.py
 from django import forms
 from django.contrib.auth.forms import AuthenticationForm
-from mysite.models import Booking, User, Apartment, ApartmentPrice, Payment, Cleaning, Notification, PaymentMethod, PaymenType, HandymanCalendar, Parking, ParkingBooking, HandymanBlockedSlot
+from mysite.models import Booking, User, Apartment, ApartmentPrice, Payment, Cleaning, Notification, PaymentMethod, PaymenType, HandymanCalendar, Parking, ParkingBooking, HandymanBlockedSlot, GlobalKnowledgeBase
 from datetime import date
 import requests
 import uuid
@@ -1279,3 +1279,21 @@ class ParkingForm(forms.ModelForm):
             raise forms.ValidationError(f"Parking with building '{building}' and number '{number}' already exists")
 
         return cleaned_data
+
+
+class GlobalKnowledgeBaseForm(forms.ModelForm):
+    class Meta:
+        model = GlobalKnowledgeBase
+        fields = ['name', 'content']
+
+    def __init__(self, *args, **kwargs):
+        self.request = kwargs.pop('request', None)
+        kwargs.pop('action', None)
+        super().__init__(*args, **kwargs)
+
+    name = CharFieldEx(
+        max_length=255, isColumn=True, isEdit=True,
+        isCreate=True, ui_element="input", order=1)
+    content = CharFieldEx(
+        isColumn=False, isEdit=True, isCreate=True,
+        required=False, initial="", ui_element="textarea", order=2)

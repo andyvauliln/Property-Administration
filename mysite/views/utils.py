@@ -1,5 +1,5 @@
 from django.shortcuts import redirect
-from ..models import User, Apartment, ApartmentPrice, Booking, Cleaning, Notification, PaymentMethod, Payment, PaymenType
+from ..models import User, Apartment, ApartmentPrice, Booking, Cleaning, Notification, PaymentMethod, Payment, PaymenType, GlobalKnowledgeBase
 from mysite.forms import CustomFieldMixin
 from django.db.models import Q
 from django.db import models
@@ -155,6 +155,7 @@ MODEL_MAP = {
     'paymentmethod': PaymentMethod,
     'paymenttype': PaymenType,
     'payment': Payment,
+    'globalknowledgebase': GlobalKnowledgeBase,
 }
 
 

@@ -49,6 +49,8 @@ urlpatterns = [
     path('chat/<str:conversation_sid>/load-more/', views.load_more_messages, name='load_more_messages'),
     path('chat/templates/', views.chat_template_list, name='chat_template_list'),
     path('chat/templates/create/', views.chat_template_create, name='chat_template_create'),
+    # Knowledge Base
+    path('globalknowledgebase/', views.global_knowledge_base, name='global_knowledge_base'),
     # Database Activity Monitoring
     path('database-activity/', views.database_activity, name='database_activity'),
 

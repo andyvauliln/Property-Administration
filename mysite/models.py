@@ -2306,6 +2306,29 @@ class SystemLog(models.Model):
         return f"[{self.level.upper()}] {self.category}: {self.message[:100]}"
 
 
+class GlobalKnowledgeBase(models.Model):
+    name = models.CharField(max_length=255, db_index=True)
+    content = models.TextField(blank=True, null=True)
+
+    created_by = models.CharField(max_length=255, blank=True, null=True, editable=False)
+    last_updated_by = models.CharField(max_length=255, blank=True, null=True, editable=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return self.name
+
+    def save(self, *args, **kwargs):
+        from mysite.request_context import apply_user_tracking
+        updated_by = kwargs.pop('updated_by', None)
+        apply_user_tracking(self, updated_by)
+        super().save(*args, **kwargs)
+
+    @property
+    def links(self):
+        return []
+
+
 def send_telegram_message(chat_id, token, message):
     if chat_id and token:
         base_url = f"https://api.telegram.org/bot{token}/sendMessage?chat_id={chat_id}&text={message}"

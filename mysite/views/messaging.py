@@ -543,7 +543,7 @@ def _is_skippable_message(text):
     if not text:
         return True
     text = text.strip()
-    return len(text) <= 15 and '?' not in text
+    return len(text) <= 3 and '?' not in text
 
 
 def _get_ai_client():
@@ -586,11 +586,17 @@ def build_full_context(conversation_sid, apartment, booking):
     parking + cleanings + payments + handyman + recent chat history.
     Both apartment and booking are guaranteed non-None when called.
     """
-    from mysite.models import ParkingBooking, HandymanCalendar, Cleaning, Payment, TwilioMessage
+    from mysite.models import ParkingBooking, HandymanCalendar, Cleaning, Payment, TwilioMessage, GlobalKnowledgeBase
     from datetime import date
 
     parts = []
     today = date.today()
+
+    # Global knowledge base
+    global_kb_entries = GlobalKnowledgeBase.objects.all()
+    global_kb_texts = [entry.content for entry in global_kb_entries if entry.content and entry.content.strip()]
+    if global_kb_texts:
+        parts.append(f"=== GLOBAL KNOWLEDGE BASE ===\n" + "\n\n".join(global_kb_texts))
 
     # Apartment knowledge base
     if apartment.knowledge_base and apartment.knowledge_base.strip():
