@@ -388,16 +388,24 @@ def database_activity(request):
     if action_filter:
         audit_logs = audit_logs.filter(action=action_filter)
     if model_filter:
-        audit_logs = audit_logs.filter(model_name__icontains=model_filter)
+        if model_filter == 'Parking':
+            audit_logs = audit_logs.filter(model_name='Parking')
+        else:
+            audit_logs = audit_logs.filter(model_name__icontains=model_filter)
     if user_filter:
         audit_logs = audit_logs.filter(changed_by__icontains=user_filter)
     if apartment_filter:
         # Filter by apartment name in object_repr or in new_values/old_values fields
+        # Also exclude ParkingBooking if filtering by apartment to avoid confusion, 
+        # as ParkingBooking also has an 'apartment' field but user wants to separate them
         audit_logs = audit_logs.filter(
             Q(object_repr__icontains=apartment_filter) |
             Q(new_values__icontains=apartment_filter) |
             Q(old_values__icontains=apartment_filter)
         )
+        if apartment_filter.lower() == 'parking':
+            audit_logs = audit_logs.exclude(model_name='ParkingBooking')
+            
     if search_query:
         audit_logs = audit_logs.filter(
             Q(object_repr__icontains=search_query) |
@@ -419,6 +427,40 @@ def database_activity(request):
     # Build logs_by_date from the CURRENT PAGE's logs
     logs_by_date = {}
     
+    # Pre-fetch tenant names for booking-related objects to avoid N+1
+    booking_ids = []
+    payment_booking_ids = []
+    cleaning_booking_ids = []
+    notification_booking_ids = []
+    
+    for log in page_obj.object_list:
+        if log.model_name == 'Booking':
+            booking_ids.append(log.object_id)
+        elif log.model_name in ['Payment', 'Cleaning', 'Notification']:
+            bid = None
+            # Check new_values and old_values for 'booking' field
+            # It could be an ID (int/str) or a string representation (e.g., "815 Flamingo")
+            for vals in [log.new_values, log.old_values]:
+                if vals and vals.get('booking'):
+                    val = vals.get('booking')
+                    if str(val).isdigit():
+                        bid = val
+                        break
+                    # If it's not a digit, it might be a string representation like "815 Flamingo"
+                    # In that case, we can't easily get the ID without another query, 
+                    # but AuditLog usually stores the ID for ForeignKey fields in JSON.
+                    # Let's check if there's a booking_id field or similar if 'booking' is a string.
+            if bid:
+                if log.model_name == 'Payment':
+                    payment_booking_ids.append(bid)
+                elif log.model_name == 'Cleaning':
+                    cleaning_booking_ids.append(bid)
+                elif log.model_name == 'Notification':
+                    notification_booking_ids.append(bid)
+    
+    # Build logs_by_date from the CURRENT PAGE's logs
+    logs_by_date = {}
+    
     for log in page_obj.object_list:
         date_key = log.timestamp.date()
         if date_key not in logs_by_date:
@@ -433,6 +475,93 @@ def database_activity(request):
                 'logs': []
             }
         
+        # Add extended data to log object if it's booking-related
+        log.tenant_name = None
+        log.tenant_id = None
+        log.booking_id = None
+        log.booking_repr = None
+        log.apartment_name = None
+        log.apartment_id = None
+        log.model_url_key = None
+        
+        # Map model names to URL keys for linking
+        MODEL_URL_MAP = {
+            'Payment': 'payments',
+            'Booking': 'bookings',
+            'Cleaning': 'cleanings',
+            'Apartment': 'apartments',
+            'User': 'users',
+            'Parking': 'parking',
+            'ParkingBooking': 'parking-bookings',
+            'Notification': 'notifications',
+        }
+        log.model_url_key = MODEL_URL_MAP.get(model_name)
+        
+        # 1. Try to find IDs in log data
+        booking_id = None
+        if model_name == 'Booking':
+            booking_id = log.object_id
+        else:
+            for vals in [log.new_values, log.old_values]:
+                if vals and vals.get('booking'):
+                    val = vals.get('booking')
+                    if isinstance(val, dict) and 'id' in val:
+                        booking_id = val['id']
+                        break
+                    elif str(val).isdigit():
+                        booking_id = val
+                        break
+        
+        # 2. If we have a booking ID, get extended info
+        if booking_id:
+            try:
+                booking = Booking.objects.filter(id=int(booking_id)).select_related('tenant', 'apartment').first()
+                if booking:
+                    log.booking_id = booking.id
+                    log.booking_repr = str(booking)
+                    if booking.tenant:
+                        log.tenant_name = booking.tenant.full_name
+                        log.tenant_id = booking.tenant.id
+                    if booking.apartment:
+                        log.apartment_name = booking.apartment.name
+                        log.apartment_id = booking.apartment.id
+            except (ValueError, TypeError):
+                pass
+        
+        # 3. Fallback: If no data yet, check if the object itself still exists
+        if not log.tenant_name or not log.apartment_name:
+            try:
+                from django.apps import apps
+                model_class = apps.get_model('mysite', model_name)
+                obj = model_class.objects.filter(id=log.object_id).first()
+                if obj:
+                    # Check for booking attribute
+                    if hasattr(obj, 'booking') and obj.booking:
+                        log.booking_id = obj.booking.id
+                        log.booking_repr = str(obj.booking)
+                        if obj.booking.tenant:
+                            log.tenant_name = obj.booking.tenant.full_name
+                            log.tenant_id = obj.booking.tenant.id
+                        if obj.booking.apartment:
+                            log.apartment_name = obj.booking.apartment.name
+                            log.apartment_id = obj.booking.apartment.id
+                    # Or if it's a booking itself
+                    elif model_name == 'Booking':
+                        log.booking_id = obj.id
+                        log.booking_repr = str(obj)
+                        if hasattr(obj, 'tenant') and obj.tenant:
+                            log.tenant_name = obj.tenant.full_name
+                            log.tenant_id = obj.tenant.id
+                        if hasattr(obj, 'apartment') and obj.apartment:
+                            log.apartment_name = obj.apartment.name
+                            log.apartment_id = obj.apartment.id
+                    # Or if it's an apartment
+                    elif model_name == 'Apartment':
+                        log.apartment_name = obj.name
+                        log.apartment_id = obj.id
+            except Exception:
+                pass
+
         logs_by_date[date_key][model_name][f"{log.action}s"] += 1
         # Store all logs from current page
         logs_by_date[date_key][model_name]['logs'].append(log)

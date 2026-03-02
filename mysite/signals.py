@@ -33,7 +33,11 @@ def serialize_value(value):
     # Handle Django models (foreign keys)
     from django.db import models
     if isinstance(value, models.Model):
-        return str(value)
+        # Store both ID and string representation for foreign keys
+        return {
+            'id': value.pk,
+            'repr': str(value)
+        }
     
     # Handle querysets
     if hasattr(value, '__iter__') and not isinstance(value, (str, bytes)):
