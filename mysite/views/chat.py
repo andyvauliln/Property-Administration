@@ -9,6 +9,7 @@ from django.core.paginator import Paginator
 from mysite.models import TwilioConversation, TwilioMessage, User, ChatMessageTemplate
 from mysite.views.messaging import (
     send_messsage_by_sid,
+    save_message_to_db,
     delete_conversation as twilio_delete_conversation,
     delete_message as twilio_delete_message,
     delete_all_messages as twilio_delete_all_messages,
@@ -16,6 +17,7 @@ from mysite.views.messaging import (
 from mysite.unified_logger import log_error, log_info, logger
 from mysite.error_logger import log_exception
 import json
+from uuid import uuid4
 
 
 MANAGER_PHONE = "+15612205252"
@@ -292,6 +294,9 @@ def send_message(request, conversation_sid):
         data = json.loads(request.body)
         original_message = data.get('message', '').strip()
         sender_type = data.get('sender_type', 'manager').lower()
+        send_to_group_chat = data.get('send_to_group_chat', True)
+        if isinstance(send_to_group_chat, str):
+            send_to_group_chat = send_to_group_chat.lower() == 'true'
         
         if not original_message:
             return JsonResponse({'error': 'Message content is required'}, status=400)
@@ -301,15 +306,28 @@ def send_message(request, conversation_sid):
             message_content = f"{original_message} (+++)"
         
         manager_phone = "+15612205252"
+        sent_message = None
         
         try:
-            send_messsage_by_sid(
-                conversation_sid=conversation_sid,
-                author='ASSISTANT',
-                message=message_content,
-                sender_phone=manager_phone,
-                receiver_phone=None
-            )
+            if send_to_group_chat:
+                send_messsage_by_sid(
+                    conversation_sid=conversation_sid,
+                    author='ASSISTANT',
+                    message=message_content,
+                    sender_phone=manager_phone,
+                    receiver_phone=None
+                )
+            else:
+                local_message_sid = f"LOCAL-{uuid4().hex}"
+                sent_message = save_message_to_db(
+                    message_sid=local_message_sid,
+                    conversation_sid=conversation_sid,
+                    author='ASSISTANT',
+                    body=message_content,
+                    direction='outbound'
+                )
+                if sent_message is None:
+                    raise Exception("Failed to save local message to DB")
             
             log_info(f"Message sent from chat interface to conversation {conversation_sid}")
             try:
@@ -318,8 +336,8 @@ def send_message(request, conversation_sid):
                     conversation_sid=conversation_sid,
                     author='ASSISTANT',
                     body=message_content,
-                    event_type='ui_send',
-                    message_sid=None,
+                    event_type='ui_send' if send_to_group_chat else 'ui_send_local',
+                    message_sid=sent_message.message_sid if sent_message else None,
                     direction='outbound',
                 )
             except Exception:
@@ -337,7 +355,12 @@ def send_message(request, conversation_sid):
                         log_ai_customer_start(conversation_sid, 'ASSISTANT', original_message, conversation.apartment_id, conversation.booking_id)
                         ai_resp = ai_answer_customer(conversation_sid, original_message, apartment, booking)
                         if ai_resp:
-                            send_messsage_by_sid(conversation_sid, 'ASSISTANT', ai_resp, manager_phone, None)
+                            if send_to_group_chat:
+                                send_messsage_by_sid(conversation_sid, 'ASSISTANT', ai_resp, manager_phone, None)
+                            elif sent_message:
+                                sent_message.ai_response = ai_resp
+                                sent_message.ai_sent_to_chat = False
+                                sent_message.save(update_fields=['ai_response', 'ai_sent_to_chat', 'updated_at'])
                             log_ai_customer_sent(conversation_sid, ai_resp)
                 except Exception as e:
                     log_exception(error=e, context="Chat - AI answer (client)", additional_info={'conversation_sid': conversation_sid})
@@ -431,6 +454,28 @@ def delete_chat_conversation(request, conversation_sid):
 
 @login_required
 @require_http_methods(["POST"])
+def update_chat_apartment_kb(request, conversation_sid):
+    """
+    Update apartment knowledge base directly from chat detail modal.
+    """
+    try:
+        conversation = get_object_or_404(TwilioConversation, conversation_sid=conversation_sid)
+        if not conversation.apartment_id:
+            return redirect('chat_detail', conversation_sid=conversation_sid)
+
+        kb_text = (request.POST.get('knowledge_base') or '').strip()
+        conversation.apartment.knowledge_base = kb_text
+        conversation.apartment.save()
+
+        log_info(f"Updated apartment KB from chat for conversation {conversation_sid}")
+        return redirect('chat_detail', conversation_sid=conversation_sid)
+    except Exception as e:
+        log_exception(error=e, context="Chat - Update Apartment KB", additional_info={'conversation_sid': conversation_sid})
+        return redirect('chat_detail', conversation_sid=conversation_sid)
+
+
+@login_required
+@require_http_methods(["POST"])
 def delete_chat_message(request, conversation_sid, message_id):
     """
     Delete a single message from Twilio and DB.
@@ -484,6 +529,11 @@ def load_more_messages(request, conversation_sid):
                 'direction': message.direction,
                 'timestamp': message.message_timestamp.isoformat(),
                 'formatted_time': message.message_timestamp.strftime('%b %d, %Y at %I:%M %p'),
+                'ai_response': message.ai_response,
+                'ai_sent_to_chat': message.ai_sent_to_chat,
+                'ai_kb_updated': message.ai_kb_updated,
+                'ai_kb_changes': message.ai_kb_changes,
+                'forwarded_to_group_sid': message.forwarded_to_group_sid,
             })
         
         return JsonResponse({

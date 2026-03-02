@@ -105,7 +105,9 @@
                         
                         <div class="flex items-center space-x-4 text-sm text-gray-500 dark:text-gray-400">
                             {% if display_info.apartment %}
-                            <span>📍 {{ display_info.apartment }}</span>
+                            <a href="/apartments/?q=id={{ conversation.apartment.id }}" target="_blank" rel="noopener noreferrer" class="hover:underline text-blue-600 dark:text-blue-400">
+                                📍 {{ display_info.apartment }}
+                            </a>
                             {% endif %}
                             
                             {% if display_info.booking_dates %}
@@ -125,7 +127,7 @@
                 
                 <div class="flex items-center space-x-2">
                     {% if display_info.has_booking %}
-                    <a href="/bookings/?q=id={{ conversation.booking.id }}" 
+                    <a href="/bookings/?q=id={{ conversation.booking.id }}" target="_blank" rel="noopener noreferrer"
                        class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800 hover:bg-green-200 dark:bg-green-900 dark:text-green-300 dark:hover:bg-green-800 transition-colors duration-200">
                         📋 Linked to Booking #{{ conversation.booking.id }}
                     </a>
@@ -134,27 +136,37 @@
                         No Booking Link
                     </span>
                     {% endif %}
-                    <form method="post" action="{% url 'delete_all_chat_messages' conversation.conversation_sid %}" 
-                          class="inline" onsubmit="return confirm('Delete all messages? This cannot be undone.');">
-                        {% csrf_token %}
-                        <button type="submit" class="inline-flex items-center px-2.5 py-0.5 rounded text-xs font-medium bg-red-100 text-red-800 hover:bg-red-200 dark:bg-red-900 dark:text-red-300 dark:hover:bg-red-800 transition-colors duration-200">
-                            Delete all messages
-                        </button>
-                    </form>
-                    <form method="post" action="{% url 'delete_chat_conversation' conversation.conversation_sid %}" 
-                          class="inline" onsubmit="return confirm('Delete this conversation and all messages? This cannot be undone.');">
-                        {% csrf_token %}
-                        <button type="submit" class="inline-flex items-center px-2.5 py-0.5 rounded text-xs font-medium bg-red-100 text-red-800 hover:bg-red-200 dark:bg-red-900 dark:text-red-300 dark:hover:bg-red-800 transition-colors duration-200">
-                            Delete conversation
-                        </button>
-                    </form>
                 </div>
+            </div>
+            <div class="flex items-center space-x-2 mt-2">
+                <form method="post" action="{% url 'delete_all_chat_messages' conversation.conversation_sid %}" 
+                      class="inline" onsubmit="return confirm('Delete all messages? This cannot be undone.');">
+                    {% csrf_token %}
+                    <button type="submit" class="inline-flex items-center px-2.5 py-0.5 rounded text-xs font-medium bg-red-100 text-red-800 hover:bg-red-200 dark:bg-red-900 dark:text-red-300 dark:hover:bg-red-800 transition-colors duration-200">
+                        Delete all messages
+                    </button>
+                </form>
+                <form method="post" action="{% url 'delete_chat_conversation' conversation.conversation_sid %}" 
+                      class="inline" onsubmit="return confirm('Delete this conversation and all messages? This cannot be undone.');">
+                    {% csrf_token %}
+                    <button type="submit" class="inline-flex items-center px-2.5 py-0.5 rounded text-xs font-medium bg-red-100 text-red-800 hover:bg-red-200 dark:bg-red-900 dark:text-red-300 dark:hover:bg-red-800 transition-colors duration-200">
+                        Delete conversation
+                    </button>
+                </form>
+                {% if conversation.apartment_id %}
+                <button type="button"
+                   id="open-apartment-kb-modal"
+                   class="inline-flex items-center px-2.5 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800 hover:bg-blue-200 dark:bg-blue-900 dark:text-blue-300 dark:hover:bg-blue-800 transition-colors duration-200">
+                    Apartment Knowledge Base
+                </button>
+                {% endif %}
             </div>
         </div>
         
         <!-- Messages Area -->
         <div id="messages-container" class="flex-1 min-h-0 overflow-y-auto p-4 space-y-4 bg-gray-50 dark:bg-gray-900">
             {% for message in chat_messages %}
+            <!-- Regular message bubble -->
             <div class="flex {% if message.direction == 'outbound' %}justify-end{% else %}justify-start{% endif %} message-row" data-message-id="{{ message.id }}">
                 <div class="max-w-xs lg:max-w-md xl:max-w-lg">
                     <div class="{% if message.direction == 'outbound' %}bg-blue-500 text-white{% else %}bg-white dark:bg-gray-700 text-gray-900 dark:text-white{% endif %} rounded-lg px-4 py-2 shadow">
@@ -164,14 +176,60 @@
                                 <span class="font-medium">{{ message.author_display }}</span>
                                 • {{ message.message_timestamp|date:"M d, Y H:i" }}
                             </span>
-                            <form method="post" action="{% url 'delete_chat_message' conversation.conversation_sid message.id %}" class="delete-message-form inline" onsubmit="return confirm('Delete this message?');">
-                                {% csrf_token %}
-                                <button type="submit" class="text-red-400 hover:text-red-300 opacity-70 hover:opacity-100 text-xs">Delete</button>
-                            </form>
+                            <div class="flex items-center gap-1 flex-wrap">
+                                {% if message.forwarded_to_group_sid %}
+                                <span class="px-1.5 py-0.5 rounded text-xs bg-green-200 text-green-800 dark:bg-green-800 dark:text-green-100">✓ Forwarded to group</span>
+                                {% endif %}
+                                <form method="post" action="{% url 'delete_chat_message' conversation.conversation_sid message.id %}" class="delete-message-form inline" onsubmit="return confirm('Delete this message?');">
+                                    {% csrf_token %}
+                                    <button type="submit" class="{% if message.direction == 'outbound' %}inline-flex items-center rounded px-1.5 py-0.5 bg-white/20 text-white hover:bg-white/30{% else %}text-red-500 hover:text-red-600{% endif %} text-xs font-medium transition-colors duration-200">Delete</button>
+                                </form>
+                            </div>
                         </div>
                     </div>
+                    {% if message.ai_kb_updated is not None %}
+                    <!-- KB update indicator on manager message -->
+                    <div class="mt-0.5 text-xs flex items-center gap-1 {% if message.direction == 'outbound' %}justify-end{% endif %}">
+                        {% if message.ai_kb_updated %}
+                        <span class="px-1.5 py-0.5 rounded bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300">📚 KB updated</span>
+                        <details>
+                            <summary class="cursor-pointer text-blue-500 dark:text-blue-400">show changes</summary>
+                            <div class="mt-1 text-gray-700 dark:text-gray-300 whitespace-pre-wrap font-mono text-xs bg-white dark:bg-gray-800 rounded p-2 border border-gray-200 dark:border-gray-600 max-w-xs">{{ message.ai_kb_changes }}</div>
+                        </details>
+                        {% else %}
+                        <span class="px-1.5 py-0.5 rounded bg-gray-100 text-gray-500 dark:bg-gray-700 dark:text-gray-400">📚 No KB update</span>
+                        {% endif %}
+                    </div>
+                    {% endif %}
                 </div>
             </div>
+
+            {% if message.ai_response %}
+            <!-- AI response bubble (virtual — may or may not have been sent as SMS) -->
+            <div class="flex justify-end ai-response-row">
+                <div class="max-w-xs lg:max-w-md xl:max-w-lg">
+                    {% if message.ai_sent_to_chat %}
+                    <!-- Sent mode: solid purple bubble -->
+                    <div class="bg-purple-500 text-white rounded-lg px-4 py-2 shadow">
+                        <div class="text-sm whitespace-pre-wrap">{{ message.ai_response }}</div>
+                        <div class="text-xs text-purple-100 mt-1 flex items-center gap-1">
+                            <span class="font-medium">🤖 Virtual Assistant</span>
+                            <span class="px-1.5 py-0.5 rounded bg-green-400/40 text-white font-medium">✓ Sent to SMS</span>
+                        </div>
+                    </div>
+                    {% else %}
+                    <!-- Test mode: dashed border, muted — NOT sent to SMS -->
+                    <div class="border-2 border-dashed border-purple-300 dark:border-purple-600 bg-purple-50 dark:bg-purple-900/20 text-gray-700 dark:text-gray-200 rounded-lg px-4 py-2">
+                        <div class="text-sm whitespace-pre-wrap">{{ message.ai_response }}</div>
+                        <div class="text-xs text-purple-500 dark:text-purple-400 mt-1 flex items-center gap-1">
+                            <span class="font-medium">🤖 Virtual Assistant</span>
+                            <span class="px-1.5 py-0.5 rounded bg-yellow-100 text-yellow-700 dark:bg-yellow-900 dark:text-yellow-300 font-medium">⚠ Not sent to SMS (test mode)</span>
+                        </div>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+            {% endif %}
             {% endfor %}
             
             <!-- Loading indicator for pagination -->
@@ -211,6 +269,14 @@
                                 class="px-3 py-2 text-sm font-medium text-white bg-gray-900 rounded-lg hover:bg-black focus:ring-4 focus:outline-none focus:ring-gray-300 dark:bg-gray-700 dark:hover:bg-gray-600 dark:focus:ring-gray-800">
                             Save template
                         </button>
+
+                        <label for="send-to-group-chat" class="inline-flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
+                            <input id="send-to-group-chat"
+                                   type="checkbox"
+                                   checked
+                                   class="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-700 dark:focus:ring-blue-600">
+                            <span>Send to group chat</span>
+                        </label>
                     </div>
 
                     <textarea id="message-input" 
@@ -221,11 +287,11 @@
                               required></textarea>
                 </div>
                 <div class="flex items-end">
-                    <button type="submit" 
+                    <button type="submit"
                             id="send-button"
                             class="inline-flex items-center px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 focus:ring-4 focus:ring-blue-300 disabled:opacity-50 disabled:cursor-not-allowed dark:bg-blue-600 dark:hover:bg-blue-700 dark:focus:ring-blue-800">
-                        <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"></path>
+                        <svg class="w-4 h-4 mr-2 text-white" fill="currentColor" viewBox="0 0 20 20" aria-hidden="true">
+                            <path d="M2.94 2.94a.75.75 0 0 1 .82-.16l13.5 6a.75.75 0 0 1 0 1.38l-13.5 6a.75.75 0 0 1-1.04-.88l1.8-5.28a.75.75 0 0 0 0-.48l-1.8-5.28a.75.75 0 0 1 .22-.8Z"></path>
                         </svg>
                         Send
                     </button>
@@ -235,6 +301,47 @@
     </div>
 </div>
 </div>
+
+{% if conversation.apartment_id %}
+<div id="apartment-kb-modal" tabindex="-1" aria-hidden="true" class="hidden flex overflow-y-auto overflow-x-hidden fixed top-0 right-0 left-0 z-50 justify-center items-center w-full md:inset-0 h-[calc(100%-1rem)] max-h-full">
+    <div class="relative p-4 w-full max-w-4xl max-h-full">
+        <div class="relative bg-white rounded-lg shadow dark:bg-gray-800">
+            <div class="flex items-center justify-between p-4 border-b border-gray-200 rounded-t dark:border-gray-600">
+                <h3 class="text-lg font-semibold text-gray-900 dark:text-white">
+                    Apartment Knowledge Base
+                </h3>
+                <button type="button" id="close-apartment-kb-modal" class="text-gray-400 bg-transparent hover:bg-gray-200 hover:text-gray-900 rounded-lg text-sm w-8 h-8 inline-flex justify-center items-center dark:hover:bg-gray-600 dark:hover:text-white">
+                    <svg class="w-3 h-3" fill="none" viewBox="0 0 14 14">
+                        <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m1 1 12 12M13 1 1 13"/>
+                    </svg>
+                    <span class="sr-only">Close modal</span>
+                </button>
+            </div>
+            <form method="post" action="{% url 'update_chat_apartment_kb' conversation.conversation_sid %}" class="p-4">
+                {% csrf_token %}
+                <div class="mb-4">
+                    <label for="chat-apartment-kb" class="block mb-2 text-sm font-medium text-gray-900 dark:text-white">
+                        {{ conversation.apartment.name }}
+                    </label>
+                    <textarea id="chat-apartment-kb" name="knowledge_base" rows="14"
+                              class="block w-full p-2.5 text-sm text-gray-900 bg-gray-50 rounded-lg border border-gray-300 focus:ring-primary-500 focus:border-primary-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                              placeholder="Apartment knowledge base...">{{ conversation.apartment.knowledge_base|default:'' }}</textarea>
+                </div>
+                <div class="flex items-center justify-end gap-2">
+                    <button type="button" id="cancel-apartment-kb-modal"
+                            class="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-100 dark:bg-gray-700 dark:text-gray-300 dark:border-gray-600 dark:hover:bg-gray-600">
+                        Cancel
+                    </button>
+                    <button type="submit"
+                            class="px-4 py-2 text-sm font-medium text-white bg-blue-700 rounded-lg hover:bg-blue-800 dark:bg-blue-600 dark:hover:bg-blue-700">
+                        Save KB
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endif %}
 
 {{ chat_templates|json_script:"chat-templates-data" }}
 
@@ -247,10 +354,39 @@ document.addEventListener('DOMContentLoaded', function() {
     const templateSelect = document.getElementById('template-select');
     const insertTemplateBtn = document.getElementById('insert-template-btn');
     const saveTemplateBtn = document.getElementById('save-template-btn');
+    const sendToGroupChatInput = document.getElementById('send-to-group-chat');
+    const openKbModalBtn = document.getElementById('open-apartment-kb-modal');
+    const kbModal = document.getElementById('apartment-kb-modal');
+    const closeKbModalBtn = document.getElementById('close-apartment-kb-modal');
+    const cancelKbModalBtn = document.getElementById('cancel-apartment-kb-modal');
 
     const templatesDataEl = document.getElementById('chat-templates-data');
     const templates = templatesDataEl ? JSON.parse(templatesDataEl.textContent) : [];
     const templateById = new Map(templates.map(t => [String(t.id), t]));
+
+    function openKbModal() {
+        if (!kbModal) return;
+        kbModal.classList.remove('hidden');
+        document.body.classList.add('overflow-hidden');
+    }
+
+    function closeKbModal() {
+        if (!kbModal) return;
+        kbModal.classList.add('hidden');
+        document.body.classList.remove('overflow-hidden');
+    }
+
+    if (openKbModalBtn && kbModal) {
+        openKbModalBtn.addEventListener('click', openKbModal);
+        kbModal.addEventListener('click', function(e) {
+            if (e.target === kbModal) closeKbModal();
+        });
+        if (closeKbModalBtn) closeKbModalBtn.addEventListener('click', closeKbModal);
+        if (cancelKbModalBtn) cancelKbModalBtn.addEventListener('click', closeKbModal);
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape') closeKbModal();
+        });
+    }
     
     // Auto-scroll to bottom
     function scrollToBottom() {
@@ -298,31 +434,45 @@ document.addEventListener('DOMContentLoaded', function() {
                 messageDiv.dataset.messageId = m.id;
                 const deleteMsgUrl = deleteMsgUrlTemplate.replace('0', String(m.id));
 
+                const deleteButtonClass = m.direction === 'outbound'
+                    ? 'inline-flex items-center rounded px-1.5 py-0.5 bg-white/20 text-white hover:bg-white/30 text-xs font-medium transition-colors duration-200'
+                    : 'text-red-500 hover:text-red-600 text-xs font-medium transition-colors duration-200';
                 const deleteForm = csrfToken
                     ? `<form method="post" action="${deleteMsgUrl}" class="delete-message-form inline" onsubmit="return confirm('Delete this message?');">
                         <input type="hidden" name="csrfmiddlewaretoken" value="${csrfToken}">
-                        <button type="submit" class="text-red-300 hover:text-red-200 opacity-70 hover:opacity-100 text-xs">Delete</button>
+                        <button type="submit" class="${deleteButtonClass}">Delete</button>
                        </form>`
                     : `<form method="post" action="${deleteMsgUrl}" class="delete-message-form inline" onsubmit="return confirm('Delete this message?');">
-                        <button type="submit" class="text-red-300 hover:text-red-200 opacity-70 hover:opacity-100 text-xs">Delete</button>
+                        <button type="submit" class="${deleteButtonClass}">Delete</button>
                        </form>`;
 
+                const isOut = m.direction === 'outbound';
                 messageDiv.innerHTML = `
                     <div class="max-w-xs lg:max-w-md xl:max-w-lg">
-                        <div class="${m.direction === 'outbound' ? 'bg-blue-500 text-white' : 'bg-white dark:bg-gray-700 text-gray-900 dark:text-white'} rounded-lg px-4 py-2 shadow">
+                        <div class="${isOut ? 'bg-blue-500 text-white' : 'bg-white dark:bg-gray-700 text-gray-900 dark:text-white'} rounded-lg px-4 py-2 shadow">
                             <div class="text-sm">${escapeHtml(m.body)}</div>
-                            <div class="text-xs ${m.direction === 'outbound' ? 'text-blue-100' : 'text-gray-500 dark:text-gray-400'} mt-1 flex items-center justify-between gap-2">
+                            <div class="text-xs ${isOut ? 'text-blue-100' : 'text-gray-500 dark:text-gray-400'} mt-1 flex items-center justify-between gap-2">
                                 <span>
                                     <span class="font-medium">${escapeHtml(m.author_display || m.author || '')}</span>
                                     • ${escapeHtml(m.formatted_time || '')}
                                 </span>
-                                ${deleteForm}
+                                <div class="flex items-center gap-1 flex-wrap">
+                                    ${m.forwarded_to_group_sid ? '<span class="px-1.5 py-0.5 rounded text-xs bg-green-200 text-green-800">&#10003; Forwarded to group</span>' : ''}
+                                    ${deleteForm}
+                                </div>
                             </div>
                         </div>
+                        ${buildKbIndicator(m, isOut)}
                     </div>
                 `;
-
                 fragment.appendChild(messageDiv);
+
+                if (m.ai_response) {
+                    const aiRowHtml = buildAiResponseRow(m);
+                    const tmp = document.createElement('div');
+                    tmp.innerHTML = aiRowHtml;
+                    while (tmp.firstChild) fragment.appendChild(tmp.firstChild);
+                }
             });
 
             // Insert before loading indicator (so indicator stays at bottom)
@@ -362,13 +512,18 @@ document.addEventListener('DOMContentLoaded', function() {
         sendButton.textContent = 'Sending...';
         
         const senderType = document.getElementById('sender-type').value || 'manager';
+        const sendToGroupChat = sendToGroupChatInput ? sendToGroupChatInput.checked : true;
         try {
             const response = await fetch('{% url "send_message" conversation.conversation_sid %}', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
                 },
-                body: JSON.stringify({ message: message, sender_type: senderType })
+                body: JSON.stringify({
+                    message: message,
+                    sender_type: senderType,
+                    send_to_group_chat: sendToGroupChat
+                })
             });
             
             const data = await response.json();
@@ -397,7 +552,7 @@ document.addEventListener('DOMContentLoaded', function() {
             // Re-enable form
             sendButton.disabled = false;
             messageInput.disabled = false;
-            sendButton.innerHTML = '<svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"></path></svg>Send';
+            sendButton.innerHTML = '<svg class="w-4 h-4 mr-2 text-white" fill="currentColor" viewBox="0 0 20 20" aria-hidden="true"><path d="M2.94 2.94a.75.75 0 0 1 .82-.16l13.5 6a.75.75 0 0 1 0 1.38l-13.5 6a.75.75 0 0 1-1.04-.88l1.8-5.28a.75.75 0 0 0 0-.48l-1.8-5.28a.75.75 0 0 1 .22-.8Z"></path></svg>Send';
             messageInput.focus();
         }
     });
@@ -515,11 +670,49 @@ document.addEventListener('DOMContentLoaded', function() {
         messagesContainer.appendChild(messageDiv);
     }
     
-    // Helper function to escape HTML
     function escapeHtml(text) {
         const div = document.createElement('div');
         div.textContent = text;
         return div.innerHTML;
+    }
+
+    function buildKbIndicator(m, isOutbound) {
+        if (m.ai_kb_updated == null) return '';
+        const alignClass = isOutbound ? 'justify-end' : '';
+        if (m.ai_kb_updated === true) {
+            const kbHtml = m.ai_kb_changes
+                ? `<details><summary class="cursor-pointer text-blue-500">show changes</summary><div class="mt-1 text-gray-700 whitespace-pre-wrap font-mono text-xs bg-white rounded p-2 border border-gray-200 max-w-xs">${escapeHtml(m.ai_kb_changes)}</div></details>` : '';
+            return `<div class="mt-0.5 text-xs flex items-center gap-1 ${alignClass}"><span class="px-1.5 py-0.5 rounded bg-blue-100 text-blue-700">&#128218; KB updated</span>${kbHtml}</div>`;
+        }
+        return `<div class="mt-0.5 text-xs flex items-center gap-1 ${alignClass}"><span class="px-1.5 py-0.5 rounded bg-gray-100 text-gray-500">&#128218; No KB update</span></div>`;
+    }
+
+    function buildAiResponseRow(m) {
+        if (!m.ai_response) return '';
+        if (m.ai_sent_to_chat === true) {
+            return `<div class="flex justify-end ai-response-row">
+                <div class="max-w-xs lg:max-w-md xl:max-w-lg">
+                    <div class="bg-purple-500 text-white rounded-lg px-4 py-2 shadow">
+                        <div class="text-sm whitespace-pre-wrap">${escapeHtml(m.ai_response)}</div>
+                        <div class="text-xs text-purple-100 mt-1 flex items-center gap-1">
+                            <span class="font-medium">&#129302; Virtual Assistant</span>
+                            <span class="px-1.5 py-0.5 rounded bg-green-400/40 text-white font-medium">&#10003; Sent to SMS</span>
+                        </div>
+                    </div>
+                </div>
+            </div>`;
+        }
+        return `<div class="flex justify-end ai-response-row">
+            <div class="max-w-xs lg:max-w-md xl:max-w-lg">
+                <div class="border-2 border-dashed border-purple-300 bg-purple-50 text-gray-700 rounded-lg px-4 py-2">
+                    <div class="text-sm whitespace-pre-wrap">${escapeHtml(m.ai_response)}</div>
+                    <div class="text-xs text-purple-500 mt-1 flex items-center gap-1">
+                        <span class="font-medium">&#129302; Virtual Assistant</span>
+                        <span class="px-1.5 py-0.5 rounded bg-yellow-100 text-yellow-700 font-medium">&#9888; Not sent to SMS (test mode)</span>
+                    </div>
+                </div>
+            </div>
+        </div>`;
     }
     
     // Auto-refresh messages every 10 seconds

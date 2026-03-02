@@ -656,9 +656,12 @@ def build_full_context(conversation_sid, apartment, booking):
     from mysite.models import ParkingBooking, HandymanCalendar, Cleaning, Payment, TwilioMessage, AIManagement
     from datetime import date
 
+    from datetime import datetime
     parts = []
     context_sources = {}
     today = date.today()
+    now = datetime.now()
+    parts.append(f"=== CURRENT DATE & TIME ===\n{now.strftime('%A, %B %d, %Y %H:%M')} (local server time)")
 
     # Global knowledge base (only knowledge entries, not prompts)
     global_kb_entries = AIManagement.objects.filter(
@@ -747,7 +750,7 @@ def build_full_context(conversation_sid, apartment, booking):
     context_sources["chat_history"] = messages.exists()
     if messages.exists():
         history = [
-            f"{'Customer' if m.direction == 'inbound' else 'Assistant'}: {m.body}"
+            f"[{m.message_timestamp.strftime('%Y-%m-%d %H:%M')}] {'Customer' if m.direction == 'inbound' else 'Assistant'}: {m.body}"
             for m in reversed(list(messages))
         ]
         parts.append("=== RECENT CHAT HISTORY ===\n" + "\n".join(history))
@@ -779,6 +782,17 @@ def _get_prompt_with_source(prompt_key, **placeholders):
             log_warning(f"Prompt {prompt_key} has missing placeholders", category='sms')
             return None, False
     return None, False
+
+
+def _update_message_ai_result(message_sid, **kwargs):
+    """Update TwilioMessage AI metadata fields after processing."""
+    if not message_sid:
+        return
+    try:
+        from mysite.models import TwilioMessage
+        TwilioMessage.objects.filter(message_sid=message_sid).update(**kwargs)
+    except Exception as e:
+        log_error(e, "Error updating message AI metadata", source='web')
 
 
 def ai_answer_customer(conversation_sid, message_body, apartment, booking):
@@ -888,7 +902,7 @@ def ai_extract_knowledge(conversation_sid, message_body, apartment):
     try:
         ai_client = _get_ai_client()
         if not ai_client:
-            return
+            return False, None
 
         # Step 1: Check if message has valuable operational info
         fields_ctx = _apartment_fields_context(apartment)
@@ -931,7 +945,7 @@ def ai_extract_knowledge(conversation_sid, message_body, apartment):
         if not has_value:
             log_ai_manager_no_extract(conversation_sid, message_body)
             log_info(f"AI: manager message has no extractable knowledge", category='sms')
-            return
+            return False, None
 
         log_info(f"AI: extracting knowledge from manager message for apartment {apartment.id}", category='sms')
 
@@ -944,8 +958,12 @@ def ai_extract_knowledge(conversation_sid, message_body, apartment):
             merge_content = (
                 f"Current knowledge base:\n{kb_content}\n\n"
                 f"New information to add: {message_body}\n\n"
-                "Merge the new information into the knowledge base. Keep it clear and organized.\n"
-                "Return ONLY the updated knowledge base text, nothing else."
+                "Merge the new information into the knowledge base. Keep it clear and organized.\n\n"
+                "Respond using EXACTLY this format (keep the markers on their own lines):\n"
+                "[UPDATED KB]\n"
+                "<full updated knowledge base text>\n"
+                "[CHANGES]\n"
+                "<one or two sentences describing only what was added or changed>"
             )
             merge_from_db = False
         merge_model = "openai/gpt-4o-mini"
@@ -953,15 +971,36 @@ def ai_extract_knowledge(conversation_sid, message_body, apartment):
             model=merge_model,
             messages=[{"role": "user", "content": merge_content}],
             temperature=0.2,
-            max_tokens=1000,
+            max_tokens=1200,
         )
 
-        updated_notes = update_response.choices[0].message.content.strip()
-        saved = updated_notes and updated_notes != (apartment.knowledge_base or '')
+        raw_merge = update_response.choices[0].message.content.strip()
+
+        # Parse [UPDATED KB] / [CHANGES] sections
+        updated_notes = raw_merge
+        changes_summary = None
+        if '[UPDATED KB]' in raw_merge and '[CHANGES]' in raw_merge:
+            kb_part = raw_merge.split('[UPDATED KB]', 1)[1]
+            if '[CHANGES]' in kb_part:
+                updated_notes, changes_part = kb_part.split('[CHANGES]', 1)
+                updated_notes = updated_notes.strip()
+                changes_summary = changes_part.strip()
+        else:
+            updated_notes = raw_merge
+
+        saved = bool(updated_notes) and updated_notes != (apartment.knowledge_base or '')
         if saved:
             apartment.knowledge_base = updated_notes
             apartment.save()
             log_info(f"AI updated knowledge base for apartment {apartment.id}", category='sms')
+            # Notify the conversation that KB was updated
+            try:
+                twilio_phone = os.environ.get('TWILIO_PHONE_SECONDARY', '+13153524379')
+                notification = f"📚 Knowledge base updated: {changes_summary}" if changes_summary else "📚 Knowledge base updated."
+                send_messsage_by_sid(conversation_sid, 'Virtual Assistant', notification, twilio_phone, None)
+                log_info(f"AI sent KB update notification to {conversation_sid}", category='sms')
+            except Exception as notify_err:
+                log_error(notify_err, "Failed to send KB update notification", source='web')
 
         log_ai_manager_merge(
             conversation_sid=conversation_sid,
@@ -975,9 +1014,12 @@ def ai_extract_knowledge(conversation_sid, message_body, apartment):
             prompt_source="DB:ai_extract_merge" if merge_from_db else "fallback",
         )
 
+        return bool(saved), changes_summary if saved else None
+
     except Exception as e:
         log_ai_error(conversation_sid, "ai_extract_knowledge", str(e))
         log_error(e, "Error in ai_extract_knowledge", source='web')
+        return False, None
 
 
 @csrf_exempt
@@ -1094,7 +1136,43 @@ def twilio_webhook(request):
                                 log_ai_error(conversation_sid or '', "AI message routing", str(e))
                                 log_error(e, "Error in AI message routing (ASSISTANT)", source='web')
                 elif os.environ.get('AI_ASSISTANT_ENABLED', 'true').lower() != 'true':
+                    # Test mode: run AI processing but do NOT send responses to chat
                     log_ai_disabled(conversation_sid or '', author or '', body or '')
+                    try:
+                        from mysite.models import TwilioConversation, Apartment, Booking
+                        _conv = TwilioConversation.objects.filter(conversation_sid=conversation_sid).first()
+
+                        if _conv and _conv.apartment_id and _conv.booking_id:
+                            _apartment = Apartment.objects.prefetch_related('managers').select_related('owner').get(id=_conv.apartment_id)
+                            _booking = Booking.objects.select_related('tenant').get(id=_conv.booking_id)
+                            _is_customer = author not in [twilio_phone, manager_phone, manager_phone_2, manager_phone_3]
+
+                            if _is_customer:
+                                if _is_skippable_message(body):
+                                    log_ai_customer_skipped(conversation_sid, body)
+                                else:
+                                    log_ai_customer_start(conversation_sid, author, body, _conv.apartment_id, _conv.booking_id)
+                                    _ai_resp = ai_answer_customer(conversation_sid, body, _apartment, _booking)
+                                    if _ai_resp:
+                                        log_ai_customer_sent(conversation_sid, _ai_resp)
+                                        _update_message_ai_result(
+                                            message_sid,
+                                            ai_response=_ai_resp,
+                                            ai_sent_to_chat=False,
+                                        )
+                            else:
+                                log_ai_manager_start(conversation_sid, author, body, _conv.apartment_id)
+                                _kb_saved, _kb_new = ai_extract_knowledge(conversation_sid, body, _apartment)
+                                _update_message_ai_result(
+                                    message_sid,
+                                    ai_kb_updated=_kb_saved,
+                                    ai_kb_changes=_kb_new,
+                                )
+                        else:
+                            log_no_conv_link(conversation_sid or '', author or '', body or '')
+                    except Exception as e:
+                        log_ai_error(conversation_sid or '', "AI message routing (test mode)", str(e))
+                        log_error(e, "Error in AI message routing (test mode)", source='web')
                 else:
                     try:
                         from mysite.models import TwilioConversation, Apartment, Booking
@@ -1115,10 +1193,20 @@ def twilio_webhook(request):
                                     if _ai_resp:
                                         send_messsage_by_sid(conversation_sid, 'Virtual Assistant', _ai_resp, twilio_phone, None)
                                         log_ai_customer_sent(conversation_sid, _ai_resp)
+                                        _update_message_ai_result(
+                                            message_sid,
+                                            ai_response=_ai_resp,
+                                            ai_sent_to_chat=True,
+                                        )
                             else:
                                 # Manager → AI extracts knowledge silently
                                 log_ai_manager_start(conversation_sid, author, body, _conv.apartment_id)
-                                ai_extract_knowledge(conversation_sid, body, _apartment)
+                                _kb_saved, _kb_new = ai_extract_knowledge(conversation_sid, body, _apartment)
+                                _update_message_ai_result(
+                                    message_sid,
+                                    ai_kb_updated=_kb_saved,
+                                    ai_kb_changes=_kb_new,
+                                )
                         else:
                             log_no_conv_link(conversation_sid or '', author or '', body or '')
                     except Exception as e:
@@ -1209,6 +1297,10 @@ def twilio_webhook(request):
                                 target_conversation_sid=new_conversation_sid,
                             )
                             forward_message_to_conversation(new_conversation_sid, author, body)
+                            _update_message_ai_result(
+                                message_sid,
+                                forwarded_to_group_sid=new_conversation_sid,
+                            )
                         
                         # Delete the old conversation (the one that triggered this webhook)
                         if conversation_sid:
@@ -1387,7 +1479,34 @@ def sendContractToTwilio(booking, contract_url):
         
         if conversation_sid:
             log_info(f"Conversation created: {conversation_sid}", category='sms')
-            send_messsage_by_sid(conversation_sid, "Virtual Assistant", f"Hi, {booking.tenant.full_name or 'Dear guest'}, this is your contract for booking apartment {booking.apartment.name}. from {booking.start_date} to {booking.end_date}. Please sign it here: {contract_url}", twilio_phone_secondary, validated_phone)
+            tenant_name = booking.tenant.full_name or 'Dear guest'
+            
+            # Try to get template from AIManagement
+            message_template = _get_prompt('contract_message_template')
+            if message_template:
+                try:
+                    message = message_template.format(
+                        tenant_name=tenant_name,
+                        apartment_name=booking.apartment.name,
+                        start_date=booking.start_date,
+                        end_date=booking.end_date,
+                        contract_url=contract_url
+                    )
+                except KeyError as e:
+                    log_warning(f"Contract template has missing placeholders: {e}", category='sms')
+                    message = None
+            else:
+                message = None
+
+            # Fallback to hardcoded template if DB template is missing or invalid
+            if not message:
+                message = (
+                    f"Hi {tenant_name}, I am Sophia, a virtual assistant helping managers and guests with a booking for apartment {booking.apartment.name} from {booking.start_date} to {booking.end_date}. "
+                    f"If I do not respond, our managers in this chat will contact you as soon as possible. "
+                    f"To continue with a booking, please sign this contract: {contract_url}"
+                )
+            
+            send_messsage_by_sid(conversation_sid, "Virtual Assistant", message, twilio_phone_secondary, validated_phone)
         else:
             log_warning("Conversation wasn't created", category='sms')
     except Exception as e:
@@ -1428,7 +1547,32 @@ def sendWelcomeMessageToTwilio(booking):
         
         if conversation_sid:
             log_info(f"Conversation created: {conversation_sid}", category='sms')
-            send_messsage_by_sid(conversation_sid, "Virtual Assistant", f"Hi, {booking.tenant.full_name or 'Dear guest'}, This chat for renting apartment {booking.apartment.name}. from {booking.start_date} to {booking.end_date}.", twilio_phone_secondary, validated_phone)
+            tenant_name = booking.tenant.full_name or 'Dear guest'
+            
+            # Try to get template from AIManagement
+            message_template = _get_prompt('welcome_message_template')
+            if message_template:
+                try:
+                    message = message_template.format(
+                        tenant_name=tenant_name,
+                        apartment_name=booking.apartment.name,
+                        start_date=booking.start_date,
+                        end_date=booking.end_date
+                    )
+                except KeyError as e:
+                    log_warning(f"Welcome template has missing placeholders: {e}", category='sms')
+                    message = None
+            else:
+                message = None
+
+            # Fallback to hardcoded template if DB template is missing or invalid
+            if not message:
+                message = (
+                    f"Hi {tenant_name}, I am Sophia, a virtual assistant helping managers and guests with a booking for apartment {booking.apartment.name} from {booking.start_date} to {booking.end_date}. "
+                    f"If I do not respond, our managers in this chat will contact you as soon as possible."
+                )
+            
+            send_messsage_by_sid(conversation_sid, "Virtual Assistant", message, twilio_phone_secondary, validated_phone)
         else:
             log_warning("Conversation wasn't created", category='sms')
     except Exception as e:

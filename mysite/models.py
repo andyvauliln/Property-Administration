@@ -2075,7 +2075,14 @@ class TwilioMessage(models.Model):
     
     # Timestamps
     message_timestamp = models.DateTimeField(auto_now_add=True)
-    
+
+    # AI processing metadata
+    ai_response = models.TextField(null=True, blank=True)
+    ai_sent_to_chat = models.BooleanField(null=True, blank=True)
+    ai_kb_updated = models.BooleanField(null=True, blank=True)
+    ai_kb_changes = models.TextField(null=True, blank=True)
+    forwarded_to_group_sid = models.CharField(max_length=100, null=True, blank=True)
+
     # Tracking fields
     created_by = models.CharField(max_length=255, blank=True, null=True, editable=False)
     last_updated_by = models.CharField(max_length=255, blank=True, null=True, editable=False)

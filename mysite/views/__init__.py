@@ -29,6 +29,7 @@ from .chat import (
     send_message,
     delete_all_chat_messages,
     delete_chat_conversation,
+    update_chat_apartment_kb,
     delete_chat_message,
     load_more_messages,
     chat_template_list,

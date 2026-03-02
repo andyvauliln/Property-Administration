@@ -13,7 +13,7 @@ from mysite.unified_logger import log_info
 import json
 
 
-def get_data_integrity_issues(orphaned_page=1, zero_amount_page=1, mismatch_page=1, merged_page=1):
+def get_data_integrity_issues(orphaned_page=1, zero_amount_page=1, mismatch_page=1, merged_page=1, request_days=None):
     """
     Run data integrity checks and return categorized issues.
     Only shows issues related to recent data (last 1 month) to focus on relevant problems.
@@ -28,7 +28,9 @@ def get_data_integrity_issues(orphaned_page=1, zero_amount_page=1, mismatch_page
     from datetime import date
     
     # Only show issues for data from the last month (relevant/recent data)
-    one_month_ago = date.today() - timedelta(days=30)
+    # If the user requested a longer period in the main view, we respect that here too
+    days_filter = int(request_days) if request_days else 30
+    one_month_ago = date.today() - timedelta(days=days_filter)
     
     # Pagination settings
     ITEMS_PER_PAGE = 50  # Reduced for better performance on low-memory servers
@@ -652,7 +654,8 @@ def database_activity(request):
         orphaned_page=orphaned_page,
         zero_amount_page=zero_amount_page,
         mismatch_page=mismatch_page,
-        merged_page=merged_page
+        merged_page=merged_page,
+        request_days=days
     )
     
     context = {
