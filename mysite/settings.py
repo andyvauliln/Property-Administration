@@ -92,6 +92,12 @@ LOGGING = {
             'filename': str(BASE_DIR / 'logs' / 'payment_sync_v2_trace.jsonl'),
             'formatter': 'jsonl',
         },
+        'group_chat_log': {
+            'level': 'DEBUG',
+            'class': 'logging.FileHandler',
+            'filename': str(BASE_DIR / 'logs' / 'group_chat_log.log'),
+            'formatter': 'jsonl',
+        },
     },
     'loggers': {
         'mysite.sms_nofitications': {
@@ -121,6 +127,11 @@ LOGGING = {
         },
         'mysite.payment_sync_v2_trace': {
             'handlers': ['payment_sync_v2_trace'],
+            'level': 'DEBUG',
+            'propagate': False,
+        },
+        'mysite.group_chat_log': {
+            'handlers': ['group_chat_log'],
             'level': 'DEBUG',
             'propagate': False,
         },

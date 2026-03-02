@@ -54,7 +54,7 @@ def payments(request):
 
 @user_has_role('Admin', 'Manager')
 def global_knowledge_base(request):
-    return generic_view(request, 'globalknowledgebase', GlobalKnowledgeBaseForm, 'generic_table.html')
+    return generic_view(request, 'globalknowledgebase', GlobalKnowledgeBaseForm, 'knowledge_base.html')
 
 
 def format_dates(item):

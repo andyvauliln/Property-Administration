@@ -25,8 +25,9 @@ def send_telegram_message(chat_id, token, message, dry_run=False, stdout=None):
     requests.get(url, params={"chat_id": chat_id, "text": message})
 
 
-def build_pending_payment_message(payment):
-    message = "🚨 PENDING PAYMENTS FROM PAST PERIODS:"
+def build_pending_payment_message(payment, direction):
+    direction_label = "INCOMING" if direction == "In" else "OUTGOING"
+    message = f"🚨 PENDING {direction_label} PAYMENTS FROM PAST PERIODS:"
     message += f"\n- Amount: ${payment.amount}"
     message += f"\n  Payment Date: {payment.payment_date}"
     message += f"\n  Status: {payment.payment_status}"
@@ -51,10 +52,10 @@ def send_pending_payments(chat_id, token, direction, dry_run=False, stdout=None)
         payment_date__lt=tomorrow,
         payment_date__gte=month_ago,
         payment_type__type=direction,
-    ).order_by('payment_date')
+    ).order_by('payment_date').select_related('payment_type', 'booking', 'booking__apartment', 'booking__tenant', 'apartment')
     sent = 0
     for payment in pending:
-        send_telegram_message(normalize_group_chat_id(chat_id), token, build_pending_payment_message(payment), dry_run=dry_run, stdout=stdout)
+        send_telegram_message(normalize_group_chat_id(chat_id), token, build_pending_payment_message(payment, direction), dry_run=dry_run, stdout=stdout)
         sent += 1
     return sent
 
@@ -65,17 +66,19 @@ def send_payment_notifications(chat_id, token, direction, next_day, dry_run=Fals
         send_in_telegram=True,
         payment__isnull=False,
         payment__payment_type__type=direction,
-    ).exclude(booking__status='Blocked')
+    ).exclude(booking__status='Blocked').select_related('payment', 'payment__payment_type')
     sent = 0
     for notification in notifications:
-        message = f"PAYMENT TOMORROW: {notification.notification_message}"
-        if notification.payment:
-            message += "\nPayment Details:"
-            message += f"\n- Amount: ${notification.payment.amount}"
-            message += f"\n- Status: {notification.payment.payment_status}"
-            message += f"\n- Type: {notification.payment.payment_type.name if notification.payment.payment_type else 'N/A'}"
-            if notification.payment.notes:
-                message += f"\n- Notes: {notification.payment.notes}"
+        payment = notification.payment
+        direction_label = "INCOMING" if direction == "In" else "OUTGOING"
+        message = f"💰 {direction_label} PAYMENT TOMORROW: {notification.notification_message}"
+        if payment:
+            message += "\n\nPayment Details:"
+            message += f"\n- Amount: ${payment.amount}"
+            message += f"\n- Status: {payment.payment_status}"
+            message += f"\n- Type: {payment.payment_type.name if payment.payment_type else 'N/A'}"
+            if payment.notes:
+                message += f"\n- Notes: {payment.notes}"
         send_telegram_message(normalize_group_chat_id(chat_id), token, message, dry_run=dry_run, stdout=stdout)
         sent += 1
     return sent

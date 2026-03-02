@@ -162,6 +162,17 @@ def get_dropdown_options(identifier, isData=False, request=None):
     elif identifier == 'cleaning_status':
         return [{"value": x[0], "label": x[1]} for x in Cleaning.STATUS]
 
+    elif identifier == 'entry_type':
+        return [{"value": x[0], "label": x[1]} for x in GlobalKnowledgeBase.ENTRY_TYPE_CHOICES]
+
+    elif identifier == 'ai_prompt_keys':
+        return [
+            {"value": "ai_answer_system", "label": "AI Answer System"},
+            {"value": "ai_answer_user", "label": "AI Answer User"},
+            {"value": "ai_extract_check", "label": "AI Extract Check"},
+            {"value": "ai_extract_merge", "label": "AI Extract Merge"},
+        ]
+
     else:
         raise ValueError(f"Unsupported identifier: {identifier}")
 
@@ -1284,7 +1295,7 @@ class ParkingForm(forms.ModelForm):
 class GlobalKnowledgeBaseForm(forms.ModelForm):
     class Meta:
         model = GlobalKnowledgeBase
-        fields = ['name', 'content']
+        fields = ['name', 'content', 'entry_type', 'prompt_key', 'description']
 
     def __init__(self, *args, **kwargs):
         self.request = kwargs.pop('request', None)
@@ -1294,6 +1305,20 @@ class GlobalKnowledgeBaseForm(forms.ModelForm):
     name = CharFieldEx(
         max_length=255, isColumn=True, isEdit=True,
         isCreate=True, ui_element="input", order=1)
+    entry_type = ChoiceFieldEx(
+        choices=GlobalKnowledgeBase.ENTRY_TYPE_CHOICES,
+        isColumn=True, isEdit=True, isCreate=True,
+        ui_element="dropdown",
+        _dropdown_options=lambda: get_dropdown_options("entry_type"),
+        order=2)
+    prompt_key = CharFieldEx(
+        max_length=100, isColumn=True, isEdit=True, isCreate=True,
+        required=False, ui_element="dropdown",
+        _dropdown_options=lambda: get_dropdown_options("ai_prompt_keys"),
+        order=3)
+    description = CharFieldEx(
+        isColumn=True, isEdit=True, isCreate=True,
+        required=False, initial="", ui_element="textarea", order=4)
     content = CharFieldEx(
-        isColumn=False, isEdit=True, isCreate=True,
-        required=False, initial="", ui_element="textarea", order=2)
+        isColumn=True, isEdit=True, isCreate=True,
+        required=False, initial="", ui_element="textarea", order=5)

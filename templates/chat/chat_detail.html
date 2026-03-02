@@ -134,6 +134,20 @@
                         No Booking Link
                     </span>
                     {% endif %}
+                    <form method="post" action="{% url 'delete_all_chat_messages' conversation.conversation_sid %}" 
+                          class="inline" onsubmit="return confirm('Delete all messages? This cannot be undone.');">
+                        {% csrf_token %}
+                        <button type="submit" class="inline-flex items-center px-2.5 py-0.5 rounded text-xs font-medium bg-red-100 text-red-800 hover:bg-red-200 dark:bg-red-900 dark:text-red-300 dark:hover:bg-red-800 transition-colors duration-200">
+                            Delete all messages
+                        </button>
+                    </form>
+                    <form method="post" action="{% url 'delete_chat_conversation' conversation.conversation_sid %}" 
+                          class="inline" onsubmit="return confirm('Delete this conversation and all messages? This cannot be undone.');">
+                        {% csrf_token %}
+                        <button type="submit" class="inline-flex items-center px-2.5 py-0.5 rounded text-xs font-medium bg-red-100 text-red-800 hover:bg-red-200 dark:bg-red-900 dark:text-red-300 dark:hover:bg-red-800 transition-colors duration-200">
+                            Delete conversation
+                        </button>
+                    </form>
                 </div>
             </div>
         </div>
@@ -141,15 +155,19 @@
         <!-- Messages Area -->
         <div id="messages-container" class="flex-1 min-h-0 overflow-y-auto p-4 space-y-4 bg-gray-50 dark:bg-gray-900">
             {% for message in chat_messages %}
-            <div class="flex {% if message.direction == 'outbound' %}justify-end{% else %}justify-start{% endif %}">
+            <div class="flex {% if message.direction == 'outbound' %}justify-end{% else %}justify-start{% endif %} message-row" data-message-id="{{ message.id }}">
                 <div class="max-w-xs lg:max-w-md xl:max-w-lg">
                     <div class="{% if message.direction == 'outbound' %}bg-blue-500 text-white{% else %}bg-white dark:bg-gray-700 text-gray-900 dark:text-white{% endif %} rounded-lg px-4 py-2 shadow">
                         <div class="text-sm">{{ message.body }}</div>
-                        <div class="text-xs {% if message.direction == 'outbound' %}text-blue-100{% else %}text-gray-500 dark:text-gray-400{% endif %} mt-1">
-                            <span class="font-medium">
-                                {{ message.author_display }}
+                        <div class="text-xs {% if message.direction == 'outbound' %}text-blue-100{% else %}text-gray-500 dark:text-gray-400{% endif %} mt-1 flex items-center justify-between gap-2">
+                            <span>
+                                <span class="font-medium">{{ message.author_display }}</span>
+                                • {{ message.message_timestamp|date:"M d, Y H:i" }}
                             </span>
-                            • {{ message.message_timestamp|date:"M d, Y H:i" }}
+                            <form method="post" action="{% url 'delete_chat_message' conversation.conversation_sid message.id %}" class="delete-message-form inline" onsubmit="return confirm('Delete this message?');">
+                                {% csrf_token %}
+                                <button type="submit" class="text-red-400 hover:text-red-300 opacity-70 hover:opacity-100 text-xs">Delete</button>
+                            </form>
                         </div>
                     </div>
                 </div>
@@ -166,7 +184,13 @@
         <div class="flex-shrink-0 p-4 border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800">
             <form id="message-form" class="flex space-x-4">
                 <div class="flex-1">
-                    <div class="flex items-center gap-2 mb-2">
+                    <div class="flex items-center gap-2 mb-2 flex-wrap">
+                        <label for="sender-type" class="sr-only">Send as</label>
+                        <select id="sender-type"
+                                class="block rounded-lg border border-gray-300 bg-gray-50 p-2 text-sm text-gray-900 focus:border-blue-500 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white">
+                            <option value="manager" selected>Send as Manager</option>
+                            <option value="client">Send as Client</option>
+                        </select>
                         <label for="template-select" class="sr-only">Message templates</label>
                         <select id="template-select"
                                 class="block w-full max-w-xs rounded-lg border border-gray-300 bg-gray-50 p-2 text-sm text-gray-900 focus:border-blue-500 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white dark:placeholder-gray-400 dark:focus:border-blue-500 dark:focus:ring-blue-500">
@@ -265,19 +289,34 @@ document.addEventListener('DOMContentLoaded', function() {
                 throw new Error(data.error || 'Failed to load messages');
             }
 
-            // Prepend older messages
+            const deleteMsgUrlTemplate = '{% url "delete_chat_message" conversation.conversation_sid 0 %}';
+            const csrfToken = document.querySelector('input[name="csrfmiddlewaretoken"]')?.value || '';
             const fragment = document.createDocumentFragment();
             (data.messages || []).forEach((m) => {
                 const messageDiv = document.createElement('div');
-                messageDiv.className = `flex ${m.direction === 'outbound' ? 'justify-end' : 'justify-start'}`;
+                messageDiv.className = `flex ${m.direction === 'outbound' ? 'justify-end' : 'justify-start'} message-row`;
+                messageDiv.dataset.messageId = m.id;
+                const deleteMsgUrl = deleteMsgUrlTemplate.replace('0', String(m.id));
+
+                const deleteForm = csrfToken
+                    ? `<form method="post" action="${deleteMsgUrl}" class="delete-message-form inline" onsubmit="return confirm('Delete this message?');">
+                        <input type="hidden" name="csrfmiddlewaretoken" value="${csrfToken}">
+                        <button type="submit" class="text-red-300 hover:text-red-200 opacity-70 hover:opacity-100 text-xs">Delete</button>
+                       </form>`
+                    : `<form method="post" action="${deleteMsgUrl}" class="delete-message-form inline" onsubmit="return confirm('Delete this message?');">
+                        <button type="submit" class="text-red-300 hover:text-red-200 opacity-70 hover:opacity-100 text-xs">Delete</button>
+                       </form>`;
 
                 messageDiv.innerHTML = `
                     <div class="max-w-xs lg:max-w-md xl:max-w-lg">
                         <div class="${m.direction === 'outbound' ? 'bg-blue-500 text-white' : 'bg-white dark:bg-gray-700 text-gray-900 dark:text-white'} rounded-lg px-4 py-2 shadow">
                             <div class="text-sm">${escapeHtml(m.body)}</div>
-                            <div class="text-xs ${m.direction === 'outbound' ? 'text-blue-100' : 'text-gray-500 dark:text-gray-400'} mt-1">
-                                <span class="font-medium">${escapeHtml(m.author_display || m.author || '')}</span>
-                                • ${escapeHtml(m.formatted_time || '')}
+                            <div class="text-xs ${m.direction === 'outbound' ? 'text-blue-100' : 'text-gray-500 dark:text-gray-400'} mt-1 flex items-center justify-between gap-2">
+                                <span>
+                                    <span class="font-medium">${escapeHtml(m.author_display || m.author || '')}</span>
+                                    • ${escapeHtml(m.formatted_time || '')}
+                                </span>
+                                ${deleteForm}
                             </div>
                         </div>
                     </div>
@@ -322,13 +361,14 @@ document.addEventListener('DOMContentLoaded', function() {
         messageInput.disabled = true;
         sendButton.textContent = 'Sending...';
         
+        const senderType = document.getElementById('sender-type').value || 'manager';
         try {
             const response = await fetch('{% url "send_message" conversation.conversation_sid %}', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
                 },
-                body: JSON.stringify({ message: message })
+                body: JSON.stringify({ message: message, sender_type: senderType })
             });
             
             const data = await response.json();

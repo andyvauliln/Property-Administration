@@ -6,10 +6,30 @@ from twilio.base.exceptions import TwilioRestException
 from django.views.decorators.csrf import csrf_exempt
 import re
 from mysite.unified_logger import log_error, log_info, log_warning, logger
+from mysite.group_chat_logger import (
+    log_message_received,
+    log_ai_customer_start,
+    log_ai_customer_skipped,
+    log_ai_customer_full,
+    log_ai_customer_no_answer,
+    log_ai_customer_sent,
+    log_ai_manager_start,
+    log_ai_manager_check,
+    log_ai_manager_merge,
+    log_ai_manager_no_extract,
+    log_ai_disabled,
+    log_no_conv_link,
+    log_new_group_created,
+    log_message_forwarded,
+    log_ai_error,
+)
 from django.http import JsonResponse
 import time
 import twilio
 from django.utils import timezone
+
+KB_SUFFIX = "(+)"  # ASSISTANT messages marked with (+) are processed for knowledge extraction
+CLIENT_SUFFIX = "(+++)"  # ASSISTANT messages marked with (+++) are treated as client (AI answers)
 
 # Unified logger throughout the app
 
@@ -517,23 +537,52 @@ def forward_message_to_conversation(conversation_sid, author, message):
 
 def delete_conversation(conversation_sid):
     """
-    Delete a conversation
-    
-    Args:
-        conversation_sid (str): Conversation SID to delete
+    Delete a conversation from Twilio (messages cascade).
     """
     try:
-        # Ensure client is initialized
         global client
         if client is None:
-            log_info("Twilio client not initialized, attempting to initialize...", category='sms')
             client = get_twilio_client()
-            
         client.conversations.v1.conversations(conversation_sid).delete()
         log_info(f"Deleted conversation: {conversation_sid}", category='sms')
-        
     except Exception as e:
         log_error(e, f"Error deleting conversation {conversation_sid}", source='twilio')
+        raise
+
+
+def delete_message(conversation_sid, message_sid):
+    """
+    Delete a single message from Twilio.
+    """
+    try:
+        global client
+        if client is None:
+            client = get_twilio_client()
+        client.conversations.v1.conversations(conversation_sid).messages(message_sid).delete()
+        log_info(f"Deleted message: {message_sid}", category='sms')
+    except Exception as e:
+        log_error(e, f"Error deleting message {message_sid}", source='twilio')
+        raise
+
+
+def delete_all_messages(conversation_sid):
+    """
+    Delete all messages from Twilio for a conversation. Keeps the conversation.
+    """
+    try:
+        global client
+        if client is None:
+            client = get_twilio_client()
+        conv_resource = client.conversations.v1.conversations(conversation_sid)
+        messages = list(conv_resource.messages.list())
+        for msg in messages:
+            try:
+                conv_resource.messages(msg.sid).delete()
+            except Exception as e:
+                log_error(e, f"Error deleting message {msg.sid}", source='twilio')
+        log_info(f"Deleted all messages from conversation: {conversation_sid}", category='sms')
+    except Exception as e:
+        log_error(e, f"Error deleting messages from {conversation_sid}", source='twilio')
         raise
 
 
@@ -544,6 +593,23 @@ def _is_skippable_message(text):
         return True
     text = text.strip()
     return len(text) <= 3 and '?' not in text
+
+
+def _extract_marked_body(text, marker):
+    """
+    Returns message content if marker is present as prefix or suffix.
+    Examples:
+      "(+) wifi issue" -> "wifi issue"
+      "wifi issue (+)" -> "wifi issue"
+    """
+    if not text:
+        return ""
+    text = text.strip()
+    if text.startswith(marker):
+        return text[len(marker):].strip()
+    if text.endswith(marker):
+        return text[:-len(marker)].strip()
+    return ""
 
 
 def _get_ai_client():
@@ -584,28 +650,37 @@ def build_full_context(conversation_sid, apartment, booking):
     """
     Full context for AI: apartment notes + structured fields + booking (all fields) +
     parking + cleanings + payments + handyman + recent chat history.
+    Returns (context_str, context_sources) where context_sources describes what was included.
     Both apartment and booking are guaranteed non-None when called.
     """
     from mysite.models import ParkingBooking, HandymanCalendar, Cleaning, Payment, TwilioMessage, GlobalKnowledgeBase
     from datetime import date
 
     parts = []
+    context_sources = {}
     today = date.today()
 
-    # Global knowledge base
-    global_kb_entries = GlobalKnowledgeBase.objects.all()
+    # Global knowledge base (only knowledge entries, not prompts)
+    global_kb_entries = GlobalKnowledgeBase.objects.filter(
+        entry_type=GlobalKnowledgeBase.ENTRY_TYPE_KNOWLEDGE
+    )
     global_kb_texts = [entry.content for entry in global_kb_entries if entry.content and entry.content.strip()]
+    context_sources["global_kb"] = bool(global_kb_texts)
     if global_kb_texts:
         parts.append(f"=== GLOBAL KNOWLEDGE BASE ===\n" + "\n\n".join(global_kb_texts))
 
     # Apartment knowledge base
-    if apartment.knowledge_base and apartment.knowledge_base.strip():
+    has_apt_kb = bool(apartment.knowledge_base and apartment.knowledge_base.strip())
+    context_sources["apartment_kb"] = has_apt_kb
+    if has_apt_kb:
         parts.append(f"=== APARTMENT KNOWLEDGE BASE ===\n{apartment.knowledge_base}")
 
-    # Apartment structured fields
+    # Apartment structured fields (always)
+    context_sources["apartment_fields"] = True
     parts.append(f"=== APARTMENT FIELDS DATA ===\n{_apartment_fields_context(apartment)}")
 
-    # Booking — all fields except keywords/metadata
+    # Booking — all fields except keywords/metadata (always)
+    context_sources["booking"] = True
     tenant = booking.tenant
     car_info = ""
     if booking.is_rent_car:
@@ -628,6 +703,7 @@ def build_full_context(conversation_sid, apartment, booking):
 
     # Parking booked for this booking
     parking = ParkingBooking.objects.filter(booking=booking).select_related('parking')
+    context_sources["parking"] = parking.exists()
     if parking.exists():
         lines = [
             f"- Spot #{p.parking.number} ({p.parking.notes or ''}, building: {p.parking.building or 'N/A'})"
@@ -637,12 +713,14 @@ def build_full_context(conversation_sid, apartment, booking):
 
     # Cleanings for this booking
     cleanings = Cleaning.objects.filter(booking=booking).order_by('date')[:5]
+    context_sources["cleanings"] = cleanings.exists()
     if cleanings.exists():
         lines = [f"- {c.date}: {c.status}" for c in cleanings]
         parts.append("=== CLEANINGS ===\n" + "\n".join(lines))
 
     # Payments for this booking — all records with payment type
     payments = Payment.objects.filter(booking=booking).select_related('payment_type').order_by('-payment_date')
+    context_sources["payments"] = payments.exists()
     if payments.exists():
         lines = [
             f"- {p.payment_date}: ${p.amount} ({p.payment_status})"
@@ -652,11 +730,13 @@ def build_full_context(conversation_sid, apartment, booking):
         parts.append("=== BOOKING PAYMENTS ===\n" + "\n".join(lines))
 
     # Handyman appointments for this tenant
+    context_sources["handyman"] = False
     if tenant and tenant.phone:
         handyman = HandymanCalendar.objects.filter(
             tenant_phone=tenant.phone, date__gte=today
         ).order_by('date')[:3]
         if handyman.exists():
+            context_sources["handyman"] = True
             lines = [f"- {h.date} {h.start_time}-{h.end_time}: {h.notes}" for h in handyman]
             parts.append("=== HANDYMAN APPOINTMENTS ===\n" + "\n".join(lines))
 
@@ -664,6 +744,7 @@ def build_full_context(conversation_sid, apartment, booking):
     messages = TwilioMessage.objects.filter(
         conversation_sid=conversation_sid
     ).order_by('-message_timestamp')[:10]
+    context_sources["chat_history"] = messages.exists()
     if messages.exists():
         history = [
             f"{'Customer' if m.direction == 'inbound' else 'Assistant'}: {m.body}"
@@ -671,7 +752,33 @@ def build_full_context(conversation_sid, apartment, booking):
         ]
         parts.append("=== RECENT CHAT HISTORY ===\n" + "\n".join(history))
 
-    return "\n\n".join(parts)
+    return "\n\n".join(parts), context_sources
+
+
+def _get_prompt(prompt_key, **placeholders):
+    """Load prompt from GlobalKnowledgeBase, format with placeholders, or return None for fallback."""
+    content, _from_db = _get_prompt_with_source(prompt_key, **placeholders)
+    return content
+
+
+def _get_prompt_with_source(prompt_key, **placeholders):
+    """
+    Load prompt from GlobalKnowledgeBase. Returns (content, from_db).
+    content: formatted prompt string or None for fallback.
+    from_db: True if loaded from DB, False if fallback.
+    """
+    from mysite.models import GlobalKnowledgeBase
+    entry = GlobalKnowledgeBase.objects.filter(
+        entry_type=GlobalKnowledgeBase.ENTRY_TYPE_PROMPT,
+        prompt_key=prompt_key
+    ).first()
+    if entry and entry.content and entry.content.strip():
+        try:
+            return entry.content.format(**placeholders), True
+        except KeyError:
+            log_warning(f"Prompt {prompt_key} has missing placeholders", category='sms')
+            return None, False
+    return None, False
 
 
 def ai_answer_customer(conversation_sid, message_body, apartment, booking):
@@ -685,39 +792,68 @@ def ai_answer_customer(conversation_sid, message_body, apartment, booking):
             log_warning("OPENROUTER_API_KEY not set, skipping AI response", category='sms')
             return None
 
-        context = build_full_context(conversation_sid, apartment, booking)
+        context, context_sources = build_full_context(conversation_sid, apartment, booking)
 
-        system_prompt = (
-            "You are an AI assistant for a property management company. "
-            "You help tenants in a group chat with questions about their apartment stay.\n\n"
-            "For each tenant message, choose ONE of:\n"
-            "1. ANSWER: You have enough info → give a concise, helpful answer (max 3 sentences).\n"
-            "2. CLARIFY: You have relevant info about the topic but need one detail to answer precisely "
-            "→ ask ONE short clarifying question.\n"
-            "3. NO_ANSWER: You have no relevant info → respond ONLY with: NO_ANSWER\n\n"
-            "RULES:\n"
-            "- Never fabricate — only use facts from the context.\n"
-            "- Be friendly and professional.\n"
-            "- Answer in the same language as the tenant's message."
-        )
-        user_prompt = (
-            f"Context:\n{context}\n\n"
-            f"Tenant message: {message_body}\n\n"
-            "Respond with an answer, a clarifying question, or NO_ANSWER."
-        )
+        system_prompt, system_from_db = _get_prompt_with_source('ai_answer_system')
+        if not system_prompt:
+            system_prompt = (
+                "You are an AI assistant for a property management company. "
+                "You help tenants in a group chat with questions about their apartment stay.\n\n"
+                "For each tenant message, choose ONE of:\n"
+                "1. ANSWER: You have enough info → give a concise, helpful answer (max 3 sentences).\n"
+                "2. CLARIFY: You have relevant info about the topic but need one detail to answer precisely "
+                "→ ask ONE short clarifying question.\n"
+                "3. NO_ANSWER: You have no relevant info → respond ONLY with: NO_ANSWER\n\n"
+                "RULES:\n"
+                "- Never fabricate — only use facts from the context.\n"
+                "- Be friendly and professional.\n"
+                "- Answer in the same language as the tenant's message."
+            )
+            system_from_db = False
 
+        user_prompt, user_from_db = _get_prompt_with_source('ai_answer_user', context=context, message_body=message_body)
+        if not user_prompt:
+            user_prompt = (
+                f"Context:\n{context}\n\n"
+                f"Tenant message: {message_body}\n\n"
+                "Respond with an answer, a clarifying question, or NO_ANSWER."
+            )
+            user_from_db = False
+
+        model = "openai/gpt-4o-mini"
+        temperature = 0.3
+        max_tokens = 300
         response = ai_client.chat.completions.create(
-            model="openai/gpt-4o-mini",
+            model=model,
             messages=[
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": user_prompt},
             ],
-            temperature=0.3,
-            max_tokens=300,
+            temperature=temperature,
+            max_tokens=max_tokens,
         )
 
         answer = response.choices[0].message.content.strip()
+        usage = getattr(response, 'usage', None)
+
+        log_ai_customer_full(
+            conversation_sid=conversation_sid,
+            message_body=message_body,
+            context=context,
+            context_sources=context_sources,
+            system_prompt=system_prompt,
+            system_prompt_source="DB:ai_answer_system" if system_from_db else "fallback",
+            user_prompt=user_prompt,
+            user_prompt_source="DB:ai_answer_user" if user_from_db else "fallback",
+            model=model,
+            temperature=temperature,
+            max_tokens=max_tokens,
+            answer=answer or "(empty)",
+            usage=usage,
+        )
+
         if not answer or answer.upper() == "NO_ANSWER":
+            log_ai_customer_no_answer(conversation_sid, message_body, answer)
             log_info(f"AI: no answer for customer message in {conversation_sid}", category='sms')
             return None
 
@@ -725,6 +861,7 @@ def ai_answer_customer(conversation_sid, message_body, apartment, booking):
         return answer
 
     except Exception as e:
+        log_ai_error(conversation_sid, "ai_answer_customer", str(e))
         log_error(e, "Error in ai_answer_customer", source='web')
         return None
 
@@ -743,62 +880,91 @@ def ai_extract_knowledge(conversation_sid, message_body, apartment):
 
         # Step 1: Check if message has valuable operational info
         fields_ctx = _apartment_fields_context(apartment)
+        check_content, check_from_db = _get_prompt_with_source(
+            'ai_extract_check', fields_ctx=fields_ctx, message_body=message_body
+        )
+        if not check_content:
+            check_content = (
+                "You evaluate whether a manager's message contains OPERATIONAL knowledge "
+                "about an apartment that should be saved in the free-text notes.\n\n"
+                "The following information is ALREADY stored in structured database fields "
+                "and must NOT be flagged as new — do not save it to notes:\n"
+                f"{fields_ctx}\n\n"
+                "Only reply YES if the message contains new OPERATIONAL knowledge such as:\n"
+                "- WiFi network name or password\n"
+                "- Door/gate/lock access codes\n"
+                "- Specific parking instructions\n"
+                "- House rules (noise, pets, smoking, guests, etc.)\n"
+                "- Appliance instructions or quirks\n"
+                "- Local tips, nearby amenities\n"
+                "- Any other operational detail NOT covered by the fields above\n\n"
+                f"Manager message: {message_body}\n\n"
+                "Reply with YES or NO only."
+            )
+            check_from_db = False
+        check_model = "openai/gpt-4o-mini"
         check_response = ai_client.chat.completions.create(
-            model="openai/gpt-4o-mini",
-            messages=[{
-                "role": "user",
-                "content": (
-                    "You evaluate whether a manager's message contains OPERATIONAL knowledge "
-                    "about an apartment that should be saved in the free-text notes.\n\n"
-                    "The following information is ALREADY stored in structured database fields "
-                    "and must NOT be flagged as new — do not save it to notes:\n"
-                    f"{fields_ctx}\n\n"
-                    "Only reply YES if the message contains new OPERATIONAL knowledge such as:\n"
-                    "- WiFi network name or password\n"
-                    "- Door/gate/lock access codes\n"
-                    "- Specific parking instructions\n"
-                    "- House rules (noise, pets, smoking, guests, etc.)\n"
-                    "- Appliance instructions or quirks\n"
-                    "- Local tips, nearby amenities\n"
-                    "- Any other operational detail NOT covered by the fields above\n\n"
-                    f"Manager message: {message_body}\n\n"
-                    "Reply with YES or NO only."
-                )
-            }],
+            model=check_model,
+            messages=[{"role": "user", "content": check_content}],
             temperature=0,
             max_tokens=5,
         )
 
         has_value = check_response.choices[0].message.content.strip().upper().startswith("YES")
+        log_ai_manager_check(
+            conversation_sid, check_content, check_model, has_value,
+            prompt_source="DB:ai_extract_check" if check_from_db else "fallback",
+        )
+
         if not has_value:
+            log_ai_manager_no_extract(conversation_sid, message_body)
             log_info(f"AI: manager message has no extractable knowledge", category='sms')
             return
 
         log_info(f"AI: extracting knowledge from manager message for apartment {apartment.id}", category='sms')
 
         # Step 2: Merge new operational info into existing notes
+        kb_content = apartment.knowledge_base or '(empty)'
+        merge_content, merge_from_db = _get_prompt_with_source(
+            'ai_extract_merge', knowledge_base=kb_content, message_body=message_body
+        )
+        if not merge_content:
+            merge_content = (
+                f"Current knowledge base:\n{kb_content}\n\n"
+                f"New information to add: {message_body}\n\n"
+                "Merge the new information into the knowledge base. Keep it clear and organized.\n"
+                "Return ONLY the updated knowledge base text, nothing else."
+            )
+            merge_from_db = False
+        merge_model = "openai/gpt-4o-mini"
         update_response = ai_client.chat.completions.create(
-            model="openai/gpt-4o-mini",
-            messages=[{
-                "role": "user",
-                "content": (
-                    f"Current knowledge base:\n{apartment.knowledge_base or '(empty)'}\n\n"
-                    f"New information to add: {message_body}\n\n"
-                    "Merge the new information into the knowledge base. Keep it clear and organized.\n"
-                    "Return ONLY the updated knowledge base text, nothing else."
-                )
-            }],
+            model=merge_model,
+            messages=[{"role": "user", "content": merge_content}],
             temperature=0.2,
             max_tokens=1000,
         )
 
         updated_notes = update_response.choices[0].message.content.strip()
-        if updated_notes and updated_notes != (apartment.knowledge_base or ''):
+        saved = updated_notes and updated_notes != (apartment.knowledge_base or '')
+        if saved:
             apartment.knowledge_base = updated_notes
             apartment.save()
             log_info(f"AI updated knowledge base for apartment {apartment.id}", category='sms')
 
+        log_ai_manager_merge(
+            conversation_sid=conversation_sid,
+            apartment_id=apartment.id,
+            knowledge_base_before=kb_content,
+            message_body=message_body,
+            merge_content=merge_content,
+            model=merge_model,
+            updated_notes=updated_notes,
+            saved=saved,
+            prompt_source="DB:ai_extract_merge" if merge_from_db else "fallback",
+        )
+
     except Exception as e:
+        log_ai_error(conversation_sid, "ai_extract_knowledge", str(e))
         log_error(e, "Error in ai_extract_knowledge", source='web')
 
 
@@ -858,6 +1024,15 @@ def twilio_webhook(request):
                     # Determine direction based on author
                     direction = 'inbound' if author not in [twilio_phone, 'ASSISTANT', manager_phone, manager_phone_2, manager_phone_3] else 'outbound'
 
+                    log_message_received(
+                        conversation_sid=conversation_sid or '',
+                        author=author or '',
+                        body=body_to_save,
+                        event_type=event_type or '',
+                        message_sid=message_sid,
+                        direction=direction,
+                    )
+
                     save_message_to_db(
                         message_sid=message_sid,  # Use the actual MessageSid from Twilio
                         conversation_sid=conversation_sid,
@@ -872,7 +1047,43 @@ def twilio_webhook(request):
                     log_warning("Received onMessageAdded without MessageSid, skipping message save to DB", category='sms')
 
                 # --- AI processing ---
-                if os.environ.get('AI_ASSISTANT_ENABLED', 'true').lower() == 'true' and body and author and author != 'ASSISTANT':
+                if not (body and author):
+                    pass
+                elif author == 'ASSISTANT':
+                    body_stripped = body.strip()
+                    body_for_customer = _extract_marked_body(body_stripped, CLIENT_SUFFIX)
+                    if body_for_customer:
+                        try:
+                            from mysite.models import TwilioConversation, Apartment, Booking
+                            _conv = TwilioConversation.objects.filter(conversation_sid=conversation_sid).first()
+                            if _conv and _conv.apartment_id and _conv.booking_id:
+                                _apartment = Apartment.objects.prefetch_related('managers').select_related('owner').get(id=_conv.apartment_id)
+                                _booking = Booking.objects.select_related('tenant').get(id=_conv.booking_id)
+                                if not _is_skippable_message(body_for_customer):
+                                    log_ai_customer_start(conversation_sid, author, body_for_customer, _conv.apartment_id, _conv.booking_id)
+                                    _ai_resp = ai_answer_customer(conversation_sid, body_for_customer, _apartment, _booking)
+                                    if _ai_resp:
+                                        send_messsage_by_sid(conversation_sid, 'ASSISTANT', _ai_resp, twilio_phone, None)
+                                        log_ai_customer_sent(conversation_sid, _ai_resp)
+                        except Exception as e:
+                            log_ai_error(conversation_sid or '', "AI message routing", str(e))
+                            log_error(e, "Error in AI message routing (ASSISTANT client)", source='web')
+                    else:
+                        body_for_extract = _extract_marked_body(body_stripped, KB_SUFFIX)
+                        if body_for_extract:
+                            try:
+                                from mysite.models import TwilioConversation, Apartment
+                                _conv = TwilioConversation.objects.filter(conversation_sid=conversation_sid).first()
+                                if _conv and _conv.apartment_id and _conv.booking_id:
+                                    _apartment = Apartment.objects.get(id=_conv.apartment_id)
+                                    log_ai_manager_start(conversation_sid, author, body_for_extract, _conv.apartment_id)
+                                    ai_extract_knowledge(conversation_sid, body_for_extract, _apartment)
+                            except Exception as e:
+                                log_ai_error(conversation_sid or '', "AI message routing", str(e))
+                                log_error(e, "Error in AI message routing (ASSISTANT)", source='web')
+                elif os.environ.get('AI_ASSISTANT_ENABLED', 'true').lower() != 'true':
+                    log_ai_disabled(conversation_sid or '', author or '', body or '')
+                else:
                     try:
                         from mysite.models import TwilioConversation, Apartment, Booking
                         _conv = TwilioConversation.objects.filter(conversation_sid=conversation_sid).first()
@@ -884,19 +1095,26 @@ def twilio_webhook(request):
 
                             if _is_customer:
                                 # Customer → skip short ack messages, then AI tries to answer/clarify
-                                if not _is_skippable_message(body):
+                                if _is_skippable_message(body):
+                                    log_ai_customer_skipped(conversation_sid, body)
+                                else:
+                                    log_ai_customer_start(conversation_sid, author, body, _conv.apartment_id, _conv.booking_id)
                                     _ai_resp = ai_answer_customer(conversation_sid, body, _apartment, _booking)
                                     if _ai_resp:
                                         send_messsage_by_sid(conversation_sid, 'ASSISTANT', _ai_resp, twilio_phone, None)
+                                        log_ai_customer_sent(conversation_sid, _ai_resp)
                             else:
                                 # Manager → AI extracts knowledge silently
+                                log_ai_manager_start(conversation_sid, author, body, _conv.apartment_id)
                                 ai_extract_knowledge(conversation_sid, body, _apartment)
-
+                        else:
+                            log_no_conv_link(conversation_sid or '', author or '', body or '')
                     except Exception as e:
+                        log_ai_error(conversation_sid or '', "AI message routing", str(e))
                         log_error(e, "Error in AI message routing", source='web')
                 # --- end AI processing ---
                 # Check if author is not twilio_phone and not manager_phone
-                author_is_customer = (author != twilio_phone and author not in [manager_phone, manager_phone_2, manager_phone_3])
+                author_is_customer = (author != twilio_phone and author not in [manager_phone, manager_phone_2, manager_phone_3, 'ASSISTANT'])
                 
                 if author_is_customer:
                     log_info(f"Author {author} is a customer, checking for existing group conversations", category='sms')
@@ -954,7 +1172,14 @@ def twilio_webhook(request):
                             friendly_name, 
                             participants_config
                         )
-                        
+
+                        log_new_group_created(
+                            conversation_sid=conversation_sid,
+                            author=author,
+                            new_conversation_sid=new_conversation_sid,
+                            participants=[p.get("phone", p.get("identity", "")) for p in participants_config],
+                        )
+
                         # Save new group conversation with smart linking for customer
                         save_conversation_to_db(
                             conversation_sid=new_conversation_sid,
@@ -965,6 +1190,12 @@ def twilio_webhook(request):
                         # Forward the message to the new group conversation
                         time.sleep(6)
                         if body:
+                            log_message_forwarded(
+                                conversation_sid=conversation_sid,
+                                author=author,
+                                body=body,
+                                target_conversation_sid=new_conversation_sid,
+                            )
                             forward_message_to_conversation(new_conversation_sid, author, body)
                         
                         # Delete the old conversation (the one that triggered this webhook)

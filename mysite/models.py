@@ -2307,8 +2307,18 @@ class SystemLog(models.Model):
 
 
 class GlobalKnowledgeBase(models.Model):
+    ENTRY_TYPE_KNOWLEDGE = 'knowledge'
+    ENTRY_TYPE_PROMPT = 'prompt'
+    ENTRY_TYPE_CHOICES = [
+        (ENTRY_TYPE_KNOWLEDGE, 'Knowledge'),
+        (ENTRY_TYPE_PROMPT, 'AI Prompt'),
+    ]
+
     name = models.CharField(max_length=255, db_index=True)
     content = models.TextField(blank=True, null=True)
+    entry_type = models.CharField(max_length=20, choices=ENTRY_TYPE_CHOICES, default=ENTRY_TYPE_KNOWLEDGE)
+    prompt_key = models.CharField(max_length=100, blank=True, null=True, unique=True)
+    description = models.TextField(blank=True, null=True)
 
     created_by = models.CharField(max_length=255, blank=True, null=True, editable=False)
     last_updated_by = models.CharField(max_length=255, blank=True, null=True, editable=False)

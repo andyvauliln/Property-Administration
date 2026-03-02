@@ -1384,6 +1384,13 @@ input:checked + .toggle-bg {
   margin-top: 2rem;
 }
 
+.line-clamp-2 {
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
 .block {
   display: block;
 }
@@ -2971,6 +2978,10 @@ input:checked + .toggle-bg {
   vertical-align: bottom;
 }
 
+.font-mono {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+}
+
 .text-2xl {
   font-size: 1.5rem;
   line-height: 2rem;
@@ -3282,6 +3293,11 @@ input:checked + .toggle-bg {
   color: rgb(85 33 181 / var(--tw-text-opacity));
 }
 
+.text-red-300 {
+  --tw-text-opacity: 1;
+  color: rgb(248 180 180 / var(--tw-text-opacity));
+}
+
 .text-red-400 {
   --tw-text-opacity: 1;
   color: rgb(249 128 128 / var(--tw-text-opacity));
@@ -3404,6 +3420,10 @@ input:checked + .toggle-bg {
 
 .opacity-60 {
   opacity: 0.6;
+}
+
+.opacity-70 {
+  opacity: 0.7;
 }
 
 .opacity-75 {
@@ -3674,6 +3694,11 @@ label[textContent="Problem Booking"] {
   border-color: rgb(4 108 78 / var(--tw-border-opacity));
 }
 
+.hover\:border-red-700:hover {
+  --tw-border-opacity: 1;
+  border-color: rgb(200 30 30 / var(--tw-border-opacity));
+}
+
 .hover\:bg-black:hover {
   --tw-bg-opacity: 1;
   background-color: rgb(0 0 0 / var(--tw-bg-opacity));
@@ -3789,6 +3814,11 @@ label[textContent="Problem Booking"] {
   background-color: rgb(253 232 232 / var(--tw-bg-opacity));
 }
 
+.hover\:bg-red-200:hover {
+  --tw-bg-opacity: 1;
+  background-color: rgb(251 213 213 / var(--tw-bg-opacity));
+}
+
 .hover\:bg-red-300:hover {
   --tw-bg-opacity: 1;
   background-color: rgb(248 180 180 / var(--tw-bg-opacity));
@@ -3889,6 +3919,16 @@ label[textContent="Problem Booking"] {
   color: rgb(29 78 216 / var(--tw-text-opacity));
 }
 
+.hover\:text-red-200:hover {
+  --tw-text-opacity: 1;
+  color: rgb(251 213 213 / var(--tw-text-opacity));
+}
+
+.hover\:text-red-300:hover {
+  --tw-text-opacity: 1;
+  color: rgb(248 180 180 / var(--tw-text-opacity));
+}
+
 .hover\:text-red-800:hover {
   --tw-text-opacity: 1;
   color: rgb(155 28 28 / var(--tw-text-opacity));
@@ -3901,6 +3941,10 @@ label[textContent="Problem Booking"] {
 
 .hover\:underline:hover {
   text-decoration-line: underline;
+}
+
+.hover\:opacity-100:hover {
+  opacity: 1;
 }
 
 .hover\:opacity-80:hover {
@@ -4419,6 +4463,11 @@ label[textContent="Problem Booking"] {
 :is(.dark .dark\:hover\:bg-red-700:hover) {
   --tw-bg-opacity: 1;
   background-color: rgb(200 30 30 / var(--tw-bg-opacity));
+}
+
+:is(.dark .dark\:hover\:bg-red-800:hover) {
+  --tw-bg-opacity: 1;
+  background-color: rgb(155 28 28 / var(--tw-bg-opacity));
 }
 
 :is(.dark .dark\:hover\:bg-red-900\/20:hover) {

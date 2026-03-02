@@ -7,7 +7,12 @@ from django.db.models import Max, Q
 from django.utils import timezone
 from django.core.paginator import Paginator
 from mysite.models import TwilioConversation, TwilioMessage, User, ChatMessageTemplate
-from mysite.views.messaging import send_messsage_by_sid
+from mysite.views.messaging import (
+    send_messsage_by_sid,
+    delete_conversation as twilio_delete_conversation,
+    delete_message as twilio_delete_message,
+    delete_all_messages as twilio_delete_all_messages,
+)
 from mysite.unified_logger import log_error, log_info, logger
 from mysite.error_logger import log_exception
 import json
@@ -283,28 +288,74 @@ def send_message(request, conversation_sid):
     try:
         conversation = get_object_or_404(TwilioConversation, conversation_sid=conversation_sid)
         
-        # Get message content from request
+        # Get message content and sender_type from request
         data = json.loads(request.body)
-        message_content = data.get('message', '').strip()
+        original_message = data.get('message', '').strip()
+        sender_type = data.get('sender_type', 'manager').lower()
         
-        if not message_content:
+        if not original_message:
             return JsonResponse({'error': 'Message content is required'}, status=400)
         
-        # Send message via Twilio
-        # Using manager phone as sender since this is from the interface
+        message_content = original_message
+        if sender_type == 'client':
+            message_content = f"{original_message} (+++)"
+        
         manager_phone = "+15612205252"
         
-        # Send message using existing function
         try:
             send_messsage_by_sid(
                 conversation_sid=conversation_sid,
-                author='ASSISTANT',  # Use ASSISTANT identity for interface messages
+                author='ASSISTANT',
                 message=message_content,
                 sender_phone=manager_phone,
-                receiver_phone=None  # Not needed for conversation API
+                receiver_phone=None
             )
             
             log_info(f"Message sent from chat interface to conversation {conversation_sid}")
+            try:
+                from mysite.group_chat_logger import log_message_received
+                log_message_received(
+                    conversation_sid=conversation_sid,
+                    author='ASSISTANT',
+                    body=message_content,
+                    event_type='ui_send',
+                    message_sid=None,
+                    direction='outbound',
+                )
+            except Exception:
+                pass
+            
+            # When sent as client: process AI synchronously (webhook may not fire for API-created messages)
+            if sender_type == 'client' and conversation.apartment_id and conversation.booking_id:
+                try:
+                    from mysite.models import Apartment, Booking
+                    from mysite.views.messaging import ai_answer_customer
+                    from mysite.group_chat_logger import log_ai_customer_start, log_ai_customer_sent
+                    apartment = Apartment.objects.prefetch_related('managers').select_related('owner').get(id=conversation.apartment_id)
+                    booking = Booking.objects.select_related('tenant').get(id=conversation.booking_id)
+                    if len(original_message.strip()) > 3:
+                        log_ai_customer_start(conversation_sid, 'ASSISTANT', original_message, conversation.apartment_id, conversation.booking_id)
+                        ai_resp = ai_answer_customer(conversation_sid, original_message, apartment, booking)
+                        if ai_resp:
+                            send_messsage_by_sid(conversation_sid, 'ASSISTANT', ai_resp, manager_phone, None)
+                            log_ai_customer_sent(conversation_sid, ai_resp)
+                except Exception as e:
+                    log_exception(error=e, context="Chat - AI answer (client)", additional_info={'conversation_sid': conversation_sid})
+            elif sender_type == 'manager' and conversation.apartment_id:
+                try:
+                    from mysite.models import Apartment
+                    from mysite.views.messaging import ai_extract_knowledge, KB_SUFFIX, _extract_marked_body, _is_skippable_message
+                    from mysite.group_chat_logger import log_ai_manager_start
+
+                    # UI manager messages should behave like manager-originated messages in webhook:
+                    # extract from full body, while still accepting explicit (+) marker.
+                    body_for_extract = _extract_marked_body(original_message, KB_SUFFIX) or original_message
+                    if body_for_extract and not _is_skippable_message(body_for_extract):
+                        apartment = Apartment.objects.get(id=conversation.apartment_id)
+                        log_ai_manager_start(conversation_sid, 'ASSISTANT', body_for_extract, conversation.apartment_id)
+                        ai_extract_knowledge(conversation_sid, body_for_extract, apartment)
+                except Exception as e:
+                    log_exception(error=e, context="Chat - AI extract (manager)", additional_info={'conversation_sid': conversation_sid})
             
             return JsonResponse({
                 'success': True,
@@ -334,6 +385,73 @@ def send_message(request, conversation_sid):
             additional_info={'conversation_sid': conversation_sid}
         )
         return JsonResponse({'error': str(e)}, status=500)
+
+
+@login_required
+@require_http_methods(["POST"])
+def delete_all_chat_messages(request, conversation_sid):
+    """
+    Delete all messages from Twilio and DB. Keeps the conversation.
+    """
+    try:
+        conversation = get_object_or_404(TwilioConversation, conversation_sid=conversation_sid)
+        sid = conversation.conversation_sid
+        try:
+            twilio_delete_all_messages(sid)
+        except Exception as e:
+            log_info(f"Twilio delete all messages failed: {e}", category='sms')
+        conversation.messages.all().delete()
+        log_info(f"Deleted all messages from conversation {sid}")
+        return redirect('chat_detail', conversation_sid=conversation_sid)
+    except Exception as e:
+        log_exception(error=e, context="Chat - Delete All Messages", additional_info={'conversation_sid': conversation_sid})
+        return redirect('chat_detail', conversation_sid=conversation_sid)
+
+
+@login_required
+@require_http_methods(["POST"])
+def delete_chat_conversation(request, conversation_sid):
+    """
+    Delete conversation from Twilio and DB (messages cascade).
+    """
+    try:
+        conversation = get_object_or_404(TwilioConversation, conversation_sid=conversation_sid)
+        sid = conversation.conversation_sid
+        try:
+            twilio_delete_conversation(sid)
+        except Exception as e:
+            log_info(f"Twilio delete failed (may already be deleted): {e}", category='sms')
+        conversation.delete()
+        log_info(f"Deleted chat conversation {sid} from DB")
+        return redirect('chat_list')
+    except Exception as e:
+        log_exception(error=e, context="Chat - Delete Conversation", additional_info={'conversation_sid': conversation_sid})
+        return redirect('chat_detail', conversation_sid=conversation_sid)
+
+
+@login_required
+@require_http_methods(["POST"])
+def delete_chat_message(request, conversation_sid, message_id):
+    """
+    Delete a single message from Twilio and DB.
+    """
+    try:
+        conversation = get_object_or_404(TwilioConversation, conversation_sid=conversation_sid)
+        message = get_object_or_404(TwilioMessage, id=message_id, conversation=conversation)
+        msg_sid = message.message_sid
+        try:
+            twilio_delete_message(conversation.conversation_sid, msg_sid)
+        except Exception as e:
+            log_info(f"Twilio delete message failed: {e}", category='sms')
+        message.delete()
+        if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+            return JsonResponse({'success': True})
+        return redirect('chat_detail', conversation_sid=conversation_sid)
+    except Exception as e:
+        log_exception(error=e, context="Chat - Delete Message", additional_info={'message_id': message_id})
+        if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+            return JsonResponse({'error': str(e)}, status=500)
+        return redirect('chat_detail', conversation_sid=conversation_sid)
 
 
 @login_required
