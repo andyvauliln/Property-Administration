@@ -95,9 +95,13 @@ def my_cron_job(dry_run=False, stdout=None):
 
     for direction, chat_id, label in [("In", chat_id_in, "Payment In"), ("Out", chat_id_out, "Payment Out")]:
         if not chat_id and not dry_run:
+            if stdout:
+                stdout.write(f"Skipping {label}: chat_id not set\n")
             continue
         sent = 0
         if chat_id:
+            if stdout:
+                stdout.write(f"Processing {label} (chat_id: {chat_id})...\n")
             sent += send_pending_payments(chat_id, token, direction, dry_run=dry_run, stdout=stdout)
             sent += send_payment_notifications(chat_id, token, direction, next_day, dry_run=dry_run, stdout=stdout)
         if sent == 0 and chat_id:

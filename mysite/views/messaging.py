@@ -28,8 +28,8 @@ import time
 import twilio
 from django.utils import timezone
 
-KB_SUFFIX = "(+)"  # ASSISTANT messages marked with (+) are processed for knowledge extraction
-CLIENT_SUFFIX = "(+++)"  # ASSISTANT messages marked with (+++) are treated as client (AI answers)
+KB_SUFFIX = "(+)"  # Virtual Assistant messages marked with (+) are processed for knowledge extraction
+CLIENT_SUFFIX = "(+++)"  # Virtual Assistant messages marked with (+++) are treated as client (AI answers)
 
 # Unified logger throughout the app
 
@@ -103,7 +103,7 @@ def save_conversation_to_db(conversation_sid, friendly_name, booking=None, apart
                 manager_phone_2 = "+17282001917"
                 manager_phone_3 = "+15614603904"
                 
-                if author not in [twilio_phone, 'ASSISTANT', manager_phone, manager_phone_2, manager_phone_3]:
+                if author not in [twilio_phone, 'Virtual Assistant', manager_phone, manager_phone_2, manager_phone_3]:
                     booking = get_booking_from_phone(author)
                     if booking:
                         conversation.booking = booking
@@ -507,9 +507,9 @@ def forward_message_to_conversation(conversation_sid, author, message):
             
         formatted_message = f">>Customer: {author} - {message}"
         
-        # Send message to conversation using ASSISTANT identity
+        # Send message to conversation using Virtual Assistant identity
         message_response = client.conversations.v1.conversations(conversation_sid).messages.create(
-            author='ASSISTANT',
+            author='Virtual Assistant',
             body=formatted_message
         )
         
@@ -523,7 +523,7 @@ def forward_message_to_conversation(conversation_sid, author, message):
         save_message_to_db(
             message_sid=message_response.sid,
             conversation_sid=conversation_sid,
-            author='ASSISTANT',
+            author='Virtual Assistant',
             body=formatted_message,
             direction='outbound'
         )
@@ -653,7 +653,7 @@ def build_full_context(conversation_sid, apartment, booking):
     Returns (context_str, context_sources) where context_sources describes what was included.
     Both apartment and booking are guaranteed non-None when called.
     """
-    from mysite.models import ParkingBooking, HandymanCalendar, Cleaning, Payment, TwilioMessage, GlobalKnowledgeBase
+    from mysite.models import ParkingBooking, HandymanCalendar, Cleaning, Payment, TwilioMessage, AIManagement
     from datetime import date
 
     parts = []
@@ -661,8 +661,8 @@ def build_full_context(conversation_sid, apartment, booking):
     today = date.today()
 
     # Global knowledge base (only knowledge entries, not prompts)
-    global_kb_entries = GlobalKnowledgeBase.objects.filter(
-        entry_type=GlobalKnowledgeBase.ENTRY_TYPE_KNOWLEDGE
+    global_kb_entries = AIManagement.objects.filter(
+        entry_type=AIManagement.ENTRY_TYPE_KNOWLEDGE
     )
     global_kb_texts = [entry.content for entry in global_kb_entries if entry.content and entry.content.strip()]
     context_sources["global_kb"] = bool(global_kb_texts)
@@ -756,20 +756,20 @@ def build_full_context(conversation_sid, apartment, booking):
 
 
 def _get_prompt(prompt_key, **placeholders):
-    """Load prompt from GlobalKnowledgeBase, format with placeholders, or return None for fallback."""
+    """Load prompt from AIManagement, format with placeholders, or return None for fallback."""
     content, _from_db = _get_prompt_with_source(prompt_key, **placeholders)
     return content
 
 
 def _get_prompt_with_source(prompt_key, **placeholders):
     """
-    Load prompt from GlobalKnowledgeBase. Returns (content, from_db).
+    Load prompt from AIManagement. Returns (content, from_db).
     content: formatted prompt string or None for fallback.
     from_db: True if loaded from DB, False if fallback.
     """
-    from mysite.models import GlobalKnowledgeBase
-    entry = GlobalKnowledgeBase.objects.filter(
-        entry_type=GlobalKnowledgeBase.ENTRY_TYPE_PROMPT,
+    from mysite.models import AIManagement
+    entry = AIManagement.objects.filter(
+        entry_type=AIManagement.ENTRY_TYPE_PROMPT,
         prompt_key=prompt_key
     ).first()
     if entry and entry.content and entry.content.strip():
@@ -821,6 +821,14 @@ def ai_answer_customer(conversation_sid, message_body, apartment, booking):
             user_from_db = False
 
         model = "openai/gpt-4o-mini"
+        try:
+            from mysite.models import AIManagement
+            model_entry = AIManagement.objects.filter(prompt_key='ai_conversation_model').first()
+            if model_entry and model_entry.content:
+                model = model_entry.content
+        except Exception:
+            pass
+
         temperature = 0.3
         max_tokens = 300
         response = ai_client.chat.completions.create(
@@ -834,6 +842,10 @@ def ai_answer_customer(conversation_sid, message_body, apartment, booking):
         )
 
         answer = response.choices[0].message.content.strip()
+        
+        # If the answer starts with "Virtual Assistant:", remove it to avoid double naming
+        if answer.startswith("Virtual Assistant:"):
+            answer = answer[len("Virtual Assistant:"):].strip()
         usage = getattr(response, 'usage', None)
 
         log_ai_customer_full(
@@ -1022,7 +1034,7 @@ def twilio_webhook(request):
                     body_to_save = body or ''
 
                     # Determine direction based on author
-                    direction = 'inbound' if author not in [twilio_phone, 'ASSISTANT', manager_phone, manager_phone_2, manager_phone_3] else 'outbound'
+                    direction = 'inbound' if author not in [twilio_phone, 'Virtual Assistant', manager_phone, manager_phone_2, manager_phone_3] else 'outbound'
 
                     log_message_received(
                         conversation_sid=conversation_sid or '',
@@ -1063,7 +1075,7 @@ def twilio_webhook(request):
                                     log_ai_customer_start(conversation_sid, author, body_for_customer, _conv.apartment_id, _conv.booking_id)
                                     _ai_resp = ai_answer_customer(conversation_sid, body_for_customer, _apartment, _booking)
                                     if _ai_resp:
-                                        send_messsage_by_sid(conversation_sid, 'ASSISTANT', _ai_resp, twilio_phone, None)
+                                        send_messsage_by_sid(conversation_sid, 'Virtual Assistant', _ai_resp, twilio_phone, None)
                                         log_ai_customer_sent(conversation_sid, _ai_resp)
                         except Exception as e:
                             log_ai_error(conversation_sid or '', "AI message routing", str(e))
@@ -1101,7 +1113,7 @@ def twilio_webhook(request):
                                     log_ai_customer_start(conversation_sid, author, body, _conv.apartment_id, _conv.booking_id)
                                     _ai_resp = ai_answer_customer(conversation_sid, body, _apartment, _booking)
                                     if _ai_resp:
-                                        send_messsage_by_sid(conversation_sid, 'ASSISTANT', _ai_resp, twilio_phone, None)
+                                        send_messsage_by_sid(conversation_sid, 'Virtual Assistant', _ai_resp, twilio_phone, None)
                                         log_ai_customer_sent(conversation_sid, _ai_resp)
                             else:
                                 # Manager → AI extracts knowledge silently
@@ -1263,7 +1275,7 @@ def create_conversation_config(friendly_name, tenant_phone):
         
         # Add assistant
         participants_config.append({
-            "identity": "ASSISTANT",
+            "identity": "Virtual Assistant",
             "projected_address": twilio_phone
         })
         
@@ -1375,7 +1387,7 @@ def sendContractToTwilio(booking, contract_url):
         
         if conversation_sid:
             log_info(f"Conversation created: {conversation_sid}", category='sms')
-            send_messsage_by_sid(conversation_sid, "ASSISTANT", f"Hi, {booking.tenant.full_name or 'Dear guest'}, this is your contract for booking apartment {booking.apartment.name}. from {booking.start_date} to {booking.end_date}. Please sign it here: {contract_url}", twilio_phone_secondary, validated_phone)
+            send_messsage_by_sid(conversation_sid, "Virtual Assistant", f"Hi, {booking.tenant.full_name or 'Dear guest'}, this is your contract for booking apartment {booking.apartment.name}. from {booking.start_date} to {booking.end_date}. Please sign it here: {contract_url}", twilio_phone_secondary, validated_phone)
         else:
             log_warning("Conversation wasn't created", category='sms')
     except Exception as e:
@@ -1416,7 +1428,7 @@ def sendWelcomeMessageToTwilio(booking):
         
         if conversation_sid:
             log_info(f"Conversation created: {conversation_sid}", category='sms')
-            send_messsage_by_sid(conversation_sid, "ASSISTANT", f"Hi, {booking.tenant.full_name or 'Dear guest'}, This chat for renting apartment {booking.apartment.name}. from {booking.start_date} to {booking.end_date}.", twilio_phone_secondary, validated_phone)
+            send_messsage_by_sid(conversation_sid, "Virtual Assistant", f"Hi, {booking.tenant.full_name or 'Dear guest'}, This chat for renting apartment {booking.apartment.name}. from {booking.start_date} to {booking.end_date}.", twilio_phone_secondary, validated_phone)
         else:
             log_warning("Conversation wasn't created", category='sms')
     except Exception as e:

@@ -8,6 +8,38 @@
 </script>
 <section class="bg-gray-50 dark:bg-gray-900 p-3 sm:p-5 antialiased">
     <div class="mx-auto max-w-screen-xl px-4 lg:px-12">
+        <!-- AI Model Selector -->
+        <div class="mb-4 p-4 bg-white dark:bg-gray-800 shadow-md sm:rounded-lg">
+            <h2 class="text-lg font-semibold mb-4 dark:text-white">AI Conversation Model</h2>
+            <form method="POST" class="space-y-4">
+                {% csrf_token %}
+                <input type="hidden" name="update_ai_model" value="1">
+                <div class="flex flex-col md:flex-row md:items-end space-y-4 md:space-y-0 md:space-x-4">
+                    <div class="flex-grow max-w-2xl">
+                        <label for="ai_model" class="block mb-2 text-sm font-medium text-gray-900 dark:text-white">Select Model (Prices per 1M tokens)</label>
+                        <select id="ai_model" name="ai_model" class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-primary-500 focus:border-primary-500 block w-full p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white dark:focus:ring-primary-500 dark:focus:border-primary-500">
+                            {% for model in ai_models %}
+                            <option value="{{ model.value }}" {% if model.value == current_ai_model %}selected{% endif %}>
+                                {{ model.label }} 
+                                {% if model.prompt_price %}
+                                    (${{ model.prompt_price }} / ${{ model.completion_price }})
+                                {% endif %}
+                            </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <button type="submit" class="text-white bg-primary-700 hover:bg-primary-800 focus:ring-4 focus:ring-primary-300 font-medium rounded-lg text-sm px-5 py-2.5 dark:bg-primary-600 dark:hover:bg-primary-700 focus:outline-none dark:focus:ring-primary-800 h-10">
+                        Update Model
+                    </button>
+                </div>
+                {% if ai_models %}
+                <div id="model-info" class="mt-2 text-xs text-gray-500 dark:text-gray-400">
+                    <!-- Dynamic info could go here -->
+                </div>
+                {% endif %}
+            </form>
+        </div>
+
         <div class="bg-white dark:bg-gray-800 relative shadow-md sm:rounded-lg overflow-hidden">
             <div class="flex flex-col md:flex-row items-center justify-between space-y-3 md:space-y-0 md:space-x-4 p-4">
                 <div class="w-full">
@@ -42,7 +74,7 @@
                     </thead>
                     <tbody>
                         {% for item in items %}
-                        <tr class="border-b cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-800 dark:border-gray-700 globalknowledgebase-row" data-id="{{ item.id }}">
+                        <tr class="border-b cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-800 dark:border-gray-700 aimanagement-row" data-id="{{ item.id }}">
                             {% for field_name, field_instance in model_fields %}
                                 {% if field_instance.isColumn %}
                                     <td class="px-4 py-4">
@@ -56,7 +88,11 @@
                                     </td>
                                 {% endif %}
                             {% endfor %}
-                            <td class="px-4 py-4"></td>
+                            <td class="px-4 py-4 text-right">
+                                <button type="button" class="delete-item-btn text-red-600 hover:text-red-900" data-id="{{ item.id }}">
+                                    Delete
+                                </button>
+                            </td>
                         </tr>
                         {% empty %}
                         <tr>
@@ -66,20 +102,21 @@
                     </tbody>
                 </table>
             </div>
-            {% include "components/table/table_nav.html" with model="globalknowledgebase" %}
+            {% include "components/table/table_nav.html" with model="aimanagement" %}
         </div>
     </div>
 </section>
 
-{% include "components/knowledge_base_modal.html" %}
-{% include "components/table/table_delete.html" with model="globalknowledgebase" %}
+{% include "components/ai_management_modal.html" %}
+{% include "components/table/table_delete.html" with model="aimanagement" %}
 
 <script>
 document.addEventListener('DOMContentLoaded', function() {
-    const rows = document.querySelectorAll('.globalknowledgebase-row');
+    const rows = document.querySelectorAll('.aimanagement-row');
     const createBtn = document.getElementById('createNewItem');
-    const editModal = document.getElementById('knowledgeBaseEditModal');
-    const createModal = document.getElementById('knowledgeBaseCreateModal');
+    const editModal = document.getElementById('aiManagementEditModal');
+    const createModal = document.getElementById('aiManagementCreateModal');
+    const deleteBtns = document.querySelectorAll('.delete-item-btn');
 
     createBtn.addEventListener('click', function() {
         createModal.classList.remove('hidden');
@@ -87,10 +124,22 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 
     rows.forEach(row => {
-        row.addEventListener('click', function() {
+        row.addEventListener('click', function(e) {
+            if (e.target.classList.contains('delete-item-btn')) return;
             const itemId = parseInt(row.getAttribute('data-id'));
             const item = items_json.find(i => i.id === itemId);
             if (item) openEditModal(item);
+        });
+    });
+
+    deleteBtns.forEach(btn => {
+        btn.addEventListener('click', function(e) {
+            e.stopPropagation();
+            const itemId = btn.getAttribute('data-id');
+            const deleteModal = document.getElementById('deleteModal');
+            const deleteInput = document.getElementById('delete-id');
+            deleteInput.value = itemId;
+            deleteModal.classList.remove('hidden');
         });
     });
 

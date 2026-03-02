@@ -121,6 +121,14 @@ cron.schedule('0 8 * * *', function () {
     );
 });
 
+cron.schedule('0 8 * * *', function () {
+    executeCronCommand(
+        'SMS Notifications',
+        '/usr/bin/python3 /home/superuser/site/manage.py sms_notifications',
+        '/home/superuser/site/'
+    );
+});
+
 // Schedule data integrity check to run daily at 9 PM
 cron.schedule('0 21 * * *', function () {
     executeCronCommand(

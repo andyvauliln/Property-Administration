@@ -1,7 +1,7 @@
 # mysite/forms.py
 from django import forms
 from django.contrib.auth.forms import AuthenticationForm
-from mysite.models import Booking, User, Apartment, ApartmentPrice, Payment, Cleaning, Notification, PaymentMethod, PaymenType, HandymanCalendar, Parking, ParkingBooking, HandymanBlockedSlot, GlobalKnowledgeBase
+from mysite.models import Booking, User, Apartment, ApartmentPrice, Payment, Cleaning, Notification, PaymentMethod, PaymenType, HandymanCalendar, Parking, ParkingBooking, HandymanBlockedSlot, AIManagement
 from datetime import date
 import requests
 import uuid
@@ -163,7 +163,7 @@ def get_dropdown_options(identifier, isData=False, request=None):
         return [{"value": x[0], "label": x[1]} for x in Cleaning.STATUS]
 
     elif identifier == 'entry_type':
-        return [{"value": x[0], "label": x[1]} for x in GlobalKnowledgeBase.ENTRY_TYPE_CHOICES]
+        return [{"value": x[0], "label": x[1]} for x in AIManagement.ENTRY_TYPE_CHOICES]
 
     elif identifier == 'ai_prompt_keys':
         return [
@@ -171,6 +171,7 @@ def get_dropdown_options(identifier, isData=False, request=None):
             {"value": "ai_answer_user", "label": "AI Answer User"},
             {"value": "ai_extract_check", "label": "AI Extract Check"},
             {"value": "ai_extract_merge", "label": "AI Extract Merge"},
+            {"value": "ai_conversation_model", "label": "AI Conversation Model"},
         ]
 
     else:
@@ -1292,9 +1293,9 @@ class ParkingForm(forms.ModelForm):
         return cleaned_data
 
 
-class GlobalKnowledgeBaseForm(forms.ModelForm):
+class AIManagementForm(forms.ModelForm):
     class Meta:
-        model = GlobalKnowledgeBase
+        model = AIManagement
         fields = ['name', 'content', 'entry_type', 'prompt_key', 'description']
 
     def __init__(self, *args, **kwargs):
@@ -1306,7 +1307,7 @@ class GlobalKnowledgeBaseForm(forms.ModelForm):
         max_length=255, isColumn=True, isEdit=True,
         isCreate=True, ui_element="input", order=1)
     entry_type = ChoiceFieldEx(
-        choices=GlobalKnowledgeBase.ENTRY_TYPE_CHOICES,
+        choices=AIManagement.ENTRY_TYPE_CHOICES,
         isColumn=True, isEdit=True, isCreate=True,
         ui_element="dropdown",
         _dropdown_options=lambda: get_dropdown_options("entry_type"),

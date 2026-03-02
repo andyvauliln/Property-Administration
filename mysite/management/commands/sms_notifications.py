@@ -22,6 +22,8 @@ class Command(BaseCommand):
         self.send_sms_for_event('move_in')
         self.send_sms_for_event('unsigned_contract_1d')
         self.send_sms_for_event('unsigned_contract_3d')
+        self.send_sms_for_event('unsigned_contract_7d')
+        self.send_sms_for_event('pending_rent_3d')
         self.send_sms_for_event('deposit_reminder')
         self.send_sms_for_event('due_payment')
         self.send_sms_for_event('extension')
@@ -72,6 +74,21 @@ class Command(BaseCommand):
             return Booking.objects.filter(
                 status='Waiting Contract',
                 created_at__date=now.date() - timedelta(days=3)
+            )
+        
+        elif event_type == 'unsigned_contract_7d':
+            # Get bookings for unsigned_contract_7d (7 days after booking created and booking in status Waiting Contract)
+            return Booking.objects.filter(
+                status='Waiting Contract',
+                created_at__date=now.date() - timedelta(days=7)
+            )
+
+        elif event_type == 'pending_rent_3d':
+            # Get bookings for pending_rent_3d (3 days after payment date if status is Pending and type is Rent)
+            return Booking.objects.filter(
+                payments__payment_date=now.date() - timedelta(days=3),
+                payments__payment_type__name='Rent',
+                payments__payment_status='Pending'
             )
         # booking creation date 3 day from now and booking starts меньше 4 дня после сейчас
 
@@ -143,6 +160,14 @@ class Command(BaseCommand):
         elif event_type == 'unsigned_contract_3d':
             return 'Hi, Did you get a chance to sign the contract?'
             # 3 days after booking created and booking in status Waiting Contract
+        
+        elif event_type == 'unsigned_contract_7d':
+            return 'Hi, this is Virtual Assistant. We are still waiting for you to sign the contract. Please let us know if you have any questions.'
+            # 7 days after booking created and booking in status Waiting Contract
+
+        elif event_type == 'pending_rent_3d':
+            return 'Hi, this is Virtual Assistant. We are still waiting for your rent payment. Please let us know when you send it.'
+            # 3 days after payment date if status is Pending
 
         elif event_type == 'deposit_reminder':
             return 'Hi, Did you get a chance to send a deposit yet?'
@@ -260,7 +285,7 @@ class Command(BaseCommand):
         try:
             # Send message via conversation API
             sent_message = client.conversations.v1.conversations(conversation.conversation_sid).messages.create(
-                author='ASSISTANT',
+                author='Virtual Assistant',
                 body=message
             )
             
@@ -295,7 +320,7 @@ class Command(BaseCommand):
                 message_sid=sent_message.sid,
                 conversation=conversation_obj,
                 conversation_sid=conversation_sid or '',
-                author='ASSISTANT',
+                author='Virtual Assistant',
                 body=message_body,
                 direction=direction,
                 webhook_sid='',

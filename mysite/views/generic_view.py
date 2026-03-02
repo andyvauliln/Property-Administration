@@ -1,6 +1,6 @@
 from calendar import month_name
 from django.shortcuts import render
-from mysite.forms import CustomUserForm, BookingForm, ApartmentForm, ApartmentPriceForm, CleaningForm,  PaymentMethodForm, PaymentForm, PaymentTypeForm, GlobalKnowledgeBaseForm
+from mysite.forms import CustomUserForm, BookingForm, ApartmentForm, ApartmentPriceForm, CleaningForm,  PaymentMethodForm, PaymentForm, PaymentTypeForm, AIManagementForm
 from django.core.paginator import Paginator
 import json
 from django.core import serializers
@@ -53,8 +53,9 @@ def payments(request):
 
 
 @user_has_role('Admin', 'Manager')
-def global_knowledge_base(request):
-    return generic_view(request, 'globalknowledgebase', GlobalKnowledgeBaseForm, 'knowledge_base.html')
+def ai_management_view(request):
+    from .ai_management import ai_management_view as ai_management_view_func
+    return ai_management_view_func(request)
 
 
 def format_dates(item):

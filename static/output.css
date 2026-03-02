@@ -1763,6 +1763,10 @@ input:checked + .toggle-bg {
   min-width: 100%;
 }
 
+.max-w-2xl {
+  max-width: 42rem;
+}
+
 .max-w-4xl {
   max-width: 56rem;
 }
@@ -3707,11 +3711,6 @@ label[textContent="Problem Booking"] {
   border-color: rgb(4 108 78 / var(--tw-border-opacity));
 }
 
-.hover\:border-red-700:hover {
-  --tw-border-opacity: 1;
-  border-color: rgb(200 30 30 / var(--tw-border-opacity));
-}
-
 .hover\:bg-black:hover {
   --tw-bg-opacity: 1;
   background-color: rgb(0 0 0 / var(--tw-bg-opacity));
@@ -3945,6 +3944,11 @@ label[textContent="Problem Booking"] {
 .hover\:text-red-800:hover {
   --tw-text-opacity: 1;
   color: rgb(155 28 28 / var(--tw-text-opacity));
+}
+
+.hover\:text-red-900:hover {
+  --tw-text-opacity: 1;
+  color: rgb(119 29 29 / var(--tw-text-opacity));
 }
 
 .hover\:text-white:hover {
@@ -4760,6 +4764,10 @@ label[textContent="Problem Booking"] {
 
   .md\:flex-col {
     flex-direction: column;
+  }
+
+  .md\:items-end {
+    align-items: flex-end;
   }
 
   .md\:items-center {

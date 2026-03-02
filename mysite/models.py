@@ -2306,12 +2306,13 @@ class SystemLog(models.Model):
         return f"[{self.level.upper()}] {self.category}: {self.message[:100]}"
 
 
-class GlobalKnowledgeBase(models.Model):
+class AIManagement(models.Model):
     ENTRY_TYPE_KNOWLEDGE = 'knowledge'
     ENTRY_TYPE_PROMPT = 'prompt'
     ENTRY_TYPE_CHOICES = [
         (ENTRY_TYPE_KNOWLEDGE, 'Knowledge'),
         (ENTRY_TYPE_PROMPT, 'AI Prompt'),
+        ('ai_model', 'AI Model'),
     ]
 
     name = models.CharField(max_length=255, db_index=True)
