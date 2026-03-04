@@ -12,18 +12,20 @@ def custom_login_view(request):
             user = form.get_user()
             login(request, user)
 
+            # Check if "Remember Me" was not ticked
+            if not form.cleaned_data.get('remember_me'):
+                # Set session to expire when user closes browser
+                request.session.set_expiry(0)
+
             # Check user role
             if user.role == 'Cleaner':
                 return redirect('/cleanings')
             elif user.role in ['Admin', 'Manager']:
                 return redirect('/')
 
-            # Check if "Remember Me" was not ticked
-            if not form.cleaned_data.get('remember_me'):
-                # Set session to expire when user closes browser
-                request.session.set_expiry(0)
-
             return redirect('/')
+        else:
+            print(f"DEBUG - Login form errors: {form.errors}")
     else:
         form = CustomUserLoginForm()
     return render(request, 'login.html', {'form': form, "title": "login"})

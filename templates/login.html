@@ -28,6 +28,15 @@
                   Login
               </button>
           </div>
+          {% if form.errors %}
+          <div class="mt-4 p-3 bg-red-100 border border-red-400 text-red-700 rounded">
+              {% for field, errors in form.errors.items %}
+                  {% for error in errors %}
+                      <p>{{ error }}</p>
+                  {% endfor %}
+              {% endfor %}
+          </div>
+          {% endif %}
       </form>
   </div>
 </div>
