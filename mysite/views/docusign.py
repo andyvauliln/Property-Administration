@@ -154,6 +154,32 @@ def docuseal_callback(request):
                     # Save booking in case tenant was changed
                     booking.save(updated_by='System')
                     logger.info("SUCCESSFULLY UPDATED")
+
+                    # Send message to group chat if it exists
+                    try:
+                        from mysite.models import TwilioConversation
+                        conversation = TwilioConversation.objects.filter(booking=booking).first()
+                        if conversation:
+                            from mysite.views.messaging import send_messsage_by_sid, _get_prompt
+                            import os
+                            
+                            # Get template from AI management
+                            message_template = _get_prompt('contract_signed_message', booking_id=booking.id)
+                            if not message_template:
+                                # Fallback template
+                                message_template = f"How do you want to make payment for the hold deposit? Does Zelle work? When you ll send transactions for this booking use keyword N{booking.id} in a description that we can easly detect your payment."
+                            
+                            twilio_phone = os.environ.get('TWILIO_PHONE_SECONDARY', '+13153524379')
+                            send_messsage_by_sid(
+                                conversation.conversation_sid, 
+                                'Virtual Assistant', 
+                                message_template, 
+                                twilio_phone, 
+                                None
+                            )
+                            logger.info(f"Contract signed message sent to conversation {conversation.conversation_sid}")
+                    except Exception as msg_err:
+                        logger.error(f"Error sending contract signed message: {msg_err}")
             
             return JsonResponse({'status': 'success', 'message': 'success'})
             

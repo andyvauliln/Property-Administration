@@ -625,6 +625,18 @@ def _get_ai_client():
         return None
 
 
+def _get_db_model(fallback="openai/gpt-4o-mini"):
+    """Return the AI model name set in AIManagement DB, or fallback."""
+    try:
+        from mysite.models import AIManagement
+        entry = AIManagement.objects.filter(prompt_key='ai_conversation_model').first()
+        if entry and entry.content:
+            return entry.content
+    except Exception:
+        pass
+    return fallback
+
+
 def _apartment_fields_context(apartment):
     """Returns all apartment structured fields as formatted text. Excludes notes, keywords, metadata."""
     owner_name = apartment.owner.full_name if apartment.owner else 'N/A'
@@ -834,14 +846,7 @@ def ai_answer_customer(conversation_sid, message_body, apartment, booking):
             )
             user_from_db = False
 
-        model = "openai/gpt-4o-mini"
-        try:
-            from mysite.models import AIManagement
-            model_entry = AIManagement.objects.filter(prompt_key='ai_conversation_model').first()
-            if model_entry and model_entry.content:
-                model = model_entry.content
-        except Exception:
-            pass
+        model = _get_db_model()
 
         temperature = 0.3
         max_tokens = 300
@@ -928,7 +933,7 @@ def ai_extract_knowledge(conversation_sid, message_body, apartment):
                 "Reply with YES or NO only."
             )
             check_from_db = False
-        check_model = "openai/gpt-4o-mini"
+        check_model = _get_db_model()
         check_response = ai_client.chat.completions.create(
             model=check_model,
             messages=[{"role": "user", "content": check_content}],
@@ -966,7 +971,7 @@ def ai_extract_knowledge(conversation_sid, message_body, apartment):
                 "<one or two sentences describing only what was added or changed>"
             )
             merge_from_db = False
-        merge_model = "openai/gpt-4o-mini"
+        merge_model = _get_db_model()
         update_response = ai_client.chat.completions.create(
             model=merge_model,
             messages=[{"role": "user", "content": merge_content}],

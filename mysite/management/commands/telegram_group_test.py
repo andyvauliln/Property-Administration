@@ -4,14 +4,9 @@ from django.core.management.base import BaseCommand
 
 
 def normalize_group_chat_id(chat_id):
-    """Bot API supergroup ids use -100 prefix. Convert -5106660832 -> -1005106660832."""
     s = (chat_id or "").strip()
     if not s or not s.lstrip("-").isdigit():
         return s
-    if s.startswith("-100"):
-        return s
-    if s.startswith("-"):
-        return "-100" + s[1:]
     return s
 
 

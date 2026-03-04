@@ -4,7 +4,7 @@ from django.core.management.base import BaseCommand
 from datetime import datetime, timedelta
 from django.utils import timezone
 from twilio.rest import Client
-from mysite.models import Booking, TwilioConversation, TwilioMessage
+from mysite.models import Booking, TwilioConversation, TwilioMessage, AIManagement
 import os
 from twilio.base.exceptions import TwilioException
 from twilio.twiml.messaging_response import MessagingResponse
@@ -96,6 +96,7 @@ class Command(BaseCommand):
             # Get bookings for deposit_reminder (2 days after booking created and booking in status Waiting Payment)
             return Booking.objects.filter(
                 status='Waiting Payment',
+                payments__payment_type__name='Hold Deposit',
                 created_at__date=now.date() - timedelta(days=2)
             )
 
@@ -145,57 +146,54 @@ class Command(BaseCommand):
 
     def get_message_for_event(self, event_type):
         """
-        Get the SMS message based on the event type.
+        Get the SMS message based on the event type from AIManagement database.
 
         Args:
-            event_type (str): The type of booking event.
+            event_type (str): The type of booking event (prompt_key in AIManagement).
 
         Returns:
             str: SMS message corresponding to the event type.
         """
+        template = AIManagement.objects.filter(
+            prompt_key=event_type, 
+            entry_type='sms_template'
+        ).first()
+        
+        if template and template.content:
+            return template.content
+            
+        # Fallback to hardcoded messages if not in DB
         if event_type == 'unsigned_contract_1d':
             return 'Hi! Just wanted to check - did you receive the contract link? Please let me know if you need any help with signing it.'
-            # 1 day after booking created and booking in status Waiting Contract
         
         elif event_type == 'unsigned_contract_3d':
             return 'Hi, Did you get a chance to sign the contract?'
-            # 3 days after booking created and booking in status Waiting Contract
         
         elif event_type == 'unsigned_contract_7d':
             return 'Hi, this is Virtual Assistant. We are still waiting for you to sign the contract. Please let us know if you have any questions.'
-            # 7 days after booking created and booking in status Waiting Contract
 
         elif event_type == 'pending_rent_3d':
             return 'Hi, this is Virtual Assistant. We are still waiting for your rent payment. Please let us know when you send it.'
-            # 3 days after payment date if status is Pending
 
         elif event_type == 'deposit_reminder':
             return 'Hi, Did you get a chance to send a deposit yet?'
-            # 2 days after booking created and booking in status Waiting Payment
 
         elif event_type == 'move_in':
             return 'Hey! How are you? What time are you planning to be here tomorrow?'
-            # The day before booking start
 
         elif event_type == 'due_payment':
             return 'How are you? Gentle reminder that tomorrow is a due date for the payment. Please, let me know when you send it.'
-            # The day before booking payment, payment type is Rent, and payment status Pending
 
         elif event_type == 'extension':
             return 'How are you? Do you think you might need an extension for your stay?'
-            # 1 Week Before Booking End Date
 
         elif event_type == 'move_out':
             return 'Hey! What time do you think you will be leaving tomorrow? I need to arrange cleaners. My standard check out is 10am.'
-            # The day before booking end date
 
         elif event_type == 'safe_travel':
             return 'Thank you for staying with me. Save my number please if you need something here in the future. Safe travels.'
-            # Next day from booking eтв date
 
-        # Add more event types and messages as needed
-        else:
-            return None
+        return None
 
     def send_sms(self, booking, message):
         account_sid = os.environ.get("TWILIO_ACCOUNT_SID")
