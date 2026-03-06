@@ -23,6 +23,7 @@
                         <select name="entry_type" id="create_entry_type" class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-primary-500 focus:border-primary-500 block w-full p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:text-white dark:focus:ring-primary-500 dark:focus:border-primary-500">
                             <option value="knowledge">Knowledge</option>
                             <option value="prompt">AI Prompt</option>
+                            <option value="sms_template">SMS Template</option>
                             <option value="ai_model">AI Model</option>
                         </select>
                     </div>
@@ -35,9 +36,32 @@
                             <option value="ai_extract_check">AI Extract Check</option>
                             <option value="ai_extract_merge">AI Extract Merge</option>
                             <option value="contract_signed_message">Contract Signed Message</option>
+                            <option value="contract_message_template">Contract Message Template</option>
+                            <option value="welcome_message_template">Welcome Message Template</option>
+                            <option value="move_in">Move In</option>
+                            <option value="unsigned_contract_1d">Unsigned Contract 1d</option>
+                            <option value="unsigned_contract_3d">Unsigned Contract 3d</option>
+                            <option value="unsigned_contract_7d">Unsigned Contract 7d</option>
+                            <option value="pending_rent_3d">Pending Rent 3d</option>
+                            <option value="deposit_reminder">Deposit Reminder</option>
+                            <option value="due_payment">Due Payment</option>
+                            <option value="extension">Extension</option>
+                            <option value="move_out">Move Out</option>
+                            <option value="safe_travel">Safe Travel</option>
                             <option value="ai_conversation_model">AI Conversation Model</option>
                         </select>
                         <p id="create_placeholder_hint" class="mt-1 text-xs text-gray-500 dark:text-gray-400 hidden"></p>
+                    </div>
+                    <div id="create_sms_enabled_group" class="hidden">
+                        <label class="block mb-2 text-sm font-medium text-gray-900 dark:text-white">Send SMS</label>
+                        <div class="flex items-center">
+                            <input type="hidden" name="sms_enabled" id="create_sms_enabled_hidden" value="0">
+                            <label class="relative inline-flex items-center cursor-pointer">
+                                <input type="checkbox" name="sms_enabled" id="create_sms_enabled" value="1" class="sr-only peer">
+                                <div class="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-primary-300 dark:peer-focus:ring-primary-800 rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-primary-600"></div>
+                                <span class="ml-3 text-sm text-gray-900 dark:text-gray-300">On</span>
+                            </label>
+                        </div>
                     </div>
                 </div>
                 <div class="mb-4">
@@ -84,6 +108,7 @@
                         <select name="entry_type" id="edit_entry_type" class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-primary-500 focus:border-primary-500 block w-full p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:text-white dark:focus:ring-primary-500 dark:focus:border-primary-500">
                             <option value="knowledge">Knowledge</option>
                             <option value="prompt">AI Prompt</option>
+                            <option value="sms_template">SMS Template</option>
                             <option value="ai_model">AI Model</option>
                         </select>
                     </div>
@@ -96,9 +121,32 @@
                             <option value="ai_extract_check">AI Extract Check</option>
                             <option value="ai_extract_merge">AI Extract Merge</option>
                             <option value="contract_signed_message">Contract Signed Message</option>
+                            <option value="contract_message_template">Contract Message Template</option>
+                            <option value="welcome_message_template">Welcome Message Template</option>
+                            <option value="move_in">Move In</option>
+                            <option value="unsigned_contract_1d">Unsigned Contract 1d</option>
+                            <option value="unsigned_contract_3d">Unsigned Contract 3d</option>
+                            <option value="unsigned_contract_7d">Unsigned Contract 7d</option>
+                            <option value="pending_rent_3d">Pending Rent 3d</option>
+                            <option value="deposit_reminder">Deposit Reminder</option>
+                            <option value="due_payment">Due Payment</option>
+                            <option value="extension">Extension</option>
+                            <option value="move_out">Move Out</option>
+                            <option value="safe_travel">Safe Travel</option>
                             <option value="ai_conversation_model">AI Conversation Model</option>
                         </select>
                         <p id="edit_placeholder_hint" class="mt-1 text-xs text-gray-500 dark:text-gray-400 hidden"></p>
+                    </div>
+                    <div id="edit_sms_enabled_group" class="hidden">
+                        <label class="block mb-2 text-sm font-medium text-gray-900 dark:text-white">Send SMS</label>
+                        <div class="flex items-center">
+                            <input type="hidden" name="sms_enabled" id="edit_sms_enabled_hidden" value="0">
+                            <label class="relative inline-flex items-center cursor-pointer">
+                                <input type="checkbox" name="sms_enabled" id="edit_sms_enabled" value="1" class="sr-only peer">
+                                <div class="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-primary-300 dark:peer-focus:ring-primary-800 rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-primary-600"></div>
+                                <span class="ml-3 text-sm text-gray-900 dark:text-gray-300">On</span>
+                            </label>
+                        </div>
                     </div>
                 </div>
                 <div class="mb-4">
@@ -122,6 +170,8 @@
         'ai_extract_check': 'Supports: {fields_ctx}, {message_body}',
         'ai_extract_merge': 'Supports: {knowledge_base}, {message_body}',
         'contract_signed_message': 'Supports: {booking_id}',
+        'contract_message_template': 'Supports: {tenant_name}, {apartment_name}, {start_date}, {end_date}, {contract_url}',
+        'welcome_message_template': 'Supports: {tenant_name}, {apartment_name}, {start_date}, {end_date}',
         'ai_conversation_model': 'No placeholders'
     };
 
@@ -130,7 +180,9 @@
         const group = document.getElementById(prefix + '_prompt_key_group');
         const hint = document.getElementById(prefix + '_placeholder_hint');
         const promptKey = document.getElementById(prefix + '_prompt_key');
-        if (entryType === 'prompt' || entryType === 'ai_model') {
+        const smsGroup = document.getElementById(prefix + '_sms_enabled_group');
+        const showPromptKey = entryType === 'prompt' || entryType === 'sms_template' || entryType === 'ai_model';
+        if (showPromptKey) {
             group.classList.remove('hidden');
             const key = promptKey.value;
             if (key && PROMPT_PLACEHOLDERS[key]) {
@@ -142,6 +194,11 @@
         } else {
             group.classList.add('hidden');
             hint.classList.add('hidden');
+        }
+        if (entryType === 'sms_template' && smsGroup) {
+            smsGroup.classList.remove('hidden');
+        } else if (smsGroup) {
+            smsGroup.classList.add('hidden');
         }
     }
 
@@ -199,6 +256,10 @@
         document.getElementById('edit_prompt_key').value = item.prompt_key || '';
         document.getElementById('edit_description').value = item.description || '';
         document.getElementById('edit_content').value = item.content || '';
+        const smsEnabledCheckbox = document.getElementById('edit_sms_enabled');
+        if (smsEnabledCheckbox) {
+            smsEnabledCheckbox.checked = item.sms_enabled === true;
+        }
         togglePromptKeyGroup('edit');
         document.getElementById('aiManagementEditModal').classList.remove('hidden');
         document.body.classList.add('overflow-hidden');

@@ -38,6 +38,8 @@ class Command(BaseCommand):
         for booking in bookings:
             if booking.tenant.phone:
                 message = self.get_message_for_event(event_type)
+                if not message:
+                    continue
                 log_info(
                     f"Sending {event_type} SMS to {booking.tenant.phone} for {booking.apartment.name}",
                     category='sms',
@@ -155,11 +157,11 @@ class Command(BaseCommand):
             str: SMS message corresponding to the event type.
         """
         template = AIManagement.objects.filter(
-            prompt_key=event_type, 
+            prompt_key=event_type,
             entry_type='sms_template'
         ).first()
-        
-        if template and template.content:
+
+        if template and template.content and template.sms_enabled is True:
             return template.content
             
         # Fallback to hardcoded messages if not in DB

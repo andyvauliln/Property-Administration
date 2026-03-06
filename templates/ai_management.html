@@ -82,6 +82,8 @@
                                             <span class="line-clamp-2 max-w-md">{{ item|get_item:field_name|truncatechars:80|default:"" }}</span>
                                         {% elif field_name == "description" %}
                                             <span class="line-clamp-2 max-w-xs">{{ item|get_item:field_name|truncatechars:60|default:"" }}</span>
+                                        {% elif field_name == "sms_enabled" %}
+                                            {% if item|get_item:field_name == True %}On{% elif item|get_item:field_name == False %}Off{% else %}-{% endif %}
                                         {% else %}
                                             {{ item|get_item:field_name|default:"" }}
                                         {% endif %}

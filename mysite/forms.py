@@ -171,6 +171,19 @@ def get_dropdown_options(identifier, isData=False, request=None):
             {"value": "ai_answer_user", "label": "AI Answer User"},
             {"value": "ai_extract_check", "label": "AI Extract Check"},
             {"value": "ai_extract_merge", "label": "AI Extract Merge"},
+            {"value": "contract_signed_message", "label": "Contract Signed Message"},
+            {"value": "contract_message_template", "label": "Contract Message Template"},
+            {"value": "welcome_message_template", "label": "Welcome Message Template"},
+            {"value": "move_in", "label": "Move In"},
+            {"value": "unsigned_contract_1d", "label": "Unsigned Contract 1d"},
+            {"value": "unsigned_contract_3d", "label": "Unsigned Contract 3d"},
+            {"value": "unsigned_contract_7d", "label": "Unsigned Contract 7d"},
+            {"value": "pending_rent_3d", "label": "Pending Rent 3d"},
+            {"value": "deposit_reminder", "label": "Deposit Reminder"},
+            {"value": "due_payment", "label": "Due Payment"},
+            {"value": "extension", "label": "Extension"},
+            {"value": "move_out", "label": "Move Out"},
+            {"value": "safe_travel", "label": "Safe Travel"},
             {"value": "ai_conversation_model", "label": "AI Conversation Model"},
         ]
 
@@ -278,6 +291,11 @@ class CustomBooleanField(CustomFieldMixin, forms.CharField):
        
 class BooleanFieldEx(CustomFieldMixin, forms.BooleanField):
     pass
+
+
+class NullBooleanFieldEx(CustomFieldMixin, forms.NullBooleanField):
+    pass
+
 
 class URLFieldEx(CustomFieldMixin, forms.URLField):
     pass
@@ -1296,12 +1314,20 @@ class ParkingForm(forms.ModelForm):
 class AIManagementForm(forms.ModelForm):
     class Meta:
         model = AIManagement
-        fields = ['name', 'content', 'entry_type', 'prompt_key', 'description']
+        fields = ['name', 'content', 'entry_type', 'prompt_key', 'description', 'sms_enabled']
 
     def __init__(self, *args, **kwargs):
         self.request = kwargs.pop('request', None)
         kwargs.pop('action', None)
         super().__init__(*args, **kwargs)
+
+    def save(self, commit=True):
+        instance = super().save(commit=False)
+        if instance.entry_type != AIManagement.ENTRY_TYPE_SMS_TEMPLATE:
+            instance.sms_enabled = None
+        if commit:
+            instance.save()
+        return instance
 
     name = CharFieldEx(
         max_length=255, isColumn=True, isEdit=True,
@@ -1323,3 +1349,6 @@ class AIManagementForm(forms.ModelForm):
     content = CharFieldEx(
         isColumn=True, isEdit=True, isCreate=True,
         required=False, initial="", ui_element="textarea", order=5)
+    sms_enabled = NullBooleanFieldEx(
+        required=False, isColumn=True, isEdit=True, isCreate=True, order=6
+    )

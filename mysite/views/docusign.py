@@ -160,11 +160,11 @@ def docuseal_callback(request):
                         from mysite.models import TwilioConversation
                         conversation = TwilioConversation.objects.filter(booking=booking).first()
                         if conversation:
-                            from mysite.views.messaging import send_messsage_by_sid, _get_prompt
+                            from mysite.views.messaging import send_messsage_by_sid, _get_template
                             import os
                             
-                            # Get template from AI management
-                            message_template = _get_prompt('contract_signed_message', booking_id=booking.id)
+                            # Get template from AI management (sms_template)
+                            message_template = _get_template('contract_signed_message', booking_id=booking.id)
                             if not message_template:
                                 # Fallback template
                                 message_template = f"How do you want to make payment for the hold deposit? Does Zelle work? When you ll send transactions for this booking use keyword N{booking.id} in a description that we can easly detect your payment."
