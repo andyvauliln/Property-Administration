@@ -1183,6 +1183,10 @@ input:checked + .toggle-bg {
   z-index: 70;
 }
 
+.z-\[100\] {
+  z-index: 100;
+}
+
 .col-span-2 {
   grid-column: span 2 / span 2;
 }
@@ -2990,6 +2994,14 @@ input:checked + .toggle-bg {
   padding-top: 1.5rem;
 }
 
+.pb-0 {
+  padding-bottom: 0px;
+}
+
+.pt-3 {
+  padding-top: 0.75rem;
+}
+
 .text-left {
   text-align: left;
 }
@@ -3892,6 +3904,11 @@ label[textContent="Problem Booking"] {
 .hover\:bg-yellow-50:hover {
   --tw-bg-opacity: 1;
   background-color: rgb(253 253 234 / var(--tw-bg-opacity));
+}
+
+.hover\:bg-purple-100:hover {
+  --tw-bg-opacity: 1;
+  background-color: rgb(237 235 254 / var(--tw-bg-opacity));
 }
 
 .hover\:from-blue-700:hover {

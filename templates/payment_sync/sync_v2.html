@@ -173,6 +173,7 @@
                     <input type="text" name="ai_prompt" id="ai_prompt" value="{{ data.ai_prompt|default:'Match these payments based on amount, date, description, tenant, apartment, bank, payment method. The amount could be slightly different due to rounding or other factors. date could be also not the same day as the payment date.' }}">
                 </div>
             </div>
+        </form>
 
     <!-- Edit Matching Criteria Modal -->
     <div id="matchingConfigModal" class="fixed inset-0 z-50 hidden overflow-y-auto" aria-labelledby="modal-title" role="dialog" aria-modal="true">
@@ -345,7 +346,7 @@
     </div>
     <!-- Merge Footer -->
     <div id="merge_bar" class="flex justify-end items-center px-2 py-1 border-t border-gray-200 bg-gray-50">
-        <button id="merge_button" onclick="mergeSelectedPayments()"
+        <button id="merge_button" type="button" onclick="mergeSelectedPayments(event)"
                 class="inline-flex items-center gap-1.5 px-3 py-1 text-sm rounded-md bg-gradient-to-r from-blue-600 to-indigo-600 text-white font-medium shadow-sm hover:from-blue-700 hover:to-indigo-700 transition">
             ⚡ Merge Selection
         </button>
@@ -891,7 +892,7 @@
         
         let html = '';
         filtered.forEach(payment => {
-            const isSelected = selected_bank_payments.has(payment.id);
+            const isSelected = selected_bank_payments.has(String(payment.id));
             const isMerged = payment.is_merged;
             const amountColor = parseFloat(payment.amount) >= 0 ? 'text-green-600' : 'text-red-600';
             
@@ -1676,6 +1677,9 @@
 
     function refreshMergedBankPaymentsFromDB() {
         if (!Array.isArray(db_payments_json) || !Array.isArray(file_payments_json)) return;
+
+        file_payments_json.forEach(p => { if (p) p.is_merged = false; });
+
         const mergedKeys = new Set();
         db_payments_json.forEach(p => {
             if (!p || p.id === 'new') return;
@@ -1783,51 +1787,86 @@
     }
     
     // Merge Function
-    function mergeSelectedPayments() {
+    const FILE_PAYMENT_KEY_SEPARATOR = '###||###';
+
+    function buildCompositeFilePayment(bankPayments) {
+        const totalAmount = bankPayments.reduce((sum, p) => sum + Math.abs(parseFloat(p.amount || 0)), 0);
+        const keys = bankPayments.map(p => p.merged_payment_key).filter(Boolean);
+        const notes = bankPayments.map(p => p.notes).filter(Boolean).join('; ');
+        return {
+            ...bankPayments[0],
+            amount: totalAmount,
+            merged_payment_key: keys.join(FILE_PAYMENT_KEY_SEPARATOR),
+            notes: notes,
+        };
+    }
+
+    function isNewPaymentPlaceholder(p) {
+        return !p || String(p?.id) === 'new';
+    }
+
+    function mergeSelectedPayments(event) {
+        if (event) {
+            event.preventDefault();
+            event.stopPropagation();
+        }
+
         if (selected_bank_payments.size === 0 || selected_db_payments.size === 0) {
             alert('Please select at least one payment from each side to merge.');
             return;
         }
-        
-        const bankIds = Array.from(selected_bank_payments);
-        const dbIds = Array.from(selected_db_payments);
-        
-        // Confirm merge
-        if (!confirm(`Are you sure you want to merge ${bankIds.length} bank payment(s) with ${dbIds.length} DB payment(s)?`)) {
-            return;
+
+        try {
+            if (typeof mergePaymentData !== 'function' || typeof openMergeModal !== 'function') {
+                console.error('Merge modal helpers are unavailable', {
+                    hasMergePaymentData: typeof mergePaymentData === 'function',
+                    hasOpenMergeModal: typeof openMergeModal === 'function',
+                });
+                alert('Merge modal is not ready yet. Please refresh the page and try again.');
+                return;
+            }
+
+            const bankIds = Array.from(selected_bank_payments).map(String);
+            const dbIds = Array.from(selected_db_payments);
+
+            const bankPayments = bankIds
+                .map(id => file_payments_json.find(p => String(p.id) === String(id)))
+                .filter(Boolean);
+            if (bankPayments.length === 0) { alert('Bank payment not found.'); return; }
+
+            if (bankPayments.length > 1 && dbIds.length > 1) {
+                alert('Cannot merge multiple file payments with multiple DB payments at once.\nPlease select either:\n- Multiple file payments → 1 DB payment, or\n- 1 file payment → Multiple DB payments');
+                return;
+            }
+
+            let mergedList;
+            if (bankPayments.length > 1) {
+                // N file payments → 1 DB payment: sum amounts and combine keys
+                const dbId = dbIds[0];
+                const dbPayment = db_payments_json.find(p => String(p.id) === String(dbId));
+                const isCreate = isNewPaymentPlaceholder(dbPayment);
+                const compositePayment = buildCompositeFilePayment(bankPayments);
+                mergedList = [mergePaymentData(dbPayment, compositePayment, isCreate)];
+            } else {
+                // 1 file payment → N DB payments: keep each DB payment's own amount
+                const bankPayment = bankPayments[0];
+                const isMultiDB = dbIds.length > 1;
+                mergedList = dbIds.map(dbId => {
+                    const dbPayment = db_payments_json.find(p => String(p.id) === String(dbId));
+                    const isCreate = isNewPaymentPlaceholder(dbPayment);
+                    const merged = mergePaymentData(dbPayment, bankPayment, isCreate);
+                    if (isMultiDB && !isCreate) {
+                        merged.amount = parseFloat(dbPayment.amount || 0);
+                    }
+                    return merged;
+                });
+            }
+
+            openMergeModal(mergedList, bankIds[0]);
+        } catch (e) {
+            console.error('mergeSelectedPayments error:', e);
+            alert('Error opening merge modal: ' + e.message);
         }
-        
-        // Mark bank payments as merged
-        bankIds.forEach(id => {
-            const payment = file_payments_json.find(p => p.id === id);
-            if (payment) {
-                payment.is_merged = true;
-            }
-        });
-        
-        // Mark DB payments as matched
-        dbIds.forEach(id => {
-            const payment = db_payments_json.find(p => String(p.id) === String(id));
-            if (payment && payment.id !== 'new') {
-                payment.is_matched = true;
-                // Add matched criteria info
-                payment.matched_criteria = `Merged with Bank Payment(s): ${bankIds.join(', ')}`;
-            }
-        });
-        
-        // Clear selections
-        selected_bank_payments.clear();
-        selected_db_payments.clear();
-        
-        // Re-render both lists
-        renderBankPayments();
-        renderDBPayments();
-        
-        // Show success message
-        alert(`Successfully merged ${bankIds.length} bank payment(s) with ${dbIds.length} DB payment(s)!`);
-        
-        // TODO: Send merge data to backend
-        console.log('Merge completed:', { bankIds, dbIds });
     }
     
     // Modal and Config Functions
@@ -2232,5 +2271,8 @@
         return date.toLocaleDateString('en-US', { month: '2-digit', day: '2-digit', year: 'numeric' });
     }
 </script>
+
+{% include "payment_sync/sync_v2_modal.html" %}
+
 {% endblock %}
 

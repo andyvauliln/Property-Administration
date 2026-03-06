@@ -2403,10 +2403,14 @@ def update_payments(request, payments_to_update):
     for payment_info in payments_to_update:
         payment_id = None
         try:
-            if payment_info['id'] and (isinstance(payment_info['id'], int) or 
-                                     (isinstance(payment_info['id'], str) and 'id_' not in payment_info['id'])):
+            raw_id = payment_info.get('id')
+            try:
+                numeric_id = int(raw_id) if raw_id not in (None, '', 'null', 'new') else None
+            except (ValueError, TypeError):
+                numeric_id = None
+            if numeric_id:
                 # Update existing payment
-                payment = Payment.objects.get(id=payment_info['id'])
+                payment = Payment.objects.get(id=numeric_id)
                 payment_id = payment.id
                 update_payment_fields(payment, payment_info)
                 payment.save(updated_by=request.user if request.user else None)

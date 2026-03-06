@@ -1,12 +1,10 @@
 {% load custom_filters %}
 
-<!-- Edit/Merge Modal -->
-<div id="updateModal" class="fixed inset-0 z-50 hidden overflow-y-auto" aria-labelledby="modal-title" role="dialog" aria-modal="true">
+<!-- Merge Modal -->
+<div id="updateModal" class="fixed inset-0 z-[100] hidden overflow-y-auto" aria-labelledby="modal-title" role="dialog" aria-modal="true">
     <div class="flex items-center justify-center min-h-screen px-4 pt-4 pb-20 text-center sm:block sm:p-0">
-        <!-- Background overlay -->
         <div class="fixed inset-0 transition-opacity bg-gray-500 bg-opacity-75" aria-hidden="true" onclick="closeModal()"></div>
 
-        <!-- Modal panel -->
         <div class="inline-block align-bottom bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-5xl sm:w-full">
             <!-- Header -->
             <div class="bg-gradient-to-r from-purple-600 to-indigo-600 px-6 py-4">
@@ -25,15 +23,18 @@
                 </div>
             </div>
 
+            <!-- Tab bar (hidden when only 1 payment) -->
+            <div id="merge_tabs_bar" class="hidden px-6 pt-3 pb-0 flex gap-2 flex-wrap border-b border-gray-200"></div>
+
             <!-- Body -->
             <form id="edit_form" method="POST" action="">
                 {% csrf_token %}
                 <input type="hidden" name="id" id="editId" value="">
                 <input type="hidden" name="fileId" id="fileId" value="">
                 <input type="hidden" name="merged_payment_key" id="merged_payment_key" value="">
-                
+
                 <div class="px-6 py-4 max-h-[70vh] overflow-y-auto">
-                    <!-- Payment Info Comparison -->
+                    <!-- Info Comparison -->
                     <div class="mb-6 p-4 bg-blue-50 rounded-lg border border-blue-200">
                         <h4 class="text-sm font-bold text-blue-900 mb-3">Payment Information</h4>
                         <div class="grid grid-cols-2 gap-4 text-sm">
@@ -42,7 +43,7 @@
                                 <span id="info_db_payment" class="text-gray-700">-</span>
                             </div>
                             <div>
-                                <span class="font-semibold text-blue-700">File Payment:</span>
+                                <span class="font-semibold text-blue-700">Bank Payment:</span>
                                 <span id="info_file_payment" class="text-gray-700">-</span>
                             </div>
                         </div>
@@ -58,9 +59,9 @@
                                             {{ field_name|split_underscore|title }}
                                             {% if field_instance.required %}<span class="text-red-600">*</span>{% endif %}
                                         </label>
-                                        <textarea id="{{field_name}}" 
-                                                  name="{{field_name}}" 
-                                                  rows="4" 
+                                        <textarea id="{{field_name}}"
+                                                  name="{{field_name}}"
+                                                  rows="4"
                                                   class="block p-2.5 w-full text-sm text-gray-900 bg-gray-50 rounded-lg border border-gray-300 focus:ring-purple-500 focus:border-purple-500"
                                                   placeholder="Enter notes..."></textarea>
                                     </div>
@@ -70,30 +71,30 @@
                                             {{ field_name|split_underscore|title }}
                                             {% if field_instance.required %}<span class="text-red-600">*</span>{% endif %}
                                         </label>
-                                        
+
                                         {% if field_instance.ui_element == "datepicker" %}
-                                            <input name="{{field_name}}" 
-                                                   id="{{field_name}}" 
-                                                   datepicker 
-                                                   datepicker-format="MM dd yyyy" 
-                                                   type="text" 
-                                                   value="" 
+                                            <input name="{{field_name}}"
+                                                   id="{{field_name}}"
+                                                   datepicker
+                                                   datepicker-format="MM dd yyyy"
+                                                   type="text"
+                                                   value=""
                                                    class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-purple-500 focus:border-purple-500 block w-full p-2.5"
                                                    placeholder="Select date">
-                                        
+
                                         {% elif field_instance.ui_element == "checkbox" %}
                                             <div class="flex items-center h-10">
-                                                <input id="{{field_name}}" 
-                                                       type="checkbox" 
-                                                       name="{{field_name}}" 
-                                                       value="1" 
+                                                <input id="{{field_name}}"
+                                                       type="checkbox"
+                                                       name="{{field_name}}"
+                                                       value="1"
                                                        class="w-4 h-4 text-purple-600 bg-gray-100 border-gray-300 rounded focus:ring-purple-500">
                                                 <label for="{{field_name}}" class="ml-2 text-sm text-gray-700">Enable</label>
                                             </div>
-                                        
+
                                         {% elif field_instance.ui_element == "dropdown" %}
-                                            <select name="{{ field_name }}" 
-                                                    id="{{ field_name }}" 
+                                            <select name="{{ field_name }}"
+                                                    id="{{ field_name }}"
                                                     {% if field_name == "apartment" %}onchange="handleApartmentChangeForPaymentSync(this.value)"{% endif %}
                                                     class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-purple-500 focus:border-purple-500 block w-full p-2.5">
                                                 <option value="">None</option>
@@ -101,34 +102,34 @@
                                                     <option value="{{ option.value }}">{{ option.label }}</option>
                                                 {% endfor %}
                                             </select>
-                                        
+
                                         {% elif field_instance.ui_element == "radio" %}
                                             <div class="space-y-2 bg-gray-50 border border-gray-300 rounded-lg p-3 max-h-40 overflow-y-auto">
                                                 <div class="flex items-center">
-                                                    <input type="radio" 
-                                                           id="{{ field_name }}_none" 
-                                                           name="{{ field_name }}" 
-                                                           value="" 
+                                                    <input type="radio"
+                                                           id="{{ field_name }}_none"
+                                                           name="{{ field_name }}"
+                                                           value=""
                                                            class="w-4 h-4 text-purple-600 border-gray-300 focus:ring-purple-500">
                                                     <label for="{{ field_name }}_none" class="ml-2 text-sm text-gray-700">None</label>
                                                 </div>
                                                 {% for option in field_instance.dropdown_options %}
                                                     <div class="flex items-center">
-                                                        <input type="radio" 
-                                                               id="{{ field_name }}_{{ forloop.counter }}" 
-                                                               name="{{ field_name }}" 
-                                                               value="{{ option.value }}" 
+                                                        <input type="radio"
+                                                               id="{{ field_name }}_{{ forloop.counter }}"
+                                                               name="{{ field_name }}"
+                                                               value="{{ option.value }}"
                                                                class="w-4 h-4 text-purple-600 border-gray-300 focus:ring-purple-500">
                                                         <label for="{{ field_name }}_{{ forloop.counter }}" class="ml-2 text-sm text-gray-700">{{ option.label }}</label>
                                                     </div>
                                                 {% endfor %}
                                             </div>
-                                        
+
                                         {% else %}
-                                            <input type="text" 
-                                                   name="{{ field_name }}" 
+                                            <input type="text"
+                                                   name="{{ field_name }}"
                                                    id="{{ field_name }}"
-                                                   value="" 
+                                                   value=""
                                                    class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-purple-500 focus:border-purple-500 block w-full p-2.5"
                                                    placeholder="{{ field_name|split_underscore|title }}">
                                         {% endif %}
@@ -141,18 +142,19 @@
 
                 <!-- Footer -->
                 <div class="bg-gray-50 px-6 py-4 flex items-center justify-between border-t border-gray-200">
-                    <button type="button" 
-                            onclick="closeModal()" 
+                    <button type="button"
+                            onclick="closeModal()"
                             class="px-4 py-2 bg-gray-300 hover:bg-gray-400 text-gray-800 font-semibold rounded-lg transition duration-200">
                         Cancel
                     </button>
-                    <button type="button" 
-                            onclick="addPaymentToSaveList()" 
-                            class="px-6 py-2 bg-purple-600 hover:bg-purple-700 text-white font-semibold rounded-lg transition duration-200 flex items-center">
+                    <button type="button"
+                            id="save_payments_btn"
+                            onclick="saveAllMergedPayments()"
+                            class="px-6 py-2 bg-green-600 hover:bg-green-700 text-white font-semibold rounded-lg transition duration-200 flex items-center">
                         <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"></path>
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
                         </svg>
-                        Add to Save List
+                        <span id="save_payments_btn_label">Save Payment</span>
                     </button>
                 </div>
             </form>
@@ -161,38 +163,7 @@
 </div>
 
 <script>
-    function uniqNonEmptyStrings(values) {
-        const out = [];
-        const seen = new Set();
-        (values || []).forEach(v => {
-            const s = String(v ?? '').trim();
-            if (!s) return;
-            if (seen.has(s)) return;
-            seen.add(s);
-            out.push(s);
-        });
-        return out;
-    }
-
-    function getFileApartmentCandidates(p) {
-        if (!p) return [];
-        return uniqNonEmptyStrings([p.apartment_name, ...(p.apartment_candidates || [])]);
-    }
-
-    function getFileTenantCandidates(p) {
-        if (!p) return [];
-        return uniqNonEmptyStrings([p.tenant_name, ...(p.tenant_candidates || [])]);
-    }
-
-    function formatCandidatesInline(list, max = 3) {
-        const arr = uniqNonEmptyStrings(list);
-        if (!arr.length) return '';
-        const shown = arr.slice(0, max).join(', ');
-        const more = arr.length > max ? ` +${arr.length - max} more` : '';
-        return `${shown}${more}`;
-    }
-
-    // Extract bookings data for filtering
+    // Bookings data for apartment-based filtering
     let bookingsDataSync = [];
     {% for field_name, field_instance in data.model_fields %}
         {% if field_name == "booking" %}
@@ -207,146 +178,181 @@
             ];
         {% endif %}
     {% endfor %}
-    
+
+    // Tab state
+    let mergeTabsData = [];
+    let activeMergeTab = 0;
+
+    function closeModal() {
+        const el = document.getElementById('updateModal');
+        el.classList.add('hidden');
+        el.style.display = 'none';
+    }
+
+    function mergePaymentData(db_payment, file_payment, create_mode) {
+        return {
+            id: db_payment ? db_payment.id : null,
+            file_id: file_payment.id,
+
+            // File is source of truth for transaction data
+            payment_date: file_payment.payment_date,
+            amount: Math.abs(parseFloat(file_payment.amount)),
+            merged_payment_key: file_payment.merged_payment_key,
+            bank: file_payment.bank ?? db_payment?.bank ?? null,
+
+            // DB takes priority for categorization
+            payment_type: db_payment?.payment_type ?? file_payment.payment_type ?? null,
+            payment_method: file_payment.payment_method ?? db_payment?.payment_method ?? null,
+            apartment: db_payment?.apartment ?? file_payment.apartment ?? null,
+            booking: db_payment?.booking ?? null,
+
+            notes: create_mode
+                ? (file_payment.notes || '')
+                : [db_payment?.notes, file_payment.notes ? `[${file_payment.notes}]` : ''].filter(Boolean).join(' '),
+
+            payment_status: 'Merged',
+        };
+    }
+
+    function openMergeModal(mergedList, bankPaymentId) {
+        console.log('[openMergeModal] called, count:', mergedList.length, mergedList);
+        mergeTabsData = mergedList;
+        activeMergeTab = 0;
+
+        const count = mergedList.length;
+        if (count === 1) {
+            document.getElementById('modal_title').textContent = mergedList[0].id ? 'Merge Payment' : 'Create Payment';
+            document.getElementById('save_payments_btn_label').textContent = 'Save Payment';
+        } else {
+            document.getElementById('modal_title').textContent = `Merge ${count} Payments`;
+            document.getElementById('save_payments_btn_label').textContent = `Save ${count} Payments`;
+        }
+
+        console.log('[openMergeModal] rendering tabs');
+        renderMergeTabs();
+        console.log('[openMergeModal] loading tab 0');
+        try {
+            loadTab(0);
+        } catch (e) {
+            console.error('[openMergeModal] loadTab error:', e);
+        }
+        const modalEl = document.getElementById('updateModal');
+        if (modalEl) {
+            document.body.appendChild(modalEl);
+            modalEl.classList.remove('hidden');
+            modalEl.style.display = 'block';
+        }
+    }
+
+    function renderMergeTabs() {
+        const bar = document.getElementById('merge_tabs_bar');
+        if (mergeTabsData.length <= 1) {
+            bar.classList.add('hidden');
+            bar.innerHTML = '';
+            return;
+        }
+        bar.classList.remove('hidden');
+        bar.innerHTML = mergeTabsData.map((p, i) => {
+            const label = p.id ? `DB #${p.id}` : 'New';
+            const active = i === activeMergeTab;
+            return `<button type="button" onclick="switchToTab(${i})"
+                class="px-4 py-1.5 mb-2 text-sm font-medium rounded-full transition-colors ${active ? 'bg-purple-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-purple-100'}">
+                ${label}
+            </button>`;
+        }).join('');
+    }
+
+    function switchToTab(idx) {
+        if (idx === activeMergeTab) return;
+        saveCurrentTabToData();
+        activeMergeTab = idx;
+        renderMergeTabs();
+        loadTab(idx);
+    }
+
+    function loadTab(idx) {
+        const payment = mergeTabsData[idx];
+        updateInfoDisplay(payment);
+        populateFormFields(payment);
+    }
+
+    function saveCurrentTabToData() {
+        const formData = getAllFormData();
+        mergeTabsData[activeMergeTab] = {
+            ...mergeTabsData[activeMergeTab],
+            ...formData,
+            // keep file_id (form uses "fileId" key, internal state uses "file_id")
+            file_id: formData.fileId || mergeTabsData[activeMergeTab].file_id,
+        };
+    }
+
+    function updateInfoDisplay(merged) {
+        const fileId = merged.file_id || merged.fileId;
+        const file_payment = file_payments_json.find(p => String(p.id) === String(fileId));
+        const db_id = merged.id;
+        const db_payment = db_id ? db_payments_json.find(p => String(p.id) === String(db_id)) : null;
+
+        document.getElementById('info_db_payment').textContent = db_payment
+            ? `#${db_payment.id}${db_payment.apartment_name ? ' | ' + db_payment.apartment_name : ''}${db_payment.tenant_name ? ' | ' + db_payment.tenant_name : ''}`
+            : 'New';
+
+        if (file_payment) {
+            const aptHints = [file_payment.apartment_name, ...(file_payment.apartment_candidates || [])].filter(Boolean).join(', ');
+            document.getElementById('info_file_payment').textContent =
+                `${formatDate(file_payment.payment_date)} - $${file_payment.amount}${aptHints ? ' | ' + aptHints : ''}`;
+        }
+    }
+
     function handleApartmentChangeForPaymentSync(apartmentId, bookingIdToSelect = null) {
         if (!bookingsDataSync || bookingsDataSync.length === 0) return;
-        
+
         const updateModal = document.getElementById('updateModal');
         const bookingSelect = updateModal ? updateModal.querySelector('[name="booking"]') : null;
-        
         if (!bookingSelect) return;
-        
+
         const currentSelection = (bookingIdToSelect !== null && bookingIdToSelect !== undefined) ? bookingIdToSelect : bookingSelect.value;
-        
-        // Clear existing options
+
         while (bookingSelect.options.length > 0) {
             bookingSelect.remove(0);
         }
-        
-        // Add None option
+
         const noneOption = document.createElement('option');
         noneOption.value = '';
         noneOption.textContent = 'None';
         bookingSelect.appendChild(noneOption);
-        
-        // Filter bookings based on apartment
-        let filteredBookings = bookingsDataSync;
-        if (apartmentId) {
-            filteredBookings = bookingsDataSync.filter(booking => booking.apartment_id == apartmentId);
-        }
-        
-        // Populate dropdown with filtered bookings
-        let optionSelected = false;
+
+        const filteredBookings = apartmentId
+            ? bookingsDataSync.filter(b => b.apartment_id == apartmentId)
+            : bookingsDataSync;
+
         filteredBookings.forEach(booking => {
             const option = document.createElement('option');
             option.value = booking.id;
             option.textContent = booking.label;
-            if (String(booking.id) === String(currentSelection)) {
-                option.selected = true;
-                optionSelected = true;
-            }
+            if (String(booking.id) === String(currentSelection)) option.selected = true;
             bookingSelect.appendChild(option);
         });
     }
-    
-    function closeModal() {
-        document.getElementById('updateModal').classList.add('hidden');
-    }
-    
-    function openEditModalForPayment(db_payment_id, file_payment_id, create_mode = false) {
-        const modal = document.getElementById('updateModal');
-        const file_payment = file_payments_json.find(p => p.id === file_payment_id);
-        
-        if (!file_payment) {
-            alert('File payment not found');
-            return;
-        }
-        
-        let db_payment = null;
-        if (db_payment_id && !create_mode) {
-            db_payment = db_payments_json.find(p => p.id === db_payment_id);
-        }
-        
-        // Update modal title
-        document.getElementById('modal_title').textContent = create_mode ? 'Create New Payment' : 'Merge Payments';
-        
-        // Update info display
-        document.getElementById('info_db_payment').textContent = db_payment ? `#${db_payment.id}` : 'New';
-        const aptInline = formatCandidatesInline(getFileApartmentCandidates(file_payment), 3);
-        const tenantInline = formatCandidatesInline(getFileTenantCandidates(file_payment), 2);
-        const extra = `${aptInline ? ` | Apt: ${aptInline}` : ''}${tenantInline ? ` | Tenant: ${tenantInline}` : ''}`;
-        document.getElementById('info_file_payment').textContent = `${formatDate(file_payment.payment_date)} - $${file_payment.amount}${extra}`;
-        
-        // Merge payment data
-        const merged_payment = mergePaymentData(db_payment, file_payment, create_mode);
-        
-        // Populate form fields
-        populateFormFields(merged_payment, create_mode);
-        
-        // Show modal
-        modal.classList.remove('hidden');
-    }
-    
-    function createNewPayment(file_payment_id) {
-        openEditModalForPayment(null, file_payment_id, true);
-    }
-    
-    function mergePaymentData(db_payment, file_payment, create_mode) {
-        const fileApts = getFileApartmentCandidates(file_payment);
-        const fileTenants = getFileTenantCandidates(file_payment);
-        const dbApts = uniqNonEmptyStrings([db_payment?.apartment_name]);
-        const dbTenants = uniqNonEmptyStrings([db_payment?.tenant_name]);
-        const aptCandidates = uniqNonEmptyStrings([...dbApts, ...fileApts]);
-        const tenantCandidates = uniqNonEmptyStrings([...dbTenants, ...fileTenants]);
 
-        const merged = {
-            id: db_payment ? db_payment.id : file_payment.id,
-            file_id: file_payment.id,
-            apartment: db_payment?.apartment || file_payment.apartment,
-            apartment_name: (aptCandidates.length === 1 ? aptCandidates[0] : (db_payment?.apartment_name || file_payment.apartment_name || '')),
-            apartment_candidates: aptCandidates,
-            tenant_name: (tenantCandidates.length === 1 ? tenantCandidates[0] : (db_payment?.tenant_name || file_payment.tenant_name || '')),
-            tenant_candidates: tenantCandidates,
-            booking: db_payment?.booking ?? file_payment.booking ?? null,
-            payment_date: file_payment.payment_date,
-            amount: Math.abs(file_payment.amount),
-            payment_method: file_payment.payment_method || db_payment?.payment_method || null,
-            payment_type: db_payment?.payment_type || file_payment.payment_type,
-            payment_status: 'Merged',
-            bank: file_payment.bank || db_payment?.bank || null,
-            merged_payment_key: file_payment.merged_payment_key,
-        };
-        
-        if (create_mode) {
-            merged.notes = file_payment.notes;
-        } else {
-            merged.notes = (db_payment?.notes || '') + ` [${file_payment.notes}]`;
-        }
-        
-        return merged;
-    }
-    
-    function populateFormFields(payment, create_mode) {
+    function populateFormFields(payment) {
         const modal = document.getElementById('updateModal');
-        
-        document.getElementById('editId').value = payment.id;
-        document.getElementById('fileId').value = payment.file_id;
-        document.getElementById('merged_payment_key').value = payment.merged_payment_key;
-        
-        // Skip booking field initially if we have bookings data
+
+        document.getElementById('editId').value = payment.id ?? '';
+        document.getElementById('fileId').value = payment.file_id || payment.fileId || '';
+        document.getElementById('merged_payment_key').value = payment.merged_payment_key || '';
+
         const willFilterBookings = bookingsDataSync && bookingsDataSync.length > 0;
-        
+
         for (let [fieldName, fieldValue] of Object.entries(payment)) {
             if (fieldName === 'apartment_id') fieldName = 'apartment';
             if (fieldName === 'booking' && willFilterBookings) continue;
-            
+
             const inputFields = modal.querySelectorAll(`[name="${fieldName}"]`);
-            inputFields.forEach((inputField) => {
+            inputFields.forEach(inputField => {
                 if (inputField.tagName === 'SELECT') {
                     inputField.value = fieldValue || '';
                 } else if (inputField.tagName === 'INPUT' && inputField.type === 'radio') {
-                    const allRadios = document.querySelectorAll(`input[type="radio"][name="${fieldName}"]`);
-                    allRadios.forEach(radio => {
+                    modal.querySelectorAll(`input[type="radio"][name="${fieldName}"]`).forEach(radio => {
                         radio.checked = String(radio.value) === String(fieldValue);
                     });
                 } else if (inputField.tagName === 'INPUT' && inputField.hasAttribute('datepicker')) {
@@ -356,12 +362,11 @@
                 } else if (inputField.tagName === 'INPUT' && inputField.type === 'checkbox') {
                     inputField.checked = (fieldValue === true || fieldValue === '1');
                 } else {
-                    inputField.value = fieldValue || '';
+                    inputField.value = fieldValue ?? '';
                 }
             });
         }
-        
-        // Handle apartment change for booking filtering
+
         if (willFilterBookings) {
             const apartmentSelect = modal.querySelector('[name="apartment"]');
             if (apartmentSelect) {
@@ -369,7 +374,7 @@
             }
         }
     }
-    
+
     function getAllFormData() {
         const form = document.getElementById('edit_form');
         const formData = new FormData(form);
@@ -379,195 +384,108 @@
         }
         return data;
     }
-    
-    function addPaymentToSaveList() {
-        const formData = getAllFormData();
-        const file_payment = file_payments_json.find(p => p.id === formData.fileId);
-        
-        formData.file_date = file_payment.payment_date;
-        formData.file_amount = formData.amount;
-        formData.file_notes = file_payment.notes;
-        
-        payments_for_save_to_db.push(formData);
-        updateSavedPayments();
-        removePaymentFromList(formData.fileId);
-        closeModal();
+
+    function saveAllMergedPayments() {
+        saveCurrentTabToData();
+
+        const enriched = mergeTabsData.map(payment => {
+            const fileId = payment.file_id || payment.fileId;
+            const file_payment = file_payments_json.find(p => String(p.id) === String(fileId));
+            return {
+                ...payment,
+                file_date: file_payment?.payment_date,
+                file_amount: payment.amount,
+                file_notes: file_payment?.notes,
+            };
+        });
+
+        // Optimistically update local state so localStorage reflects the merge after page reload
+        enriched.forEach(payment => {
+            const key = payment.merged_payment_key || '';
+            const dbId = payment.id;
+
+            // Update DB payment status in local data
+            if (dbId && String(dbId) !== 'new') {
+                const dbp = db_payments_json.find(p => String(p.id) === String(dbId));
+                if (dbp) {
+                    dbp.payment_status = 'Merged';
+                    dbp.merged_payment_key = key || dbp.merged_payment_key;
+                }
+            }
+        });
+
+        // Mark all currently selected bank payments as merged
+        (selected_bank_payments || new Set()).forEach(id => {
+            const fp = file_payments_json.find(p => String(p.id) === String(id));
+            if (fp) fp.is_merged = true;
+        });
+        saveToLocalStorage();
+
+        const btn = document.getElementById('save_payments_btn');
+        const originalLabel = document.getElementById('save_payments_btn_label').textContent;
+        btn.disabled = true;
+        document.getElementById('save_payments_btn_label').textContent = 'Saving…';
+
+        const form = new FormData();
+        form.append('payments_to_update', JSON.stringify(enriched));
+        form.append('csrfmiddlewaretoken', document.querySelector('[name=csrfmiddlewaretoken]').value);
+
+        fetch('/payments-sync-v2/', { method: 'POST', body: form })
+            .then(r => { if (!r.ok) throw new Error(); return r.text(); })
+            .then(html => { document.open(); document.write(html); document.close(); })
+            .catch(() => {
+                alert('Failed to save payments. Please try again.');
+                btn.disabled = false;
+                document.getElementById('save_payments_btn_label').textContent = originalLabel;
+            });
     }
-    
+
+    // Open modal for a single matched pair (used by match list clicks)
+    function openEditModalForPayment(db_payment_id, file_payment_id, create_mode = false) {
+        const file_payment = file_payments_json.find(p => p.id === file_payment_id);
+        if (!file_payment) { alert('File payment not found'); return; }
+        const db_payment = (db_payment_id && !create_mode)
+            ? db_payments_json.find(p => p.id === db_payment_id)
+            : null;
+        openMergeModal([mergePaymentData(db_payment, file_payment, create_mode)], file_payment_id);
+    }
+
+    function createNewPayment(file_payment_id) {
+        openEditModalForPayment(null, file_payment_id, true);
+    }
+
+    // Auto-merge a single matched pair — opens modal for review
     function autoMergePayment(db_payment_id, file_payment_id) {
         const db_payment = db_payments_json.find(p => p.id === db_payment_id);
         const file_payment = file_payments_json.find(p => p.id === file_payment_id);
-        
-        if (!db_payment || !file_payment) {
-            alert('Payment not found');
-            return;
-        }
-        
-        const merged = mergePaymentData(db_payment, file_payment, false);
-        merged.id = String(merged.id);
-        merged.payment_date = formatDate(merged.payment_date);
-        merged.file_amount = merged.amount;
-        merged.file_notes = file_payment.notes;
-        merged.file_date = file_payment.payment_date;
-        
-        payments_for_save_to_db.push(merged);
-        updateSavedPayments();
-        removePaymentFromList(file_payment_id);
+        if (!db_payment || !file_payment) { alert('Payment not found'); return; }
+        openMergeModal([mergePaymentData(db_payment, file_payment, false)], file_payment_id);
     }
-    
+
+    // Auto-merge all high confidence matches — POSTs directly (batch, no modal)
     function autoMergeHighConfidence() {
         const high_confidence_groups = matched_groups.filter(g => g.match_quality === 'high' && g.matches.length > 0);
-        
-        if (high_confidence_groups.length === 0) {
-            alert('No high confidence matches found');
-            return;
-        }
-        
-        if (!confirm(`Auto-merge ${high_confidence_groups.length} high confidence payments?`)) {
-            return;
-        }
-        
-        high_confidence_groups.forEach(group => {
+        if (high_confidence_groups.length === 0) { alert('No high confidence matches found'); return; }
+        if (!confirm(`Auto-merge ${high_confidence_groups.length} high confidence payments?`)) return;
+
+        const paymentsToSave = high_confidence_groups.map(group => {
             const top_match = group.matches[0];
-            autoMergePayment(top_match.db_payment.id, group.file_payment.id);
+            const db = top_match.db_payment;
+            const file = group.file_payment;
+            const merged = mergePaymentData(db, file, false);
+            merged.file_date = file.payment_date;
+            merged.file_amount = merged.amount;
+            merged.file_notes = file.notes;
+            return merged;
         });
-        
-        alert(`Successfully auto-merged ${high_confidence_groups.length} payments`);
-    }
-    
-    function removePaymentFromList(file_payment_id) {
-        const element = document.getElementById(`file_payment_${file_payment_id}`);
-        if (element) {
-            element.remove();
-        }
-        
-        // Update matched_groups
-        const index = matched_groups.findIndex(g => g.file_payment.id === file_payment_id);
-        if (index !== -1) {
-            matched_groups.splice(index, 1);
-        }
-        
-        updateCounts();
-        
-        // Re-render if current view is empty
-        if (document.querySelectorAll('[id^="file_payment_"]').length === 0) {
-            renderPayments();
-        }
-    }
-    
-    function removeSavedPayment(id) {
-        payments_for_save_to_db = payments_for_save_to_db.filter(p => String(p.id) !== String(id));
-        updateSavedPayments();
-    }
-    
-    function updateSavedPayments() {
-        const container = document.getElementById('payments_for_save_container');
-        
-        if (payments_for_save_to_db.length === 0) {
-            container.innerHTML = '';
-            return;
-        }
-        
-        let html = `
-            <div class="bg-white rounded-lg shadow-lg overflow-hidden">
-                <div class="bg-gradient-to-r from-green-600 to-teal-600 px-6 py-4">
-                    <h2 class="text-xl font-bold text-white flex items-center">
-                        <svg class="w-6 h-6 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"></path>
-                        </svg>
-                        Payments Ready to Save (${payments_for_save_to_db.length})
-                    </h2>
-                </div>
-                <div class="p-4 space-y-3">
-        `;
-        
-        payments_for_save_to_db.forEach(payment => {
-            html += `
-                <div class="flex items-center justify-between p-4 bg-gray-50 rounded-lg border border-gray-200 hover:border-green-300 transition-colors">
-                    <div class="flex-1 grid grid-cols-1 md:grid-cols-4 gap-4 text-sm">
-                        <div>
-                            <span class="font-semibold text-gray-600">ID:</span>
-                            <span class="text-gray-900">${payment.id}</span>
-                        </div>
-                        <div>
-                            <span class="font-semibold text-gray-600">Date:</span>
-                            <span class="text-gray-900">${payment.payment_date}</span>
-                        </div>
-                        <div>
-                            <span class="font-semibold text-gray-600">Amount:</span>
-                            <span class="text-green-600 font-bold">$${payment.amount}</span>
-                        </div>
-                        <div>
-                            <span class="font-semibold text-gray-600">Apartment:</span>
-                            <span class="text-gray-900">${payment.apartment ? apartments_dictionary[payment.apartment] || 'N/A' : 'N/A'}</span>
-                        </div>
-                    </div>
-                    <button onclick="removeSavedPayment('${payment.id}')" 
-                            class="ml-4 px-3 py-2 bg-red-500 hover:bg-red-600 text-white text-sm font-semibold rounded-lg transition duration-200">
-                        Remove
-                    </button>
-                </div>
-            `;
-        });
-        
-        html += `
-                </div>
-                <div class="px-6 py-4 bg-gray-50 border-t border-gray-200">
-                    <button onclick="saveAllPayments()" 
-                            class="w-full px-6 py-3 bg-green-600 hover:bg-green-700 text-white font-bold rounded-lg shadow-md transition duration-200 flex items-center justify-center">
-                        <svg class="w-6 h-6 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
-                        </svg>
-                        Save All ${payments_for_save_to_db.length} Payment${payments_for_save_to_db.length > 1 ? 's' : ''} to Database
-                    </button>
-                </div>
-            </div>
-        `;
-        
-        container.innerHTML = html;
-    }
-    
-    function saveAllPayments() {
-        if (payments_for_save_to_db.length === 0) {
-            alert('No payments to save');
-            return;
-        }
-        
-        if (!confirm(`Save ${payments_for_save_to_db.length} payment(s) to database?`)) {
-            return;
-        }
-        
+
         const form = new FormData();
-        form.append('payments_to_update', JSON.stringify(payments_for_save_to_db));
+        form.append('payments_to_update', JSON.stringify(paymentsToSave));
         form.append('csrfmiddlewaretoken', document.querySelector('[name=csrfmiddlewaretoken]').value);
-        
-        // Show loading state
-        const button = event.target;
-        const originalText = button.innerHTML;
-        button.innerHTML = '<svg class="animate-spin h-5 w-5 mr-2 inline" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg> Saving...';
-        button.disabled = true;
-        
-        fetch('/payments-sync-v2/', {
-            method: 'POST',
-            body: form
-        })
-        .then(response => {
-            if (!response.ok) {
-                throw new Error('Network response was not ok');
-            }
-            return response.text();
-        })
-        .then(html => {
-            document.open();
-            document.write(html);
-            document.close();
-        })
-        .catch(error => {
-            console.error('Error:', error);
-            alert('Failed to save payments. Please try again.');
-            button.innerHTML = originalText;
-            button.disabled = false;
-        });
+
+        fetch('/payments-sync-v2/', { method: 'POST', body: form })
+            .then(r => { if (!r.ok) throw new Error(); return r.text(); })
+            .then(html => { document.open(); document.write(html); document.close(); })
+            .catch(() => alert('Failed to save payments. Please try again.'));
     }
 </script>
-
