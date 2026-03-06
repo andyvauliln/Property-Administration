@@ -11,6 +11,7 @@ from django.contrib import messages
 from django.db.models import Case, When
 from decimal import Decimal
 from django.core.serializers.json import DjangoJSONEncoder
+from django.core.exceptions import PermissionDenied
 from mysite.error_logger import log_exception
 
 def handle_post_request(request, model, form_class):
@@ -42,8 +43,7 @@ def handle_post_request(request, model, form_class):
                         messages.error(request, f"{field}: {error}")
             return redirect(request.path)
         elif 'delete' in request.POST or 'delete_booking' in request.POST:
-            # Only Admin can delete payments, bookings, apartments, and users
-            admin_only_models = (User, Apartment, Booking, Payment)
+            admin_only_models = (User, Apartment, Booking)
             if model in admin_only_models and request.user.role != 'Admin':
                 messages.error(request, "Only Admin can delete this item. Ask admin to delete it.")
                 return redirect(request.path)
@@ -51,6 +51,9 @@ def handle_post_request(request, model, form_class):
             instance.delete()
             form = form_class()
             return redirect(request.path)
+    except PermissionDenied as e:
+        messages.error(request, str(e))
+        return redirect(request.path)
     except ProtectedError as e:
         # Handle protected deletion errors (e.g., apartment with related data)
         print(f"DEBUG - ProtectedError: {e}")

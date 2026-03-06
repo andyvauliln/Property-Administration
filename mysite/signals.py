@@ -15,6 +15,32 @@ logger = logging.getLogger(__name__)
 # Models to exclude from audit logging
 EXCLUDED_MODELS = ['auditlog', 'session', 'contenttype', 'permission', 'logentry']
 
+def _values_equal(old_val, new_val):
+    """
+    Compare two values for semantic equality. Handles numeric types (int, float, Decimal, str)
+    that represent the same value but differ by type, e.g. 3300.0 vs "3300.0" vs 3300.
+    """
+    if old_val is None and new_val is None:
+        return True
+    if old_val is None or new_val is None:
+        return False
+    from decimal import Decimal
+    try:
+        old_f = float(old_val) if isinstance(old_val, (int, float, Decimal)) else old_val
+        new_f = float(new_val) if isinstance(new_val, (int, float, Decimal)) else new_val
+        if isinstance(old_val, str) and isinstance(new_val, str):
+            return old_val == new_val
+        if isinstance(old_f, float) and isinstance(new_f, float):
+            return old_f == new_f
+        if isinstance(old_val, str):
+            return float(old_val) == new_f
+        if isinstance(new_val, str):
+            return old_f == float(new_val)
+    except (TypeError, ValueError):
+        pass
+    return old_val == new_val
+
+
 def serialize_value(value):
     """Convert a value to a JSON-serializable format"""
     if value is None:
@@ -25,9 +51,13 @@ def serialize_value(value):
     if isinstance(value, (datetime, date, time)):
         return value.isoformat()
     
-    # Handle Decimal
+    # Handle Decimal - convert to float for consistent comparison with int/float
     from decimal import Decimal
     if isinstance(value, Decimal):
+        return float(value)
+    
+    # Handle int/float - use float for consistency with Decimal (avoids 3300.0 vs "3300.0" false changes)
+    if isinstance(value, (int, float)):
         return float(value)
     
     # Handle Django models (foreign keys)
@@ -140,12 +170,12 @@ def log_create_update(sender, instance, created, **kwargs):
             old_values = _pre_save_instances.get(key, {})
             new_values = get_model_fields(instance)
             
-            # Find what changed
+            # Find what changed (use semantic equality to avoid false positives like 3300.0 vs "3300.0")
             changed_fields = []
             for field_name in new_values.keys():
                 old_val = old_values.get(field_name)
                 new_val = new_values.get(field_name)
-                if old_val != new_val:
+                if not _values_equal(old_val, new_val):
                     changed_fields.append(field_name)
             
             # Only log if something actually changed

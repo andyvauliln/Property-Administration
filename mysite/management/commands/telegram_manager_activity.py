@@ -159,9 +159,16 @@ def format_change_detail(log):
     # Show field changes with old → new values (excluding auto-timestamp fields)
     if log.action == 'update' and log.changed_fields:
         real_fields = [f for f in log.changed_fields if f not in IGNORED_FIELDS]
-        if real_fields:
+        # Filter out fields where old and new display the same (legacy false positives from type mismatch)
+        real_changes = []
+        for field in real_fields:
+            old_val = log.old_values.get(field, 'N/A') if log.old_values else 'N/A'
+            new_val = log.new_values.get(field, 'N/A') if log.new_values else 'N/A'
+            if format_value(old_val) != format_value(new_val):
+                real_changes.append(field)
+        if real_changes:
             detail += f"\n         📝 <b>Changes:</b>"
-            for field in real_fields[:15]:  # Show up to 15 fields
+            for field in real_changes[:15]:
                 old_val = log.old_values.get(field, 'N/A') if log.old_values else 'N/A'
                 new_val = log.new_values.get(field, 'N/A') if log.new_values else 'N/A'
                 detail += f"\n            • {field}: {format_value(old_val)} → {format_value(new_val)}"
@@ -213,6 +220,7 @@ def has_real_changes(log):
     """
     Check if a log entry has real changes (not just auto-updated timestamps).
     Returns True if there are meaningful field changes.
+    Also filters out false positives where old and new values display the same (e.g. 3300.0 → 3300.0).
     """
     if log.action != 'update':
         return True  # Creates and deletes are always real changes
@@ -220,9 +228,13 @@ def has_real_changes(log):
     if not log.changed_fields:
         return False
     
-    # Filter out ignored fields
     real_fields = [f for f in log.changed_fields if f not in IGNORED_FIELDS]
-    return len(real_fields) > 0
+    for field in real_fields:
+        old_val = log.old_values.get(field) if log.old_values else None
+        new_val = log.new_values.get(field) if log.new_values else None
+        if format_value(old_val) != format_value(new_val):
+            return True
+    return False
 
 
 def get_real_changed_fields(log):

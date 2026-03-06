@@ -776,6 +776,22 @@ def _get_prompt(prompt_key, **placeholders):
     return content
 
 
+def _get_template(template_key, **placeholders):
+    """Load SMS/chat template from AIManagement (entry_type=sms_template), format with placeholders, or return None."""
+    from mysite.models import AIManagement
+    entry = AIManagement.objects.filter(
+        entry_type=AIManagement.ENTRY_TYPE_SMS_TEMPLATE,
+        prompt_key=template_key
+    ).first()
+    if entry and entry.content and entry.content.strip():
+        try:
+            return entry.content.format(**placeholders)
+        except KeyError:
+            log_warning(f"Template {template_key} has missing placeholders", category='sms')
+            return None
+    return None
+
+
 def _get_prompt_with_source(prompt_key, **placeholders):
     """
     Load prompt from AIManagement. Returns (content, from_db).
@@ -998,14 +1014,21 @@ def ai_extract_knowledge(conversation_sid, message_body, apartment):
             apartment.knowledge_base = updated_notes
             apartment.save()
             log_info(f"AI updated knowledge base for apartment {apartment.id}", category='sms')
-            # Notify the conversation that KB was updated
+            # Record KB update notification in DB only (no send to group chat)
             try:
-                twilio_phone = os.environ.get('TWILIO_PHONE_SECONDARY', '+13153524379')
+                from uuid import uuid4
                 notification = f"📚 Knowledge base updated: {changes_summary}" if changes_summary else "📚 Knowledge base updated."
-                send_messsage_by_sid(conversation_sid, 'Virtual Assistant', notification, twilio_phone, None)
-                log_info(f"AI sent KB update notification to {conversation_sid}", category='sms')
+                local_sid = f"KB-UPDATE-{uuid4().hex}"
+                save_message_to_db(
+                    message_sid=local_sid,
+                    conversation_sid=conversation_sid,
+                    author='Virtual Assistant',
+                    body=notification,
+                    direction='outbound'
+                )
+                log_info(f"AI recorded KB update notification in DB for {conversation_sid}", category='sms')
             except Exception as notify_err:
-                log_error(notify_err, "Failed to send KB update notification", source='web')
+                log_error(notify_err, "Failed to save KB update notification to DB", source='web')
 
         log_ai_manager_merge(
             conversation_sid=conversation_sid,
@@ -1122,8 +1145,17 @@ def twilio_webhook(request):
                                     log_ai_customer_start(conversation_sid, author, body_for_customer, _conv.apartment_id, _conv.booking_id)
                                     _ai_resp = ai_answer_customer(conversation_sid, body_for_customer, _apartment, _booking)
                                     if _ai_resp:
-                                        send_messsage_by_sid(conversation_sid, 'Virtual Assistant', _ai_resp, twilio_phone, None)
-                                        log_ai_customer_sent(conversation_sid, _ai_resp)
+                                        if os.environ.get('AI_ASSISTANT_ENABLED', 'true').lower() == 'true':
+                                            send_messsage_by_sid(conversation_sid, 'Virtual Assistant', _ai_resp, twilio_phone, None)
+                                            log_ai_customer_sent(conversation_sid, _ai_resp)
+                                        else:
+                                            log_ai_disabled(conversation_sid or '', author or '', body_for_customer or '')
+                                            _update_message_ai_result(
+                                                message_sid,
+                                                ai_response=_ai_resp,
+                                                ai_sent_to_chat=False,
+                                            )
+                                            log_ai_customer_sent(conversation_sid, _ai_resp)
                         except Exception as e:
                             log_ai_error(conversation_sid or '', "AI message routing", str(e))
                             log_error(e, "Error in AI message routing (ASSISTANT client)", source='web')
@@ -1486,8 +1518,8 @@ def sendContractToTwilio(booking, contract_url):
             log_info(f"Conversation created: {conversation_sid}", category='sms')
             tenant_name = booking.tenant.full_name or 'Dear guest'
             
-            # Try to get template from AIManagement
-            message_template = _get_prompt('contract_message_template')
+            # Try to get template from AIManagement (sms_template)
+            message_template = _get_template('contract_message_template')
             if message_template:
                 try:
                     message = message_template.format(
@@ -1554,8 +1586,8 @@ def sendWelcomeMessageToTwilio(booking):
             log_info(f"Conversation created: {conversation_sid}", category='sms')
             tenant_name = booking.tenant.full_name or 'Dear guest'
             
-            # Try to get template from AIManagement
-            message_template = _get_prompt('welcome_message_template')
+            # Try to get template from AIManagement (sms_template)
+            message_template = _get_template('welcome_message_template')
             if message_template:
                 try:
                     message = message_template.format(

@@ -901,8 +901,8 @@ class Booking(models.Model):
             payment_date__gt=self.end_date,
         ).exclude(payment_type__name="Damage Deposit", payment_type__type="Out")
 
-        # Delete the filtered payments
-        payments_to_delete.delete()
+        for payment in payments_to_delete:
+            payment.delete()
 
     def delete(self, *args, **kwargs):
         if self.contract_id != "" and self.contract_id != None:
@@ -1465,6 +1465,12 @@ class Payment(models.Model):
             
 
     def delete(self, *args, **kwargs):
+        from django.core.exceptions import PermissionDenied
+        from mysite.request_context import get_current_user
+
+        user = get_current_user()
+        if user is not None and getattr(user, 'role', None) == 'Manager':
+            raise PermissionDenied("Only Admin can delete payments. Ask admin to delete it.")
         if self.payment_status != "Completed" and self.payment_status != "Merged":
             super(Payment, self).delete(*args, **kwargs)
     
@@ -2329,6 +2335,7 @@ class AIManagement(models.Model):
     entry_type = models.CharField(max_length=20, choices=ENTRY_TYPE_CHOICES, default=ENTRY_TYPE_KNOWLEDGE)
     prompt_key = models.CharField(max_length=100, blank=True, null=True, unique=True)
     description = models.TextField(blank=True, null=True)
+    sms_enabled = models.BooleanField(null=True, default=None, blank=True)
 
     created_by = models.CharField(max_length=255, blank=True, null=True, editable=False)
     last_updated_by = models.CharField(max_length=255, blank=True, null=True, editable=False)
