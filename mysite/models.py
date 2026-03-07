@@ -744,14 +744,6 @@ class Booking(models.Model):
         # Update conversation links
         if self.tenant and self.tenant.phone:
             self.update_conversation_links()
-        
-        # Update apartment keywords
-        if self.apartment and self.tenant and self.tenant.full_name:
-            if not self.apartment.keywords:
-                self.apartment.keywords = self.tenant.full_name
-            else:
-                self.apartment.keywords += f", {self.tenant.full_name}"
-            self.apartment.save()
     
     def _handle_end_date_change(self, orig):
         """Handle all updates needed when end_date changes"""

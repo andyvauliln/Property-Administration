@@ -169,8 +169,8 @@
                     <input type="number" name="db_days_before" id="db_days_before" value="{{ data.db_days_before|default:30 }}">
                     <input type="number" name="db_days_after" id="db_days_after" value="{{ data.db_days_after|default:30 }}">
                     <!-- Add more hidden fields for config -->
-                    <input type="text" name="ai_model" id="ai_model" value="{{ data.ai_model|default:'anthropic/claude-3.5-sonnet' }}">
-                    <input type="text" name="ai_prompt" id="ai_prompt" value="{{ data.ai_prompt|default:'Match these payments based on amount, date, description, tenant, apartment, bank, payment method. The amount could be slightly different due to rounding or other factors. date could be also not the same day as the payment date.' }}">
+                    <input type="text" name="ai_model" id="ai_model" value="{{ data.ai_model|default:'google/gemini-3-flash-preview' }}">
+                    <input type="text" name="ai_prompt" id="ai_prompt" value="{{ data.ai_prompt|default:'Match these payments based on amount, date, notes, tenant, apartment, bank, payment method and payment type. The data could be slightly different due to rounding, mistake or other factors so consider payments that could be still be related to the same transaction even they have some differences in a date, amount or other fields.' }}">
                 </div>
             </div>
         </form>
@@ -180,7 +180,7 @@
         <div class="flex items-center justify-center min-h-screen px-4 pt-4 pb-20 text-center sm:block sm:p-0">
             <div class="fixed inset-0 transition-opacity bg-gray-500 bg-opacity-75" aria-hidden="true" onclick="closeMatchingConfigModal()"></div>
             <div class="inline-block align-bottom bg-white rounded-2xl text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-3xl sm:w-full">
-                <div class="p-6 max-h-[40vh] overflow-y-auto">
+                <div class="p-6 max-h-[90vh] overflow-y-auto">
                     <!-- Modal Header -->
                     <div class="flex items-center justify-between mb-6">
                         <h3 class="text-xl font-bold text-gray-900">Matching Configuration</h3>
@@ -197,20 +197,13 @@
                             </div>
                             <div class="space-y-5">
                                 <div>
-                                    <label class="block text-sm font-medium text-gray-700 mb-1">AI Model</label>
-                                    <select id="modal_ai_model" class="w-full rounded-lg border-gray-300 focus:border-blue-500 focus:ring-2 focus:ring-blue-200">
-                                        <optgroup label="OpenAI">
-                                            <option value="openai/gpt-4o">GPT-4o · Best (OpenAI)</option>
-                                            <option value="openai/gpt-4o-mini">GPT-4o mini · Budget (OpenAI)</option>
-                                        </optgroup>
-                                        <optgroup label="Anthropic Claude">
-                                            <option value="anthropic/claude-3-opus">Claude 3 Opus · Best</option>
-                                            <option value="anthropic/claude-3-haiku">Claude 3 Haiku · Budget</option>
-                                        </optgroup>
-                                        <optgroup label="Google Gemini">
-                                            <option value="google/gemini-1.5-pro">Gemini 1.5 Pro · Best</option>
-                                            <option value="google/gemini-1.5-flash">Gemini 1.5 Flash · Budget</option>
-                                        </optgroup>
+                                    <label class="block text-sm font-medium text-gray-700 mb-1">AI Model (Prices per 1M tokens, context)</label>
+                                    <select id="modal_ai_model" class="w-full rounded-lg border-gray-300 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 bg-gray-50 dark:bg-gray-700 dark:border-gray-600 dark:text-white">
+                                        {% for model in data.ai_models %}
+                                        <option value="{{ model.value }}" {% if model.value == data.ai_model %}selected{% endif %}>
+                                            {{ model.label }}{% if model.context_length_display %} · {{ model.context_length_display }}{% endif %}{% if model.prompt_price %} (${{ model.prompt_price }} / ${{ model.completion_price }}){% endif %}
+                                        </option>
+                                        {% endfor %}
                                     </select>
                                 </div>
                                 <div>
@@ -453,6 +446,23 @@
     
     // Initialize
     document.addEventListener('DOMContentLoaded', function() {
+        // If user explicitly asked for demo, clear old data and start fresh
+        const params = new URLSearchParams(window.location.search || '');
+        const isDemo = params.get('demo') === '1';
+        if (isDemo) {
+            console.log("Demo mode detected, clearing local storage for fresh load");
+            localStorage.removeItem(STORAGE_KEY_FILE_PAYMENTS);
+            localStorage.removeItem(STORAGE_KEY_DB_PAYMENTS);
+            localStorage.removeItem(STORAGE_KEY_MATCHING_MODE);
+            localStorage.removeItem(STORAGE_KEY_MATCH_CACHE);
+            
+            // Force re-read from server-provided data into the global variables
+            // This ensures bootstrapUI sees the fresh data
+            file_payments_json = {{ data.file_payments_json|default:"[]"|safe }};
+            db_payments_json = {{ data.db_payments_json|default:"[]"|safe }};
+            console.log("Forced server data - File count:", file_payments_json.length);
+        }
+
         fitPageToViewport();
         window.addEventListener('resize', fitPageToViewport);
         loadFromLocalStorage();
@@ -660,50 +670,20 @@
 
     function loadFromLocalStorage() {
         try {
+            const params = new URLSearchParams(window.location.search || '');
+            const isDemo = params.get('demo') === '1';
+
+            // In demo mode always use server-provided payload
+            if (isDemo) {
+                console.log("loadFromLocalStorage: demo mode, using server payload");
+                return;
+            }
+
             const storedPayments = localStorage.getItem(STORAGE_KEY_FILE_PAYMENTS);
             const storedDBPayments = localStorage.getItem(STORAGE_KEY_DB_PAYMENTS);
             const storedMatchingMode = localStorage.getItem(STORAGE_KEY_MATCHING_MODE);
             const storedSettings = localStorage.getItem(STORAGE_KEY_SETTINGS);
-
-            // If user explicitly asked for demo, clear old data and start fresh
-            const params = new URLSearchParams(window.location.search || '');
-            const isDemo = params.get('demo') === '1';
-            // Check if server provided fresh db_payments (from demo or CSV upload)
             const serverProvidedDbPayments = db_payments_json && db_payments_json.length > 0;
-            
-            if (isDemo) {
-                localStorage.removeItem(STORAGE_KEY_FILE_PAYMENTS);
-                localStorage.removeItem(STORAGE_KEY_DB_PAYMENTS);
-                localStorage.removeItem(STORAGE_KEY_MATCHING_MODE);
-                localStorage.removeItem(STORAGE_KEY_MATCH_CACHE);
-                // Reset loaded sources but keep server-provided DB payments
-                loaded_matching_sources = { manual: false, ai: false };
-                // Don't clear db_payments_json if server provided it
-                selected_bank_payments = new Set();
-                selected_db_payments = new Set();
-                current_selection_key = '';
-            }
-
-            // If we have new file payments from server (CSV upload), clear cached state
-            const hasNewFilePayments = file_payments_json && file_payments_json.length > 0;
-            const hasStoredFilePayments = storedPayments && JSON.parse(storedPayments).length > 0;
-            
-            if (hasNewFilePayments && hasStoredFilePayments) {
-                // Check if file payments are different (new upload)
-                const storedIds = JSON.parse(storedPayments).map(p => p.id).sort().join(',');
-                const currentIds = file_payments_json.map(p => p.id).sort().join(',');
-                if (storedIds !== currentIds) {
-                    // New file uploaded - clear cached state but keep server-provided DB payments
-                    loaded_matching_sources = { manual: false, ai: false };
-                    current_selection_key = '';
-                    selected_bank_payments = new Set();
-                    selected_db_payments = new Set();
-                    localStorage.removeItem(STORAGE_KEY_FILE_PAYMENTS);
-                    localStorage.removeItem(STORAGE_KEY_DB_PAYMENTS);
-                    localStorage.removeItem(STORAGE_KEY_MATCHING_MODE);
-                    localStorage.removeItem(STORAGE_KEY_MATCH_CACHE);
-                }
-            }
 
             if ((!file_payments_json || file_payments_json.length === 0) && storedPayments) {
                 const parsed = JSON.parse(storedPayments);
@@ -712,17 +692,14 @@
                 localStorage.setItem(STORAGE_KEY_FILE_PAYMENTS, JSON.stringify(file_payments_json));
             }
 
-            // Load DB payments from localStorage only if server didn't provide any
-            if (!serverProvidedDbPayments && storedDBPayments && !isDemo) {
+            if (!serverProvidedDbPayments && storedDBPayments) {
                 const parsed = JSON.parse(storedDBPayments);
                 if (Array.isArray(parsed)) db_payments_json = parsed;
             } else if (db_payments_json && db_payments_json.length > 0) {
-                // Save server-provided DB payments to localStorage for future sessions
                 localStorage.setItem(STORAGE_KEY_DB_PAYMENTS, JSON.stringify(db_payments_json));
             }
 
-            // Load matching mode state
-            if (storedMatchingMode && !isDemo) {
+            if (storedMatchingMode) {
                 const parsed = JSON.parse(storedMatchingMode);
                 if (parsed && typeof parsed === 'object') {
                     loaded_matching_sources = parsed;
@@ -736,7 +713,6 @@
                     if (s.date_delta !== undefined) document.getElementById('date_delta').value = s.date_delta;
                     if (s.db_days_before !== undefined) document.getElementById('db_days_before').value = s.db_days_before;
                     if (s.db_days_after !== undefined) document.getElementById('db_days_after').value = s.db_days_after;
-
                     if (s.ai_model !== undefined) document.getElementById('ai_model').value = s.ai_model;
                     if (s.ai_prompt !== undefined) document.getElementById('ai_prompt').value = s.ai_prompt;
                 }
@@ -773,13 +749,18 @@
             if (p.is_merged === undefined) p.is_merged = false;
             if (!Array.isArray(p.apartment_candidates)) p.apartment_candidates = [];
             if (!Array.isArray(p.tenant_candidates)) p.tenant_candidates = [];
-            if (p.apartment_name === undefined || p.apartment_name === null) p.apartment_name = '';
-            if (p.tenant_name === undefined || p.tenant_name === null) p.tenant_name = '';
-            if (!p.payment_method_name && p.payment_method) {
-                p.payment_method_name = payment_methods_dictionary[p.payment_method] || '';
-            }
-            if (!p.payment_type_name && p.payment_type) {
-                p.payment_type_name = payment_types_dictionary[p.payment_type] || '';
+            if (!Array.isArray(p.payment_method_candidates)) p.payment_method_candidates = [];
+            if (!Array.isArray(p.bank_candidates)) p.bank_candidates = [];
+            if (!Array.isArray(p.payment_type_candidates)) p.payment_type_candidates = [];
+            // Migrate legacy singular to list
+            if (p.apartment_name && !p.apartment_candidates.includes(p.apartment_name)) p.apartment_candidates.push(p.apartment_name);
+            if (p.tenant_name && !p.tenant_candidates.includes(p.tenant_name)) p.tenant_candidates.push(p.tenant_name);
+            if (p.payment_method_name && !p.payment_method_candidates.includes(p.payment_method_name)) p.payment_method_candidates.push(p.payment_method_name);
+            if (p.bank_name && !p.bank_candidates.includes(p.bank_name)) p.bank_candidates.push(p.bank_name);
+            if (p.payment_type_name && !p.payment_type_candidates.includes(p.payment_type_name)) p.payment_type_candidates.push(p.payment_type_name);
+            if (p.payment_type && !p.payment_type_candidates.length) {
+                const pt = payment_types_dictionary[p.payment_type] || '';
+                if (pt) p.payment_type_candidates.push(pt);
             }
         });
     }
@@ -799,12 +780,27 @@
 
     function getFileApartmentCandidates(p) {
         if (!p) return [];
-        return uniqNonEmptyStrings([p.apartment_name, ...(p.apartment_candidates || [])]);
+        return uniqNonEmptyStrings(p.apartment_candidates || []);
     }
 
     function getFileTenantCandidates(p) {
         if (!p) return [];
-        return uniqNonEmptyStrings([p.tenant_name, ...(p.tenant_candidates || [])]);
+        return uniqNonEmptyStrings(p.tenant_candidates || []);
+    }
+
+    function getFilePaymentMethodCandidates(p) {
+        if (!p) return [];
+        return uniqNonEmptyStrings(p.payment_method_candidates || []);
+    }
+
+    function getFileBankCandidates(p) {
+        if (!p) return [];
+        return uniqNonEmptyStrings(p.bank_candidates || []);
+    }
+
+    function getFilePaymentTypeCandidates(p) {
+        if (!p) return [];
+        return uniqNonEmptyStrings(p.payment_type_candidates || []);
     }
 
     function formatCandidatesList(label, list, max = 4) {
@@ -879,7 +875,9 @@
             filtered = filtered.filter(p => {
                 const apt = getFileApartmentCandidates(p).join(' ');
                 const ten = getFileTenantCandidates(p).join(' ');
-                const searchStr = `${p.amount} ${p.payment_date} ${p.notes} ${apt} ${ten} ${p.payment_method_name || ''} ${p.payment_type_name || ''}`.toLowerCase();
+                const method = getFilePaymentMethodCandidates(p).join(' ');
+                const ptCands = getFilePaymentTypeCandidates(p).join(' ');
+                const searchStr = `${p.amount} ${p.payment_date} ${p.notes} ${apt} ${ten} ${method} ${ptCands}`.toLowerCase();
                 return searchStr.includes(bank_filter_query);
             });
         }
@@ -896,7 +894,8 @@
             const isMerged = payment.is_merged;
             const amountColor = parseFloat(payment.amount) >= 0 ? 'text-green-600' : 'text-red-600';
             
-            const isOut = payment.payment_type_name && payment.payment_type_name.includes('Out');
+            const ptCandidates = getFilePaymentTypeCandidates(payment);
+            const isOut = ptCandidates.some(c => c.includes('Out'));
             const aptCandidates = getFileApartmentCandidates(payment);
             const tenantCandidates = getFileTenantCandidates(payment);
             html += `
@@ -923,11 +922,11 @@
                                         ${isMerged ? '✓ Merged' : '⚠ Not Merged'}
                                     </span>
                                     <span class="px-2 py-1 text-xs font-semibold rounded-full ${isOut ? 'bg-red-100 text-red-700' : 'bg-blue-100 text-blue-700'}">
-                                        ${payment.payment_type_name || 'Unknown'}
+                                        ${ptCandidates.length ? ptCandidates.slice(0, 2).join(', ') + (ptCandidates.length > 2 ? '…' : '') : 'Unknown'}
                                     </span>
-                                    ${payment.payment_method_name ? `
+                                    ${getFilePaymentMethodCandidates(payment).length ? `
                                         <span class="px-2 py-1 text-xs font-semibold rounded-full bg-purple-100 text-purple-700">
-                                            ${payment.payment_method_name}
+                                            ${getFilePaymentMethodCandidates(payment).slice(0, 2).join(', ')}${getFilePaymentMethodCandidates(payment).length > 2 ? '…' : ''}
                                         </span>
                                     ` : ''}
                                 </div>
@@ -957,6 +956,15 @@
                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"></path>
                                     </svg>
                                     <span class="text-gray-700">${formatCandidatesList('Tenant', tenantCandidates, 3)}</span>
+                                </div>
+                                ` : ''}
+                                
+                                ${(ptCandidates && ptCandidates.length) ? `
+                                <div class="flex items-center text-sm">
+                                    <svg class="w-4 h-4 mr-2 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z"></path>
+                                    </svg>
+                                    <span class="text-gray-700">${formatCandidatesList('Type', ptCandidates, 3)}</span>
                                 </div>
                                 ` : ''}
                                 
@@ -1881,7 +1889,7 @@
             }
             modalModelSelect.value = storedModel;
         } else {
-            modalModelSelect.value = 'openai/gpt-4o';
+            modalModelSelect.value = 'google/gemini-3-flash-preview';
         }
 
         document.getElementById('modal_ai_prompt').value = document.getElementById('ai_prompt').value;

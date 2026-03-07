@@ -75,6 +75,19 @@ def ai_management_view(request):
     current_model_obj = AIManagement.objects.filter(prompt_key='ai_conversation_model').first()
     current_model = current_model_obj.content if current_model_obj else 'openai/gpt-4o-mini'
 
+    def _format_context_length(n):
+        if n is None:
+            return None
+        try:
+            n = int(n)
+            if n >= 1_000_000:
+                return f"{n // 1_000_000}M"
+            if n >= 1000:
+                return f"{n // 1000}k"
+            return str(n)
+        except (ValueError, TypeError):
+            return None
+
     # Fetch models from OpenRouter API
     openrouter_models = []
     try:
@@ -92,13 +105,14 @@ def ai_management_view(request):
                     pricing = m.get('pricing', {})
                     prompt_price = float(pricing.get('prompt', 0)) * 1000000
                     completion_price = float(pricing.get('completion', 0)) * 1000000
-                    
+                    ctx = m.get('context_length')
                     openrouter_models.append({
                         'value': m.get('id'),
                         'label': m.get('name'),
                         'prompt_price': f"{prompt_price:.2f}",
                         'completion_price': f"{completion_price:.2f}",
-                        'context_length': m.get('context_length')
+                        'context_length': ctx,
+                        'context_length_display': _format_context_length(ctx),
                     })
                 # Sort by label
                 openrouter_models.sort(key=lambda x: x['label'])
@@ -107,11 +121,11 @@ def ai_management_view(request):
 
     # Fallback/Static AI Model options if API fails or for core models
     ai_models = [
-        {'value': 'openai/gpt-4o', 'label': 'GPT-4o'},
-        {'value': 'openai/gpt-4o-mini', 'label': 'GPT-4o Mini'},
-        {'value': 'openai/o1-preview', 'label': 'O1 Preview'},
-        {'value': 'openai/o1-mini', 'label': 'O1 Mini'},
-        {'value': 'anthropic/claude-3.5-sonnet', 'label': 'Claude 3.5 Sonnet'},
+        {'value': 'openai/gpt-4o', 'label': 'GPT-4o', 'context_length_display': '128k'},
+        {'value': 'openai/gpt-4o-mini', 'label': 'GPT-4o Mini', 'context_length_display': '128k'},
+        {'value': 'openai/o1-preview', 'label': 'O1 Preview', 'context_length_display': '128k'},
+        {'value': 'openai/o1-mini', 'label': 'O1 Mini', 'context_length_display': '128k'},
+        {'value': 'anthropic/claude-3.5-sonnet', 'label': 'Claude 3.5 Sonnet', 'context_length_display': '200k'},
     ]
     
     # Use OpenRouter models if available

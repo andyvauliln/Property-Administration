@@ -33,108 +33,151 @@
                 <input type="hidden" name="fileId" id="fileId" value="">
                 <input type="hidden" name="merged_payment_key" id="merged_payment_key" value="">
 
-                <div class="px-6 py-4 max-h-[70vh] overflow-y-auto">
-                    <!-- Info Comparison -->
-                    <div class="mb-6 p-4 bg-blue-50 rounded-lg border border-blue-200">
-                        <h4 class="text-sm font-bold text-blue-900 mb-3">Payment Information</h4>
-                        <div class="grid grid-cols-2 gap-4 text-sm">
-                            <div>
-                                <span class="font-semibold text-blue-700">DB Payment:</span>
-                                <span id="info_db_payment" class="text-gray-700">-</span>
-                            </div>
-                            <div>
-                                <span class="font-semibold text-blue-700">Bank Payment:</span>
-                                <span id="info_file_payment" class="text-gray-700">-</span>
+                <div class="px-6 py-4 flex flex-col max-h-[70vh]">
+                    <!-- Main content: visible without scroll -->
+                    <div class="flex-shrink-0">
+                        <!-- Info Comparison -->
+                        <div class="mb-4 p-4 bg-blue-50 rounded-lg border border-blue-200">
+                            <h4 class="text-sm font-bold text-blue-900 mb-2">Payment Information</h4>
+                            <div class="grid grid-cols-2 gap-4 text-sm">
+                                <div>
+                                    <span class="font-semibold text-blue-700">DB Payment:</span>
+                                    <span id="info_db_payment" class="text-gray-700">-</span>
+                                </div>
+                                <div>
+                                    <span class="font-semibold text-blue-700">Bank Payment:</span>
+                                    <span id="info_file_payment" class="text-gray-700">-</span>
+                                </div>
                             </div>
                         </div>
-                    </div>
 
-                    <!-- Form Fields -->
-                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                        {% for field_name, field_instance in data.model_fields %}
-                            {% if field_instance.isEdit %}
-                                {% if field_instance.ui_element == "textarea" %}
-                                    <div class="lg:col-span-3">
-                                        <label for="{{ field_name }}" class="block mb-2 text-sm font-semibold text-gray-700">
-                                            {{ field_name|split_underscore|title }}
-                                            {% if field_instance.required %}<span class="text-red-600">*</span>{% endif %}
-                                        </label>
-                                        <textarea id="{{field_name}}"
-                                                  name="{{field_name}}"
-                                                  rows="4"
-                                                  class="block p-2.5 w-full text-sm text-gray-900 bg-gray-50 rounded-lg border border-gray-300 focus:ring-purple-500 focus:border-purple-500"
-                                                  placeholder="Enter notes..."></textarea>
-                                    </div>
-                                {% else %}
+                        <!-- Row 1: booking, apartment, date, amount, status -->
+                        <div class="grid grid-cols-2 md:grid-cols-5 gap-4 mb-4">
+                            {% for field_name, field_instance in data.model_fields %}
+                                {% if field_name == "booking" and field_instance.isEdit %}
                                     <div>
-                                        <label for="{{ field_name }}" class="block mb-2 text-sm font-semibold text-gray-700">
-                                            {{ field_name|split_underscore|title }}
-                                            {% if field_instance.required %}<span class="text-red-600">*</span>{% endif %}
-                                        </label>
-
-                                        {% if field_instance.ui_element == "datepicker" %}
-                                            <input name="{{field_name}}"
-                                                   id="{{field_name}}"
-                                                   datepicker
-                                                   datepicker-format="MM dd yyyy"
-                                                   type="text"
-                                                   value=""
-                                                   class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-purple-500 focus:border-purple-500 block w-full p-2.5"
-                                                   placeholder="Select date">
-
-                                        {% elif field_instance.ui_element == "checkbox" %}
-                                            <div class="flex items-center h-10">
-                                                <input id="{{field_name}}"
-                                                       type="checkbox"
-                                                       name="{{field_name}}"
-                                                       value="1"
-                                                       class="w-4 h-4 text-purple-600 bg-gray-100 border-gray-300 rounded focus:ring-purple-500">
-                                                <label for="{{field_name}}" class="ml-2 text-sm text-gray-700">Enable</label>
+                                        <label for="{{ field_name }}" class="block mb-2 text-sm font-semibold text-gray-700">Booking{% if field_instance.required %}*{% endif %}</label>
+                                        <select name="{{ field_name }}" id="{{ field_name }}" class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-purple-500 focus:border-purple-500 block w-full p-2.5">
+                                            <option value="">None</option>
+                                            {% for option in field_instance.dropdown_options %}<option value="{{ option.value }}">{{ option.label }}</option>{% endfor %}
+                                        </select>
+                                    </div>
+                                {% elif field_name == "apartment" and field_instance.isEdit %}
+                                    <div>
+                                        <label for="{{ field_name }}" class="block mb-2 text-sm font-semibold text-gray-700">Apartment{% if field_instance.required %}*{% endif %}</label>
+                                        <select name="{{ field_name }}" id="{{ field_name }}" onchange="handleApartmentChangeForPaymentSync(this.value)" class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-purple-500 focus:border-purple-500 block w-full p-2.5">
+                                            <option value="">None</option>
+                                            {% for option in field_instance.dropdown_options %}<option value="{{ option.value }}">{{ option.label }}</option>{% endfor %}
+                                        </select>
+                                    </div>
+                                {% elif field_name == "payment_date" and field_instance.isEdit %}
+                                    <div>
+                                        <label for="{{ field_name }}" class="block mb-2 text-sm font-semibold text-gray-700">Date</label>
+                                        <input name="{{field_name}}" id="{{field_name}}" datepicker datepicker-format="MM dd yyyy" type="text" value="" class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-purple-500 focus:border-purple-500 block w-full p-2.5" placeholder="Select date">
+                                    </div>
+                                {% elif field_name == "amount" and field_instance.isEdit %}
+                                    <div>
+                                        <label for="{{ field_name }}" class="block mb-2 text-sm font-semibold text-gray-700">Amount</label>
+                                        <input type="text" name="{{ field_name }}" id="{{ field_name }}" value="" class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-purple-500 focus:border-purple-500 block w-full p-2.5" placeholder="0">
+                                    </div>
+                                {% elif field_name == "payment_status" and field_instance.isEdit %}
+                                    <div>
+                                        <label class="block mb-2 text-sm font-semibold text-gray-700">Status</label>
+                                        <div class="space-y-2 bg-gray-50 border border-gray-300 rounded-lg p-3">
+                                            {% for option in field_instance.dropdown_options %}
+                                            <div class="flex items-center">
+                                                <input type="radio" id="{{ field_name }}_{{ forloop.counter }}" name="{{ field_name }}" value="{{ option.value }}" class="w-4 h-4 text-purple-600 border-gray-300 focus:ring-purple-500">
+                                                <label for="{{ field_name }}_{{ forloop.counter }}" class="ml-2 text-sm text-gray-700">{{ option.label }}</label>
                                             </div>
-
-                                        {% elif field_instance.ui_element == "dropdown" %}
-                                            <select name="{{ field_name }}"
-                                                    id="{{ field_name }}"
-                                                    {% if field_name == "apartment" %}onchange="handleApartmentChangeForPaymentSync(this.value)"{% endif %}
-                                                    class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-purple-500 focus:border-purple-500 block w-full p-2.5">
-                                                <option value="">None</option>
-                                                {% for option in field_instance.dropdown_options %}
-                                                    <option value="{{ option.value }}">{{ option.label }}</option>
-                                                {% endfor %}
-                                            </select>
-
-                                        {% elif field_instance.ui_element == "radio" %}
-                                            <div class="space-y-2 bg-gray-50 border border-gray-300 rounded-lg p-3 max-h-40 overflow-y-auto">
-                                                <div class="flex items-center">
-                                                    <input type="radio"
-                                                           id="{{ field_name }}_none"
-                                                           name="{{ field_name }}"
-                                                           value=""
-                                                           class="w-4 h-4 text-purple-600 border-gray-300 focus:ring-purple-500">
-                                                    <label for="{{ field_name }}_none" class="ml-2 text-sm text-gray-700">None</label>
-                                                </div>
-                                                {% for option in field_instance.dropdown_options %}
-                                                    <div class="flex items-center">
-                                                        <input type="radio"
-                                                               id="{{ field_name }}_{{ forloop.counter }}"
-                                                               name="{{ field_name }}"
-                                                               value="{{ option.value }}"
-                                                               class="w-4 h-4 text-purple-600 border-gray-300 focus:ring-purple-500">
-                                                        <label for="{{ field_name }}_{{ forloop.counter }}" class="ml-2 text-sm text-gray-700">{{ option.label }}</label>
-                                                    </div>
-                                                {% endfor %}
-                                            </div>
-
-                                        {% else %}
-                                            <input type="text"
-                                                   name="{{ field_name }}"
-                                                   id="{{ field_name }}"
-                                                   value=""
-                                                   class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-purple-500 focus:border-purple-500 block w-full p-2.5"
-                                                   placeholder="{{ field_name|split_underscore|title }}">
-                                        {% endif %}
+                                            {% endfor %}
+                                        </div>
                                     </div>
                                 {% endif %}
+                            {% endfor %}
+                        </div>
+
+                        <!-- Row 2: payment_type (radio), payment_method, bank -->
+                        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+                            {% for field_name, field_instance in data.model_fields %}
+                                {% if field_name == "payment_type" and field_instance.isEdit %}
+                                    <div>
+                                        <label for="{{ field_name }}" class="block mb-2 text-sm font-semibold text-gray-700">Payment Type</label>
+                                        <div class="space-y-2 bg-gray-50 border border-gray-300 rounded-lg p-3 max-h-48 overflow-y-auto" data-radio-field="payment_type">
+                                            <div class="flex items-center">
+                                                <input type="radio" id="{{ field_name }}_none" name="{{ field_name }}" value="" class="w-4 h-4 text-purple-600 border-gray-300 focus:ring-purple-500">
+                                                <label for="{{ field_name }}_none" class="ml-2 text-sm text-gray-700">None</label>
+                                            </div>
+                                            {% for option in field_instance.dropdown_options %}
+                                            <div class="flex items-center">
+                                                <input type="radio" id="{{ field_name }}_{{ forloop.counter }}" name="{{ field_name }}" value="{{ option.value }}" class="w-4 h-4 text-purple-600 border-gray-300 focus:ring-purple-500">
+                                                <label for="{{ field_name }}_{{ forloop.counter }}" class="ml-2 text-sm text-gray-700">{{ option.label }}</label>
+                                            </div>
+                                            {% endfor %}
+                                        </div>
+                                    </div>
+                                {% elif field_name == "payment_method" and field_instance.isEdit %}
+                                    <div>
+                                        <label for="{{ field_name }}" class="block mb-2 text-sm font-semibold text-gray-700">Method</label>
+                                        <div class="space-y-2 bg-gray-50 border border-gray-300 rounded-lg p-3 max-h-48 overflow-y-auto" data-radio-field="payment_method">
+                                            <div class="flex items-center">
+                                                <input type="radio" id="{{ field_name }}_none" name="{{ field_name }}" value="" class="w-4 h-4 text-purple-600 border-gray-300 focus:ring-purple-500">
+                                                <label for="{{ field_name }}_none" class="ml-2 text-sm text-gray-700">None</label>
+                                            </div>
+                                            {% for option in field_instance.dropdown_options %}
+                                            <div class="flex items-center">
+                                                <input type="radio" id="{{ field_name }}_{{ forloop.counter }}" name="{{ field_name }}" value="{{ option.value }}" class="w-4 h-4 text-purple-600 border-gray-300 focus:ring-purple-500">
+                                                <label for="{{ field_name }}_{{ forloop.counter }}" class="ml-2 text-sm text-gray-700">{{ option.label }}</label>
+                                            </div>
+                                            {% endfor %}
+                                        </div>
+                                    </div>
+                                {% elif field_name == "bank" and field_instance.isEdit %}
+                                    <div>
+                                        <label for="{{ field_name }}" class="block mb-2 text-sm font-semibold text-gray-700">Bank</label>
+                                        <div class="space-y-2 bg-gray-50 border border-gray-300 rounded-lg p-3 max-h-48 overflow-y-auto" data-radio-field="bank">
+                                            <div class="flex items-center">
+                                                <input type="radio" id="{{ field_name }}_none" name="{{ field_name }}" value="" class="w-4 h-4 text-purple-600 border-gray-300 focus:ring-purple-500">
+                                                <label for="{{ field_name }}_none" class="ml-2 text-sm text-gray-700">None</label>
+                                            </div>
+                                            {% for option in field_instance.dropdown_options %}
+                                            <div class="flex items-center">
+                                                <input type="radio" id="{{ field_name }}_{{ forloop.counter }}" name="{{ field_name }}" value="{{ option.value }}" class="w-4 h-4 text-purple-600 border-gray-300 focus:ring-purple-500">
+                                                <label for="{{ field_name }}_{{ forloop.counter }}" class="ml-2 text-sm text-gray-700">{{ option.label }}</label>
+                                            </div>
+                                            {% endfor %}
+                                        </div>
+                                    </div>
+                                {% endif %}
+                            {% endfor %}
+                        </div>
+
+                        <!-- Row 3: notes -->
+                        {% for field_name, field_instance in data.model_fields %}
+                            {% if field_name == "notes" and field_instance.isEdit %}
+                            <div class="mb-4">
+                                <label for="{{ field_name }}" class="block mb-2 text-sm font-semibold text-gray-700">Notes</label>
+                                <textarea id="{{field_name}}" name="{{field_name}}" rows="3" class="block p-2.5 w-full text-sm text-gray-900 bg-gray-50 rounded-lg border border-gray-300 focus:ring-purple-500 focus:border-purple-500" placeholder="Notes"></textarea>
+                            </div>
+                            {% endif %}
+                        {% endfor %}
+                    </div>
+
+                    <!-- Scrollable: tenant_notes and keywords -->
+                    <div class="flex-shrink min-h-0 overflow-y-auto mt-2 border-t border-gray-200 pt-4">
+                        {% for field_name, field_instance in data.model_fields %}
+                            {% if field_name == "tenant_notes" and field_instance.isEdit %}
+                            <div class="mb-4">
+                                <label for="{{ field_name }}" class="block mb-2 text-sm font-semibold text-gray-700">Tenant Notes</label>
+                                <textarea id="{{field_name}}" name="{{field_name}}" rows="3" class="block p-2.5 w-full text-sm text-gray-900 bg-gray-50 rounded-lg border border-gray-300 focus:ring-purple-500 focus:border-purple-500" placeholder="Tenant notes"></textarea>
+                            </div>
+                            {% endif %}
+                        {% endfor %}
+                        {% for field_name, field_instance in data.model_fields %}
+                            {% if field_name == "keywords" and field_instance.isEdit %}
+                            <div class="mb-4">
+                                <label for="{{ field_name }}" class="block mb-2 text-sm font-semibold text-gray-700">Keywords</label>
+                                <textarea id="{{field_name}}" name="{{field_name}}" rows="3" class="block p-2.5 w-full text-sm text-gray-900 bg-gray-50 rounded-lg border border-gray-300 focus:ring-purple-500 focus:border-purple-500" placeholder="Keywords"></textarea>
+                            </div>
                             {% endif %}
                         {% endfor %}
                     </div>
@@ -274,6 +317,7 @@
         const payment = mergeTabsData[idx];
         updateInfoDisplay(payment);
         populateFormFields(payment);
+        setupRadioListReorder();
     }
 
     function saveCurrentTabToData() {
@@ -297,10 +341,34 @@
             : 'New';
 
         if (file_payment) {
-            const aptHints = [file_payment.apartment_name, ...(file_payment.apartment_candidates || [])].filter(Boolean).join(', ');
+            const aptHints = (file_payment.apartment_candidates || []).filter(Boolean).join(', ');
             document.getElementById('info_file_payment').textContent =
                 `${formatDate(file_payment.payment_date)} - $${file_payment.amount}${aptHints ? ' | ' + aptHints : ''}`;
         }
+    }
+
+    function moveSelectedRadioToTop(fieldName) {
+        const modal = document.getElementById('updateModal');
+        const container = modal ? modal.querySelector(`[data-radio-field="${fieldName}"]`) : null;
+        if (!container) return;
+        const checked = container.querySelector('input[type="radio"]:checked');
+        if (!checked) return;
+        const item = checked.closest('.flex.items-center');
+        if (!item || item.parentElement !== container) return;
+        container.insertBefore(item, container.firstChild);
+    }
+
+    function setupRadioListReorder() {
+        ['payment_type', 'payment_method', 'bank'].forEach(fieldName => {
+            moveSelectedRadioToTop(fieldName);
+            const modal = document.getElementById('updateModal');
+            const container = modal ? modal.querySelector(`[data-radio-field="${fieldName}"]`) : null;
+            if (!container || container.dataset.listenersAdded) return;
+            container.dataset.listenersAdded = '1';
+            container.addEventListener('change', function(e) {
+                if (e.target.type === 'radio') moveSelectedRadioToTop(fieldName);
+            });
+        });
     }
 
     function handleApartmentChangeForPaymentSync(apartmentId, bookingIdToSelect = null) {

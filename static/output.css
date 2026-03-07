@@ -1175,16 +1175,16 @@ input:checked + .toggle-bg {
   z-index: 50;
 }
 
+.z-\[100\] {
+  z-index: 100;
+}
+
 .z-\[60\] {
   z-index: 60;
 }
 
 .z-\[70\] {
   z-index: 70;
-}
-
-.z-\[100\] {
-  z-index: 100;
 }
 
 .col-span-2 {
@@ -1388,6 +1388,14 @@ input:checked + .toggle-bg {
   margin-top: 2rem;
 }
 
+.mb-0 {
+  margin-bottom: 0px;
+}
+
+.mb-0\.5 {
+  margin-bottom: 0.125rem;
+}
+
 .line-clamp-2 {
   overflow: hidden;
   display: -webkit-box;
@@ -1549,6 +1557,10 @@ input:checked + .toggle-bg {
 
 .max-h-full {
   max-height: 100%;
+}
+
+.max-h-24 {
+  max-height: 6rem;
 }
 
 .min-h-0 {
@@ -1739,6 +1751,14 @@ input:checked + .toggle-bg {
   width: 100%;
 }
 
+.w-24 {
+  width: 6rem;
+}
+
+.w-28 {
+  width: 7rem;
+}
+
 .min-w-0 {
   min-width: 0px;
 }
@@ -1765,6 +1785,10 @@ input:checked + .toggle-bg {
 
 .min-w-full {
   min-width: 100%;
+}
+
+.min-w-\[120px\] {
+  min-width: 120px;
 }
 
 .max-w-2xl {
@@ -2374,6 +2398,11 @@ input:checked + .toggle-bg {
   border-color: rgb(248 180 180 / var(--tw-border-opacity));
 }
 
+.border-red-400 {
+  --tw-border-opacity: 1;
+  border-color: rgb(249 128 128 / var(--tw-border-opacity));
+}
+
 .border-red-500 {
   --tw-border-opacity: 1;
   border-color: rgb(240 82 82 / var(--tw-border-opacity));
@@ -2392,11 +2421,6 @@ input:checked + .toggle-bg {
 .border-yellow-500 {
   --tw-border-opacity: 1;
   border-color: rgb(194 120 3 / var(--tw-border-opacity));
-}
-
-.border-red-400 {
-  --tw-border-opacity: 1;
-  border-color: rgb(249 128 128 / var(--tw-border-opacity));
 }
 
 .border-l-green-500 {
@@ -2738,22 +2762,12 @@ input:checked + .toggle-bg {
   --tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-to);
 }
 
-.from-green-600 {
-  --tw-gradient-from: #057A55 var(--tw-gradient-from-position);
-  --tw-gradient-to: rgb(5 122 85 / 0) var(--tw-gradient-to-position);
-  --tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-to);
-}
-
 .to-emerald-50 {
   --tw-gradient-to: #ecfdf5 var(--tw-gradient-to-position);
 }
 
 .to-indigo-600 {
   --tw-gradient-to: #5850EC var(--tw-gradient-to-position);
-}
-
-.to-teal-600 {
-  --tw-gradient-to: #047481 var(--tw-gradient-to-position);
 }
 
 .p-0 {
@@ -2891,6 +2905,10 @@ input:checked + .toggle-bg {
   padding-bottom: 2rem;
 }
 
+.pb-0 {
+  padding-bottom: 0px;
+}
+
 .pb-1 {
   padding-bottom: 0.25rem;
 }
@@ -2982,6 +3000,10 @@ input:checked + .toggle-bg {
   padding-top: 5rem;
 }
 
+.pt-3 {
+  padding-top: 0.75rem;
+}
+
 .pt-4 {
   padding-top: 1rem;
 }
@@ -2992,14 +3014,6 @@ input:checked + .toggle-bg {
 
 .pt-6 {
   padding-top: 1.5rem;
-}
-
-.pb-0 {
-  padding-bottom: 0px;
-}
-
-.pt-3 {
-  padding-top: 0.75rem;
 }
 
 .text-left {
@@ -3796,11 +3810,6 @@ label[textContent="Problem Booking"] {
   border-color: rgb(4 108 78 / var(--tw-border-opacity));
 }
 
-.hover\:border-green-300:hover {
-  --tw-border-opacity: 1;
-  border-color: rgb(132 225 188 / var(--tw-border-opacity));
-}
-
 .hover\:bg-black:hover {
   --tw-bg-opacity: 1;
   background-color: rgb(0 0 0 / var(--tw-bg-opacity));
@@ -3911,6 +3920,11 @@ label[textContent="Problem Booking"] {
   background-color: rgb(30 64 175 / var(--tw-bg-opacity));
 }
 
+.hover\:bg-purple-100:hover {
+  --tw-bg-opacity: 1;
+  background-color: rgb(237 235 254 / var(--tw-bg-opacity));
+}
+
 .hover\:bg-purple-700:hover {
   --tw-bg-opacity: 1;
   background-color: rgb(108 43 217 / var(--tw-bg-opacity));
@@ -3963,11 +3977,6 @@ label[textContent="Problem Booking"] {
 .hover\:bg-yellow-50:hover {
   --tw-bg-opacity: 1;
   background-color: rgb(253 253 234 / var(--tw-bg-opacity));
-}
-
-.hover\:bg-purple-100:hover {
-  --tw-bg-opacity: 1;
-  background-color: rgb(237 235 254 / var(--tw-bg-opacity));
 }
 
 .hover\:from-blue-700:hover {
@@ -4909,6 +4918,14 @@ label[textContent="Problem Booking"] {
 
   .md\:grid-cols-4 {
     grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
+  .md\:grid-cols-3 {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .md\:grid-cols-5 {
+    grid-template-columns: repeat(5, minmax(0, 1fr));
   }
 
   .md\:flex-row {

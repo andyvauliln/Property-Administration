@@ -16,14 +16,11 @@
                 <input type="hidden" name="update_ai_model" value="1">
                 <div class="flex flex-col md:flex-row md:items-end space-y-4 md:space-y-0 md:space-x-4">
                     <div class="flex-grow max-w-2xl">
-                        <label for="ai_model" class="block mb-2 text-sm font-medium text-gray-900 dark:text-white">Select Model (Prices per 1M tokens)</label>
+                        <label for="ai_model" class="block mb-2 text-sm font-medium text-gray-900 dark:text-white">Select Model (Prices per 1M tokens, context)</label>
                         <select id="ai_model" name="ai_model" class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-primary-500 focus:border-primary-500 block w-full p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white dark:focus:ring-primary-500 dark:focus:border-primary-500">
                             {% for model in ai_models %}
                             <option value="{{ model.value }}" {% if model.value == current_ai_model %}selected{% endif %}>
-                                {{ model.label }} 
-                                {% if model.prompt_price %}
-                                    (${{ model.prompt_price }} / ${{ model.completion_price }})
-                                {% endif %}
+                                {{ model.label }}{% if model.context_length_display %} · {{ model.context_length_display }}{% endif %}{% if model.prompt_price %} (${{ model.prompt_price }} / ${{ model.completion_price }}){% endif %}
                             </option>
                             {% endfor %}
                         </select>
