@@ -36,12 +36,18 @@ class Command(BaseCommand):
             type=str,
             help='Sync specific conversation by SID'
         )
+        parser.add_argument(
+            '--verbose',
+            action='store_true',
+            help='Print details of each newly added message'
+        )
 
     def handle(self, *args, **options):
         self.dry_run = options['dry_run']
         self.days_back = options['days']
         self.limit = options['limit']
         self.specific_conversation = options['conversation_sid']
+        self.verbose = options['verbose']
         
         self.stdout.write(self.style.SUCCESS('Starting Twilio sync...'))
         
@@ -289,8 +295,11 @@ class Command(BaseCommand):
             messages_skipped = 0
             
             for message in messages:
-                if self.process_message(message, db_conversation):
+                added, detail = self.process_message(message, db_conversation)
+                if added:
                     messages_synced += 1
+                    if self.verbose and detail:
+                        self.stdout.write(f'      + {detail}')
                 else:
                     messages_skipped += 1
             
@@ -309,27 +318,30 @@ class Command(BaseCommand):
             self.stdout.write(f'    Error previewing messages: {e}')
 
     def process_message(self, twilio_message, db_conversation):
-        """Process a single message"""
+        """Process a single message. Returns (added: bool, detail: str|None)."""
         message_sid = twilio_message.sid
-        
+
         # Check if message already exists
         if TwilioMessage.objects.filter(message_sid=message_sid).exists():
-            return False  # Skip existing message
-        
+            return False, None
+
         # Determine direction
         author = twilio_message.author
-        direction = 'inbound' if author not in [self.twilio_phone, 'ASSISTANT', self.manager_phone, self.manager_phone_2, self.manager_phone_3] else 'outbound'
-        
+        direction = 'inbound' if author not in [self.twilio_phone, 'ASSISTANT', 'Virtual Assistant', self.manager_phone, self.manager_phone_2, self.manager_phone_3] else 'outbound'
+        body = twilio_message.body or ''
+        body_preview = (body[:50] + '...') if len(body) > 50 else body
+
         # Create message
         message = TwilioMessage(
             message_sid=message_sid,
             conversation=db_conversation,
             conversation_sid=db_conversation.conversation_sid,
             author=author,
-            body=twilio_message.body or '',
+            body=body,
             direction=direction,
             message_timestamp=twilio_message.date_created or timezone.now()
         )
         message.save()
-        
-        return True  # Message was created
+
+        detail = f"{message_sid} | {author} | {direction} | {body_preview}"
+        return True, detail

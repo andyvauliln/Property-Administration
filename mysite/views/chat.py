@@ -80,7 +80,7 @@ def _build_conversation_participants(conversation):
         pass
 
     # Ensure we always include manager + assistant.
-    raw_candidates.extend([MANAGER_PHONE, MANAGER_PHONE_2, MANAGER_PHONE_3, ASSISTANT_IDENTITY])
+    raw_candidates.extend([MANAGER_PHONE, MANAGER_PHONE_2, MANAGER_PHONE_3, ASSISTANT_IDENTITY, "Virtual Assistant"])
 
     raw_candidates = _dedupe_preserve_order([str(x).strip() for x in raw_candidates if str(x).strip()])
 
@@ -94,17 +94,19 @@ def _build_conversation_participants(conversation):
             users_by_phone[(u.phone or "").strip()] = u
 
     participants = []
+    assistant_added = False
     for raw in raw_candidates:
         # Assistant participant: show projected phone (Assistant)
-        if raw == ASSISTANT_IDENTITY:
+        if raw in (ASSISTANT_IDENTITY, "Virtual Assistant") and not assistant_added:
             participants.append(
                 {
-                    "raw_keys": [ASSISTANT_IDENTITY, ASSISTANT_PROJECTED_PHONE],
+                    "raw_keys": [ASSISTANT_IDENTITY, ASSISTANT_PROJECTED_PHONE, "Virtual Assistant"],
                     "number": ASSISTANT_PROJECTED_PHONE,
                     "name": "Assistant",
                     "formatted": _format_number_name(ASSISTANT_PROJECTED_PHONE, "Assistant"),
                 }
             )
+            assistant_added = True
             continue
 
         # Phone participant
@@ -636,7 +638,7 @@ def get_conversation_display_info(conversation):
         if not display_info['has_booking']:
             # Get customer phone numbers (excluding system phones)
             system_phones = list(SYSTEM_PHONES)
-            system_identities = ["ASSISTANT"]
+            system_identities = ["ASSISTANT", "Virtual Assistant"]
             
             customer_messages = conversation.messages.exclude(
                 author__in=system_phones + system_identities

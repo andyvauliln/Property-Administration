@@ -1388,14 +1388,6 @@ input:checked + .toggle-bg {
   margin-top: 2rem;
 }
 
-.mb-0 {
-  margin-bottom: 0px;
-}
-
-.mb-0\.5 {
-  margin-bottom: 0.125rem;
-}
-
 .line-clamp-2 {
   overflow: hidden;
   display: -webkit-box;
@@ -1523,10 +1515,6 @@ input:checked + .toggle-bg {
   height: 100vh;
 }
 
-.max-h-40 {
-  max-height: 10rem;
-}
-
 .max-h-48 {
   max-height: 12rem;
 }
@@ -1543,10 +1531,6 @@ input:checked + .toggle-bg {
   max-height: 100px;
 }
 
-.max-h-\[40vh\] {
-  max-height: 40vh;
-}
-
 .max-h-\[70vh\] {
   max-height: 70vh;
 }
@@ -1557,10 +1541,6 @@ input:checked + .toggle-bg {
 
 .max-h-full {
   max-height: 100%;
-}
-
-.max-h-24 {
-  max-height: 6rem;
 }
 
 .min-h-0 {
@@ -1751,14 +1731,6 @@ input:checked + .toggle-bg {
   width: 100%;
 }
 
-.w-24 {
-  width: 6rem;
-}
-
-.w-28 {
-  width: 7rem;
-}
-
 .min-w-0 {
   min-width: 0px;
 }
@@ -1785,10 +1757,6 @@ input:checked + .toggle-bg {
 
 .min-w-full {
   min-width: 100%;
-}
-
-.min-w-\[120px\] {
-  min-width: 120px;
 }
 
 .max-w-2xl {
@@ -4916,12 +4884,12 @@ label[textContent="Problem Booking"] {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
-  .md\:grid-cols-4 {
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-  }
-
   .md\:grid-cols-3 {
     grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .md\:grid-cols-4 {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
   }
 
   .md\:grid-cols-5 {
@@ -4986,10 +4954,6 @@ label[textContent="Problem Booking"] {
 @media (min-width: 1024px) {
   .lg\:order-2 {
     order: 2;
-  }
-
-  .lg\:col-span-3 {
-    grid-column: span 3 / span 3;
   }
 
   .lg\:mb-12 {

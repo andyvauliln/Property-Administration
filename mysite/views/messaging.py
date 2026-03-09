@@ -103,7 +103,7 @@ def save_conversation_to_db(conversation_sid, friendly_name, booking=None, apart
                 manager_phone_2 = "+17282001917"
                 manager_phone_3 = "+15614603904"
                 
-                if author not in [twilio_phone, 'Virtual Assistant', manager_phone, manager_phone_2, manager_phone_3]:
+                if author not in [twilio_phone, 'Virtual Assistant', 'ASSISTANT', manager_phone, manager_phone_2, manager_phone_3]:
                     booking = get_booking_from_phone(author)
                     if booking:
                         conversation.booking = booking
@@ -339,7 +339,35 @@ def validate_phone_number(phone):
 
 
 
-def create_conversation_with_participants(friendly_name, participants_config):
+def _conversation_has_tenant_participant(conversation_sid, tenant_phone):
+    """
+    Verify that the tenant phone is a participant in the conversation.
+    Used when reusing after 409 to avoid sending to wrong conversation
+    (e.g. when 409 is due to manager/assistant reuse, not tenant).
+    """
+    validated = validate_phone_number(tenant_phone)
+    if not validated:
+        return False
+    try:
+        from mysite.models import TwilioMessage
+        if TwilioMessage.objects.filter(conversation_sid=conversation_sid, author=validated).exists():
+            return True
+        global client
+        if client is None:
+            client = get_twilio_client()
+        participants = client.conversations.v1.conversations(conversation_sid).participants.list()
+        for p in participants:
+            if hasattr(p, 'messaging_binding') and p.messaging_binding:
+                addr = p.messaging_binding.get('address', '')
+                if addr == validated:
+                    return True
+        return False
+    except Exception as e:
+        log_error(e, "Error checking tenant in conversation", source='twilio')
+        return False
+
+
+def create_conversation_with_participants(friendly_name, participants_config, tenant_phone_to_verify=None):
     """
     Create a conversation with multiple participants in a single API call
     
@@ -349,6 +377,8 @@ def create_conversation_with_participants(friendly_name, participants_config):
             Each participant can be:
             - {"phone": "+1234567890"} for phone number participants
             - {"identity": "ASSISTANT", "projected_address": "+1234567890"} for identity-based participants
+        tenant_phone_to_verify (str): When 409 occurs, verify this tenant is in the reused conversation
+            before returning. If not, re-raise to avoid sending to wrong conversation.
     
     Returns:
         str: conversation_sid of the created conversation
@@ -417,6 +447,20 @@ def create_conversation_with_participants(friendly_name, participants_config):
                 match = re.search(r'Conversation (CH[a-z0-9]{32})', str(e))
                 if match:
                     existing_sid = match.group(1)
+                    if tenant_phone_to_verify:
+                        if not _conversation_has_tenant_participant(existing_sid, tenant_phone_to_verify):
+                            log_error(
+                                Exception("409 reuse aborted: tenant not in conversation"),
+                                "Wrong conversation reused after 409 - would send to different tenant",
+                                source='twilio',
+                                severity='high',
+                                additional_info={
+                                    'conversation_sid': existing_sid,
+                                    'tenant_phone': tenant_phone_to_verify,
+                                    'error': str(e)
+                                }
+                            )
+                            raise
                     log_info(
                         f'Conversation already exists, reusing: {existing_sid}',
                         category='sms',
@@ -1104,7 +1148,7 @@ def twilio_webhook(request):
                     body_to_save = body or ''
 
                     # Determine direction based on author
-                    direction = 'inbound' if author not in [twilio_phone, 'Virtual Assistant', manager_phone, manager_phone_2, manager_phone_3] else 'outbound'
+                    direction = 'inbound' if author not in [twilio_phone, 'Virtual Assistant', 'ASSISTANT', manager_phone, manager_phone_2, manager_phone_3] else 'outbound'
 
                     log_message_received(
                         conversation_sid=conversation_sid or '',
@@ -1131,7 +1175,7 @@ def twilio_webhook(request):
                 # --- AI processing ---
                 if not (body and author):
                     pass
-                elif author == 'ASSISTANT':
+                elif author in ('ASSISTANT', 'Virtual Assistant'):
                     body_stripped = body.strip()
                     body_for_customer = _extract_marked_body(body_stripped, CLIENT_SUFFIX)
                     if body_for_customer:
@@ -1182,7 +1226,7 @@ def twilio_webhook(request):
                         if _conv and _conv.apartment_id and _conv.booking_id:
                             _apartment = Apartment.objects.prefetch_related('managers').select_related('owner').get(id=_conv.apartment_id)
                             _booking = Booking.objects.select_related('tenant').get(id=_conv.booking_id)
-                            _is_customer = author not in [twilio_phone, manager_phone, manager_phone_2, manager_phone_3]
+                            _is_customer = author not in [twilio_phone, manager_phone, manager_phone_2, manager_phone_3, 'ASSISTANT', 'Virtual Assistant']
 
                             if _is_customer:
                                 if _is_skippable_message(body):
@@ -1218,7 +1262,7 @@ def twilio_webhook(request):
                         if _conv and _conv.apartment_id and _conv.booking_id:
                             _apartment = Apartment.objects.prefetch_related('managers').select_related('owner').get(id=_conv.apartment_id)
                             _booking = Booking.objects.select_related('tenant').get(id=_conv.booking_id)
-                            _is_customer = author not in [twilio_phone, manager_phone, manager_phone_2, manager_phone_3]
+                            _is_customer = author not in [twilio_phone, manager_phone, manager_phone_2, manager_phone_3, 'ASSISTANT', 'Virtual Assistant']
 
                             if _is_customer:
                                 # Customer → skip short ack messages, then AI tries to answer/clarify
@@ -1251,7 +1295,7 @@ def twilio_webhook(request):
                         log_error(e, "Error in AI message routing", source='web')
                 # --- end AI processing ---
                 # Check if author is not twilio_phone and not manager_phone
-                author_is_customer = (author != twilio_phone and author not in [manager_phone, manager_phone_2, manager_phone_3, 'ASSISTANT'])
+                author_is_customer = (author != twilio_phone and author not in [manager_phone, manager_phone_2, manager_phone_3, 'ASSISTANT', 'Virtual Assistant'])
                 
                 if author_is_customer:
                     log_info(f"Author {author} is a customer, checking for existing group conversations", category='sms')
@@ -1408,7 +1452,9 @@ def create_conversation_config(friendly_name, tenant_phone):
             "projected_address": twilio_phone
         })
         
-        conversation_sid = create_conversation_with_participants(friendly_name, participants_config)
+        conversation_sid = create_conversation_with_participants(
+            friendly_name, participants_config, tenant_phone_to_verify=tenant_phone
+        )
         
         # Try to find booking from tenant phone for database relationship
         booking = get_booking_from_phone(tenant_phone)
@@ -1429,58 +1475,83 @@ def create_conversation_config(friendly_name, tenant_phone):
         raise
 
 
+def _fallback_author_for_50513(author):
+    """Return alternate author for Twilio 50513 (author not among group MMS participants)."""
+    if author == 'Virtual Assistant':
+        return 'ASSISTANT'
+    if author == 'ASSISTANT':
+        return 'Virtual Assistant'
+    return None
+
+
 def send_messsage_by_sid(conversation_sid, author, message, sender_phone, receiver_phone):
     try:
-        # Ensure client is initialized
         global client
         if client is None:
             log_info("Twilio client not initialized, attempting to initialize...", category='sms')
             client = get_twilio_client()
-            
-        # Retry sending in case the conversation is still initializing
+
+        authors_to_try = [author]
+        fallback = _fallback_author_for_50513(author)
+        if fallback:
+            authors_to_try.append(fallback)
+
         max_attempts = 6
         delay_seconds = 0.5
+        last_error = None
         for attempt in range(1, max_attempts + 1):
-            try:
-                twilio_message = client.conversations.v1.conversations(
-                    conversation_sid
-                ).messages.create(
-                    body=message,
-                    author=author,
-                )
-                log_info(
-                    f"Message sent via Twilio",
-                    category='sms',
-                    details={'message_sid': twilio_message.sid, 'conversation_sid': conversation_sid}
-                )
-                
-                # Save outbound message to database
-                save_message_to_db(
-                    message_sid=twilio_message.sid,
-                    conversation_sid=conversation_sid,
-                    author=author,
-                    body=message,
-                    direction='outbound'
-                )
-                
-                break
-            except Exception as e:
-                from twilio.base.exceptions import TwilioRestException
-                is_initializing = (getattr(e, "status", None) == 409) or ("initializing" in str(e).lower())
-                if is_initializing and attempt < max_attempts:
-                    log_info(
-                        f"Conversation {conversation_sid} is initializing; retrying in {delay_seconds}s (attempt {attempt}/{max_attempts})",
-                        category='sms'
+            for try_author in authors_to_try:
+                try:
+                    twilio_message = client.conversations.v1.conversations(
+                        conversation_sid
+                    ).messages.create(
+                        body=message,
+                        author=try_author,
                     )
-                    time.sleep(delay_seconds)
-                    delay_seconds = min(delay_seconds * 2, 4.0)
-                    continue
-                else:
+                    log_info(
+                        f"Message sent via Twilio",
+                        category='sms',
+                        details={'message_sid': twilio_message.sid, 'conversation_sid': conversation_sid}
+                    )
+                    save_message_to_db(
+                        message_sid=twilio_message.sid,
+                        conversation_sid=conversation_sid,
+                        author=try_author,
+                        body=message,
+                        direction='outbound'
+                    )
+                    return
+                except Exception as e:
+                    from twilio.base.exceptions import TwilioRestException
+                    is_50513 = (
+                        isinstance(e, TwilioRestException)
+                        and (getattr(e, "code", None) == 50513 or "Message author should be among group MMS participants" in str(e))
+                    )
+                    if is_50513 and try_author != authors_to_try[-1]:
+                        log_info(
+                            f"Retrying with fallback author (50513) for conversation {conversation_sid}",
+                            category='sms'
+                        )
+                        continue
+                    last_error = e
+                    is_initializing = (getattr(e, "status", None) == 409) or ("initializing" in str(e).lower())
+                    if is_initializing and attempt < max_attempts:
+                        log_info(
+                            f"Conversation {conversation_sid} is initializing; retrying in {delay_seconds}s (attempt {attempt}/{max_attempts})",
+                            category='sms'
+                        )
+                        time.sleep(delay_seconds)
+                        delay_seconds = min(delay_seconds * 2, 4.0)
+                        break
                     log_error(e, f"Error sending message via Twilio (attempt {attempt})", source='twilio')
-                    raise
+                    raise Exception(f"Error sending message via Twilio: {e}")
+        
+        if last_error:
+            raise Exception(f"Error sending message via Twilio: {last_error}")
         
     except Exception as e:
-        log_error(e, "Error sending message via Twilio", source='twilio')
+        if "Error sending message via Twilio" not in str(e):
+            log_error(e, "Error sending message via Twilio", source='twilio')
         raise Exception(f"Error sending message via Twilio: {e}")
 
 
@@ -1519,21 +1590,14 @@ def sendContractToTwilio(booking, contract_url):
             tenant_name = booking.tenant.full_name or 'Dear guest'
             
             # Try to get template from AIManagement (sms_template)
-            message_template = _get_template('contract_message_template')
-            if message_template:
-                try:
-                    message = message_template.format(
-                        tenant_name=tenant_name,
-                        apartment_name=booking.apartment.name,
-                        start_date=booking.start_date,
-                        end_date=booking.end_date,
-                        contract_url=contract_url
-                    )
-                except KeyError as e:
-                    log_warning(f"Contract template has missing placeholders: {e}", category='sms')
-                    message = None
-            else:
-                message = None
+            message = _get_template(
+                'contract_message_template',
+                tenant_name=tenant_name,
+                apartment_name=booking.apartment.name,
+                start_date=booking.start_date,
+                end_date=booking.end_date,
+                contract_url=contract_url
+            )
 
             # Fallback to hardcoded template if DB template is missing or invalid
             if not message:
@@ -1587,20 +1651,13 @@ def sendWelcomeMessageToTwilio(booking):
             tenant_name = booking.tenant.full_name or 'Dear guest'
             
             # Try to get template from AIManagement (sms_template)
-            message_template = _get_template('welcome_message_template')
-            if message_template:
-                try:
-                    message = message_template.format(
-                        tenant_name=tenant_name,
-                        apartment_name=booking.apartment.name,
-                        start_date=booking.start_date,
-                        end_date=booking.end_date
-                    )
-                except KeyError as e:
-                    log_warning(f"Welcome template has missing placeholders: {e}", category='sms')
-                    message = None
-            else:
-                message = None
+            message = _get_template(
+                'welcome_message_template',
+                tenant_name=tenant_name,
+                apartment_name=booking.apartment.name,
+                start_date=booking.start_date,
+                end_date=booking.end_date
+            )
 
             # Fallback to hardcoded template if DB template is missing or invalid
             if not message:

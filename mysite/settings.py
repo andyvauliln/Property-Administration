@@ -45,6 +45,11 @@ os.makedirs(BASE_DIR / "logs", exist_ok=True)
 LOGGING = {
     'version': 1,
     'disable_existing_loggers': False,
+    'filters': {
+        'exclude_404': {
+            '()': 'mysite.logging_filters.Exclude404Filter',
+        },
+    },
     'formatters': {
         'verbose': {
             'format': '{levelname} {asctime} {module} {message}',
@@ -56,29 +61,13 @@ LOGGING = {
         },
     },
     'handlers': {
-        'sms_nofitications': {
-            'level': 'DEBUG',
-            'class': 'logging.FileHandler',
-            'filename': 'logs/sms_nofitications.log',
-            'formatter': 'verbose',
-        },
-        'sms_webhooks': {
-            'level': 'DEBUG',
-            'class': 'logging.FileHandler',
-            'filename': 'logs/sms_webhooks.log',
-            'formatter': 'verbose',
-        },
-        'docuseal': {
-            'level': 'DEBUG',
-            'class': 'logging.FileHandler',
-            'filename': 'logs/docuseal.log',
-            'formatter': 'verbose',
-        },
+       
         'common': {
             'level': 'DEBUG',
             'class': 'logging.FileHandler',
             'filename': 'logs/common.log',
             'formatter': 'verbose',
+            'filters': ['exclude_404'],
         },
         'debug': {
             'level': 'DEBUG',
@@ -100,21 +89,6 @@ LOGGING = {
         },
     },
     'loggers': {
-        'mysite.sms_nofitications': {
-            'handlers': ['sms_nofitications'],
-            'level': 'DEBUG',
-            'propagate': False,
-        },
-        'mysite.sms_webhooks': {
-            'handlers': ['sms_webhooks'],
-            'level': 'DEBUG',
-            'propagate': False,
-        },
-        'mysite.docuseal': {
-            'handlers': ['docuseal'],
-            'level': 'DEBUG',
-            'propagate': False,
-        },
         'mysite.debug': {
             'handlers': ['debug'],
             'level': 'DEBUG',

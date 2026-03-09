@@ -249,29 +249,37 @@ class Command(BaseCommand):
 
     def get_existing_conversation(self, booking):
         """
-        Get existing conversation for this booking (no creation)
+        Get existing conversation for this booking (no creation).
+        Verifies the tenant is actually in the conversation to avoid wrong reuse.
         """
         try:
+            tenant_phone = booking.tenant.phone
+            if not tenant_phone:
+                return None
+
             # First check if we have a conversation in our database for this booking
             conversation = TwilioConversation.objects.filter(booking=booking).first()
             if conversation:
-                return conversation
-            
-            # Check if there's any conversation for this tenant phone number
-            tenant_phone = booking.tenant.phone
-            if tenant_phone:
-                conversation = TwilioConversation.objects.filter(
-                    messages__author=tenant_phone
-                ).first()
-                
-                if conversation:
-                    # Link it to this booking if not already linked
-                    if not conversation.booking:
-                        conversation.booking = booking
-                        conversation.apartment = booking.apartment
-                        conversation.save()
+                # Verify tenant is in this conversation (prevents wrong link from update_conversation_links)
+                if TwilioMessage.objects.filter(
+                    conversation_sid=conversation.conversation_sid, author=tenant_phone
+                ).exists():
                     return conversation
-            
+                return None
+
+            # Check if there's any conversation for this tenant phone number
+            conversation = TwilioConversation.objects.filter(
+                messages__author=tenant_phone
+            ).first()
+
+            if conversation:
+                # Link it to this booking if not already linked
+                if not conversation.booking:
+                    conversation.booking = booking
+                    conversation.apartment = booking.apartment
+                    conversation.save()
+                return conversation
+
             return None
             
         except Exception as e:
