@@ -160,7 +160,7 @@ def docuseal_callback(request):
                         from mysite.models import TwilioConversation
                         conversation = TwilioConversation.objects.filter(booking=booking).first()
                         if conversation:
-                            from mysite.views.messaging import send_messsage_by_sid, _get_template
+                            from mysite.views.messaging import send_messsage_by_sid, _get_template, _notify_manager_chat_delivery_failed
                             import os
                             
                             # Get template from AI management (sms_template)
@@ -170,14 +170,24 @@ def docuseal_callback(request):
                                 message_template = f"How do you want to make payment for the hold deposit? Does Zelle work? When you ll send transactions for this booking use keyword N{booking.id} in a description that we can easly detect your payment."
                             
                             twilio_phone = os.environ.get('TWILIO_PHONE_SECONDARY', '+13153524379')
-                            send_messsage_by_sid(
-                                conversation.conversation_sid, 
-                                'Virtual Assistant', 
-                                message_template, 
-                                twilio_phone, 
-                                None
-                            )
-                            logger.info(f"Contract signed message sent to conversation {conversation.conversation_sid}")
+                            tenant_phone = booking.tenant.phone or "N/A"
+                            try:
+                                send_messsage_by_sid(
+                                    conversation.conversation_sid, 
+                                    'Virtual Assistant', 
+                                    message_template, 
+                                    twilio_phone, 
+                                    None
+                                )
+                                logger.info(f"Contract signed message sent to conversation {conversation.conversation_sid}")
+                            except Exception:
+                                _notify_manager_chat_delivery_failed(
+                                    booking.tenant.full_name or "N/A",
+                                    tenant_phone,
+                                    message_template,
+                                    conversation.conversation_sid,
+                                )
+                                raise
                     except Exception as msg_err:
                         logger.error(f"Error sending contract signed message: {msg_err}")
             

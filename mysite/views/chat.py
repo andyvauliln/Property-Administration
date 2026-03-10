@@ -13,6 +13,7 @@ from mysite.views.messaging import (
     delete_conversation as twilio_delete_conversation,
     delete_message as twilio_delete_message,
     delete_all_messages as twilio_delete_all_messages,
+    _notify_manager_chat_delivery_failed,
 )
 from mysite.unified_logger import log_error, log_info, logger
 from mysite.error_logger import log_exception
@@ -312,13 +313,27 @@ def send_message(request, conversation_sid):
         
         try:
             if send_to_group_chat:
-                send_messsage_by_sid(
-                    conversation_sid=conversation_sid,
-                    author='ASSISTANT',
-                    message=message_content,
-                    sender_phone=manager_phone,
-                    receiver_phone=None
-                )
+                try:
+                    send_messsage_by_sid(
+                        conversation_sid=conversation_sid,
+                        author='ASSISTANT',
+                        message=message_content,
+                        sender_phone=manager_phone,
+                        receiver_phone=None
+                    )
+                except Exception:
+                    tenant_name = "N/A"
+                    tenant_phone = "N/A"
+                    if conversation.booking_id:
+                        from mysite.models import Booking
+                        b = Booking.objects.filter(id=conversation.booking_id).select_related('tenant').first()
+                        if b and b.tenant:
+                            tenant_name = b.tenant.full_name or "N/A"
+                            tenant_phone = b.tenant.phone or "N/A"
+                    _notify_manager_chat_delivery_failed(
+                        tenant_name, tenant_phone, message_content, conversation_sid
+                    )
+                    raise
             else:
                 local_message_sid = f"LOCAL-{uuid4().hex}"
                 sent_message = save_message_to_db(
@@ -358,7 +373,16 @@ def send_message(request, conversation_sid):
                         ai_resp = ai_answer_customer(conversation_sid, original_message, apartment, booking)
                         if ai_resp:
                             if send_to_group_chat:
-                                send_messsage_by_sid(conversation_sid, 'ASSISTANT', ai_resp, manager_phone, None)
+                                try:
+                                    send_messsage_by_sid(conversation_sid, 'ASSISTANT', ai_resp, manager_phone, None)
+                                except Exception:
+                                    _notify_manager_chat_delivery_failed(
+                                        booking.tenant.full_name or "N/A",
+                                        booking.tenant.phone or "N/A",
+                                        ai_resp,
+                                        conversation_sid,
+                                    )
+                                    raise
                             elif sent_message:
                                 sent_message.ai_response = ai_resp
                                 sent_message.ai_sent_to_chat = False

@@ -109,7 +109,11 @@ def validate_and_format_phone(phone):
     # If already starts with +, clean it
     if phone.startswith('+'):
         digits_only = re.sub(r'\D', '', phone)
-        formatted_phone = f"+{digits_only}"
+        # US numbers missing country code 1: +5168490533 -> +15168490533 (assume US only)
+        if len(digits_only) == 10 and digits_only[0] in '23456789':
+            formatted_phone = f"+1{digits_only}"
+        else:
+            formatted_phone = f"+{digits_only}"
     else:
         # Remove all non-digit characters
         digits_only = re.sub(r'\D', '', phone)
@@ -962,14 +966,6 @@ class Booking(models.Model):
                 payment_dates, amounts, payment_types, payment_notes, number_of_months, payment_ids, payment_statuses, fillvalue=None
             ):
                 self.create_payment(p_type, amount, date, p_notes, n_months, payment_id, payment_status)
-
-
-        notification = Notification(
-            date=self.start_date,
-            message="Start Booking",
-            booking=self
-        )
-        notification.save()
 
     def schedule_cleaning(self, form_data):
         # Schedule a cleaning for the day after the booking ends

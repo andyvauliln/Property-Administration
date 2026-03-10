@@ -1,6 +1,6 @@
 import requests
 from datetime import timedelta, date
-from mysite.models import Notification
+from mysite.models import Booking, format_date
 import os
 from mysite.management.commands.base_command import BaseCommandWithErrorHandling
 
@@ -28,24 +28,22 @@ def my_cron_job(dry_run=False, stdout=None):
     if not chat_id or not token:
         if not dry_run:
             return
-    notifications = Notification.objects.filter(
-        date=next_day,
-        send_in_telegram=True,
-        booking__isnull=False,
-        message="End Booking",
-    ).exclude(booking__status='Blocked')
+    bookings = Booking.objects.filter(
+        end_date=next_day,
+    ).exclude(status='Blocked').select_related('apartment', 'tenant').order_by('id')
 
     sent = 0
-    for notification in notifications:
-        message = f"CHECKOUT TOMORROW: {notification.notification_message}"
-        if notification.booking:
-            message += "\nBooking Details:"
-            message += f"\n- Start Date: {notification.booking.start_date}"
-            message += f"\n- End Date: {notification.booking.end_date}"
-            if notification.booking.apartment:
-                message += f"\n- Apartment: {notification.booking.apartment.name}"
-            if notification.booking.tenant:
-                message += f"\n- Tenant: {notification.booking.tenant.full_name}"
+    for booking in bookings:
+        start_str = format_date(booking.start_date)
+        end_str = format_date(booking.end_date)
+        apt_name = booking.apartment.name if booking.apartment else 'Unknown'
+        tenant_name = booking.tenant.full_name if booking.tenant else 'Unknown'
+        header = f"End Booking: {start_str} - {end_str}, {apt_name}, {tenant_name}."
+        message = f"CHECKOUT TOMORROW: {header}\nBooking Details:"
+        message += f"\n- Start Date: {booking.start_date}"
+        message += f"\n- End Date: {booking.end_date}"
+        message += f"\n- Apartment: {apt_name}"
+        message += f"\n- Tenant: {tenant_name}"
         send_telegram_message(normalize_group_chat_id(chat_id), token, message, dry_run=dry_run, stdout=stdout)
         sent += 1
     if sent == 0:

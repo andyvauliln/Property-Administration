@@ -1,8 +1,8 @@
 from datetime import timedelta, date
-from mysite.models import Notification, Payment, User, Booking
+from mysite.models import Payment, User, Booking, Cleaning, format_date
 import os
 from mysite.management.commands.base_command import BaseCommandWithErrorHandling
-from django.db.models import Q  
+from django.db.models import Q
 from mysite.unified_logger import log_error, log_info, log_warning, logger
 import requests
 
@@ -10,60 +10,18 @@ def send_telegram_message(chat_id, token, message):
     base_url = f"https://api.telegram.org/bot{token}/sendMessage?chat_id={chat_id}&text={message}"
     requests.get(base_url)
 
-def sent_pending_payments_message(chat_id, token):
-    tomorrow = date.today() + timedelta(days=1)
-    # Get all pending payments that are due in the past
-    month_ago = date.today() - timedelta(days=30)
-    pending_payments = Payment.objects.filter(
-        payment_status='Pending',
-        payment_date__lt=tomorrow,
-        payment_date__gte=month_ago
-    ).filter(
-        ~Q(payment_type__name__icontains='Mortage')
-    ).order_by('payment_date')
-    
-    if not pending_payments.exists():
-        return ""
-    
-    log_info(
-        f"Sending pending payments notification",
-        category='notification',
-        details={'count': pending_payments.count()}
-    )
-    message = "\n\n🚨 PENDING PAYMENTS FROM PAST PERIODS:"
-    for payment in pending_payments:
-        message += f"\n- Amount: ${payment.amount}"
-        message += f"\n  Payment Date: {payment.payment_date}"
-        message += f"\n  Status: {payment.payment_status}"
-        if payment.payment_type:
-            message += f"\n  Type: {payment.payment_type.name}"
-        if hasattr(payment, 'booking') and payment.booking and payment.booking.apartment:
-            message += f"\n  Apartment: {payment.booking.apartment.name}"
-            if payment.booking.tenant:
-                message += f"\n  Tenant: {payment.booking.tenant.full_name}"
-        elif hasattr(payment, 'apartment') and payment.apartment:
-            message += f"\n  Apartment: {payment.apartment.name}"
-        if payment.notes:
-            message += f"\n  Notes: {payment.notes}"
-        
-        send_telegram_message(chat_id.strip(), token, message)
-        message = ""
-    return message
 
 def check_bookings_without_cleaning(chat_id, token):
     today = date.today()
     three_days_from_now = today + timedelta(days=3)
-    
-    # Get bookings ending in next 3 days (excluding blocked bookings)
+
     upcoming_end_bookings = Booking.objects.filter(
         end_date__gte=today,
         end_date__lte=three_days_from_now
     ).exclude(status='Blocked').select_related('apartment', 'tenant')
-    
+
     for booking in upcoming_end_bookings:
-        # Check if cleaning exists for this booking
         if not hasattr(booking, 'cleanings') or not booking.cleanings.exists():
-            # Only send to managers responsible for this apartment
             log_info(f"Found Booking: {booking.id} without cleaning")
             if booking.apartment and booking.apartment.managers.exists():
                 for apt_manager in booking.apartment.managers.all():
@@ -76,46 +34,89 @@ def check_bookings_without_cleaning(chat_id, token):
                         if booking.tenant:
                             message += f"- Tenant: {booking.tenant.full_name}\n"
                         message += f"Please schedule cleaning ASAP!"
-                        
                         send_telegram_message(chat_id.strip(), token, message)
-                        break  # Only send once per booking per manager
+                        break
+
+
+def _build_booking_message(booking, label):
+    start_str = format_date(booking.start_date)
+    end_str = format_date(booking.end_date)
+    apt_name = booking.apartment.name if booking.apartment else 'Unknown'
+    tenant_name = booking.tenant.full_name if booking.tenant else 'Unknown'
+    return f"{label}: {start_str} - {end_str}, {apt_name}, {tenant_name}."
+
+
+def _build_payment_message(payment):
+    apt_name = (payment.booking.apartment.name if payment.booking and payment.booking.apartment else
+                payment.apartment.name if payment.apartment else "")
+    tenant_str = f" ({payment.booking.tenant.full_name})" if payment.booking and payment.booking.tenant else ""
+    return f"Payment: {payment.payment_type} {payment.amount}$ {format_date(payment.payment_date)} {apt_name}{tenant_str}[{payment.payment_status}]"
+
+
+def _build_cleaning_message(cleaning):
+    date_str = format_date(cleaning.date)
+    cleaner_name = cleaning.cleaner.full_name if cleaning.cleaner else "No cleaner assigned"
+    apt_name = (cleaning.booking.apartment.name if cleaning.booking and cleaning.booking.apartment else
+                cleaning.apartment.name if cleaning.apartment else "")
+    return f"Cleaning: {date_str} by {cleaner_name} {apt_name} [{cleaning.status}]"
+
 
 def my_cron_job():
     next_day = date.today() + timedelta(days=1)
-    notifications = Notification.objects.filter(date=next_day, send_in_telegram=True).exclude(booking__status='Blocked').exclude(cleaning__booking__status='Blocked')
     telegram_token = os.environ["TELEGRAM_TOKEN"]
 
     active_managers = User.objects.filter(role="Manager", is_active=True)
-    
+
     for manager in active_managers:
         log_info(f"Manager {manager.full_name}: {manager.telegram_chat_id}")
-        if manager.telegram_chat_id:
-            # Check for bookings without cleanings for this manager
-            check_bookings_without_cleaning(manager.telegram_chat_id, telegram_token)
+        if not manager.telegram_chat_id:
+            continue
 
-            for notification in notifications:
-                # Skip mortage payments
-                if notification.payment and notification.payment.payment_type and notification.payment.payment_type.name and 'Mortage' in notification.payment.payment_type.name:
-                    continue
-                    
-                if notification.payment and (notification.payment.payment_status == "Completed" or notification.payment.payment_status == "Merged"):
-                    continue
-                elif notification.booking and notification.booking.apartment and notification.booking.apartment.managers.filter(phone=manager.phone).exists():
-                    message = f"{notification.notification_message}"
-                    send_telegram_message(manager.telegram_chat_id, telegram_token, message)
-                    continue
-                elif notification.payment and notification.payment.booking and notification.payment.booking.apartment and notification.payment.booking.apartment.managers.filter(phone=manager.phone).exists():
-                    message = f"{notification.notification_message}"
-                    send_telegram_message(manager.telegram_chat_id, telegram_token, message)
-                    continue
-                elif notification.payment and notification.payment.apartment and notification.payment.apartment.managers.filter(phone=manager.phone).exists():
-                    message = f"{notification.notification_message}"
-                    send_telegram_message(manager.telegram_chat_id, telegram_token, message)
-                    continue
-                elif notification.cleaning and notification.cleaning.booking and notification.cleaning.booking.apartment and notification.cleaning.booking.apartment.managers.filter(phone=manager.phone).exists():
-                    message = f"{notification.notification_message}"
-                    send_telegram_message(manager.telegram_chat_id, telegram_token, message)
-                    continue
+        chat_id = manager.telegram_chat_id
+        manager_apartment_ids = list(manager.managed_apartments.values_list('id', flat=True))
+
+        check_bookings_without_cleaning(chat_id, telegram_token)
+
+        if not manager_apartment_ids:
+            continue
+
+        for booking in Booking.objects.filter(
+            start_date=next_day,
+            apartment_id__in=manager_apartment_ids
+        ).exclude(status='Blocked').select_related('apartment', 'tenant'):
+            message = _build_booking_message(booking, "Start Booking")
+            send_telegram_message(chat_id, telegram_token, message)
+
+        for booking in Booking.objects.filter(
+            end_date=next_day,
+            apartment_id__in=manager_apartment_ids
+        ).exclude(status='Blocked').select_related('apartment', 'tenant'):
+            message = _build_booking_message(booking, "End Booking")
+            send_telegram_message(chat_id, telegram_token, message)
+
+        for payment in Payment.objects.filter(
+            payment_date=next_day
+        ).exclude(payment_type__name__icontains='Mortage').filter(
+            Q(booking__isnull=True) | ~Q(booking__status='Blocked')
+        ).filter(
+            Q(booking__apartment_id__in=manager_apartment_ids) |
+            Q(apartment_id__in=manager_apartment_ids)
+        ).exclude(payment_status__in=['Completed', 'Merged']).select_related(
+            'payment_type', 'booking', 'booking__apartment', 'booking__tenant', 'apartment'
+        ):
+            message = _build_payment_message(payment)
+            send_telegram_message(chat_id, telegram_token, message)
+
+        for cleaning in Cleaning.objects.filter(
+            date=next_day
+        ).filter(
+            Q(booking__isnull=True) | ~Q(booking__status='Blocked')
+        ).filter(
+            Q(booking__apartment_id__in=manager_apartment_ids) |
+            Q(apartment_id__in=manager_apartment_ids)
+        ).select_related('cleaner', 'booking', 'booking__apartment', 'apartment'):
+            message = _build_cleaning_message(cleaning)
+            send_telegram_message(chat_id, telegram_token, message)
 
             
 

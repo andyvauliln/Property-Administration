@@ -1,6 +1,6 @@
 import requests
 from datetime import timedelta, date
-from mysite.models import Notification, Payment
+from mysite.models import Cleaning
 import os
 from mysite.management.commands.base_command import BaseCommandWithErrorHandling
 from django.db.models import Q
@@ -11,70 +11,47 @@ def send_telegram_message(chat_id, token, message):
     requests.get(base_url)
 
 
+def _build_cleaning_message(cleaning, prefix):
+    message = f"{prefix}: Cleaning: {cleaning.date.strftime('%B %d %Y')} by "
+    message += f"{cleaning.cleaner.full_name} " if cleaning.cleaner else "No cleaner assigned "
+    apt_name = ""
+    if cleaning.booking and cleaning.booking.apartment:
+        apt_name = cleaning.booking.apartment.name
+    elif cleaning.apartment:
+        apt_name = cleaning.apartment.name
+    message += f"{apt_name} [{cleaning.status}]\nCleaning Details:"
+    message += f"\n- Date: {cleaning.date}"
+    message += f"\n- Apartment: {apt_name or 'N/A'}"
+    message += f"\n- Status: {cleaning.status}"
+    message += f"\n- Cleaner: {cleaning.cleaner.full_name}" if cleaning.cleaner else "\n- Cleaner: N/A"
+    if cleaning.tasks:
+        message += f"\n- Tasks: {cleaning.tasks}"
+    if cleaning.notes:
+        message += f"\n- Notes: {cleaning.notes}"
+    return message
+
 
 def my_cron_job():
     today = date.today()
     next_day = today + timedelta(days=1)
-    
-    # Process today's notifications first (excluding notifications for blocked bookings)
-    today_notifications = Notification.objects.filter(date=today, send_in_telegram=True, cleaning__isnull=False).exclude(booking__status='Blocked').exclude(cleaning__booking__status='Blocked')
-    print(f"Found {len(today_notifications)} notifications for today ({today})")
-    
-    # Process tomorrow's notifications (excluding notifications for blocked bookings)
-    tomorrow_notifications = Notification.objects.filter(date=next_day, send_in_telegram=True, cleaning__isnull=False).exclude(booking__status='Blocked').exclude(cleaning__booking__status='Blocked')
-    print(f"Found {len(tomorrow_notifications)} notifications for tomorrow ({next_day})")
-    
     telegram_token = os.environ["TELEGRAM_TOKEN"]
-    
-    # Process today's notifications
-    for notification in today_notifications:
-        message = f"TODAY: {notification.notification_message}"
-        
-        if notification.cleaning and notification.cleaning.cleaner:
-            cliner_chat_id = notification.cleaning.cleaner.telegram_chat_id
-            message += f"\nCleaning Details:"
-            message += f"\n- Date: {notification.cleaning.date}"
-            if hasattr(notification.cleaning, 'booking') and notification.cleaning.booking and notification.cleaning.booking.apartment:
-                message += f"\n- Apartment: {notification.cleaning.booking.apartment.name}"
-            if hasattr(notification.cleaning, 'apartment') and notification.cleaning.apartment:
-                message += f"\n- Apartment: {notification.cleaning.apartment.name}"
-            if hasattr(notification.cleaning, 'status'):
-                message += f"\n- Status: {notification.cleaning.status}"
-            if hasattr(notification.cleaning, 'cleaner'):
-                message += f"\n- Cleaner: {notification.cleaning.cleaner.full_name}"
-            if hasattr(notification.cleaning, 'tasks') and notification.cleaning.tasks:
-                message += f"\n- Tasks: {notification.cleaning.tasks}"
-            if hasattr(notification.cleaning, 'notes') and notification.cleaning.notes:
-                message += f"\n- Notes: {notification.cleaning.notes}"
-            
-            message += f"\Form Link:https://form.jotform.com/250414400218038"
 
-            send_telegram_message(cliner_chat_id.strip(), telegram_token, message)
-    
-    # Process tomorrow's notifications
-    for notification in tomorrow_notifications:
-        message = f"TOMORROW: {notification.notification_message}"
-        
-        if notification.cleaning and notification.cleaning.cleaner:
-            cliner_chat_id = notification.cleaning.cleaner.telegram_chat_id
-            message += f"\nCleaning Details:"
-            message += f"\n- Date: {notification.cleaning.date}"
-            if hasattr(notification.cleaning, 'booking') and notification.cleaning.booking and notification.cleaning.booking.apartment:
-                message += f"\n- Apartment: {notification.cleaning.booking.apartment.name}"
-            if hasattr(notification.cleaning, 'apartment') and notification.cleaning.apartment:
-                message += f"\n- Apartment: {notification.cleaning.apartment.name}"
-            if hasattr(notification.cleaning, 'status'):
-                message += f"\n- Status: {notification.cleaning.status}"
-            if hasattr(notification.cleaning, 'cleaner'):
-                message += f"\n- Cleaner: {notification.cleaning.cleaner.full_name}"
-            if hasattr(notification.cleaning, 'tasks') and notification.cleaning.tasks:
-                message += f"\n- Tasks: {notification.cleaning.tasks}"
-            if hasattr(notification.cleaning, 'notes') and notification.cleaning.notes:
-                message += f"\n- Notes: {notification.cleaning.notes}"
+    cleanings = Cleaning.objects.filter(
+        date__in=[today, next_day],
+    ).filter(
+        Q(booking__isnull=True) | ~Q(booking__status='Blocked'),
+    ).exclude(cleaner__isnull=True).select_related(
+        'cleaner', 'booking', 'booking__apartment', 'apartment'
+    ).order_by('date', 'id')
 
-            message += f"\Form Link:https://ro.am/join/fyy4jxbm-yr9qc7mo"
-
-            send_telegram_message(cliner_chat_id.strip(), telegram_token, message)
+    for cleaning in cleanings:
+        if not cleaning.cleaner or not cleaning.cleaner.telegram_chat_id:
+            continue
+        prefix = "TODAY" if cleaning.date == today else "TOMORROW"
+        message = _build_cleaning_message(cleaning, prefix)
+        form_url = "https://ro.am/join/fyy4jxbm-yr9qc7mo" if prefix == "TOMORROW" else "https://form.jotform.com/250414400218038"
+        message += f"\nForm Link: {form_url}"
+        send_telegram_message(cleaning.cleaner.telegram_chat_id.strip(), telegram_token, message)
 
 
 class Command(BaseCommandWithErrorHandling):

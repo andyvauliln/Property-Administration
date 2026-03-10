@@ -206,19 +206,26 @@ def parse_tokens(model, tokens):
         else:
             # Handle conditions like field=value, field>value, etc.
             operator = None
+            field = None
+            value = None
             for op in ['>=', '<=', '>', '<', '=']:
                 if op in token:
-                    field, value = token.split(op)
-                    if op == '=':
-                        operator = '' if field == "id" or '.id' in field or 'date' in field else '__icontains'
-                    else:
-                        operator = {
-                            '>': '__gt',
-                            '<': '__lt',
-                            '>=': '__gte',
-                            '<=': '__lte'
-                        }[op]
-                    break
+                    parts = token.split(op, 1)
+                    if len(parts) == 2:
+                        field, value = parts
+                        if op == '=':
+                            operator = '' if field == "id" or '.id' in field or 'date' in field else '__icontains'
+                        else:
+                            operator = {
+                                '>': '__gt',
+                                '<': '__lt',
+                                '>=': '__gte',
+                                '<=': '__lte'
+                            }[op]
+                        break
+
+            if field is None or value is None:
+                continue
 
             field = field.replace('.', '__').strip()
             if isinstance(value, str):

@@ -1,6 +1,7 @@
 import requests
 from datetime import timedelta, date
-from mysite.models import Notification
+from django.db.models import Q
+from mysite.models import Cleaning, format_date
 import os
 from mysite.management.commands.base_command import BaseCommandWithErrorHandling
 
@@ -21,24 +22,26 @@ def send_telegram_message(chat_id, token, message, dry_run=False, stdout=None):
     requests.get(url, params={"chat_id": chat_id, "text": message})
 
 
-def build_cleaning_message(notification, prefix):
-    message = f"{prefix}: {notification.notification_message}"
-    if notification.cleaning:
-        message += "\nCleaning Details:"
-        message += f"\n- Date: {notification.cleaning.date}"
-        if notification.cleaning.booking and notification.cleaning.booking.apartment:
-            message += f"\n- Apartment: {notification.cleaning.booking.apartment.name}"
-        elif getattr(notification.cleaning, 'apartment', None):
-            message += f"\n- Apartment: {notification.cleaning.apartment.name}"
-        if getattr(notification.cleaning, 'status', None):
-            message += f"\n- Status: {notification.cleaning.status}"
-        if getattr(notification.cleaning, 'cleaner', None):
-            message += f"\n- Cleaner: {notification.cleaning.cleaner.full_name}"
-        if getattr(notification.cleaning, 'tasks', None) and notification.cleaning.tasks:
-            message += f"\n- Tasks: {notification.cleaning.tasks}"
-        if getattr(notification.cleaning, 'notes', None) and notification.cleaning.notes:
-            message += f"\n- Notes: {notification.cleaning.notes}"
-        message += "\nForm Link: https://form.jotform.com/250414400218038"
+def build_cleaning_message(cleaning, prefix):
+    date_str = format_date(cleaning.date)
+    cleaner_name = cleaning.cleaner.full_name if cleaning.cleaner else "No cleaner assigned"
+    apt_name = ""
+    if cleaning.booking and cleaning.booking.apartment:
+        apt_name = cleaning.booking.apartment.name
+    elif cleaning.apartment:
+        apt_name = cleaning.apartment.name
+    header = f"Cleaning: {date_str} by {cleaner_name} {apt_name} [{cleaning.status}]"
+    message = f"{prefix}: {header}\nCleaning Details:"
+    message += f"\n- Date: {cleaning.date}"
+    message += f"\n- Apartment: {apt_name or 'N/A'}"
+    message += f"\n- Status: {cleaning.status}"
+    message += f"\n- Cleaner: {cleaner_name}"
+    if cleaning.tasks:
+        message += f"\n- Tasks: {cleaning.tasks}"
+    if cleaning.notes:
+        message += f"\n- Notes: {cleaning.notes}"
+    form_url = "https://ro.am/join/fyy4jxbm-yr9qc7mo" if prefix == "TOMORROW" else "https://form.jotform.com/250414400218038"
+    message += f"\nForm Link: {form_url}"
     return message
 
 
@@ -50,18 +53,18 @@ def my_cron_job(dry_run=False, stdout=None):
     if not chat_id or not token:
         if not dry_run:
             return
-    notifications = Notification.objects.filter(
+    cleanings = Cleaning.objects.filter(
         date__in=[today, next_day],
-        send_in_telegram=True,
-        cleaning__isnull=False,
-    ).exclude(cleaning__booking__status='Blocked')
+    ).filter(
+        Q(booking__isnull=True) | ~Q(booking__status='Blocked'),
+    ).select_related(
+        'cleaner', 'booking', 'booking__apartment', 'apartment'
+    ).order_by('date', 'id')
 
     sent = 0
-    for notification in notifications:
-        prefix = "TODAY" if notification.date == today else "TOMORROW"
-        message = build_cleaning_message(notification, prefix)
-        if notification.date == next_day and "Form Link:" in message:
-            message = message.replace("https://form.jotform.com/250414400218038", "https://ro.am/join/fyy4jxbm-yr9qc7mo")
+    for cleaning in cleanings:
+        prefix = "TODAY" if cleaning.date == today else "TOMORROW"
+        message = build_cleaning_message(cleaning, prefix)
         send_telegram_message(normalize_group_chat_id(chat_id), token, message, dry_run=dry_run, stdout=stdout)
         sent += 1
     if sent == 0:

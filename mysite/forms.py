@@ -715,7 +715,7 @@ class BookingForm(forms.ModelForm):
         cleaned_data = super().clean()
         status = cleaned_data.get('status')
 
-        tenant_email = cleaned_data["tenant_email"]
+        tenant_email = cleaned_data.get('tenant_email')
 
         if 'tenant' not in self.data:
             cleaned_data.pop('tenant', None)

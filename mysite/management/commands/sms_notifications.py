@@ -6,11 +6,11 @@ from django.utils import timezone
 from twilio.rest import Client
 from mysite.models import Booking, TwilioConversation, TwilioMessage, AIManagement
 import os
-from twilio.base.exceptions import TwilioException
 from twilio.twiml.messaging_response import MessagingResponse
 from django.db.models import F
 from django.db import models
 from mysite.unified_logger import log_error, log_info, log_warning, logger
+from mysite.views.messaging import _notify_manager_chat_delivery_failed, _fallback_author_for_50513
 
 
 class Command(BaseCommand):
@@ -47,7 +47,7 @@ class Command(BaseCommand):
                 )
                 
                 # Only send if conversation exists (production)
-                self.send_sms(booking, message)
+                self.send_sms(booking, message, event_type)
 
             else:
                 log_warning(
@@ -197,7 +197,7 @@ class Command(BaseCommand):
 
         return None
 
-    def send_sms(self, booking, message):
+    def send_sms(self, booking, message, event_type='sms'):
         account_sid = os.environ.get("TWILIO_ACCOUNT_SID")
         auth_token = os.environ.get("TWILIO_AUTH_TOKEN")
         
@@ -207,6 +207,7 @@ class Command(BaseCommand):
 
         client = Client(account_sid, auth_token)
 
+        conversation = None
         try:
             # Check if conversation exists for this booking
             conversation = self.get_existing_conversation(booking)
@@ -233,8 +234,14 @@ class Command(BaseCommand):
                         'phone': booking.tenant.phone
                     }
                 )
+                _notify_manager_chat_delivery_failed(
+                    booking.tenant.full_name or "N/A",
+                    booking.tenant.phone or "N/A",
+                    f"[{event_type}] {message}",
+                    None,
+                )
                 
-        except TwilioException as e:
+        except Exception as e:
             log_error(
                 e,
                 f'SMS Send Failed - {booking.tenant.full_name}',
@@ -245,6 +252,12 @@ class Command(BaseCommand):
                     'phone': booking.tenant.phone,
                     'apartment': booking.apartment.name
                 }
+            )
+            _notify_manager_chat_delivery_failed(
+                booking.tenant.full_name or "N/A",
+                booking.tenant.phone or "N/A",
+                f"[{event_type}] {message}",
+                conversation.conversation_sid if conversation else None,
             )
 
     def get_existing_conversation(self, booking):
@@ -288,23 +301,42 @@ class Command(BaseCommand):
 
     def send_via_conversation(self, client, conversation, message, booking):
         """
-        Send message via Twilio conversation
+        Send message via Twilio conversation.
+        Retries with fallback author (ASSISTANT) when 50513 "author not among group MMS participants" occurs.
         """
-        try:
-            # Send message via conversation API
-            sent_message = client.conversations.v1.conversations(conversation.conversation_sid).messages.create(
-                author='Virtual Assistant',
-                body=message
-            )
-            
-            # Save to our database
-            self.save_message_to_db(sent_message, booking, message, 'outbound', conversation.conversation_sid)
-            
-            return sent_message
-            
-        except Exception as e:
-            log_error(e, "Send via Conversation", source='command')
-            raise e  # Re-raise the exception
+        from twilio.base.exceptions import TwilioRestException
+
+        authors_to_try = ['Virtual Assistant']
+        fallback = _fallback_author_for_50513('Virtual Assistant')
+        if fallback:
+            authors_to_try.append(fallback)
+
+        last_error = None
+        for author in authors_to_try:
+            try:
+                sent_message = client.conversations.v1.conversations(
+                    conversation.conversation_sid
+                ).messages.create(
+                    author=author,
+                    body=message
+                )
+                self.save_message_to_db(sent_message, booking, message, 'outbound', conversation.conversation_sid)
+                return sent_message
+            except Exception as e:
+                last_error = e
+                is_50513 = (
+                    isinstance(e, TwilioRestException)
+                    and (getattr(e, "code", None) == 50513 or "Message author should be among group MMS participants" in str(e))
+                )
+                if is_50513 and author != authors_to_try[-1]:
+                    log_info(f"Retrying with fallback author (50513) for conversation {conversation.conversation_sid}", category='sms')
+                    continue
+                log_error(e, "Send via Conversation", source='command')
+                raise
+
+        if last_error:
+            log_error(last_error, "Send via Conversation", source='command')
+            raise last_error
 
     def save_message_to_db(self, sent_message, booking, message_body, direction, conversation_sid=None):
         """

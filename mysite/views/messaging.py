@@ -30,6 +30,7 @@ from django.utils import timezone
 
 KB_SUFFIX = "(+)"  # Virtual Assistant messages marked with (+) are processed for knowledge extraction
 CLIENT_SUFFIX = "(+++)"  # Virtual Assistant messages marked with (+++) are treated as client (AI answers)
+MANAGER_CHAT_SID = os.environ.get("MANAGER_CHAT_SID", "CH10c59b85e2ec4aad98e982916c495ea8")
 
 # Unified logger throughout the app
 
@@ -305,36 +306,31 @@ def get_booking_from_phone(phone_number):
 
 def validate_phone_number(phone):
     """
-    Validate and format phone number for Twilio
-    Returns None if invalid, formatted phone if valid
+    Validate and format phone number for Twilio.
+    Returns None if invalid, formatted phone if valid.
+    US numbers must be +1XXXXXXXXXX; fixes +5168490533 -> +15168490533.
     """
     if not phone:
         return None
-   
-    # Remove any whitespace
+
     phone = str(phone).strip()
-   
-    # If it's already in E.164 format, validate it
-    if phone.startswith('+'):
-        # Must be + followed by 1-15 digits
-        if re.match(r'^\+[1-9]\d{1,14}$', phone):
-            return phone
-        else:
-            return None
-   
-    # If it's a US number without +1, add it
-    # Remove any non-digit characters first
     digits_only = re.sub(r'\D', '', phone)
-   
-    # If it's 10 digits, assume US number
+
+    # Numbers that already have + - handle before generic rules
+    if phone.startswith('+'):
+        if not re.match(r'^\+[1-9]\d{1,14}$', phone):
+            return None
+        # US missing country code 1: +5168490533 -> +15168490533 (assume US only)
+        if len(digits_only) == 10 and digits_only[0] in '23456789':
+            return f"+1{digits_only}"
+        return phone
+
+    # No + prefix: assume US if 10 or 11 digits
     if len(digits_only) == 10:
         return f"+1{digits_only}"
-   
-    # If it's 11 digits and starts with 1, assume US number
     if len(digits_only) == 11 and digits_only.startswith('1'):
         return f"+{digits_only}"
-   
-    # Otherwise, return None as invalid
+
     return None
 
 
@@ -1190,7 +1186,16 @@ def twilio_webhook(request):
                                     _ai_resp = ai_answer_customer(conversation_sid, body_for_customer, _apartment, _booking)
                                     if _ai_resp:
                                         if os.environ.get('AI_ASSISTANT_ENABLED', 'true').lower() == 'true':
-                                            send_messsage_by_sid(conversation_sid, 'Virtual Assistant', _ai_resp, twilio_phone, None)
+                                            try:
+                                                send_messsage_by_sid(conversation_sid, 'Virtual Assistant', _ai_resp, twilio_phone, None)
+                                            except Exception:
+                                                _notify_manager_chat_delivery_failed(
+                                                    _booking.tenant.full_name or "N/A",
+                                                    _booking.tenant.phone or "N/A",
+                                                    _ai_resp,
+                                                    conversation_sid,
+                                                )
+                                                raise
                                             log_ai_customer_sent(conversation_sid, _ai_resp)
                                         else:
                                             log_ai_disabled(conversation_sid or '', author or '', body_for_customer or '')
@@ -1272,7 +1277,16 @@ def twilio_webhook(request):
                                     log_ai_customer_start(conversation_sid, author, body, _conv.apartment_id, _conv.booking_id)
                                     _ai_resp = ai_answer_customer(conversation_sid, body, _apartment, _booking)
                                     if _ai_resp:
-                                        send_messsage_by_sid(conversation_sid, 'Virtual Assistant', _ai_resp, twilio_phone, None)
+                                        try:
+                                            send_messsage_by_sid(conversation_sid, 'Virtual Assistant', _ai_resp, twilio_phone, None)
+                                        except Exception:
+                                            _notify_manager_chat_delivery_failed(
+                                                _booking.tenant.full_name or "N/A",
+                                                _booking.tenant.phone or "N/A",
+                                                _ai_resp,
+                                                conversation_sid,
+                                            )
+                                            raise
                                         log_ai_customer_sent(conversation_sid, _ai_resp)
                                         _update_message_ai_result(
                                             message_sid,
@@ -1496,7 +1510,7 @@ def send_messsage_by_sid(conversation_sid, author, message, sender_phone, receiv
         if fallback:
             authors_to_try.append(fallback)
 
-        max_attempts = 6
+        max_attempts = 10
         delay_seconds = 0.5
         last_error = None
         for attempt in range(1, max_attempts + 1):
@@ -1541,7 +1555,7 @@ def send_messsage_by_sid(conversation_sid, author, message, sender_phone, receiv
                             category='sms'
                         )
                         time.sleep(delay_seconds)
-                        delay_seconds = min(delay_seconds * 2, 4.0)
+                        delay_seconds = min(delay_seconds * 2, 8.0)
                         break
                     log_error(e, f"Error sending message via Twilio (attempt {attempt})", source='twilio')
                     raise Exception(f"Error sending message via Twilio: {e}")
@@ -1553,6 +1567,31 @@ def send_messsage_by_sid(conversation_sid, author, message, sender_phone, receiv
         if "Error sending message via Twilio" not in str(e):
             log_error(e, "Error sending message via Twilio", source='twilio')
         raise Exception(f"Error sending message via Twilio: {e}")
+
+
+def _notify_manager_chat_delivery_failed(tenant_name, tenant_phone, message, conversation_sid=None):
+    """Send delivery failure alert to manager chat. Swallows errors to avoid masking the original failure."""
+    if not MANAGER_CHAT_SID:
+        return
+    try:
+        chat_id = conversation_sid or "not created"
+        msg_str = str(message or "")[:200]
+        if len(str(message or "")) > 200:
+            msg_str += "..."
+        alert = (
+            f"Message wasn't delivered. Tenant: {tenant_name}, Phone: {tenant_phone}, "
+            f"Chat ID: {chat_id}. Message: {msg_str}"
+        )
+        twilio_phone_secondary = os.environ.get("TWILIO_PHONE_SECONDARY")
+        send_messsage_by_sid(
+            MANAGER_CHAT_SID,
+            "Virtual Assistant",
+            alert,
+            twilio_phone_secondary,
+            None,
+        )
+    except Exception:
+        log_warning("Failed to notify manager chat of delivery failure", category='sms')
 
 
 def sendContractToTwilio(booking, contract_url):
@@ -1607,9 +1646,24 @@ def sendContractToTwilio(booking, contract_url):
                     f"To continue with a booking, please sign this contract: {contract_url}"
                 )
             
-            send_messsage_by_sid(conversation_sid, "Virtual Assistant", message, twilio_phone_secondary, validated_phone)
+            try:
+                send_messsage_by_sid(conversation_sid, "Virtual Assistant", message, twilio_phone_secondary, validated_phone)
+            except Exception:
+                _notify_manager_chat_delivery_failed(
+                    booking.tenant.full_name or "N/A",
+                    validated_phone,
+                    message,
+                    conversation_sid,
+                )
+                raise
         else:
             log_warning("Conversation wasn't created", category='sms')
+            _notify_manager_chat_delivery_failed(
+                booking.tenant.full_name or "N/A",
+                validated_phone,
+                "contract link",
+                None,
+            )
     except Exception as e:
         from twilio.base.exceptions import TwilioException
         log_error(e, "Error sending contract message", source='twilio')
@@ -1666,9 +1720,24 @@ def sendWelcomeMessageToTwilio(booking):
                     f"If I do not respond, our managers in this chat will contact you as soon as possible."
                 )
             
-            send_messsage_by_sid(conversation_sid, "Virtual Assistant", message, twilio_phone_secondary, validated_phone)
+            try:
+                send_messsage_by_sid(conversation_sid, "Virtual Assistant", message, twilio_phone_secondary, validated_phone)
+            except Exception:
+                _notify_manager_chat_delivery_failed(
+                    booking.tenant.full_name or "N/A",
+                    validated_phone,
+                    message,
+                    conversation_sid,
+                )
+                raise
         else:
             log_warning("Conversation wasn't created", category='sms')
+            _notify_manager_chat_delivery_failed(
+                booking.tenant.full_name or "N/A",
+                validated_phone,
+                "welcome message",
+                None,
+            )
     except Exception as e:
         from twilio.base.exceptions import TwilioException
         log_error(e, "Error sending welcome message", source='twilio')

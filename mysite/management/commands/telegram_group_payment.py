@@ -1,6 +1,7 @@
 import requests
 from datetime import timedelta, date
-from mysite.models import Notification, Payment
+from django.db.models import Q
+from mysite.models import Payment
 import os
 from mysite.management.commands.base_command import BaseCommandWithErrorHandling
 
@@ -57,24 +58,32 @@ def send_pending_payments(chat_id, token, direction, dry_run=False, stdout=None)
 
 
 def send_payment_notifications(chat_id, token, direction, next_day, dry_run=False, stdout=None):
-    notifications = Notification.objects.filter(
-        date=next_day,
-        send_in_telegram=True,
-        payment__isnull=False,
-        payment__payment_type__type=direction,
-    ).exclude(booking__status='Blocked').select_related('payment', 'payment__payment_type')
+    payments = Payment.objects.filter(
+        payment_date=next_day,
+        payment_type__type=direction,
+    ).exclude(
+        payment_type__name__icontains='Mortage',
+    ).filter(
+        Q(booking__isnull=True) | ~Q(booking__status='Blocked'),
+    ).select_related('payment_type', 'booking', 'booking__apartment', 'booking__tenant', 'apartment')
+
     sent = 0
-    for notification in notifications:
-        payment = notification.payment
+    for payment in payments:
         direction_label = "INCOMING" if direction == "In" else "OUTGOING"
-        message = f"💰 {direction_label} PAYMENT TOMORROW: {notification.notification_message}"
-        if payment:
-            message += "\n\nPayment Details:"
-            message += f"\n- Amount: ${payment.amount}"
-            message += f"\n- Status: {payment.payment_status}"
-            message += f"\n- Type: {payment.payment_type.name if payment.payment_type else 'N/A'}"
-            if payment.notes:
-                message += f"\n- Notes: {payment.notes}"
+        payment_date_str = payment.payment_date.strftime("%B %d %Y") if payment.payment_date else ""
+        apt_name = ""
+        if payment.booking and payment.booking.apartment:
+            apt_name = payment.booking.apartment.name
+        elif payment.apartment:
+            apt_name = payment.apartment.name
+        tenant_str = f" ({payment.booking.tenant.full_name})" if payment.booking and payment.booking.tenant else ""
+        header = f"Payment: {payment.payment_type} ${payment.amount} {payment_date_str} {apt_name}{tenant_str} [{payment.payment_status}]"
+        message = f"💰 {direction_label} PAYMENT TOMORROW: {header}\n\nPayment Details:"
+        message += f"\n- Amount: ${payment.amount}"
+        message += f"\n- Status: {payment.payment_status}"
+        message += f"\n- Type: {payment.payment_type.name if payment.payment_type else 'N/A'}"
+        if payment.notes:
+            message += f"\n- Notes: {payment.notes}"
         send_telegram_message(normalize_group_chat_id(chat_id), token, message, dry_run=dry_run, stdout=stdout)
         sent += 1
     return sent
