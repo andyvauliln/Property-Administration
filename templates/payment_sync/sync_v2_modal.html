@@ -34,23 +34,8 @@
                 <input type="hidden" name="merged_payment_key" id="merged_payment_key" value="">
 
                 <div class="px-6 py-4 flex flex-col max-h-[70vh]">
-                    <!-- Main content: visible without scroll -->
-                    <div class="flex-shrink-0">
-                        <!-- Info Comparison -->
-                        <div class="mb-4 p-4 bg-blue-50 rounded-lg border border-blue-200">
-                            <h4 class="text-sm font-bold text-blue-900 mb-2">Payment Information</h4>
-                            <div class="grid grid-cols-2 gap-4 text-sm">
-                                <div>
-                                    <span class="font-semibold text-blue-700">DB Payment:</span>
-                                    <span id="info_db_payment" class="text-gray-700">-</span>
-                                </div>
-                                <div>
-                                    <span class="font-semibold text-blue-700">Bank Payment:</span>
-                                    <span id="info_file_payment" class="text-gray-700">-</span>
-                                </div>
-                            </div>
-                        </div>
-
+                    <!-- Main content -->
+                    <div class="flex-shrink-0 overflow-y-auto">
                         <!-- Row 1: booking, apartment, date, amount, status -->
                         <div class="grid grid-cols-2 md:grid-cols-5 gap-4 mb-4">
                             {% for field_name, field_instance in data.model_fields %}
@@ -160,36 +145,47 @@
                             </div>
                             {% endif %}
                         {% endfor %}
-                    </div>
 
-                    <!-- Scrollable: tenant_notes and keywords -->
-                    <div class="flex-shrink min-h-0 overflow-y-auto mt-2 border-t border-gray-200 pt-4">
-                        {% for field_name, field_instance in data.model_fields %}
-                            {% if field_name == "tenant_notes" and field_instance.isEdit %}
-                            <div class="mb-4">
-                                <label for="{{ field_name }}" class="block mb-2 text-sm font-semibold text-gray-700">Tenant Notes</label>
-                                <textarea id="{{field_name}}" name="{{field_name}}" rows="3" class="block p-2.5 w-full text-sm text-gray-900 bg-gray-50 rounded-lg border border-gray-300 focus:ring-purple-500 focus:border-purple-500" placeholder="Tenant notes"></textarea>
-                            </div>
-                            {% endif %}
-                        {% endfor %}
-                        {% for field_name, field_instance in data.model_fields %}
-                            {% if field_name == "keywords" and field_instance.isEdit %}
-                            <div class="mb-4">
-                                <label for="{{ field_name }}" class="block mb-2 text-sm font-semibold text-gray-700">Keywords</label>
-                                <textarea id="{{field_name}}" name="{{field_name}}" rows="3" class="block p-2.5 w-full text-sm text-gray-900 bg-gray-50 rounded-lg border border-gray-300 focus:ring-purple-500 focus:border-purple-500" placeholder="Keywords"></textarea>
-                            </div>
-                            {% endif %}
-                        {% endfor %}
+                        <!-- tenant_notes and keywords: 50/50 row -->
+                        <div class="grid grid-cols-2 gap-4 mb-4">
+                            {% for field_name, field_instance in data.model_fields %}
+                                {% if field_name == "tenant_notes" and field_instance.isEdit %}
+                                <div>
+                                    <label for="{{ field_name }}" class="block mb-2 text-sm font-semibold text-gray-700">Tenant Notes</label>
+                                    <textarea id="{{field_name}}" name="{{field_name}}" rows="3" class="block p-2.5 w-full text-sm text-gray-900 bg-gray-50 rounded-lg border border-gray-300 focus:ring-purple-500 focus:border-purple-500" placeholder="Tenant notes"></textarea>
+                                </div>
+                                {% endif %}
+                            {% endfor %}
+                            {% for field_name, field_instance in data.model_fields %}
+                                {% if field_name == "keywords" and field_instance.isEdit %}
+                                <div>
+                                    <label for="{{ field_name }}" class="block mb-2 text-sm font-semibold text-gray-700">Keywords</label>
+                                    <textarea id="{{field_name}}" name="{{field_name}}" rows="3" class="block p-2.5 w-full text-sm text-gray-900 bg-gray-50 rounded-lg border border-gray-300 focus:ring-purple-500 focus:border-purple-500" placeholder="Keywords"></textarea>
+                                </div>
+                                {% endif %}
+                            {% endfor %}
+                        </div>
                     </div>
                 </div>
 
                 <!-- Footer -->
                 <div class="bg-gray-50 px-6 py-4 flex items-center justify-between border-t border-gray-200">
-                    <button type="button"
-                            onclick="closeModal()"
-                            class="px-4 py-2 bg-gray-300 hover:bg-gray-400 text-gray-800 font-semibold rounded-lg transition duration-200">
-                        Cancel
-                    </button>
+                    <div class="flex items-center gap-2">
+                        <button type="button"
+                                onclick="closeModal()"
+                                class="px-4 py-2 bg-gray-300 hover:bg-gray-400 text-gray-800 font-semibold rounded-lg transition duration-200">
+                            Cancel
+                        </button>
+                        <button type="button"
+                                id="delete_payment_btn"
+                                onclick="deleteCurrentPayment()"
+                                class="hidden px-4 py-2 bg-red-600 hover:bg-red-700 text-white font-semibold rounded-lg transition duration-200 flex items-center">
+                            <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
+                            </svg>
+                            Delete
+                        </button>
+                    </div>
                     <button type="button"
                             id="save_payments_btn"
                             onclick="saveAllMergedPayments()"
@@ -225,6 +221,7 @@
     // Tab state
     let mergeTabsData = [];
     let activeMergeTab = 0;
+    let isEditOnlyMode = false;
 
     function closeModal() {
         const el = document.getElementById('updateModal');
@@ -246,38 +243,44 @@
             // DB takes priority for categorization
             payment_type: db_payment?.payment_type ?? file_payment.payment_type ?? null,
             payment_method: file_payment.payment_method ?? db_payment?.payment_method ?? null,
-            apartment: db_payment?.apartment ?? file_payment.apartment ?? null,
-            booking: db_payment?.booking ?? null,
+            apartment: (db_payment && db_payment.apartment != null && db_payment.apartment !== '')
+                ? db_payment.apartment
+                : (file_payment.apartment ?? null),
+            booking: db_payment?.booking ?? file_payment?.booking ?? null,
 
             notes: create_mode
                 ? (file_payment.notes || '')
                 : [db_payment?.notes, file_payment.notes ? `[${file_payment.notes}]` : ''].filter(Boolean).join(' '),
 
+            tenant_notes: db_payment?.tenant_notes ?? '',
+            keywords: db_payment?.keywords ?? '',
+
             payment_status: 'Merged',
         };
     }
 
-    function openMergeModal(mergedList, bankPaymentId) {
-        console.log('[openMergeModal] called, count:', mergedList.length, mergedList);
+    function openMergeModal(mergedList, bankPaymentId, editOnly) {
+        isEditOnlyMode = !!editOnly;
         mergeTabsData = mergedList;
         activeMergeTab = 0;
 
         const count = mergedList.length;
         if (count === 1) {
-            document.getElementById('modal_title').textContent = mergedList[0].id ? 'Merge Payment' : 'Create Payment';
+            document.getElementById('modal_title').textContent = isEditOnlyMode ? 'Edit Payment' : (mergedList[0].id ? 'Merge Payment' : 'Create Payment');
             document.getElementById('save_payments_btn_label').textContent = 'Save Payment';
         } else {
             document.getElementById('modal_title').textContent = `Merge ${count} Payments`;
             document.getElementById('save_payments_btn_label').textContent = `Save ${count} Payments`;
         }
 
-        console.log('[openMergeModal] rendering tabs');
+        const deleteBtn = document.getElementById('delete_payment_btn');
+        if (deleteBtn) deleteBtn.classList.toggle('hidden', !(isEditOnlyMode && mergedList[0]?.id));
+
         renderMergeTabs();
-        console.log('[openMergeModal] loading tab 0');
         try {
             loadTab(0);
         } catch (e) {
-            console.error('[openMergeModal] loadTab error:', e);
+            console.error('loadTab error:', e);
         }
         const modalEl = document.getElementById('updateModal');
         if (modalEl) {
@@ -331,20 +334,7 @@
     }
 
     function updateInfoDisplay(merged) {
-        const fileId = merged.file_id || merged.fileId;
-        const file_payment = file_payments_json.find(p => String(p.id) === String(fileId));
-        const db_id = merged.id;
-        const db_payment = db_id ? db_payments_json.find(p => String(p.id) === String(db_id)) : null;
-
-        document.getElementById('info_db_payment').textContent = db_payment
-            ? `#${db_payment.id}${db_payment.apartment_name ? ' | ' + db_payment.apartment_name : ''}${db_payment.tenant_name ? ' | ' + db_payment.tenant_name : ''}`
-            : 'New';
-
-        if (file_payment) {
-            const aptHints = (file_payment.apartment_candidates || []).filter(Boolean).join(', ');
-            document.getElementById('info_file_payment').textContent =
-                `${formatDate(file_payment.payment_date)} - $${file_payment.amount}${aptHints ? ' | ' + aptHints : ''}`;
-        }
+        // Info display elements removed from modal
     }
 
     function moveSelectedRadioToTop(fieldName) {
@@ -467,20 +457,38 @@
             };
         });
 
-        // Optimistically update local state so localStorage reflects the merge after page reload
-        enriched.forEach(payment => {
-            const key = payment.merged_payment_key || '';
-            const dbId = payment.id;
-
-            // Update DB payment status in local data
-            if (dbId && String(dbId) !== 'new') {
-                const dbp = db_payments_json.find(p => String(p.id) === String(dbId));
-                if (dbp) {
-                    dbp.payment_status = 'Merged';
-                    dbp.merged_payment_key = key || dbp.merged_payment_key;
+        function applySavedToLocalState(savedPayments) {
+            savedPayments.forEach(payment => {
+                const dbId = payment.id;
+                if (dbId && String(dbId) !== 'new') {
+                    const dbp = db_payments_json.find(p => String(p.id) === String(dbId));
+                    if (dbp) {
+                        dbp.amount = payment.amount;
+                        dbp.payment_date = payment.payment_date;
+                        dbp.payment_status = payment.payment_status || 'Merged';
+                        dbp.merged_payment_key = payment.merged_payment_key || dbp.merged_payment_key;
+                        dbp.notes = payment.notes || '';
+                        dbp.tenant_notes = payment.tenant_notes || '';
+                        dbp.keywords = payment.keywords || '';
+                        dbp.payment_type = payment.payment_type ?? dbp.payment_type;
+                        dbp.payment_method = payment.payment_method ?? dbp.payment_method;
+                        dbp.bank = payment.bank ?? dbp.bank;
+                        dbp.apartment = payment.apartment ?? dbp.apartment;
+                        dbp.booking = payment.booking ?? dbp.booking;
+                        if (typeof apartments_dictionary !== 'undefined') dbp.apartment_name = payment.apartment ? (apartments_dictionary[payment.apartment] || dbp.apartment_name) : null;
+                        if (typeof payment_types_dictionary !== 'undefined') dbp.payment_type_name = payment.payment_type ? (payment_types_dictionary[payment.payment_type] || dbp.payment_type_name) : null;
+                        if (typeof payment_types_json !== 'undefined' && payment.payment_type) {
+                            const pt = payment_types_json.find(i => i.id == payment.payment_type);
+                            dbp.payment_type_obj = pt ? { id: pt.id, name: pt.name, type: pt.type } : dbp.payment_type_obj;
+                        }
+                        if (typeof payment_methods_dictionary !== 'undefined') {
+                            dbp.payment_method_name = payment.payment_method ? (payment_methods_dictionary[payment.payment_method] || dbp.payment_method_name) : null;
+                            dbp.bank_name = payment.bank ? (payment_methods_dictionary[payment.bank] || dbp.bank_name) : null;
+                        }
+                    }
                 }
-            }
-        });
+            });
+        }
 
         // Mark all currently selected bank payments as merged
         (selected_bank_payments || new Set()).forEach(id => {
@@ -498,14 +506,93 @@
         form.append('payments_to_update', JSON.stringify(enriched));
         form.append('csrfmiddlewaretoken', document.querySelector('[name=csrfmiddlewaretoken]').value);
 
-        fetch('/payments-sync-v2/', { method: 'POST', body: form })
-            .then(r => { if (!r.ok) throw new Error(); return r.text(); })
-            .then(html => { document.open(); document.write(html); document.close(); })
-            .catch(() => {
-                alert('Failed to save payments. Please try again.');
+        fetch('/payments-sync-v2/', {
+            method: 'POST',
+            body: form,
+            headers: { 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'application/json' },
+        })
+            .then(r => r.json().catch(() => ({})).then(data => ({ ok: r.ok, data: data || {} })))
+            .then(({ ok, data }) => {
+                if (!ok) throw new Error(data?.message || 'Save failed');
+                applySavedToLocalState(enriched);
+                saveToLocalStorage();
+                closeModal();
+                selected_bank_payments.clear();
+                if (typeof showNotificationInHint === 'function') showNotificationInHint(data.message, 'success');
+                onBankSelectionChanged();
+                renderBankPayments();
+                renderDBPayments();
+                updateCounts();
+            })
+            .catch(err => {
+                if (typeof showNotificationInHint === 'function') showNotificationInHint(err.message || 'Failed to save payments.', 'error');
+                else alert('Failed to save payments. Please try again.');
                 btn.disabled = false;
                 document.getElementById('save_payments_btn_label').textContent = originalLabel;
             });
+    }
+
+    function dbPaymentToFormData(db_payment) {
+        return {
+            id: db_payment.id,
+            file_id: null,
+            payment_date: db_payment.payment_date,
+            amount: Math.abs(parseFloat(db_payment.amount || 0)),
+            merged_payment_key: db_payment.merged_payment_key || '',
+            bank: db_payment.bank ?? null,
+            payment_type: db_payment.payment_type ?? null,
+            payment_method: db_payment.payment_method ?? null,
+            apartment: db_payment.apartment ?? null,
+            booking: db_payment.booking ?? null,
+            notes: db_payment.notes || '',
+            tenant_notes: db_payment.tenant_notes || '',
+            keywords: db_payment.keywords || '',
+            payment_status: db_payment.payment_status || 'Merged',
+        };
+    }
+
+    function openEditDbPaymentModal(paymentId) {
+        const db_payment = (db_payments_json || []).find(p => String(p.id) === String(paymentId));
+        if (!db_payment) {
+            alert('Payment not found');
+            return;
+        }
+        openMergeModal([dbPaymentToFormData(db_payment)], null, true);
+    }
+
+    function deleteCurrentPayment() {
+        const payment = mergeTabsData[activeMergeTab];
+        if (!payment || !payment.id) return;
+        if (!confirm('Delete payment #' + payment.id + '? This cannot be undone.')) return;
+
+        const form = new FormData();
+        form.append('payment_ids_to_delete', JSON.stringify([payment.id]));
+        form.append('csrfmiddlewaretoken', document.querySelector('[name=csrfmiddlewaretoken]').value);
+
+        const btn = document.getElementById('delete_payment_btn');
+        if (btn) btn.disabled = true;
+
+        fetch('/payments-sync-v2/', {
+            method: 'POST',
+            body: form,
+            headers: { 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'application/json' },
+        })
+            .then(r => r.json().catch(() => ({})).then(data => ({ ok: r.ok, data: data || {} })))
+            .then(({ ok, data }) => {
+                if (!ok) throw new Error(data?.message || 'Delete failed');
+                closeModal();
+                const idx = db_payments_json.findIndex(p => String(p.id) === String(payment.id));
+                if (idx >= 0) db_payments_json.splice(idx, 1);
+                saveToLocalStorage();
+                if (typeof showNotificationInHint === 'function') showNotificationInHint(data.message || 'Payment deleted', 'success');
+                if (typeof renderDBPayments === 'function') renderDBPayments();
+                if (typeof updateCounts === 'function') updateCounts();
+            })
+            .catch(err => {
+                if (typeof showNotificationInHint === 'function') showNotificationInHint(err.message || 'Failed to delete payment.', 'error');
+                else alert('Failed to delete payment. Please try again.');
+            })
+            .finally(() => { if (btn) btn.disabled = false; });
     }
 
     // Open modal for a single matched pair (used by match list clicks)
@@ -551,9 +638,24 @@
         form.append('payments_to_update', JSON.stringify(paymentsToSave));
         form.append('csrfmiddlewaretoken', document.querySelector('[name=csrfmiddlewaretoken]').value);
 
-        fetch('/payments-sync-v2/', { method: 'POST', body: form })
-            .then(r => { if (!r.ok) throw new Error(); return r.text(); })
-            .then(html => { document.open(); document.write(html); document.close(); })
-            .catch(() => alert('Failed to save payments. Please try again.'));
+        fetch('/payments-sync-v2/', {
+            method: 'POST',
+            body: form,
+            headers: { 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'application/json' },
+        })
+            .then(r => r.json().catch(() => ({})).then(data => ({ ok: r.ok, data: data || {} })))
+            .then(({ ok, data }) => {
+                if (!ok) throw new Error(data?.message || 'Save failed');
+                selected_bank_payments.clear();
+                if (typeof showNotificationInHint === 'function') showNotificationInHint(data.message, 'success');
+                onBankSelectionChanged();
+                renderBankPayments();
+                renderDBPayments();
+                updateCounts();
+            })
+            .catch(err => {
+                if (typeof showNotificationInHint === 'function') showNotificationInHint(err.message || 'Failed to save payments.', 'error');
+                else alert('Failed to save payments. Please try again.');
+            });
     }
 </script>

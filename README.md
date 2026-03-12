@@ -46,9 +46,10 @@
 
 
 
-
-# Description bug
-# Notes matching and notes search
-# Move Button
-# Payment Method default
-# Confirmend control
+1) Test matching with ai
+2) Test matching manual
+3) Test matching both
+4) Test update
+5) Test create new payment
+6) Test on a file
+7) Add Payment Delete and update
