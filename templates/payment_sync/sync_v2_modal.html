@@ -227,6 +227,12 @@
         const el = document.getElementById('updateModal');
         el.classList.add('hidden');
         el.style.display = 'none';
+        if (typeof selected_bank_payments !== 'undefined') selected_bank_payments.clear();
+        if (typeof selected_db_payments !== 'undefined') selected_db_payments.clear();
+        if (typeof onBankSelectionChanged === 'function') onBankSelectionChanged();
+        if (typeof renderBankPayments === 'function') renderBankPayments();
+        if (typeof renderDBPayments === 'function') renderDBPayments();
+        if (typeof updateCounts === 'function') updateCounts();
     }
 
     function mergePaymentData(db_payment, file_payment, create_mode) {
@@ -517,7 +523,8 @@
                 applySavedToLocalState(enriched);
                 saveToLocalStorage();
                 closeModal();
-                selected_bank_payments.clear();
+                if (typeof selected_bank_payments !== 'undefined') selected_bank_payments.clear();
+                if (typeof selected_db_payments !== 'undefined') selected_db_payments.clear();
                 if (typeof showNotificationInHint === 'function') showNotificationInHint(data.message, 'success');
                 onBankSelectionChanged();
                 renderBankPayments();

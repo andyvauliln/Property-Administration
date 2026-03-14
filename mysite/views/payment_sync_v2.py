@@ -1300,10 +1300,10 @@ def _manual_score_db_payment(db_payment_obj, composite, amount_delta, date_delta
     total = amount_score + date_score + apt_score + tenant_score + pt_score + method_score + keywords_score + booking_score + bank_penalty
     total = max(0.0, total)
 
-    # Apply penalty for non-Pending payments (push to end)
+    # Apply penalty for Confirmed payments (push to end). Merged excluded at query level.
     status_penalty = False
     payment_status = getattr(db_payment_obj, 'payment_status', None) or ''
-    if payment_status in ('Confirmed', 'Merged'):
+    if payment_status == 'Confirmed':
         total = total * 0.5
         status_penalty = True
         penalties.append({
@@ -1620,8 +1620,10 @@ def match_selection_v2(request):
     db_from = composite['date_from'] - timedelta(days=30)
     db_to = composite['date_to'] + timedelta(days=30)
 
-    # Query all payments regardless of status (Confirmed/Merged get score penalty in scoring)
-    db_qs = Payment.objects.filter(payment_date__range=(db_from, db_to)).select_related(
+    # Query payments, excluding Merged (already matched to bank file)
+    db_qs = Payment.objects.filter(payment_date__range=(db_from, db_to)).exclude(
+        payment_status='Merged'
+    ).select_related(
         'payment_type', 'payment_method', 'apartment', 'booking__tenant', 'bank'
     )
     _log("match_selection_v2.db_window", rid=rid, db_from=db_from, db_to=db_to, db_qs_count=db_qs.count())
@@ -2541,6 +2543,8 @@ def update_payments(request, payments_to_update, add_per_payment_messages=True):
     """Update or create payments in database"""
     rid = _request_id(request)
     _log("update_payments.start", rid=rid, count=len(payments_to_update or []), user=_user_tag(request))
+    # Track per-key which payment ids we've saved in this batch (1→2: multiple share same key)
+    key_to_saved_ids = {}
     for payment_info in payments_to_update:
         payment_id = None
         try:
@@ -2549,6 +2553,15 @@ def update_payments(request, payments_to_update, add_per_payment_messages=True):
                 numeric_id = int(raw_id) if raw_id not in (None, '', 'null', 'new') else None
             except (ValueError, TypeError):
                 numeric_id = None
+            merged_key = _generate_merged_payment_key_from_payment_info(payment_info)
+            exclude_ids = set(key_to_saved_ids.get(merged_key, [])) if merged_key else set()
+            if numeric_id:
+                exclude_ids.add(numeric_id)  # current payment for update
+            if merged_key and _merged_payment_key_exists_in_db(merged_key, exclude_payment_ids=exclude_ids):
+                raise ValueError(
+                    "A payment with this merged_payment_key already exists in the database. "
+                    "This bank file payment may already be merged."
+                )
             if numeric_id:
                 # Update existing payment
                 payment = Payment.objects.get(id=numeric_id)
@@ -2565,6 +2578,8 @@ def update_payments(request, payments_to_update, add_per_payment_messages=True):
                 )
                 if add_per_payment_messages:
                     messages.success(request, f"Updated Payment: {payment.id}")
+                if merged_key:
+                    key_to_saved_ids.setdefault(merged_key, set()).add(payment_id)
             else:
                 # Create new payment
                 payment = create_new_payment(payment_info)
@@ -2579,6 +2594,8 @@ def update_payments(request, payments_to_update, add_per_payment_messages=True):
                 )
                 if add_per_payment_messages:
                     messages.success(request, f"Created new Payment: {payment.id}")
+                if merged_key:
+                    key_to_saved_ids.setdefault(merged_key, set()).add(payment.id)
         except Exception as e:
             _log(
                 "update_payments.error",
@@ -2587,6 +2604,9 @@ def update_payments(request, payments_to_update, add_per_payment_messages=True):
                 error=str(e),
             )
             messages.error(request, f"Failed to {'update' if payment_id else 'create'} payment: {payment_id or ''} due {str(e)}")
+            err_lower = str(e).lower()
+            if "merged_payment_key" in err_lower and ("already exists" in err_lower or "already has" in err_lower):
+                raise
     _log("update_payments.done", rid=rid)
 
 
@@ -2619,9 +2639,30 @@ def update_payment_fields(payment, payment_info):
     payment.tenant_notes = payment_info.get('tenant_notes') or ''
     payment.keywords = payment_info.get('keywords') or ''
     
-    # Set merged payment key
+    # Set merged payment key (1 bank → 2+ DB: multiple payments can share same key)
     merged_payment_key = _generate_merged_payment_key_from_payment_info(payment_info)
     payment.merged_payment_key = merged_payment_key
+
+
+def _merged_payment_key_exists_in_db(merged_payment_key, exclude_payment_ids=None):
+    """Check if any payment already has this merged_payment_key (exact or as segment).
+    exclude_payment_ids: set/list of payment ids to exclude (e.g. same-batch or current)."""
+    keys = _split_merged_payment_key(merged_payment_key)
+    if not keys:
+        return False
+    base_qs = Payment.objects.exclude(merged_payment_key__isnull=True).exclude(merged_payment_key='')
+    if exclude_payment_ids:
+        base_qs = base_qs.exclude(id__in=exclude_payment_ids)
+    for key in keys:
+        q = (
+            Q(merged_payment_key=key)
+            | Q(merged_payment_key__startswith=key + PAYMENT_KEY_SEPARATOR)
+            | Q(merged_payment_key__endswith=PAYMENT_KEY_SEPARATOR + key)
+            | Q(merged_payment_key__contains=PAYMENT_KEY_SEPARATOR + key + PAYMENT_KEY_SEPARATOR)
+        )
+        if base_qs.filter(q).exists():
+            return True
+    return False
 
 
 def create_new_payment(payment_info):
@@ -2636,6 +2677,7 @@ def create_new_payment(payment_info):
         raise ValueError("Payment amount cannot be 0")
     
     merged_payment_key = _generate_merged_payment_key_from_payment_info(payment_info)
+    # 1 bank → 2+ DB: multiple payments can share same key; no duplicate check
     booking_id = payment_info.get('booking')
     if booking_id is not None and booking_id != '':
         try:
