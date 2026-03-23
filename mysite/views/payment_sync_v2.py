@@ -2539,6 +2539,24 @@ def get_json(db_model):
     return json.dumps(items_list)
 
 
+def _default_payment_type_pk():
+    d = Payment._meta.get_field("payment_type").default
+    return int(d) if d is not None else 2
+
+
+def _resolve_payment_type_id(payment_info, existing_type_id=None):
+    """Merge modal may send null/empty payment_type for 'New' + file rows without a type."""
+    raw = payment_info.get("payment_type")
+    if raw is not None and raw != "" and str(raw).lower() != "null":
+        try:
+            return int(raw)
+        except (ValueError, TypeError):
+            pass
+    if existing_type_id:
+        return int(existing_type_id)
+    return _default_payment_type_pk()
+
+
 def update_payments(request, payments_to_update, add_per_payment_messages=True):
     """Update or create payments in database"""
     rid = _request_id(request)
@@ -2604,9 +2622,7 @@ def update_payments(request, payments_to_update, add_per_payment_messages=True):
                 error=str(e),
             )
             messages.error(request, f"Failed to {'update' if payment_id else 'create'} payment: {payment_id or ''} due {str(e)}")
-            err_lower = str(e).lower()
-            if "merged_payment_key" in err_lower and ("already exists" in err_lower or "already has" in err_lower):
-                raise
+            raise
     _log("update_payments.done", rid=rid)
 
 
@@ -2620,7 +2636,7 @@ def update_payment_fields(payment, payment_info):
         raise ValueError("Payment date is required")
     payment.payment_date = parse_payment_date(date_str)
     
-    payment.payment_type_id = payment_info['payment_type']
+    payment.payment_type_id = _resolve_payment_type_id(payment_info, getattr(payment, "payment_type_id", None))
     payment.notes = payment_info['notes']
     payment.payment_method_id = payment_info['payment_method'] or None
     payment.bank_id = payment_info['bank'] or None
@@ -2693,7 +2709,7 @@ def create_new_payment(payment_info):
     return Payment(
         amount=amount,
         payment_date=parse_payment_date(date_str),
-        payment_type_id=payment_info['payment_type'],
+        payment_type_id=_resolve_payment_type_id(payment_info, None),
         notes=payment_info['notes'],
         payment_method_id=payment_info['payment_method'] or None,
         bank_id=payment_info['bank'] or None,

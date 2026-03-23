@@ -288,6 +288,9 @@
         } catch (e) {
             console.error('loadTab error:', e);
         }
+        const saveBtn = document.getElementById('save_payments_btn');
+        if (saveBtn) saveBtn.disabled = false;
+
         const modalEl = document.getElementById('updateModal');
         if (modalEl) {
             document.body.appendChild(modalEl);
@@ -504,9 +507,10 @@
         saveToLocalStorage();
 
         const btn = document.getElementById('save_payments_btn');
-        const originalLabel = document.getElementById('save_payments_btn_label').textContent;
+        const labelEl = document.getElementById('save_payments_btn_label');
+        const originalLabel = labelEl.textContent;
         btn.disabled = true;
-        document.getElementById('save_payments_btn_label').textContent = 'Saving…';
+        labelEl.textContent = 'Saving…';
 
         const form = new FormData();
         form.append('payments_to_update', JSON.stringify(enriched));
@@ -534,8 +538,10 @@
             .catch(err => {
                 if (typeof showNotificationInHint === 'function') showNotificationInHint(err.message || 'Failed to save payments.', 'error');
                 else alert('Failed to save payments. Please try again.');
+            })
+            .finally(() => {
                 btn.disabled = false;
-                document.getElementById('save_payments_btn_label').textContent = originalLabel;
+                labelEl.textContent = originalLabel;
             });
     }
 

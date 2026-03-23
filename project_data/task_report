@@ -1,0 +1,13 @@
+# Task report
+
+Entries are appended by the **/log** Cursor command. Each block is one logged unit of work (task or subtask group).
+
+---
+
+## 2025-03-23 — Add /log command and task report file
+
+- **Description:** Added `.cursor/commands/log.md` so invoking **/log** tells the assistant to read `project_data/task_report`, infer what was completed in the chat, estimate human-only time, link to an existing parent task when work continues something already logged, and append a structured markdown block (or update a parent’s `### Subtasks`). Created `project_data/task_report` with a short header so the path exists and the format is consistent.
+- **Human estimate (no AI):** 20–35 min
+- **Parent:** —
+
+---
