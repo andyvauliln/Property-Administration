@@ -46,7 +46,7 @@ def get_dropdown_options(identifier, isData=False, request=None):
         return [{"value": item.id, "label": item.full_name} for item in items]
 
     elif identifier == 'apartments':
-        if request and hasattr(request, 'user') and request.user.role == 'Manager':
+        if request and hasattr(request, 'user') and getattr(request.user, 'role', None) == 'Manager':
             items = Apartment.objects.filter(
                 managers=request.user).order_by('name')
         else:
@@ -284,10 +284,10 @@ class EmailFieldEx(CustomFieldMixin, forms.EmailField):
 
 class CustomBooleanField(CustomFieldMixin, forms.CharField):
        def to_python(self, value):
-           print(value, "TEST")
-           if value == '' or value == None:
+           if value == '' or value is None:
                return None
-           return value == 'true'
+           s = str(value).strip().lower()
+           return s in ('true', '1', 'yes', 'on')
        
 class BooleanFieldEx(CustomFieldMixin, forms.BooleanField):
     pass
@@ -550,7 +550,7 @@ class BookingForm(forms.ModelForm):
         model = Booking
         fields = [
             'tenant_email', 'tenant_full_name', 'tenant_phone', 'keywords',
-            'status', 'start_date', 'end_date', 'notes', 'tenant', 'apartment', 'source', 'tenants_n',
+            'status', 'start_date', 'end_date', 'notes', 'tenant', 'apartment', 'source', 'source_id', 'tenants_n',
             'payment_type', 'payment_date', 'amount', "animals", "visit_purpose",  "other_tenants",  'is_rent_car',
             'car_model', 'car_price', 'car_rent_days', 'parking_number',
             #  'assigned_cleaner'
@@ -561,7 +561,7 @@ class BookingForm(forms.ModelForm):
         action = kwargs.pop('action', 'create')  # Default action is 'create'
         super(BookingForm, self).__init__(*args, **kwargs)
 
-        if self.request and hasattr(self.request, 'user') and self.request.user.role == 'Manager':
+        if self.request and hasattr(self.request, 'user') and getattr(self.request.user, 'role', None) == 'Manager':
             self.fields['apartment'].queryset = Apartment.objects.filter(
                 managers=self.request.user).order_by('name')
 
@@ -581,20 +581,31 @@ class BookingForm(forms.ModelForm):
         
         return cleaned_data
 
-    def save(self, **kwargs):
+    def save(self, payments_data=None, **kwargs):
         instance = super().save(commit=False)
 
         # Use self.cleaned_data to access the form's data
         form_data = self.cleaned_data
-        payments_data = {
-            'payment_dates': self.request.POST.getlist('payment_date[]'),
-            'amounts': [abs(float(amount)) for amount in self.request.POST.getlist('amount[]')],
-            'payment_types': self.request.POST.getlist('payment_type[]'),
-            'payment_notes': self.request.POST.getlist('payment_notes[]'),
-            'payment_status': self.request.POST.getlist('payment_status[]'),
-            'payment_id': self.request.POST.getlist('payment_id[]'),
-            'number_of_months': [int(number_of_months) for number_of_months in self.request.POST.getlist('number_of_months[]')],
-        }
+        if payments_data is None and self.request is not None:
+            payments_data = {
+                'payment_dates': self.request.POST.getlist('payment_date[]'),
+                'amounts': [abs(float(amount)) for amount in self.request.POST.getlist('amount[]')],
+                'payment_types': self.request.POST.getlist('payment_type[]'),
+                'payment_notes': self.request.POST.getlist('payment_notes[]'),
+                'payment_status': self.request.POST.getlist('payment_status[]'),
+                'payment_id': self.request.POST.getlist('payment_id[]'),
+                'number_of_months': [int(number_of_months) for number_of_months in self.request.POST.getlist('number_of_months[]')],
+            }
+        elif payments_data is None:
+            payments_data = {
+                'payment_dates': [],
+                'amounts': [],
+                'payment_types': [],
+                'payment_notes': [],
+                'payment_status': [],
+                'payment_id': [],
+                'number_of_months': [],
+            }
         parking_number = form_data.get("parking_number", None)
         if form_data.get("status") == "Blocked" or form_data.get("status") == "Pending" or form_data.get("status") == "Problem Booking":
             instance.saveEmpty(form_data=form_data, parking_number=parking_number)
@@ -678,26 +689,29 @@ class BookingForm(forms.ModelForm):
     source = ChoiceFieldEx(choices=Booking.SOURCE, initial="Airbnb", order=16, isColumn=False, isEdit=True,
                            required=False, isCreate=True, ui_element="radio",
                            _dropdown_options=lambda: get_dropdown_options("booking_source"))
-    animals = ChoiceFieldEx(choices=Booking.ANIMALS, order=17,  isColumn=False,  isEdit=True, required=False,
+    source_id = CharFieldEx(
+        max_length=255, order=17, isColumn=False, isEdit=False , isCreate=False, required=False,
+        initial="", ui_element="input")
+    animals = ChoiceFieldEx(choices=Booking.ANIMALS, order=18,  isColumn=False,  isEdit=True, required=False,
                             isCreate=True, ui_element="radio", _dropdown_options=lambda: get_dropdown_options("animals"))
     
     is_rent_car = CustomBooleanField(
-        required=False, initial="", isCreate=True, isEdit=True, ui_element="radio", _dropdown_options=lambda: get_dropdown_options("is_rent_car"), order=18)
+        required=False, initial="", isCreate=True, isEdit=True, ui_element="radio", _dropdown_options=lambda: get_dropdown_options("is_rent_car"), order=19)
     
     car_model = CharFieldEx(max_length=100, initial="", required=False,
-                            isCreate=True, isEdit=True, ui_element="input", order=19)
+                            isCreate=True, isEdit=True, ui_element="input", order=20)
     car_price = DecimalFieldEx(
-        max_digits=10, required=False, initial=0,  isCreate=True, isEdit=True, ui_element="input", order=20)
+        max_digits=10, required=False, initial=0,  isCreate=True, isEdit=True, ui_element="input", order=21)
     car_rent_days = IntegerFieldEx(
-        required=False,  isCreate=True, initial=0, isEdit=True, ui_element="input", order=21)
+        required=False,  isCreate=True, initial=0, isEdit=True, ui_element="input", order=22)
     
     parking_number = IntegerFieldEx(
-        required=False, isColumn=False, isCreate=True, initial=None, isEdit=False, ui_element="dropdown", order=22,
+        required=False, isColumn=False, isCreate=True, initial=None, isEdit=False, ui_element="dropdown", order=23,
         _dropdown_options=lambda: get_dropdown_options("parking_numbers"))
     
     # Tracking field - display only in table view (auto-tracked)
     last_updated_by = CharFieldEx(
-        isColumn=True, required=False, order=23, initial="",
+        isColumn=True, required=False, order=24, initial="",
         isEdit=False, isCreate=False, ui_element="input")
 
     create_chat = ChoiceFieldEx( choices=[
@@ -707,7 +721,7 @@ class BookingForm(forms.ModelForm):
         _dropdown_options=[
             {"value": True, "label": "Create Chat"},
             ],
-        order=23)
+        order=25)
     
    
     
@@ -788,6 +802,9 @@ class BookingForm(forms.ModelForm):
                     f"The parking spot is already booked from {overlapping_parking_bookings.first().start_date} to {overlapping_parking_bookings.first().end_date}. Building {parking.building} #{parking.number}"
                 )
 
+        if cleaned_data.get('source_id') == '':
+            cleaned_data['source_id'] = None
+
         return cleaned_data
 
 
@@ -795,7 +812,8 @@ class PaymentForm(forms.ModelForm):
     class Meta:
         model = Payment
         fields = ['payment_date', 'payment_method', 'bank', 'keywords', 'payment_status', 'tenant_notes', 'keywords',
-                  'amount', "number_of_months", 'payment_type', 'notes', 'booking', "apartment", "invoice_url"]
+                  'amount', "number_of_months", 'payment_type', 'notes', 'booking', "apartment", "invoice_url",
+                  'source', 'source_id']
 
     def __init__(self, *args, **kwargs):
         self.request = kwargs.pop('request', None)
@@ -857,6 +875,14 @@ class PaymentForm(forms.ModelForm):
         _dropdown_options=lambda: get_dropdown_options("apartments", False, request=None),
         display_field=["booking.apartment.name", "apartment.name"])
 
+    source = ChoiceFieldEx(
+        choices=[('', '---------')] + list(Booking.SOURCE),
+        required=False, initial="", order=16, isColumn=False, isEdit=True, isCreate=False,
+        ui_element="radio", _dropdown_options=lambda: get_dropdown_options("booking_source"))
+    source_id = CharFieldEx(
+        max_length=255, required=False, initial="", order=17, isColumn=False, isEdit=True, isCreate=False,
+        ui_element="input")
+
     def clean(self):
         cleaned_data = super().clean()
         amount = cleaned_data.get('amount')
@@ -880,6 +906,11 @@ class PaymentForm(forms.ModelForm):
         if cleaned_data.get('booking') is not None:
             cleaned_data['apartment'] = None
 
+        if cleaned_data.get('source_id') == '':
+            cleaned_data['source_id'] = None
+        if cleaned_data.get('source') == '':
+            cleaned_data['source'] = None
+
         return cleaned_data
 
     def save(self, **kwargs):
@@ -887,7 +918,7 @@ class PaymentForm(forms.ModelForm):
 
         # Get the user from the request if available
         updated_by = None
-        if self.request and hasattr(self.request, 'user'):
+        if self.request and hasattr(self.request, 'user') and getattr(self.request.user, 'is_authenticated', False):
             updated_by = self.request.user
         
         instance.save(number_of_months=self.number_of_months or 0, updated_by=updated_by)

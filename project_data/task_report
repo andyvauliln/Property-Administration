@@ -11,3 +11,28 @@ Entries are appended by the **/log** Cursor command. Each block is one logged un
 - **Parent:** —
 
 ---
+
+## 2026-03-22 — Fix payment sync v2 merge save (new payment + repeat saves)
+
+- **Description:** Payment Sync V2: merging a file row with the “New” DB placeholder could fail silently because `payment_type` was null while `Payment.payment_type` is required, and `update_payments` swallowed most exceptions so AJAX still returned success. Added `_resolve_payment_type_id` / `_default_payment_type_pk` in `mysite/views/payment_sync_v2.py` and re-raise after logging so errors surface. Separately, the merge modal’s **Save Payment** button stayed `disabled` after a successful save (only errors re-enabled it), so the next merge looked unresponsive; fixed in `templates/payment_sync/sync_v2_modal.html` with a `fetch` `.finally()` reset and re-enabling when opening the modal.
+- **Human estimate (no AI):** 50–90 min
+- **Parent:** —
+
+### Subtasks
+- Server: default payment type + propagate save errors for AJAX
+- Client: re-enable Save after success; reset on `openMergeModal`
+
+---
+
+## 2026-03-23 — Rental Guru booking and payment JSON APIs (form-parity)
+
+- **Description:** Implemented token-authenticated endpoints in `mysite/views/booking_api.py` for create/update booking (by pk and by `source_id`) and create/update payment, using `BookingForm` / `PaymentForm` and the same `save` / `saveEmpty` paths as the UI. Added `Booking.source_id`, extended `Booking.SOURCE` with Rental Guru, and `Payment.source` / `Payment.source_id` with a conditional unique constraint; migration `0062_booking_payment_source_fields`. `BookingForm.save` accepts optional `payments_data`; API maps JSON `payments` arrays into that structure. Hardened `get_dropdown_options` and `BookingForm.__init__` with `getattr(..., 'role', None)` for `AnonymousUser` on API requests. Extended `convert_date_format` in `mysite/models.py` to parse `%Y-%m-%d` so ISO payment dates from the API work with `create_payments`. Wired routes in `mysite/urls.py` and exports in `mysite/views/__init__.py`.
+- **Human estimate (no AI):** 3–5 h
+- **Parent:** —
+
+### Subtasks
+- Models + migration: `source_id`, Rental Guru source, payment source fields + DB constraint
+- Forms: `source_id` / payment `source` & `source_id`, `BookingForm.save(payments_data=...)`
+- API views + URL wiring; payment PATCH forces `number_of_months` 0 so edits persist; `create_chat` false stripped for booking JSON
+
+---

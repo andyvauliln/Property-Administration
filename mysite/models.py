@@ -19,10 +19,12 @@ def convert_date_format(value):
         # If date_str is already a date object, return it as is
         return value
 
-    try:
-        return datetime.strptime(value, '%B %d %Y').date()
-    except ValueError:
-        pass
+    if isinstance(value, str):
+        for fmt in ('%Y-%m-%d', '%B %d %Y', '%b. %d, %Y'):
+            try:
+                return datetime.strptime(value.strip(), fmt).date()
+            except ValueError:
+                continue
 
     raise ValueError(f"Invalid date format: {value}")
 
@@ -565,6 +567,7 @@ class Booking(models.Model):
         ('Airbnb', 'Airbnb'),
         ('Referral', 'Referral'),
         ('Returning', 'Returning'),
+        ('Rental Guru', 'Rental Guru'),
         ('Other', 'Other'),
     ]
     VISIT_PURPOSE = [
@@ -591,6 +594,10 @@ class Booking(models.Model):
     visit_purpose = models.CharField(
         max_length=32, blank=True, choices=VISIT_PURPOSE)
     source = models.CharField(max_length=32, blank=True, choices=SOURCE)
+    source_id = models.CharField(
+        max_length=255, blank=True, null=True, unique=True, db_index=True,
+        help_text='External platform booking id (e.g. Rental Guru)',
+    )
     apartment = models.ForeignKey(Apartment, on_delete=models.SET_NULL, db_index=True,
                                   related_name='booked_apartments', null=True)
     notes = models.TextField(blank=True, null=True)
@@ -616,9 +623,13 @@ class Booking(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
 
     def saveEmpty(self, *args, **kwargs):
+        from mysite.request_context import apply_user_tracking
+
         form_data = kwargs.pop('form_data', None)
         parking_number = kwargs.pop('parking_number', None)
-        
+        updated_by = kwargs.pop('updated_by', None)
+        apply_user_tracking(self, updated_by)
+
         # Check if this is an update and if status changed
         is_updating = self.pk is not None
         if is_updating:
@@ -1338,7 +1349,15 @@ class Payment(models.Model):
                                 related_name='payments', null=True, blank=True)
     apartment = models.ForeignKey(Apartment, on_delete=models.CASCADE, db_index=True,
                                   related_name='payments', null=True, blank=True)
-    
+    source = models.CharField(
+        max_length=32, blank=True, null=True, choices=Booking.SOURCE,
+        help_text='External platform (e.g. Rental Guru)',
+    )
+    source_id = models.CharField(
+        max_length=255, blank=True, null=True, db_index=True,
+        help_text='External platform payment id',
+    )
+
     # Tracking fields
     created_by = models.CharField(max_length=255, blank=True, null=True, editable=False)
     last_updated_by = models.CharField(max_length=255,  blank=True, null=True, editable=False)
@@ -1353,6 +1372,11 @@ class Payment(models.Model):
             models.CheckConstraint(
                 name="payment_booking_or_apartment_not_both",
                 check=models.Q(booking__isnull=True) | models.Q(apartment__isnull=True),
+            ),
+            models.UniqueConstraint(
+                fields=['source', 'source_id'],
+                name='payment_source_source_id_uniq',
+                condition=models.Q(source_id__isnull=False),
             ),
         ]
 
