@@ -111,6 +111,8 @@ def generic_view(request, model_name, form_class, template_name, pages=30):
         items = items.filter(managers=request.user)
     if request.user.role == 'Manager' and model_name.lower() == 'booking':
         items = items.filter(apartment__managers=request.user)
+    if model_name.lower() == 'booking' and not search_query:
+        items = items.exclude(status='Cancelled')
     if request.user.role == 'Manager' and model_name.lower() == 'payment':
         items = items.filter(
             Q(booking__apartment__managers=request.user) |

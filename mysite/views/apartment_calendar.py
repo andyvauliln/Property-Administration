@@ -64,11 +64,12 @@ def apartment(request):
     ).exclude(status='Cancelled')
 
     cleanings = Cleaning.objects.filter(date__range=(
-        start_date, end_date), booking__apartment=apartment)
+        start_date, end_date), booking__apartment=apartment
+    ).exclude(booking__status='Cancelled')
     payments = Payment.objects.filter(
         Q(booking__apartment=apartment) | Q(apartment=apartment),
         payment_date__range=(start_date, end_date)
-    )
+    ).filter(Q(booking__isnull=True) | ~Q(booking__status='Cancelled'))
 
     event_data = defaultdict(lambda: defaultdict(list))
 

@@ -317,9 +317,9 @@ def apartments_analytics(request):
 @user_has_role('Admin', 'Manager')
 def apartment_report(request):
     if request.user.role == 'Manager':
-        bookings = Booking.objects.filter(apartment__managers=request.user)
+        bookings = Booking.objects.filter(apartment__managers=request.user).exclude(status='Cancelled')
     else:
-        bookings = Booking.objects.all()
+        bookings = Booking.objects.exclude(status='Cancelled')
 
     try:
         referer_url = request.META.get('HTTP_REFERER', '/')

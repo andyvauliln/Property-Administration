@@ -339,8 +339,8 @@ class Apartment(models.Model):
         
         related_objects = []
         
-        # Check for bookings
-        bookings_count = self.booked_apartments.count()
+        # Check for bookings (cancelled-only history does not block apartment deletion)
+        bookings_count = self.booked_apartments.exclude(status='Cancelled').count()
         if bookings_count > 0:
             related_objects.append(f"{bookings_count} booking(s)")
         
@@ -723,19 +723,23 @@ class Booking(models.Model):
         # Save the booking
         super().save()
         
+        if orig.status != 'Cancelled' and self.status == 'Cancelled':
+            self._cleanup_on_cancelled_booking()
+        
         # Create or update payments
-        if payments_data:
+        if payments_data and self.status != 'Cancelled':
             self.create_payments(payments_data)
         
         # Update contract if exists
-        if self.contract_id:
+        if self.contract_id and self.status != 'Cancelled':
             update_contract(self)
         
         # Handle contract sending and messaging
-        self._handle_contract_and_messaging(form_data)
+        if self.status != 'Cancelled':
+            self._handle_contract_and_messaging(form_data)
         
         # Update conversation links
-        if self.tenant and self.tenant.phone:
+        if self.tenant and self.tenant.phone and self.status != 'Cancelled':
             self.update_conversation_links()
     
     def _handle_booking_creation(self, form_data, payments_data):
@@ -893,6 +897,13 @@ class Booking(models.Model):
         )
         parking_booking.save()
     
+    def _cleanup_on_cancelled_booking(self):
+        """Remove related operational rows when a booking is cancelled (soft delete or status change)."""
+        Notification.objects.filter(booking=self).delete()
+        ParkingBooking.objects.filter(booking=self).delete()
+        Cleaning.objects.filter(booking=self).delete()
+        Payment.objects.filter(booking=self, payment_status='Pending').delete()
+
     def _update_parking_booking_status(self):
         """Update parking booking status based on booking status and car info"""
         if self.status == "Cancelled":
@@ -927,13 +938,12 @@ class Booking(models.Model):
         from mysite.request_context import apply_user_tracking
 
         apply_user_tracking(self, None)
-        Notification.objects.filter(booking=self).delete()
-        ParkingBooking.objects.filter(booking=self).delete()
         self.status = 'Cancelled'
         self.updated_at = timezone.now()
         models.Model.save(
             self, update_fields=['status', 'last_updated_by', 'updated_at']
         )
+        self._cleanup_on_cancelled_booking()
 
     def get_or_create_tenant(self, form_data):
         if form_data:
