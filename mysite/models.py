@@ -14,6 +14,9 @@ import uuid
 import requests
 import os
 
+from mysite.audit_bulk import audit_queryset_update
+
+
 def convert_date_format(value):
     if isinstance(value, date):
         # If date_str is already a date object, return it as is
@@ -644,7 +647,8 @@ class Booking(models.Model):
             dates_changed = (orig.start_date != self.start_date) or (orig.end_date != self.end_date)
             apartment_changed = orig.apartment_id != self.apartment_id
             if dates_changed or apartment_changed:
-                ParkingBooking.objects.filter(booking=self).update(
+                audit_queryset_update(
+                    ParkingBooking.objects.filter(booking=self),
                     start_date=self.start_date,
                     end_date=self.end_date,
                     apartment=self.apartment,
@@ -697,10 +701,13 @@ class Booking(models.Model):
         
         # Update notifications if dates changed
         if orig.start_date != self.start_date:
-            Notification.objects.filter(
-                booking=self,
-                message="Start Booking"
-            ).update(date=self.start_date)
+            audit_queryset_update(
+                Notification.objects.filter(
+                    booking=self,
+                    message="Start Booking",
+                ),
+                date=self.start_date,
+            )
         
         if orig.end_date != self.end_date:
             self._handle_end_date_change(orig)
@@ -710,7 +717,8 @@ class Booking(models.Model):
         
         # Keep linked parking bookings in sync with booking (dates + apartment)
         if dates_changed or apartment_changed:
-            ParkingBooking.objects.filter(booking=self).update(
+            audit_queryset_update(
+                ParkingBooking.objects.filter(booking=self),
                 start_date=self.start_date,
                 end_date=self.end_date,
                 apartment=self.apartment,
@@ -772,30 +780,43 @@ class Booking(models.Model):
             self.deletePayments()
         
         # Update damage deposit return date
-        Payment.objects.filter(
-            booking=self,
-            payment_type__name="Damage Deposit",
-            payment_type__type="Out"
-        ).update(payment_date=self.end_date)
-        
+        audit_queryset_update(
+            Payment.objects.filter(
+                booking=self,
+                payment_type__name="Damage Deposit",
+                payment_type__type="Out",
+            ),
+            payment_date=self.end_date,
+        )
+
         # Update cleaning date
-        Cleaning.objects.filter(booking=self).update(date=self.end_date)
-        
+        audit_queryset_update(
+            Cleaning.objects.filter(booking=self),
+            date=self.end_date,
+        )
+
         # Update all related notifications
-        Notification.objects.filter(
-            payment__booking=self,
-            payment__payment_type__name="Damage Deposit",
-            payment__payment_type__type="Out"
-        ).update(date=self.end_date)
-        
-        Notification.objects.filter(
-            cleaning__booking=self
-        ).update(date=self.end_date)
-        
-        Notification.objects.filter(
-            booking=self,
-            message="End Booking"
-        ).update(date=self.end_date)
+        audit_queryset_update(
+            Notification.objects.filter(
+                payment__booking=self,
+                payment__payment_type__name="Damage Deposit",
+                payment__payment_type__type="Out",
+            ),
+            date=self.end_date,
+        )
+
+        audit_queryset_update(
+            Notification.objects.filter(cleaning__booking=self),
+            date=self.end_date,
+        )
+
+        audit_queryset_update(
+            Notification.objects.filter(
+                booking=self,
+                message="End Booking",
+            ),
+            date=self.end_date,
+        )
     
     def _create_booking_notifications(self):
         """Auto-create Start and End Booking notifications (excluding Blocked bookings)"""
@@ -915,7 +936,10 @@ class Booking(models.Model):
             new_status = "Booked"
         else:
             new_status = "No Car"
-        ParkingBooking.objects.filter(booking=self).update(status=new_status)
+        audit_queryset_update(
+            ParkingBooking.objects.filter(booking=self),
+            status=new_status,
+        )
        
     def deletePayments(self):
         payments_to_delete = Payment.objects.filter(
@@ -1445,8 +1469,10 @@ class Payment(models.Model):
                     else:
                         raise ValueError("Unsupported date format for self.payment_date")
 
-                    Notification.objects.filter(
-                        payment=self).update(date=payment_date_str)
+                    audit_queryset_update(
+                        Notification.objects.filter(payment=self),
+                        date=payment_date_str,
+                    )
 
             # Save the payment first
             if number_of_months and number_of_months > 0:
@@ -1601,8 +1627,11 @@ class Cleaning(models.Model):
             # If date has changed
             if orig.date != self.date:
                 # Update the related Notification
-                Notification.objects.filter(
-                    cleaning=self).update(date=self.date, apartment=self.apartment)
+                audit_queryset_update(
+                    Notification.objects.filter(cleaning=self),
+                    date=self.date,
+                    apartment=self.apartment,
+                )
             
             # Send telegram notification about changes
             if (orig.date != self.date) or (orig.status != self.status) or (orig.cleaner != self.cleaner) or (orig.tasks != self.tasks) or (orig.notes != self.notes):
@@ -2395,5 +2424,5 @@ class AIManagement(models.Model):
 
 def send_telegram_message(chat_id, token, message):
     if chat_id and token:
-        base_url = f"https://api.telegram.org/bot{token}/sendMessage?chat_id={chat_id}&text={message}"
-        requests.get(base_url)
+        url = f"https://api.telegram.org/bot{token}/sendMessage"
+        requests.get(url, params={"chat_id": chat_id, "text": message})

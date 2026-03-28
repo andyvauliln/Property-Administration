@@ -856,9 +856,18 @@ def _update_message_ai_result(message_sid, **kwargs):
     """Update TwilioMessage AI metadata fields after processing."""
     if not message_sid:
         return
+    if not kwargs:
+        return
     try:
+        from mysite.audit_bulk import audit_queryset_update
         from mysite.models import TwilioMessage
-        TwilioMessage.objects.filter(message_sid=message_sid).update(**kwargs)
+        from mysite.signals import get_current_user_info
+
+        audit_queryset_update(
+            TwilioMessage.objects.filter(message_sid=message_sid),
+            changed_by=get_current_user_info(),
+            **kwargs,
+        )
     except Exception as e:
         log_error(e, "Error updating message AI metadata", source='web')
 

@@ -1,5 +1,7 @@
 from django.core.management.base import BaseCommand
 from django.db.models import Q
+
+from mysite.audit_bulk import audit_queryset_update
 from mysite.models import Payment
 
 
@@ -40,7 +42,11 @@ class Command(BaseCommand):
                     )
         else:
             # Update the payments
-            updated_count = payments.update(payment_status='Merged')
+            updated_count = audit_queryset_update(
+                payments,
+                changed_by="System (set_merged_payment_status)",
+                payment_status="Merged",
+            )
             
             self.stdout.write(
                 self.style.SUCCESS(

@@ -2,8 +2,7 @@
 Report: bookings whose end_date was decreased (from AuditLog), last calendar month,
 and what happened to linked cleanings (audit trail + current DB).
 
-Note: Booking.save() uses Cleaning.objects.filter(...).update(date=...) which does not
-fire post_save, so cleaning date moves from that path usually have NO Cleaning AuditLog row.
+Note: Booking end-date sync uses audit_queryset_update on Cleaning (mysite.audit_bulk).
 """
 import calendar
 from datetime import date, datetime
@@ -55,7 +54,7 @@ class Command(BaseCommand):
         )
         self.stdout.write(
             "Booking end_date decreases from AuditLog; cleaning via AuditLog + live DB.\n"
-            "Bulk Cleaning.update() from booking does not emit Cleaning audit rows.\n"
+            "Cleaning date moves from booking end_date sync are logged via audit_queryset_update.\n"
             + ("=" * 80)
             + "\n"
         )
@@ -173,7 +172,7 @@ class Command(BaseCommand):
                 rows = list(evs)
                 if not rows:
                     self.stdout.write(
-                        "      AuditLog after booking change: (no rows — typical if only bulk .update() ran)\n"
+                        "      AuditLog after booking change: (no rows)\n"
                     )
                 else:
                     self.stdout.write(

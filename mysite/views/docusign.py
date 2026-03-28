@@ -1,6 +1,7 @@
 from django.utils import timezone
 from django.http import JsonResponse
 import json
+from mysite.audit_bulk import audit_queryset_update
 from mysite.models import Booking, ParkingBooking
 from django.http import JsonResponse, HttpResponse
 from django.views.decorators.csrf import csrf_exempt
@@ -111,7 +112,11 @@ def docuseal_callback(request):
                     if 'car_info' in form_fields_dict or 'car_model' in form_fields_dict:
                         has_car = booking.is_rent_car is not None or booking.car_model
                         new_status = "Booked" if has_car else "No Car"
-                        updated_count = ParkingBooking.objects.filter(booking=booking).update(status=new_status)
+                        updated_count = audit_queryset_update(
+                            ParkingBooking.objects.filter(booking=booking),
+                            changed_by="System (DocuSign webhook)",
+                            status=new_status,
+                        )
                         logger.info(f"parking_booking_status_updated: {new_status}, count: {updated_count}")
                     logger.info(f"booking status: {booking.status}")
                     logger.info("Booking Saved")

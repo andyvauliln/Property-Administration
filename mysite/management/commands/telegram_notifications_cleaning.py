@@ -7,8 +7,8 @@ from django.db.models import Q
 
 
 def send_telegram_message(chat_id, token, message):
-    base_url = f"https://api.telegram.org/bot{token}/sendMessage?chat_id={chat_id}&text={message}"
-    requests.get(base_url)
+    url = f"https://api.telegram.org/bot{token}/sendMessage"
+    requests.get(url, params={"chat_id": chat_id, "text": message})
 
 
 def _build_cleaning_message(cleaning, prefix):
