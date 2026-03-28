@@ -242,8 +242,8 @@ class Command(BaseCommand):
             cutoff_date = date.today() - timedelta(days=90)
             booking = Booking.objects.filter(
                 tenant=user,
-                end_date__gte=cutoff_date
-            ).order_by('-start_date').first()
+                end_date__gte=cutoff_date,
+            ).exclude(status='Cancelled').order_by('-start_date').first()
             
             return booking
             

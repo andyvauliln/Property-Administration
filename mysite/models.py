@@ -557,6 +557,7 @@ class Booking(models.Model):
         ('Blocked', 'Blocked'),
         ('Pending', 'Pending'),
         ('Problem Booking', 'Problem Booking'),
+        ('Cancelled', 'Cancelled'),
     ]
     ANIMALS = [
         ('Cat', 'Cat'),
@@ -795,7 +796,7 @@ class Booking(models.Model):
     def _create_booking_notifications(self):
         """Auto-create Start and End Booking notifications (excluding Blocked bookings)"""
         # Skip notification creation for Blocked bookings
-        if self.status == 'Blocked':
+        if self.status == 'Blocked' or self.status == 'Cancelled':
             return
         
         # Check and create Start Booking notification
@@ -894,6 +895,9 @@ class Booking(models.Model):
     
     def _update_parking_booking_status(self):
         """Update parking booking status based on booking status and car info"""
+        if self.status == "Cancelled":
+            ParkingBooking.objects.filter(booking=self).delete()
+            return
         if self.status == "Blocked":
             new_status = "Unavailable"
         elif self.is_rent_car is not None or self.car_model:
@@ -911,14 +915,25 @@ class Booking(models.Model):
         for payment in payments_to_delete:
             payment.delete()
 
-    def delete(self, *args, **kwargs):
-        if self.contract_id != "" and self.contract_id != None:
-            delete_contract(self.contract_id)
+    def delete(self, using=None, keep_parents=False, hard_delete=False):
+        if hard_delete:
+            if self.contract_id != "" and self.contract_id != None:
+                delete_contract(self.contract_id)
+            ParkingBooking.objects.filter(booking=self).delete()
+            super(Booking, self).delete(using=using, keep_parents=keep_parents)
+            return
 
-        # Delete related parking bookings
+        from django.utils import timezone
+        from mysite.request_context import apply_user_tracking
+
+        apply_user_tracking(self, None)
+        Notification.objects.filter(booking=self).delete()
         ParkingBooking.objects.filter(booking=self).delete()
-
-        super(Booking, self).delete(*args, **kwargs)
+        self.status = 'Cancelled'
+        self.updated_at = timezone.now()
+        models.Model.save(
+            self, update_fields=['status', 'last_updated_by', 'updated_at']
+        )
 
     def get_or_create_tenant(self, form_data):
         if form_data:

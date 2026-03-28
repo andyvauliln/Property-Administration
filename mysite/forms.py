@@ -109,7 +109,7 @@ def get_dropdown_options(identifier, isData=False, request=None):
         one_month_ago = today - timedelta(days=365)
         items = Booking.objects.filter(
             start_date__gte=one_month_ago
-        ).select_related('tenant', 'apartment').order_by('start_date')
+        ).exclude(status='Cancelled').select_related('tenant', 'apartment').order_by('start_date')
         if isData:
             return items
         return [{
@@ -772,8 +772,8 @@ class BookingForm(forms.ModelForm):
         overlapping_bookings = Booking.objects.filter(
             apartment=apartment,
             start_date__lt=end_date,
-            end_date__gt=start_date
-        )
+            end_date__gt=start_date,
+        ).exclude(status='Cancelled')
         if self.instance.id:
             overlapping_bookings = overlapping_bookings.exclude(
                 id=self.instance.id)
@@ -794,8 +794,8 @@ class BookingForm(forms.ModelForm):
             overlapping_parking_bookings = ParkingBooking.objects.filter(
                 parking=parking_number,
                 start_date__lt=end_date,
-                end_date__gt=start_date
-            )
+                end_date__gt=start_date,
+            ).exclude(booking__status='Cancelled')
             if overlapping_parking_bookings.exists():
                 parking = Parking.objects.get(id=parking_number)
                 raise forms.ValidationError(

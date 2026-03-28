@@ -18,7 +18,7 @@ def check_bookings_without_cleaning(chat_id, token):
     upcoming_end_bookings = Booking.objects.filter(
         end_date__gte=today,
         end_date__lte=three_days_from_now
-    ).exclude(status='Blocked').select_related('apartment', 'tenant')
+    ).exclude(status__in=['Blocked', 'Cancelled']).select_related('apartment', 'tenant')
 
     for booking in upcoming_end_bookings:
         if not hasattr(booking, 'cleanings') or not booking.cleanings.exists():
@@ -83,21 +83,21 @@ def my_cron_job():
         for booking in Booking.objects.filter(
             start_date=next_day,
             apartment_id__in=manager_apartment_ids
-        ).exclude(status='Blocked').select_related('apartment', 'tenant'):
+        ).exclude(status__in=['Blocked', 'Cancelled']).select_related('apartment', 'tenant'):
             message = _build_booking_message(booking, "Start Booking")
             send_telegram_message(chat_id, telegram_token, message)
 
         for booking in Booking.objects.filter(
             end_date=next_day,
             apartment_id__in=manager_apartment_ids
-        ).exclude(status='Blocked').select_related('apartment', 'tenant'):
+        ).exclude(status__in=['Blocked', 'Cancelled']).select_related('apartment', 'tenant'):
             message = _build_booking_message(booking, "End Booking")
             send_telegram_message(chat_id, telegram_token, message)
 
         for payment in Payment.objects.filter(
             payment_date=next_day
         ).exclude(payment_type__name__icontains='Mortage').filter(
-            Q(booking__isnull=True) | ~Q(booking__status='Blocked')
+            Q(booking__isnull=True) | ~Q(booking__status__in=['Blocked', 'Cancelled'])
         ).filter(
             Q(booking__apartment_id__in=manager_apartment_ids) |
             Q(apartment_id__in=manager_apartment_ids)
@@ -110,7 +110,7 @@ def my_cron_job():
         for cleaning in Cleaning.objects.filter(
             date=next_day
         ).filter(
-            Q(booking__isnull=True) | ~Q(booking__status='Blocked')
+            Q(booking__isnull=True) | ~Q(booking__status__in=['Blocked', 'Cancelled'])
         ).filter(
             Q(booking__apartment_id__in=manager_apartment_ids) |
             Q(apartment_id__in=manager_apartment_ids)

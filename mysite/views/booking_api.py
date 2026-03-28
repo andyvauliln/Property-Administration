@@ -381,7 +381,7 @@ class ApartmentBookingDates(APIView):
                 )
             future_bookings_qs = Booking.objects.select_related('tenant').prefetch_related(
                 Prefetch('payments', queryset=_booking_payments_queryset()),
-            ).filter(end_date__gte=today).order_by('start_date')
+            ).filter(end_date__gte=today).exclude(status='Cancelled').order_by('start_date')
             apartments = Apartment.objects.filter(
                 id__in=apartment_ids,
                 status='Available'

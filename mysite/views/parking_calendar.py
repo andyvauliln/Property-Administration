@@ -122,7 +122,7 @@ def parking_calendar(request):
 
     bookings = Booking.objects.filter(
         Q(end_date__gt=timezone.now().date())
-    ).select_related('tenant', 'apartment').values(
+    ).exclude(status='Cancelled').select_related('tenant', 'apartment').values(
         'id', 
         'start_date', 
         'end_date',

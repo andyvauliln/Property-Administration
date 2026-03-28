@@ -347,7 +347,7 @@ def generic_view(request, model_name, form_class, template_name, pages=30):
         
         # Add bookings data for dropdown filtering
         one_month_ago = today - timedelta(days=30)
-        bookings = Booking.objects.filter(start_date__gte=one_month_ago).select_related('tenant', 'apartment').order_by('start_date')
+        bookings = Booking.objects.filter(start_date__gte=one_month_ago).exclude(status='Cancelled').select_related('tenant', 'apartment').order_by('start_date')
         
         if request.user.role == 'Manager':
             bookings = bookings.filter(apartment__managers=request.user)

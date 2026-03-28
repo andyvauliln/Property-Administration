@@ -49,7 +49,8 @@ def apartments_analytics(request):
     # Determine if specific apartments are selected
 
     bookings = Booking.objects.filter(
-        Q(start_date__lte=end_date) & Q(end_date__gte=start_date))
+        Q(start_date__lte=end_date) & Q(end_date__gte=start_date),
+    ).exclude(status='Cancelled')
     payments = Payment.objects.filter(
         payment_date__range=(start_date, end_date))
 

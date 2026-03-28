@@ -500,7 +500,7 @@ def process_csv_upload(request):
         bookings_qs = Booking.objects.filter(
             start_date__lte=date_to,
             end_date__gte=date_from,
-        ).select_related("tenant", "apartment")
+        ).exclude(status='Cancelled').select_related("tenant", "apartment")
         file_payments = enrich_file_payments_with_booking_apartments(file_payments, list(bookings_qs))
 
     # Query all DB payments for period based on file dates + config days

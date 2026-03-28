@@ -64,7 +64,7 @@ def send_payment_notifications(chat_id, token, direction, next_day, dry_run=Fals
     ).exclude(
         payment_type__name__icontains='Mortage',
     ).filter(
-        Q(booking__isnull=True) | ~Q(booking__status='Blocked'),
+        Q(booking__isnull=True) | ~Q(booking__status__in=['Blocked', 'Cancelled']),
     ).select_related('payment_type', 'booking', 'booking__apartment', 'booking__tenant', 'apartment')
 
     sent = 0

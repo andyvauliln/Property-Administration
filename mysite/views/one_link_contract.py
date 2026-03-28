@@ -58,8 +58,8 @@ def create_booking_by_link(request):
         overlapping_bookings = Booking.objects.filter(
             apartment=apartment,
             start_date__lt=end_date,
-            end_date__gt=start_date
-        )
+            end_date__gt=start_date,
+        ).exclude(status='Cancelled')
         if overlapping_bookings.exists():
             overlapping_booking = overlapping_bookings.first()
             return JsonResponse({'error': f"The apartment is already booked from {overlapping_booking.start_date} to {overlapping_booking.end_date}."}, status=400)

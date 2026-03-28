@@ -56,7 +56,7 @@ def my_cron_job(dry_run=False, stdout=None):
     cleanings = Cleaning.objects.filter(
         date__in=[today, next_day],
     ).filter(
-        Q(booking__isnull=True) | ~Q(booking__status='Blocked'),
+        Q(booking__isnull=True) | ~Q(booking__status__in=['Blocked', 'Cancelled']),
     ).select_related(
         'cleaner', 'booking', 'booking__apartment', 'apartment'
     ).order_by('date', 'id')

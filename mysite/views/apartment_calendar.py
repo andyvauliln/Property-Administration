@@ -60,7 +60,8 @@ def apartment(request):
             return HttpResponseBadRequest("You don't have access to any apartments.")
 
     bookings = Booking.objects.filter(
-        start_date__lte=end_date, end_date__gte=start_date, apartment=apartment)
+        start_date__lte=end_date, end_date__gte=start_date, apartment=apartment
+    ).exclude(status='Cancelled')
 
     cleanings = Cleaning.objects.filter(date__range=(
         start_date, end_date), booking__apartment=apartment)
