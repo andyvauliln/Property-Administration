@@ -31,13 +31,23 @@ def _build_cleaning_message(cleaning, prefix):
     return message
 
 
+def _prefix_and_form_url(cleaning_date, today):
+    delta = (cleaning_date - today).days
+    if delta == 0:
+        return "TODAY", "https://form.jotform.com/250414400218038"
+    if delta == 1:
+        return "TOMORROW", "https://ro.am/join/fyy4jxbm-yr9qc7mo"
+    return "IN 2 DAYS", "https://ro.am/join/fyy4jxbm-yr9qc7mo"
+
+
 def my_cron_job():
     today = date.today()
     next_day = today + timedelta(days=1)
+    day_after = today + timedelta(days=2)
     telegram_token = os.environ["TELEGRAM_TOKEN"]
 
     cleanings = Cleaning.objects.filter(
-        date__in=[today, next_day],
+        date__in=[today, next_day, day_after],
     ).filter(
         Q(booking__isnull=True) | ~Q(booking__status__in=['Blocked', 'Cancelled']),
     ).exclude(cleaner__isnull=True).select_related(
@@ -47,9 +57,8 @@ def my_cron_job():
     for cleaning in cleanings:
         if not cleaning.cleaner or not cleaning.cleaner.telegram_chat_id:
             continue
-        prefix = "TODAY" if cleaning.date == today else "TOMORROW"
+        prefix, form_url = _prefix_and_form_url(cleaning.date, today)
         message = _build_cleaning_message(cleaning, prefix)
-        form_url = "https://ro.am/join/fyy4jxbm-yr9qc7mo" if prefix == "TOMORROW" else "https://form.jotform.com/250414400218038"
         message += f"\nForm Link: {form_url}"
         send_telegram_message(cleaning.cleaner.telegram_chat_id.strip(), telegram_token, message)
 

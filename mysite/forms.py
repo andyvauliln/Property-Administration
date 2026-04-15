@@ -788,6 +788,49 @@ class BookingForm(forms.ModelForm):
             raise forms.ValidationError(
                 "The start date cannot be later than the end date."
             )
+
+        # On booking apartment move, parking must be mappable and available.
+        if self.instance and self.instance.pk and apartment and self.instance.apartment_id != apartment.id:
+            linked_parking_qs = ParkingBooking.objects.filter(booking=self.instance)
+            if linked_parking_qs.exists():
+                building_n = (apartment.building_n or '').strip()
+                apartment_n = (apartment.apartment_n or '').strip()
+                mapped_parkings = Parking.objects.filter(
+                    building=building_n,
+                    associated_room=apartment_n,
+                ).order_by('id')
+
+                if not mapped_parkings.exists():
+                    raise forms.ValidationError(
+                        f"Parking was not moved: no mapped parking found for apartment {apartment.name} "
+                        f"(building={building_n or 'N/A'}, room={apartment_n or 'N/A'})."
+                    )
+
+                linked_ids = linked_parking_qs.values_list('id', flat=True)
+                has_available_mapped_parking = False
+                for candidate in mapped_parkings:
+                    if linked_parking_qs.filter(parking=candidate).exists():
+                        has_available_mapped_parking = True
+                        break
+
+                    has_overlap = ParkingBooking.objects.filter(
+                        parking=candidate,
+                        start_date__lt=end_date,
+                        end_date__gt=start_date,
+                    ).exclude(
+                        id__in=linked_ids
+                    ).exclude(
+                        booking__status='Cancelled'
+                    ).exists()
+                    if not has_overlap:
+                        has_available_mapped_parking = True
+                        break
+
+                if not has_available_mapped_parking:
+                    raise forms.ValidationError(
+                        f"Parking was not moved: all mapped parking spots for apartment {apartment.name} "
+                        f"are busy for {start_date} - {end_date}."
+                    )
         
         parking_number = cleaned_data.get('parking_number')
         if parking_number:

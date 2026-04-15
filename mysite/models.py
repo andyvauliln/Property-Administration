@@ -714,6 +714,9 @@ class Booking(models.Model):
         
         dates_changed = (orig.start_date != self.start_date) or (orig.end_date != self.end_date)
         apartment_changed = orig.apartment_id != self.apartment_id
+
+        if apartment_changed:
+            self._reassign_parking_on_apartment_change()
         
         # Keep linked parking bookings in sync with booking (dates + apartment)
         if dates_changed or apartment_changed:
@@ -749,6 +752,58 @@ class Booking(models.Model):
         # Update conversation links
         if self.tenant and self.tenant.phone and self.status != 'Cancelled':
             self.update_conversation_links()
+
+    def _reassign_parking_on_apartment_change(self):
+        """
+        When a booking moves apartments, try to move linked parking to the
+        destination apartment's dedicated parking (building + apartment number).
+        """
+        if not self.apartment:
+            return
+
+        apartment_n = (self.apartment.apartment_n or '').strip()
+        building_n = (self.apartment.building_n or '').strip()
+        if not apartment_n or not building_n:
+            return
+
+        mapped_parkings = Parking.objects.filter(
+            building=building_n,
+            associated_room=apartment_n,
+        ).order_by('id')
+        if not mapped_parkings.exists():
+            return
+
+        linked_parking_qs = ParkingBooking.objects.filter(booking=self)
+        if not linked_parking_qs.exists():
+            return
+
+        target_parking = None
+        linked_ids = linked_parking_qs.values_list('id', flat=True)
+        for candidate in mapped_parkings:
+            if linked_parking_qs.filter(parking=candidate).exists():
+                target_parking = candidate
+                break
+
+            has_overlap = ParkingBooking.objects.filter(
+                parking=candidate,
+                start_date__lt=self.end_date,
+                end_date__gt=self.start_date,
+            ).exclude(
+                id__in=linked_ids
+            ).exclude(
+                booking__status='Cancelled'
+            ).exists()
+            if not has_overlap:
+                target_parking = candidate
+                break
+
+        if not target_parking:
+            return
+
+        audit_queryset_update(
+            linked_parking_qs,
+            parking=target_parking,
+        )
     
     def _handle_booking_creation(self, form_data, payments_data):
         """Handle creation of new bookings"""

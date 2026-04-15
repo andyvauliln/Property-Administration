@@ -40,7 +40,11 @@ def build_cleaning_message(cleaning, prefix):
         message += f"\n- Tasks: {cleaning.tasks}"
     if cleaning.notes:
         message += f"\n- Notes: {cleaning.notes}"
-    form_url = "https://ro.am/join/fyy4jxbm-yr9qc7mo" if prefix == "TOMORROW" else "https://form.jotform.com/250414400218038"
+    form_url = (
+        "https://form.jotform.com/250414400218038"
+        if prefix == "TODAY"
+        else "https://ro.am/join/fyy4jxbm-yr9qc7mo"
+    )
     message += f"\nForm Link: {form_url}"
     return message
 
@@ -48,13 +52,14 @@ def build_cleaning_message(cleaning, prefix):
 def my_cron_job(dry_run=False, stdout=None):
     today = date.today()
     next_day = today + timedelta(days=1)
+    day_after = today + timedelta(days=2)
     chat_id = os.environ.get("TELEGRAM_GROUP_CLEANING")
     token = os.environ.get("TELEGRAM_TOKEN")
     if not chat_id or not token:
         if not dry_run:
             return
     cleanings = Cleaning.objects.filter(
-        date__in=[today, next_day],
+        date__in=[today, next_day, day_after],
     ).filter(
         Q(booking__isnull=True) | ~Q(booking__status__in=['Blocked', 'Cancelled']),
     ).select_related(
@@ -63,12 +68,24 @@ def my_cron_job(dry_run=False, stdout=None):
 
     sent = 0
     for cleaning in cleanings:
-        prefix = "TODAY" if cleaning.date == today else "TOMORROW"
+        delta = (cleaning.date - today).days
+        if delta == 0:
+            prefix = "TODAY"
+        elif delta == 1:
+            prefix = "TOMORROW"
+        else:
+            prefix = "IN 2 DAYS"
         message = build_cleaning_message(cleaning, prefix)
         send_telegram_message(normalize_group_chat_id(chat_id), token, message, dry_run=dry_run, stdout=stdout)
         sent += 1
     if sent == 0:
-        send_telegram_message(normalize_group_chat_id(chat_id), token, "No cleaning notifications for today/tomorrow.", dry_run=dry_run, stdout=stdout)
+        send_telegram_message(
+            normalize_group_chat_id(chat_id),
+            token,
+            "No cleaning notifications for today, tomorrow, or in 2 days.",
+            dry_run=dry_run,
+            stdout=stdout,
+        )
 
 
 class Command(BaseCommandWithErrorHandling):
