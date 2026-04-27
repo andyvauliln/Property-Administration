@@ -32,6 +32,8 @@ def create_booking_by_link(request):
             contract_type = "120946"
         elif contract_type == 2:
             contract_type = "118378"
+        elif contract_type == 3:
+            contract_type = "3465654"
         else:
             contract_type = None
 

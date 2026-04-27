@@ -131,9 +131,9 @@ def prepare_data_for_agreement(booking, template_id):
 
 def get_fields(booking, template_id):
     # Convert template_id to string for consistent comparison
-    template_id_str = str(template_id)
+    template_id_str = str(template_id)  
     
-    if template_id_str == "120946": #application form
+    if template_id_str == "120946" or template_id_str == "3465654": #application form
         return [
                     {"name": "tenant", "default_value": "" if booking.tenant.full_name == "Not Availabale" or booking.tenant.full_name == "" else booking.tenant.full_name, "readonly": False},
                     {"name": "phone", "default_value": booking.tenant.phone or "", "readonly": False},
@@ -162,7 +162,7 @@ def get_fields(booking, template_id):
                     # {"name": "owner_signature", "default_value": booking.apartment.owner.full_name, "readonly": True},
                 ]
     else:
-        raise Exception(f"Template id '{template_id}' (type: {type(template_id).__name__}) is not supported. Expected '120946' or '118378'")
+        raise Exception(f"Template id '{template_id}' (type: {type(template_id).__name__}) is not supported. Expected '120946' or '118378' or '3465654'")
 
 
 def delete_contract(id):
