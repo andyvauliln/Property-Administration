@@ -1,4 +1,6 @@
 from django.utils import timezone
+from calendar import monthrange
+from datetime import timedelta
 import os
 import requests
 import json
@@ -107,6 +109,53 @@ def create_and_send_agreement(booking, template_id, send_sms=False):
 
 
 
+def _format_date(value):
+    return value.strftime('%B %d %Y') if value else ""
+
+
+def _format_amount(value):
+    if value is None:
+        return ""
+    return str(value)
+
+
+def _prefill_email(email):
+    if not email or email == "not_availabale@gmail.com" or "@example.com" in email:
+        return ""
+    return email
+
+
+def _get_payment_amount(booking, type_name):
+    payment = booking.payments.filter(
+        payment_type__name=type_name,
+        payment_type__type="In",
+    ).order_by("payment_date", "id").first()
+    return _format_amount(payment.amount if payment else None)
+
+
+def _get_lease_term(booking):
+    if not booking.start_date or not booking.end_date:
+        return ""
+    months = (
+        (booking.end_date.year - booking.start_date.year) * 12
+        + booking.end_date.month
+        - booking.start_date.month
+    )
+    return str(max(1, months))
+
+
+def _get_month_end(value):
+    if not value:
+        return ""
+    return value.replace(day=monthrange(value.year, value.month)[1])
+
+
+def _get_double_amount(value):
+    if value in (None, ""):
+        return ""
+    return _format_amount(value * 2)
+
+
 def prepare_data_for_agreement(booking, template_id):
     data = {
         "template_id": template_id,
@@ -126,6 +175,18 @@ def prepare_data_for_agreement(booking, template_id):
         ],
         
     }
+    if str(template_id) == "3538155":
+        data["submitters"].append({
+            "role": "owner",
+            "metadata": {
+                "booking_id": f"#A{booking.id}F",
+            },
+            "email": "andy.vaulin@gmail.com" # booking.apartment.owner.email or "",
+            # "fields": [
+            #     {"name": "owner_signature", "default_value": "FG", "readonly": True},
+            #     {"name": "owner_initials", "default_value": "FG", "readonly": True},
+            # ],
+        })
     return data
 
 
@@ -148,6 +209,35 @@ def get_fields(booking, template_id):
                     {"name": "apartment_address", "default_value": booking.apartment.address, "readonly": True},
                     # {"name": "owner_signature", "default_value": booking.apartment.owner.full_name, "readonly": True},
                 ]
+    elif template_id_str == "3538155":
+        monthly_price = _get_payment_amount(booking, "Rent")
+        monthly_price_value = booking.payments.filter(
+            payment_type__name="Rent",
+            payment_type__type="In",
+        ).order_by("payment_date", "id").values_list("amount", flat=True).first()
+        return [
+                    {"name": "lease_term", "default_value": _get_lease_term(booking), "readonly": True},
+                    {"name": "lease_start_day", "default_value": _format_date(booking.start_date), "readonly": True},
+                    {"name": "lease_end_day", "default_value": _format_date(booking.end_date), "readonly": True},
+                    {"name": "landlord_name", "default_value": "Farid Gaz", "readonly": True},
+                    {"name": "tenant_name", "default_value": "" if booking.tenant.full_name == "Not Availabale" or booking.tenant.full_name == "" else booking.tenant.full_name, "readonly": False},
+                    {"name": "tenant_email", "default_value": _prefill_email(booking.tenant.email), "readonly": False},
+                    {"name": "tenant_phone", "default_value": booking.tenant.phone or "", "readonly": False},
+                    {"name": "apartment_number", "default_value": booking.apartment.apartment_n or "", "readonly": True},
+                    {"name": "apartment_street", "default_value": booking.apartment.street or "", "readonly": True},
+                    {"name": "apartment_name", "default_value": booking.apartment.name or "", "readonly": True},
+                    {"name": "city", "default_value": booking.apartment.city or "", "readonly": True},
+                    {"name": "zip_code", "default_value": booking.apartment.zip_index or "", "readonly": True},
+                    {"name": "monthly_price", "default_value": monthly_price, "readonly": True},
+                    {"name": "rent_start", "default_value": _format_date(booking.start_date), "readonly": True},
+                    {"name": "prorated_end_date", "default_value": _format_date(_get_month_end(booking.start_date)), "readonly": True},
+                    {"name": "prorated_before_date", "default_value": _format_date(booking.start_date - timedelta(days=1)) if booking.start_date else "", "readonly": True},
+                    {"name": "prop", "default_value": booking.apartment.building_n or "", "readonly": True},
+                    {"name": "taxes_amount", "default_value": monthly_price, "readonly": False},
+                    {"name": "security_deposit", "default_value": _get_payment_amount(booking, "Damage Deposit"), "readonly": True},
+                    {"name": "advance_rent_amount", "default_value": monthly_price, "readonly": True},
+                    {"name": "early_termination_fee", "default_value": _get_double_amount(monthly_price_value), "readonly": False},
+                ]
     elif template_id_str == "118378": #occupancy agreement
         return [           
                     {"name": "tenant", "default_value": "" if booking.tenant.full_name == "Not Availabale" or booking.tenant.full_name == "" else booking.tenant.full_name, "readonly": False},
@@ -162,7 +252,7 @@ def get_fields(booking, template_id):
                     # {"name": "owner_signature", "default_value": booking.apartment.owner.full_name, "readonly": True},
                 ]
     else:
-        raise Exception(f"Template id '{template_id}' (type: {type(template_id).__name__}) is not supported. Expected '120946' or '118378' or '3465654'")
+        raise Exception(f"Template id '{template_id}' (type: {type(template_id).__name__}) is not supported. Expected '120946' or '118378' or '3465654' or '3538155'")
 
 
 def delete_contract(id):
@@ -234,6 +324,7 @@ def update_submitter(booking, submitter_id):
     data = { "fields": [
         {"name": "start_date", "default_value": booking.start_date.strftime('%B %d %Y'), "readonly": True},
         {"name": "end_date", "default_value": booking.end_date.strftime('%B %d %Y'), "readonly": True},
+        # DO WE NEED IN LTR THIS? CHECK LATER UPDATE
         {"name": "payment_terms", "default_value": booking.payment_str_for_contract, "readonly": True},
     ]}
 

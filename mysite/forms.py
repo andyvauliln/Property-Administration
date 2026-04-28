@@ -641,12 +641,14 @@ class BookingForm(forms.ModelForm):
         (118378, "Send OCCUPANCY AGREEMENT"),
         (120946, "Send HOA PACKAGE"),
         (3465654, "Send OCCUPANCY AGREEMENT (NEW)"),
+        (3538155, "Send LEASE AGREEMENT"),
     ],
         required=False, isEdit=True, isCreate=True, initial=None, ui_element="radio", 
         _dropdown_options=[
             {"value": 118378, "label": "Send OCCUPANCY AGREEMENT"},
             {"value": 120946, "label": "Send HOA PACKAGE"},
             {"value": 3465654, "label": "Send OCCUPANCY AGREEMENT (NEW)"},
+            {"value": 3538155, "label": "Send LEASE AGREEMENT"},
         ],
         order=6)
     tenants_n = DecimalFieldEx(isColumn=False, initial=1, order=7,
