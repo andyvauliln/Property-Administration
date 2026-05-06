@@ -1030,6 +1030,15 @@ class Booking(models.Model):
             tenant_full_name = form_data.get('tenant_full_name')
             tenant_phone = form_data.get('tenant_phone')
 
+            if tenant_phone:
+                from mysite.views.messaging import is_reserved_phone
+                if is_reserved_phone(tenant_phone):
+                    from django.core.exceptions import ValidationError
+                    raise ValidationError(
+                        f"Tenant phone '{tenant_phone}' belongs to a manager or system number. "
+                        f"Please enter the actual tenant's phone number."
+                    )
+
             if tenant_email:
                 # Try to retrieve an existing user with the given email
                 user = User.objects.filter(email=tenant_email).first()

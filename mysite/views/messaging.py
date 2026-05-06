@@ -32,6 +32,19 @@ KB_SUFFIX = "(+)"  # Virtual Assistant messages marked with (+) are processed fo
 CLIENT_SUFFIX = "(+++)"  # Virtual Assistant messages marked with (+++) are treated as client (AI answers)
 MANAGER_CHAT_SID = os.environ.get("MANAGER_CHAT_SID", "CH10c59b85e2ec4aad98e982916c495ea8")
 
+TWILIO_ASSISTANT_PHONE = "+13153524379"
+MANAGER_PHONES = ("+15612205252", "+17282001917", "+15614603904")
+RESERVED_PHONES = frozenset(MANAGER_PHONES + (TWILIO_ASSISTANT_PHONE,))
+
+
+def is_reserved_phone(phone):
+    """True if phone matches a manager or the Twilio assistant number."""
+    if not phone:
+        return False
+    from mysite.models import validate_and_format_phone
+    formatted = validate_and_format_phone(phone)
+    return formatted in RESERVED_PHONES
+
 # Unified logger throughout the app
 
 # Initialize Twilio client with validation
