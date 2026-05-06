@@ -757,7 +757,7 @@ class BookingForm(forms.ModelForm):
         end_date = cleaned_data.get('end_date')
         apartment = cleaned_data.get('apartment')
 
-        if apartment.status == 'Unavailable':
+        if apartment and apartment.status == 'Unavailable':
             raise forms.ValidationError(
                 "The selected apartment is currently unavailable.")
         if not tenant_email:
