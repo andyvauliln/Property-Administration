@@ -169,6 +169,10 @@ def _get_month_end(value):
     return value.replace(day=monthrange(value.year, value.month)[1])
 
 
+def _is_prorated_first_month_start(start_date):
+    return bool(start_date and start_date.day != 1)
+
+
 def _get_double_amount(value):
     if value in (None, ""):
         return ""
@@ -242,6 +246,7 @@ def get_fields(booking, template_id):
     elif template_id_str == "3538155":
         monthly_price_value = _get_monthly_price_value(booking)
         monthly_price = _format_amount(monthly_price_value)
+        prorate_first_month = _is_prorated_first_month_start(booking.start_date)
         return [
                     {"name": "lease_term", "default_value": _get_lease_term(booking), "readonly": True},
                     {"name": "lease_start_day", "default_value": _format_date(booking.start_date), "readonly": True},
@@ -256,10 +261,10 @@ def get_fields(booking, template_id):
                     {"name": "city", "default_value": booking.apartment.city or "", "readonly": True},
                     {"name": "zip_code", "default_value": booking.apartment.zip_index or "", "readonly": True},
                     {"name": "monthly_price", "default_value": monthly_price, "readonly": True},
-                    {"name": "rent_start", "default_value": _format_date(booking.start_date), "readonly": True},
-                    {"name": "prorated_end_date", "default_value": _format_date(_get_month_end(booking.start_date)), "readonly": True},
-                    {"name": "prorated_before_date", "default_value": _format_date(booking.start_date - timedelta(days=1)) if booking.start_date else "", "readonly": True},
-                    {"name": "first_month_price", "default_value": _get_first_month_price(booking.start_date, monthly_price_value), "readonly": True},
+                    {"name": "rent_start", "default_value": _format_date(booking.start_date) if prorate_first_month else "", "readonly": True},
+                    {"name": "prorated_end_date", "default_value": _format_date(_get_month_end(booking.start_date)) if prorate_first_month else "", "readonly": True},
+                    {"name": "prorated_before_date", "default_value": _format_date(booking.start_date - timedelta(days=1)) if prorate_first_month else "", "readonly": True},
+                    {"name": "first_month_price", "default_value": _get_first_month_price(booking.start_date, monthly_price_value) if prorate_first_month else "", "readonly": True},
                     {"name": "taxes_amount", "default_value": monthly_price, "readonly": True},
                     {"name": "security_deposit", "default_value": _get_payment_amount(booking, "Damage Deposit"), "readonly": True},
                     {"name": "advance_rent_amount", "default_value": monthly_price, "readonly": True},
