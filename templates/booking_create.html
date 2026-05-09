@@ -21,6 +21,7 @@
                     <button type="submit" class="text-white bg-primary-700 hover:bg-primary-800 focus:ring-4 focus:outline-none focus:ring-primary-300 font-medium rounded-lg text-sm px-5 py-2.5 text-center dark:bg-primary-600 dark:hover:bg-primary-700 dark:focus:ring-primary-500">Create</button>
                     <button type="button" onclick='addPaymentRow("create")' id="payment-button" class="text-white bg-primary-700 hover:bg-primary-800 focus:ring-4 focus:outline-none focus:ring-primary-300 font-medium rounded-lg text-sm px-5 py-2.5 text-center dark:bg-primary-600 dark:hover:bg-primary-700 dark:focus:ring-primary-500">Add Payment</button>
                     <button type="button" onclick='addDefaultPayments("create")' id="payment-button" class="text-white bg-primary-700 hover:bg-primary-800 focus:ring-4 focus:outline-none focus:ring-primary-300 font-medium rounded-lg text-sm px-5 py-2.5 text-center dark:bg-primary-600 dark:hover:bg-primary-700 dark:focus:ring-primary-500">Add Default Payments</button>
+                    <button type="button" onclick='addLeasePayments("create")' class="text-white bg-primary-700 hover:bg-primary-800 focus:ring-4 focus:outline-none focus:ring-primary-300 font-medium rounded-lg text-sm px-5 py-2.5 text-center dark:bg-primary-600 dark:hover:bg-primary-700 dark:focus:ring-primary-500">Add Lease Payments</button>
                     <button id="user_selector_button" data-dropdown-toggle="users_selector" data-dropdown-placement="bottom" class="text-white justify-between bg-blue-700 hover:bg-blue-800 focus:ring-4 focus:outline-none focus:ring-blue-300 font-medium rounded-lg text-sm px-5 py-2.5 text-center inline-flex items-center dark:bg-blue-600 dark:hover:bg-blue-700 dark:focus:ring-blue-800" type="button">
                         <div>Select User</div>
                         <svg class="w-2.5 h-2.5 ms-3" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 10 6">
@@ -377,5 +378,40 @@
         addPaymentRow(modal, startDate, 0, 6);
         addPaymentRow(modal, ownerPaymentDate, 0, 2);
     }
-    
+
+    function paymentTypeLabelBase(label) {
+        return String(label).split('(')[0].trim().toLowerCase();
+    }
+
+    function findPaymentTypeIdForLease(kind) {
+        const types = paymentTypes || [];
+        const low = (t) => String(t.label).toLowerCase();
+        const base = (t) => paymentTypeLabelBase(t.label);
+        if (kind === 'advance_rent') {
+            let x = types.find((t) => low(t).includes('advance rent'));
+            if (x) return x.value;
+            x = types.find((t) => base(t) === 'advance rent');
+            if (x) return x.value;
+            x = types.find((t) => base(t) === 'hold deposit');
+            return x ? x.value : 4;
+        }
+        if (kind === 'damage_deposit') {
+            const x = types.find((t) => low(t).includes('damage deposit') && !low(t).includes('return'));
+            return x ? x.value : 3;
+        }
+        if (kind === 'rent') {
+            const x = types.find((t) => base(t) === 'rent');
+            return x ? x.value : 6;
+        }
+        return null;
+    }
+
+    function addLeasePayments(modal) {
+        const startDateInput = document.getElementById('start_date') || document.getElementById('start_date-create');
+        const startDate = startDateInput && startDateInput.value ? new Date(startDateInput.value) : new Date();
+        addPaymentRow(modal, startDate, 0, findPaymentTypeIdForLease('advance_rent'));
+        addPaymentRow(modal, startDate, 750, findPaymentTypeIdForLease('damage_deposit'));
+        addPaymentRow(modal, startDate, 0, findPaymentTypeIdForLease('rent'));
+    }
+
 </script>

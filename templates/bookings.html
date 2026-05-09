@@ -182,7 +182,41 @@
        addPaymentRow(modal, ownerPaymentDate, 0, 2);
    }
 
-   
+    function paymentTypeLabelBase(label) {
+        return String(label).split('(')[0].trim().toLowerCase();
+    }
+
+    function findPaymentTypeIdForLease(kind) {
+        const types = paymentTypes || [];
+        const low = (t) => String(t.label).toLowerCase();
+        const base = (t) => paymentTypeLabelBase(t.label);
+        if (kind === 'advance_rent') {
+            let x = types.find((t) => low(t).includes('advance rent'));
+            if (x) return x.value;
+            x = types.find((t) => base(t) === 'advance rent');
+            if (x) return x.value;
+            x = types.find((t) => base(t) === 'hold deposit');
+            return x ? x.value : 4;
+        }
+        if (kind === 'damage_deposit') {
+            const x = types.find((t) => low(t).includes('damage deposit') && !low(t).includes('return'));
+            return x ? x.value : 3;
+        }
+        if (kind === 'rent') {
+            const x = types.find((t) => base(t) === 'rent');
+            return x ? x.value : 6;
+        }
+        return null;
+    }
+
+    function addLeasePayments(modal) {
+        const startDateInput = document.getElementById('start_date') || document.getElementById('start_date-create');
+        const startDate = startDateInput && startDateInput.value ? new Date(startDateInput.value) : new Date();
+        addPaymentRow(modal, startDate, 0, findPaymentTypeIdForLease('advance_rent'));
+        addPaymentRow(modal, startDate, 750, findPaymentTypeIdForLease('damage_deposit'));
+        addPaymentRow(modal, startDate, 0, findPaymentTypeIdForLease('rent'));
+    }
+
 </script>
 
 {% endblock content %}
