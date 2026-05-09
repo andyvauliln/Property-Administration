@@ -34,6 +34,8 @@ def booking_availability(request):
 
     if booking_status and booking_status != 'Available':
         booking_queryset = booking_queryset.filter(status=booking_status)
+    else:
+        booking_queryset = booking_queryset.exclude(status='Cancelled')
 
     booking_queryset = booking_queryset.prefetch_related('payments')
 

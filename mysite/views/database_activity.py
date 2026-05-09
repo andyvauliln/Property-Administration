@@ -77,7 +77,7 @@ def get_data_integrity_issues(orphaned_page=1, zero_amount_page=1, mismatch_page
     bookings = list(Booking.objects.filter(
         end_date__gte=one_month_ago,
         apartment__isnull=False
-    ).exclude(status='Blocked').select_related('apartment', 'tenant')[:100])  # Reduced from 500
+    ).exclude(status__in=['Blocked', 'Cancelled']).select_related('apartment', 'tenant')[:100])  # Reduced from 500
     
     # Group bookings by apartment for efficient overlap detection
     bookings_by_apartment = {}

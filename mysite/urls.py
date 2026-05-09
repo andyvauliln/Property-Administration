@@ -43,6 +43,11 @@ urlpatterns = [
     path('api/calendar-notes/<int:note_id>/delete/', views.delete_calendar_note, name='delete_calendar_note'),
     path('api/update-apartment-price-by-rooms/', views.UpdateApartmentPriceByRooms.as_view(), name='update_apartment_price_by_rooms'),
     path('api/update-single-apartment-price/', views.UpdateSingleApartmentPrice.as_view(), name='update_single_apartment_price'),
+    path('api/bookings/', views.RentalGuruCreateBookingAPI.as_view(), name='api_rental_guru_create_booking'),
+    path('api/bookings/<int:pk>/', views.RentalGuruUpdateBookingAPI.as_view(), name='api_rental_guru_update_booking'),
+    path('api/bookings/by-source-id/<str:source_id>/', views.RentalGuruUpdateBookingBySourceIdAPI.as_view(), name='api_rental_guru_update_booking_by_source_id'),
+    path('api/payments/', views.RentalGuruCreatePaymentAPI.as_view(), name='api_rental_guru_create_payment'),
+    path('api/payments/<int:pk>/', views.RentalGuruUpdatePaymentAPI.as_view(), name='api_rental_guru_update_payment'),
     # Chat interface URLs
     path('chat/', views.chat_list, name='chat_list'),
     path('chat/<str:conversation_sid>/', views.chat_detail, name='chat_detail'),

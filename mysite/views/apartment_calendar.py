@@ -60,14 +60,16 @@ def apartment(request):
             return HttpResponseBadRequest("You don't have access to any apartments.")
 
     bookings = Booking.objects.filter(
-        start_date__lte=end_date, end_date__gte=start_date, apartment=apartment)
+        start_date__lte=end_date, end_date__gte=start_date, apartment=apartment
+    ).exclude(status='Cancelled')
 
     cleanings = Cleaning.objects.filter(date__range=(
-        start_date, end_date), booking__apartment=apartment)
+        start_date, end_date), booking__apartment=apartment
+    ).exclude(booking__status='Cancelled')
     payments = Payment.objects.filter(
         Q(booking__apartment=apartment) | Q(apartment=apartment),
         payment_date__range=(start_date, end_date)
-    )
+    ).filter(Q(booking__isnull=True) | ~Q(booking__status='Cancelled'))
 
     event_data = defaultdict(lambda: defaultdict(list))
 

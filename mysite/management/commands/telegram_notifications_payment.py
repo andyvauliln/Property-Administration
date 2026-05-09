@@ -50,7 +50,7 @@ def check_bookings_without_cleaning(chat_ids, token):
     upcoming_end_bookings = Booking.objects.filter(
         end_date__gte=today,
         end_date__lte=three_days_from_now
-    ).exclude(status='Blocked').select_related('apartment', 'tenant')
+    ).exclude(status__in=['Blocked', 'Cancelled']).select_related('apartment', 'tenant')
 
     for booking in upcoming_end_bookings:
         if not hasattr(booking, 'cleanings') or not booking.cleanings.exists():
@@ -126,22 +126,22 @@ def my_cron_job():
     for chat_id in telegram_chat_ids:
         cid = chat_id.strip()
 
-        for booking in Booking.objects.filter(start_date=next_day).exclude(status='Blocked').select_related('apartment', 'tenant'):
+        for booking in Booking.objects.filter(start_date=next_day).exclude(status__in=['Blocked', 'Cancelled']).select_related('apartment', 'tenant'):
             message = _build_booking_message(booking, "Start Booking")
             send_telegram_message(cid, telegram_token, message)
 
-        for booking in Booking.objects.filter(end_date=next_day).exclude(status='Blocked').select_related('apartment', 'tenant'):
+        for booking in Booking.objects.filter(end_date=next_day).exclude(status__in=['Blocked', 'Cancelled']).select_related('apartment', 'tenant'):
             message = _build_booking_message(booking, "End Booking")
             send_telegram_message(cid, telegram_token, message)
 
         for payment in Payment.objects.filter(payment_date=next_day).exclude(
             payment_type__name__icontains='Mortage'
-        ).filter(Q(booking__isnull=True) | ~Q(booking__status='Blocked')).select_related('payment_type', 'booking', 'booking__apartment', 'booking__tenant', 'apartment'):
+        ).filter(Q(booking__isnull=True) | ~Q(booking__status__in=['Blocked', 'Cancelled'])).select_related('payment_type', 'booking', 'booking__apartment', 'booking__tenant', 'apartment'):
             message = _build_payment_message(payment)
             send_telegram_message(cid, telegram_token, message)
 
         for cleaning in Cleaning.objects.filter(date=next_day).filter(
-            Q(booking__isnull=True) | ~Q(booking__status='Blocked')
+            Q(booking__isnull=True) | ~Q(booking__status__in=['Blocked', 'Cancelled'])
         ).select_related('cleaner', 'booking', 'booking__apartment', 'apartment'):
             message = _build_cleaning_message(cleaning, "TOMORROW")
             send_telegram_message(cid, telegram_token, message)

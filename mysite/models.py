@@ -14,15 +14,20 @@ import uuid
 import requests
 import os
 
+from mysite.audit_bulk import audit_queryset_update
+
+
 def convert_date_format(value):
     if isinstance(value, date):
         # If date_str is already a date object, return it as is
         return value
 
-    try:
-        return datetime.strptime(value, '%B %d %Y').date()
-    except ValueError:
-        pass
+    if isinstance(value, str):
+        for fmt in ('%Y-%m-%d', '%B %d %Y', '%b. %d, %Y'):
+            try:
+                return datetime.strptime(value.strip(), fmt).date()
+            except ValueError:
+                continue
 
     raise ValueError(f"Invalid date format: {value}")
 
@@ -337,8 +342,8 @@ class Apartment(models.Model):
         
         related_objects = []
         
-        # Check for bookings
-        bookings_count = self.booked_apartments.count()
+        # Check for bookings (cancelled-only history does not block apartment deletion)
+        bookings_count = self.booked_apartments.exclude(status='Cancelled').count()
         if bookings_count > 0:
             related_objects.append(f"{bookings_count} booking(s)")
         
@@ -555,6 +560,7 @@ class Booking(models.Model):
         ('Blocked', 'Blocked'),
         ('Pending', 'Pending'),
         ('Problem Booking', 'Problem Booking'),
+        ('Cancelled', 'Cancelled'),
     ]
     ANIMALS = [
         ('Cat', 'Cat'),
@@ -565,6 +571,7 @@ class Booking(models.Model):
         ('Airbnb', 'Airbnb'),
         ('Referral', 'Referral'),
         ('Returning', 'Returning'),
+        ('Rental Guru', 'Rental Guru'),
         ('Other', 'Other'),
     ]
     VISIT_PURPOSE = [
@@ -591,6 +598,10 @@ class Booking(models.Model):
     visit_purpose = models.CharField(
         max_length=32, blank=True, choices=VISIT_PURPOSE)
     source = models.CharField(max_length=32, blank=True, choices=SOURCE)
+    source_id = models.CharField(
+        max_length=255, blank=True, null=True, unique=True, db_index=True,
+        help_text='External platform booking id (e.g. Rental Guru)',
+    )
     apartment = models.ForeignKey(Apartment, on_delete=models.SET_NULL, db_index=True,
                                   related_name='booked_apartments', null=True)
     notes = models.TextField(blank=True, null=True)
@@ -616,9 +627,13 @@ class Booking(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
 
     def saveEmpty(self, *args, **kwargs):
+        from mysite.request_context import apply_user_tracking
+
         form_data = kwargs.pop('form_data', None)
         parking_number = kwargs.pop('parking_number', None)
-        
+        updated_by = kwargs.pop('updated_by', None)
+        apply_user_tracking(self, updated_by)
+
         # Check if this is an update and if status changed
         is_updating = self.pk is not None
         if is_updating:
@@ -632,7 +647,8 @@ class Booking(models.Model):
             dates_changed = (orig.start_date != self.start_date) or (orig.end_date != self.end_date)
             apartment_changed = orig.apartment_id != self.apartment_id
             if dates_changed or apartment_changed:
-                ParkingBooking.objects.filter(booking=self).update(
+                audit_queryset_update(
+                    ParkingBooking.objects.filter(booking=self),
                     start_date=self.start_date,
                     end_date=self.end_date,
                     apartment=self.apartment,
@@ -685,20 +701,27 @@ class Booking(models.Model):
         
         # Update notifications if dates changed
         if orig.start_date != self.start_date:
-            Notification.objects.filter(
-                booking=self,
-                message="Start Booking"
-            ).update(date=self.start_date)
+            audit_queryset_update(
+                Notification.objects.filter(
+                    booking=self,
+                    message="Start Booking",
+                ),
+                date=self.start_date,
+            )
         
         if orig.end_date != self.end_date:
             self._handle_end_date_change(orig)
         
         dates_changed = (orig.start_date != self.start_date) or (orig.end_date != self.end_date)
         apartment_changed = orig.apartment_id != self.apartment_id
+
+        if apartment_changed:
+            self._reassign_parking_on_apartment_change()
         
         # Keep linked parking bookings in sync with booking (dates + apartment)
         if dates_changed or apartment_changed:
-            ParkingBooking.objects.filter(booking=self).update(
+            audit_queryset_update(
+                ParkingBooking.objects.filter(booking=self),
                 start_date=self.start_date,
                 end_date=self.end_date,
                 apartment=self.apartment,
@@ -711,20 +734,76 @@ class Booking(models.Model):
         # Save the booking
         super().save()
         
+        if orig.status != 'Cancelled' and self.status == 'Cancelled':
+            self._cleanup_on_cancelled_booking()
+        
         # Create or update payments
-        if payments_data:
+        if payments_data and self.status != 'Cancelled':
             self.create_payments(payments_data)
         
         # Update contract if exists
-        if self.contract_id:
+        if self.contract_id and self.status != 'Cancelled':
             update_contract(self)
         
         # Handle contract sending and messaging
-        self._handle_contract_and_messaging(form_data)
+        if self.status != 'Cancelled':
+            self._handle_contract_and_messaging(form_data)
         
         # Update conversation links
-        if self.tenant and self.tenant.phone:
+        if self.tenant and self.tenant.phone and self.status != 'Cancelled':
             self.update_conversation_links()
+
+    def _reassign_parking_on_apartment_change(self):
+        """
+        When a booking moves apartments, try to move linked parking to the
+        destination apartment's dedicated parking (building + apartment number).
+        """
+        if not self.apartment:
+            return
+
+        apartment_n = (self.apartment.apartment_n or '').strip()
+        building_n = (self.apartment.building_n or '').strip()
+        if not apartment_n or not building_n:
+            return
+
+        mapped_parkings = Parking.objects.filter(
+            building=building_n,
+            associated_room=apartment_n,
+        ).order_by('id')
+        if not mapped_parkings.exists():
+            return
+
+        linked_parking_qs = ParkingBooking.objects.filter(booking=self)
+        if not linked_parking_qs.exists():
+            return
+
+        target_parking = None
+        linked_ids = linked_parking_qs.values_list('id', flat=True)
+        for candidate in mapped_parkings:
+            if linked_parking_qs.filter(parking=candidate).exists():
+                target_parking = candidate
+                break
+
+            has_overlap = ParkingBooking.objects.filter(
+                parking=candidate,
+                start_date__lt=self.end_date,
+                end_date__gt=self.start_date,
+            ).exclude(
+                id__in=linked_ids
+            ).exclude(
+                booking__status='Cancelled'
+            ).exists()
+            if not has_overlap:
+                target_parking = candidate
+                break
+
+        if not target_parking:
+            return
+
+        audit_queryset_update(
+            linked_parking_qs,
+            parking=target_parking,
+        )
     
     def _handle_booking_creation(self, form_data, payments_data):
         """Handle creation of new bookings"""
@@ -756,35 +835,48 @@ class Booking(models.Model):
             self.deletePayments()
         
         # Update damage deposit return date
-        Payment.objects.filter(
-            booking=self,
-            payment_type__name="Damage Deposit",
-            payment_type__type="Out"
-        ).update(payment_date=self.end_date)
-        
+        audit_queryset_update(
+            Payment.objects.filter(
+                booking=self,
+                payment_type__name="Damage Deposit",
+                payment_type__type="Out",
+            ),
+            payment_date=self.end_date,
+        )
+
         # Update cleaning date
-        Cleaning.objects.filter(booking=self).update(date=self.end_date)
-        
+        audit_queryset_update(
+            Cleaning.objects.filter(booking=self),
+            date=self.end_date,
+        )
+
         # Update all related notifications
-        Notification.objects.filter(
-            payment__booking=self,
-            payment__payment_type__name="Damage Deposit",
-            payment__payment_type__type="Out"
-        ).update(date=self.end_date)
-        
-        Notification.objects.filter(
-            cleaning__booking=self
-        ).update(date=self.end_date)
-        
-        Notification.objects.filter(
-            booking=self,
-            message="End Booking"
-        ).update(date=self.end_date)
+        audit_queryset_update(
+            Notification.objects.filter(
+                payment__booking=self,
+                payment__payment_type__name="Damage Deposit",
+                payment__payment_type__type="Out",
+            ),
+            date=self.end_date,
+        )
+
+        audit_queryset_update(
+            Notification.objects.filter(cleaning__booking=self),
+            date=self.end_date,
+        )
+
+        audit_queryset_update(
+            Notification.objects.filter(
+                booking=self,
+                message="End Booking",
+            ),
+            date=self.end_date,
+        )
     
     def _create_booking_notifications(self):
         """Auto-create Start and End Booking notifications (excluding Blocked bookings)"""
         # Skip notification creation for Blocked bookings
-        if self.status == 'Blocked':
+        if self.status == 'Blocked' or self.status == 'Cancelled':
             return
         
         # Check and create Start Booking notification
@@ -845,7 +937,7 @@ class Booking(models.Model):
         
         try:
             candidate = str(int(str(raw_value).strip()))
-            return candidate if candidate in {"118378", "120946"} else None
+            return candidate if candidate in {"118378", "120946", "3465654", "3538155"} else None
         except (ValueError, AttributeError):
             return None
     
@@ -881,15 +973,28 @@ class Booking(models.Model):
         )
         parking_booking.save()
     
+    def _cleanup_on_cancelled_booking(self):
+        """Remove related operational rows when a booking is cancelled (soft delete or status change)."""
+        Notification.objects.filter(booking=self).delete()
+        ParkingBooking.objects.filter(booking=self).delete()
+        Cleaning.objects.filter(booking=self).delete()
+        Payment.objects.filter(booking=self, payment_status='Pending').delete()
+
     def _update_parking_booking_status(self):
         """Update parking booking status based on booking status and car info"""
+        if self.status == "Cancelled":
+            ParkingBooking.objects.filter(booking=self).delete()
+            return
         if self.status == "Blocked":
             new_status = "Unavailable"
         elif self.is_rent_car is not None or self.car_model:
             new_status = "Booked"
         else:
             new_status = "No Car"
-        ParkingBooking.objects.filter(booking=self).update(status=new_status)
+        audit_queryset_update(
+            ParkingBooking.objects.filter(booking=self),
+            status=new_status,
+        )
        
     def deletePayments(self):
         payments_to_delete = Payment.objects.filter(
@@ -900,20 +1005,39 @@ class Booking(models.Model):
         for payment in payments_to_delete:
             payment.delete()
 
-    def delete(self, *args, **kwargs):
-        if self.contract_id != "" and self.contract_id != None:
-            delete_contract(self.contract_id)
+    def delete(self, using=None, keep_parents=False, hard_delete=False):
+        if hard_delete:
+            if self.contract_id != "" and self.contract_id != None:
+                delete_contract(self.contract_id)
+            ParkingBooking.objects.filter(booking=self).delete()
+            super(Booking, self).delete(using=using, keep_parents=keep_parents)
+            return
 
-        # Delete related parking bookings
-        ParkingBooking.objects.filter(booking=self).delete()
+        from django.utils import timezone
+        from mysite.request_context import apply_user_tracking
 
-        super(Booking, self).delete(*args, **kwargs)
+        apply_user_tracking(self, None)
+        self.status = 'Cancelled'
+        self.updated_at = timezone.now()
+        models.Model.save(
+            self, update_fields=['status', 'last_updated_by', 'updated_at']
+        )
+        self._cleanup_on_cancelled_booking()
 
     def get_or_create_tenant(self, form_data):
         if form_data:
             tenant_email = form_data.get('tenant_email')
             tenant_full_name = form_data.get('tenant_full_name')
             tenant_phone = form_data.get('tenant_phone')
+
+            if tenant_phone:
+                from mysite.views.messaging import is_reserved_phone
+                if is_reserved_phone(tenant_phone):
+                    from django.core.exceptions import ValidationError
+                    raise ValidationError(
+                        f"Tenant phone '{tenant_phone}' belongs to a manager or system number. "
+                        f"Please enter the actual tenant's phone number."
+                    )
 
             if tenant_email:
                 # Try to retrieve an existing user with the given email
@@ -1338,7 +1462,15 @@ class Payment(models.Model):
                                 related_name='payments', null=True, blank=True)
     apartment = models.ForeignKey(Apartment, on_delete=models.CASCADE, db_index=True,
                                   related_name='payments', null=True, blank=True)
-    
+    source = models.CharField(
+        max_length=32, blank=True, null=True, choices=Booking.SOURCE,
+        help_text='External platform (e.g. Rental Guru)',
+    )
+    source_id = models.CharField(
+        max_length=255, blank=True, null=True, db_index=True,
+        help_text='External platform payment id',
+    )
+
     # Tracking fields
     created_by = models.CharField(max_length=255, blank=True, null=True, editable=False)
     last_updated_by = models.CharField(max_length=255,  blank=True, null=True, editable=False)
@@ -1353,6 +1485,11 @@ class Payment(models.Model):
             models.CheckConstraint(
                 name="payment_booking_or_apartment_not_both",
                 check=models.Q(booking__isnull=True) | models.Q(apartment__isnull=True),
+            ),
+            models.UniqueConstraint(
+                fields=['source', 'source_id'],
+                name='payment_source_source_id_uniq',
+                condition=models.Q(source_id__isnull=False),
             ),
         ]
 
@@ -1396,8 +1533,10 @@ class Payment(models.Model):
                     else:
                         raise ValueError("Unsupported date format for self.payment_date")
 
-                    Notification.objects.filter(
-                        payment=self).update(date=payment_date_str)
+                    audit_queryset_update(
+                        Notification.objects.filter(payment=self),
+                        date=payment_date_str,
+                    )
 
             # Save the payment first
             if number_of_months and number_of_months > 0:
@@ -1552,8 +1691,11 @@ class Cleaning(models.Model):
             # If date has changed
             if orig.date != self.date:
                 # Update the related Notification
-                Notification.objects.filter(
-                    cleaning=self).update(date=self.date, apartment=self.apartment)
+                audit_queryset_update(
+                    Notification.objects.filter(cleaning=self),
+                    date=self.date,
+                    apartment=self.apartment,
+                )
             
             # Send telegram notification about changes
             if (orig.date != self.date) or (orig.status != self.status) or (orig.cleaner != self.cleaner) or (orig.tasks != self.tasks) or (orig.notes != self.notes):
@@ -2346,5 +2488,5 @@ class AIManagement(models.Model):
 
 def send_telegram_message(chat_id, token, message):
     if chat_id and token:
-        base_url = f"https://api.telegram.org/bot{token}/sendMessage?chat_id={chat_id}&text={message}"
-        requests.get(base_url)
+        url = f"https://api.telegram.org/bot{token}/sendMessage"
+        requests.get(url, params={"chat_id": chat_id, "text": message})

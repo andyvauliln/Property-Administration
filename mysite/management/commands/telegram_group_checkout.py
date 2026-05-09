@@ -30,7 +30,7 @@ def my_cron_job(dry_run=False, stdout=None):
             return
     bookings = Booking.objects.filter(
         end_date=next_day,
-    ).exclude(status='Blocked').select_related('apartment', 'tenant').order_by('id')
+    ).exclude(status__in=['Blocked', 'Cancelled']).select_related('apartment', 'tenant').order_by('id')
 
     sent = 0
     for booking in bookings:

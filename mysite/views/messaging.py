@@ -32,6 +32,19 @@ KB_SUFFIX = "(+)"  # Virtual Assistant messages marked with (+) are processed fo
 CLIENT_SUFFIX = "(+++)"  # Virtual Assistant messages marked with (+++) are treated as client (AI answers)
 MANAGER_CHAT_SID = os.environ.get("MANAGER_CHAT_SID", "CH10c59b85e2ec4aad98e982916c495ea8")
 
+TWILIO_ASSISTANT_PHONE = "+13153524379"
+MANAGER_PHONES = ("+15612205252", "+17282001917", "+15614603904")
+RESERVED_PHONES = frozenset(MANAGER_PHONES + (TWILIO_ASSISTANT_PHONE,))
+
+
+def is_reserved_phone(phone):
+    """True if phone matches a manager or the Twilio assistant number."""
+    if not phone:
+        return False
+    from mysite.models import validate_and_format_phone
+    formatted = validate_and_format_phone(phone)
+    return formatted in RESERVED_PHONES
+
 # Unified logger throughout the app
 
 # Initialize Twilio client with validation
@@ -294,8 +307,8 @@ def get_booking_from_phone(phone_number):
         cutoff_date = date.today() - timedelta(days=90)
         booking = Booking.objects.filter(
             tenant=user,
-            end_date__gte=cutoff_date
-        ).order_by('-start_date').first()
+            end_date__gte=cutoff_date,
+        ).exclude(status='Cancelled').order_by('-start_date').first()
         
         return booking
         
@@ -856,9 +869,18 @@ def _update_message_ai_result(message_sid, **kwargs):
     """Update TwilioMessage AI metadata fields after processing."""
     if not message_sid:
         return
+    if not kwargs:
+        return
     try:
+        from mysite.audit_bulk import audit_queryset_update
         from mysite.models import TwilioMessage
-        TwilioMessage.objects.filter(message_sid=message_sid).update(**kwargs)
+        from mysite.signals import get_current_user_info
+
+        audit_queryset_update(
+            TwilioMessage.objects.filter(message_sid=message_sid),
+            changed_by=get_current_user_info(),
+            **kwargs,
+        )
     except Exception as e:
         log_error(e, "Error updating message AI metadata", source='web')
 

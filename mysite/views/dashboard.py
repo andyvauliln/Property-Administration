@@ -41,7 +41,8 @@ def index(request):
             managers=request.user).order_by('name')
         bookings = Booking.objects.filter(
             Q(start_date__lte=end_date, end_date__gte=start_month),
-            apartment__managers=request.user)
+            apartment__managers=request.user,
+        ).exclude(status='Cancelled')
         cleanings = Cleaning.objects.filter(
             booking__apartment__managers=request.user,
             date__range=(start_month, end_date)).select_related('booking__apartment')
@@ -53,7 +54,8 @@ def index(request):
         apartments = Apartment.objects.filter(
             Q(end_date__gte=start_month) | Q(end_date__isnull=True)).order_by('name')
         bookings = Booking.objects.filter(
-            Q(start_date__lte=end_date, end_date__gte=start_month))
+            Q(start_date__lte=end_date, end_date__gte=start_month),
+        ).exclude(status='Cancelled')
         cleanings = Cleaning.objects.filter(date__range=(
             start_month, end_date)).select_related('booking__apartment')
         payments = Payment.objects.filter(payment_date__range=(start_month, end_date)

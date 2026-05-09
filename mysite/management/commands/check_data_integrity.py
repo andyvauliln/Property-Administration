@@ -156,7 +156,7 @@ class DataIntegrityChecker:
         print("-" * 60)
         
         overlaps = []
-        bookings = Booking.objects.exclude(status='Blocked').select_related('apartment', 'tenant')
+        bookings = Booking.objects.exclude(status__in=['Blocked', 'Cancelled']).select_related('apartment', 'tenant')
         
         example_shown = False
         for booking in bookings:
@@ -171,7 +171,7 @@ class DataIntegrityChecker:
             ).exclude(
                 id=booking.id
             ).exclude(
-                status='Blocked'
+                status__in=['Blocked', 'Cancelled']
             ).filter(
                 Q(start_date__lt=booking.end_date, end_date__gt=booking.start_date)
             ).select_related('tenant')

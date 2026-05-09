@@ -227,6 +227,12 @@
         const el = document.getElementById('updateModal');
         el.classList.add('hidden');
         el.style.display = 'none';
+        if (typeof selected_bank_payments !== 'undefined') selected_bank_payments.clear();
+        if (typeof selected_db_payments !== 'undefined') selected_db_payments.clear();
+        if (typeof onBankSelectionChanged === 'function') onBankSelectionChanged();
+        if (typeof renderBankPayments === 'function') renderBankPayments();
+        if (typeof renderDBPayments === 'function') renderDBPayments();
+        if (typeof updateCounts === 'function') updateCounts();
     }
 
     function mergePaymentData(db_payment, file_payment, create_mode) {
@@ -282,6 +288,9 @@
         } catch (e) {
             console.error('loadTab error:', e);
         }
+        const saveBtn = document.getElementById('save_payments_btn');
+        if (saveBtn) saveBtn.disabled = false;
+
         const modalEl = document.getElementById('updateModal');
         if (modalEl) {
             document.body.appendChild(modalEl);
@@ -498,9 +507,10 @@
         saveToLocalStorage();
 
         const btn = document.getElementById('save_payments_btn');
-        const originalLabel = document.getElementById('save_payments_btn_label').textContent;
+        const labelEl = document.getElementById('save_payments_btn_label');
+        const originalLabel = labelEl.textContent;
         btn.disabled = true;
-        document.getElementById('save_payments_btn_label').textContent = 'Saving…';
+        labelEl.textContent = 'Saving…';
 
         const form = new FormData();
         form.append('payments_to_update', JSON.stringify(enriched));
@@ -517,7 +527,8 @@
                 applySavedToLocalState(enriched);
                 saveToLocalStorage();
                 closeModal();
-                selected_bank_payments.clear();
+                if (typeof selected_bank_payments !== 'undefined') selected_bank_payments.clear();
+                if (typeof selected_db_payments !== 'undefined') selected_db_payments.clear();
                 if (typeof showNotificationInHint === 'function') showNotificationInHint(data.message, 'success');
                 onBankSelectionChanged();
                 renderBankPayments();
@@ -527,8 +538,10 @@
             .catch(err => {
                 if (typeof showNotificationInHint === 'function') showNotificationInHint(err.message || 'Failed to save payments.', 'error');
                 else alert('Failed to save payments. Please try again.');
+            })
+            .finally(() => {
                 btn.disabled = false;
-                document.getElementById('save_payments_btn_label').textContent = originalLabel;
+                labelEl.textContent = originalLabel;
             });
     }
 

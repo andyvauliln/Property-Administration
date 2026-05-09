@@ -58,7 +58,7 @@ class Command(BaseCommand):
                                  filter=Q(booking_notifications__message='End Booking'))
         ).filter(
             Q(start_notif_count=0) | Q(end_notif_count=0)
-        )
+        ).exclude(status='Cancelled')
 
         if exclude_blocked:
             bookings_query = bookings_query.exclude(status='Blocked')

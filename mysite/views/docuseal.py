@@ -1,6 +1,7 @@
 from django.utils import timezone
 from django.http import JsonResponse
 import json
+from mysite.audit_bulk import audit_queryset_update
 from mysite.models import Booking, ParkingBooking
 from django.http import JsonResponse, HttpResponse
 from django.views.decorators.csrf import csrf_exempt
@@ -111,15 +112,23 @@ def docuseal_callback(request):
                     if 'car_info' in form_fields_dict or 'car_model' in form_fields_dict:
                         has_car = booking.is_rent_car is not None or booking.car_model
                         new_status = "Booked" if has_car else "No Car"
-                        updated_count = ParkingBooking.objects.filter(booking=booking).update(status=new_status)
+                        updated_count = audit_queryset_update(
+                            ParkingBooking.objects.filter(booking=booking),
+                            changed_by="System (DocuSign webhook)",
+                            status=new_status,
+                        )
                         logger.info(f"parking_booking_status_updated: {new_status}, count: {updated_count}")
                     logger.info(f"booking status: {booking.status}")
                     logger.info("Booking Saved")
                     tenant = booking.tenant
                     logger.info(f"tenant object before update: {tenant}")
                     
+                    tenant_name = form_fields_dict.get('tenant') or form_fields_dict.get('tenant_name')
+                    tenant_email = form_fields_dict.get('email') or form_fields_dict.get('tenant_email')
+                    tenant_phone = form_fields_dict.get('phone') or form_fields_dict.get('tenant_phone')
+
                     # Check if email has changed and if the new email already exists
-                    new_email = form_fields_dict.get('email', '').strip() if 'email' in form_fields_dict and form_fields_dict['email'] else None
+                    new_email = tenant_email.strip() if tenant_email else None
                     
                     if new_email and new_email != tenant.email:
                         # Check if a user with this email already exists
@@ -135,15 +144,15 @@ def docuseal_callback(request):
                             logger.info(f"info: Email {new_email} is available. Updating current tenant.")
                     
                     # Update tenant information
-                    if 'tenant' in form_fields_dict and form_fields_dict['tenant']:
-                        tenant.full_name = form_fields_dict['tenant'].strip()
-                        logger.info(f"tenant: {form_fields_dict['tenant']}")
+                    if tenant_name:
+                        tenant.full_name = tenant_name.strip()
+                        logger.info(f"tenant: {tenant_name}")
                     if new_email and new_email != tenant.email:
                         tenant.email = new_email
                         logger.info(f"email: {new_email}")
-                    if 'phone' in form_fields_dict and form_fields_dict['phone']:
+                    if tenant_phone:
                         # Clean phone number: take only the first phone if multiple are provided
-                        raw_phone = form_fields_dict['phone'].strip()
+                        raw_phone = tenant_phone.strip()
                         # Split by common separators and take the first phone number
                         phone_cleaned = raw_phone.split('//')[0].split(',')[0].strip()
                         # Set phone - validation happens in User.save()
