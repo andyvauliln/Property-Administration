@@ -120,6 +120,13 @@ cron.schedule('0 8 * * *', function () {
         '/home/superuser/site/'
     );
 });
+cron.schedule('0 8 * * *', function () {
+    executeCronCommand(
+        'Telegram Group: Tenant Reviews',
+        '/usr/bin/python3 /home/superuser/site/manage.py telegram_group_tenant_reviews',
+        '/home/superuser/site/'
+    );
+});
 
 cron.schedule('0 8 * * *', function () {
     executeCronCommand(

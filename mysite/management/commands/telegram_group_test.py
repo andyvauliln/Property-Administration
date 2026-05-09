@@ -28,6 +28,7 @@ GROUPS = [
     ("Checkin", "TELEGRAM_GROUP_CHECKIN"),
     ("Payment In", "TELEGRAM_GROUP_PAYMENT_IN"),
     ("Payment Out", "TELEGRAM_GROUP_PAYMENT_OUT"),
+    ("Tenant Reviews", "TELEGRAM_GROUP_TENANT_REVIEWS"),
 ]
 
 
@@ -40,7 +41,7 @@ def strip_100_prefix(chat_id):
 
 
 class Command(BaseCommand):
-    help = 'Send a test message to all Telegram notification groups (Cleaning, Checkout, Checkin, Payment In, Payment Out)'
+    help = 'Send a test message to all Telegram notification groups (Cleaning, Checkout, Checkin, Payment In, Payment Out, Tenant Reviews)'
 
     def add_arguments(self, parser):
         parser.add_argument("--verbose", action="store_true", help="Show each chat_id attempt")
