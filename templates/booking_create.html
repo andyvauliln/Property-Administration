@@ -407,11 +407,13 @@
     }
 
     function addLeasePayments(modal) {
-        const startDateInput = document.getElementById('start_date') || document.getElementById('start_date-create');
-        const startDate = startDateInput && startDateInput.value ? new Date(startDateInput.value) : new Date();
+        const { startEl: startDateInput } = getBookingFormDateInputs();
+        const startFromPicker = getDateFromBookingPickerInput(startDateInput);
+        const startDate = startFromPicker && !isNaN(startFromPicker.getTime()) ? startFromPicker : new Date();
+        const rentMonths = getBookingLeaseTermMonths();
         addPaymentRow(modal, startDate, 0, findPaymentTypeIdForLease('advance_rent'));
         addPaymentRow(modal, startDate, 750, findPaymentTypeIdForLease('damage_deposit'));
-        addPaymentRow(modal, startDate, 0, findPaymentTypeIdForLease('rent'));
+        addPaymentRow(modal, startDate, 0, findPaymentTypeIdForLease('rent'), "Pending", "", "", rentMonths);
     }
 
 </script>

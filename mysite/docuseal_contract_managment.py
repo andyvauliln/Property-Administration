@@ -1,7 +1,3 @@
-from django.utils import timezone
-from calendar import monthrange
-from datetime import timedelta
-from decimal import Decimal, ROUND_HALF_UP
 import os
 import requests
 import json
@@ -9,6 +5,9 @@ from mysite.unified_logger import log_error, log_info, log_warning, logger
 
 SUBMISSION_URL_API_BASE_URL = "https://api.docuseal.co/submissions"
 DOCUSEAL_API_KEY = os.environ.get("DOCUSEAL_API_KEY")
+DOCUSEAL_COMPLETED_BCC_EMAIL = os.environ.get(
+    "DOCUSEAL_COMPLETED_BCC_EMAIL", "apartmentincityplace@gmail.com"
+)
 
 
 
@@ -139,6 +138,18 @@ def _get_payment_amount_value(booking, type_name):
     return payment.amount if payment else None
 
 
+def _get_advance_rent_amount_value(booking):
+    payment = (
+        booking.payments.filter(payment_type__type="In")
+        .filter(payment_type__name__icontains="advance rent")
+        .order_by("payment_date", "id")
+        .first()
+    )
+    if payment:
+        return payment.amount
+    return None
+
+
 def _get_monthly_price_value(booking):
     rent_amount = _get_payment_amount_value(booking, "Rent")
     if rent_amount is not None:
@@ -163,30 +174,10 @@ def _get_lease_term(booking):
     return str(max(1, months))
 
 
-def _get_month_end(value):
-    if not value:
-        return ""
-    return value.replace(day=monthrange(value.year, value.month)[1])
-
-
-def _is_prorated_first_month_start(start_date):
-    return bool(start_date and start_date.day != 1)
-
-
 def _get_double_amount(value):
     if value in (None, ""):
         return ""
     return _format_amount(value * 2)
-
-
-def _get_first_month_price(start_date, monthly_price):
-    if not start_date or monthly_price in (None, ""):
-        return ""
-    days_in_month = Decimal(monthrange(start_date.year, start_date.month)[1])
-    remaining_days = Decimal(days_in_month - start_date.day + 1)
-    daily_price = Decimal(monthly_price) / days_in_month
-    first_month_price = (daily_price * remaining_days).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
-    return _format_amount(first_month_price)
 
 
 def prepare_data_for_agreement(booking, template_id):
@@ -195,6 +186,7 @@ def prepare_data_for_agreement(booking, template_id):
         "template_id": template_id,
         "send_email": True if booking.tenant.email and booking.tenant.email != "not_availabale@gmail.com" and "@example.com" not in booking.tenant.email else False,
         "send_sms": False,
+        "bcc_completed": DOCUSEAL_COMPLETED_BCC_EMAIL,
         "submitters": [
             {
                 "role": "Tenant" if template_id_str == "3538155" else "tenant",
@@ -209,18 +201,6 @@ def prepare_data_for_agreement(booking, template_id):
         ],
         
     }
-    if template_id_str == "3538155":
-        data["submitters"].append({
-            "role": "Owner",
-            "metadata": {
-                "booking_id": f"#A{booking.id}F",
-            },
-            "email": "apartmentincityplace@gmail.com" # booking.apartment.owner.email or "",
-            # "fields": [
-            #     {"name": "owner_signature", "default_value": "FG", "readonly": True},
-            #     {"name": "owner_initials", "default_value": "FG", "readonly": True},
-            # ],
-        })
     return data
 
 
@@ -246,7 +226,10 @@ def get_fields(booking, template_id):
     elif template_id_str == "3538155":
         monthly_price_value = _get_monthly_price_value(booking)
         monthly_price = _format_amount(monthly_price_value)
-        prorate_first_month = _is_prorated_first_month_start(booking.start_date)
+        advance_rent_value = _get_advance_rent_amount_value(booking)
+        if advance_rent_value is None:
+            advance_rent_value = monthly_price_value
+        advance_rent_amount = _format_amount(advance_rent_value)
         return [
                     {"name": "lease_term", "default_value": _get_lease_term(booking), "readonly": True},
                     {"name": "lease_start_day", "default_value": _format_date(booking.start_date), "readonly": True},
@@ -261,13 +244,8 @@ def get_fields(booking, template_id):
                     {"name": "city", "default_value": booking.apartment.city or "", "readonly": True},
                     {"name": "zip_code", "default_value": booking.apartment.zip_index or "", "readonly": True},
                     {"name": "monthly_price", "default_value": monthly_price, "readonly": True},
-                    {"name": "rent_start", "default_value": _format_date(booking.start_date) if prorate_first_month else "", "readonly": True},
-                    {"name": "prorated_end_date", "default_value": _format_date(_get_month_end(booking.start_date)) if prorate_first_month else "", "readonly": True},
-                    {"name": "prorated_before_date", "default_value": _format_date(booking.start_date - timedelta(days=1)) if prorate_first_month else "", "readonly": True},
-                    {"name": "first_month_price", "default_value": _get_first_month_price(booking.start_date, monthly_price_value) if prorate_first_month else "", "readonly": True},
-                    {"name": "taxes_amount", "default_value": monthly_price, "readonly": True},
                     {"name": "security_deposit", "default_value": _get_payment_amount(booking, "Damage Deposit"), "readonly": True},
-                    {"name": "advance_rent_amount", "default_value": monthly_price, "readonly": True},
+                    {"name": "advance_rent_amount", "default_value": advance_rent_amount, "readonly": True},
                     {"name": "early_termination_fee", "default_value": _get_double_amount(monthly_price_value), "readonly": True},
                 ]
     elif template_id_str == "118378": #occupancy agreement

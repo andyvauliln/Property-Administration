@@ -98,7 +98,71 @@
         console.log("output date", formattedDate);
         return formattedDate;
     }
-    function addPaymentRow(modal, payment_date = new Date(), payment_amount = 0, payment_type = 6, paymentStatus = "Pending", notes = "", id = "") {
+    function parseDatePickerStringValue(raw) {
+        if (!raw || !String(raw).trim()) return null;
+        const months = [
+            "January", "February", "March", "April", "May", "June",
+            "July", "August", "September", "October", "November", "December"
+        ];
+        const s = String(raw).trim();
+        if (/^\d{4}-\d{2}-\d{2}( \d{2}:\d{2}:\d{2})?$/.test(s)) {
+            const [datePart] = s.split(' ');
+            const [year, month, day] = datePart.split('-').map(Number);
+            return new Date(year, month - 1, day);
+        }
+        const parts = s.replace(/,|\./g, '').split(/\s+/).filter(Boolean);
+        if (parts.length >= 3) {
+            const monthIndex = months.findIndex(m => m.toLowerCase().startsWith(parts[0].toLowerCase()));
+            const day = parseInt(parts[1], 10);
+            const year = parseInt(parts[2], 10);
+            if (monthIndex !== -1 && !isNaN(day) && !isNaN(year)) {
+                return new Date(year, monthIndex, day);
+            }
+        }
+        const fallback = new Date(s);
+        return isNaN(fallback.getTime()) ? null : fallback;
+    }
+    function getDateFromBookingPickerInput(el) {
+        if (!el) return null;
+        if (el.datepicker && typeof el.datepicker.getDate === 'function') {
+            const d = el.datepicker.getDate();
+            if (d instanceof Date && !isNaN(d.getTime())) return d;
+            const dates = el.datepicker.dates;
+            if (dates && dates.length > 0) {
+                const raw = dates[0];
+                const d2 = raw instanceof Date ? raw : new Date(raw);
+                if (!isNaN(d2.getTime())) return d2;
+            }
+        }
+        return parseDatePickerStringValue(el.value);
+    }
+    function leaseTermMonthsFromDates(startDate, endDate) {
+        if (!startDate || !endDate || isNaN(startDate.getTime()) || isNaN(endDate.getTime())) return 1;
+        const months = (endDate.getFullYear() - startDate.getFullYear()) * 12
+            + (endDate.getMonth() - startDate.getMonth());
+        return Math.max(1, months);
+    }
+    function getBookingFormDateInputs() {
+        const modal = document.getElementById('createModal');
+        if (modal) {
+            const startEl = modal.querySelector('[name="start_date"]');
+            const endEl = modal.querySelector('[name="end_date"]');
+            if (startEl && endEl) {
+                return { startEl, endEl };
+            }
+        }
+        const startEl = document.getElementById('start_date') || document.getElementById('start_date-create');
+        const endEl = document.getElementById('end_date') || document.getElementById('end_date-create');
+        return { startEl, endEl };
+    }
+    function getBookingLeaseTermMonths() {
+        const { startEl, endEl } = getBookingFormDateInputs();
+        const startD = getDateFromBookingPickerInput(startEl);
+        const endD = getDateFromBookingPickerInput(endEl);
+        if (!startD || !endD) return 1;
+        return leaseTermMonthsFromDates(startD, endD);
+    }
+    function addPaymentRow(modal, payment_date = new Date(), payment_amount = 0, payment_type = 6, paymentStatus = "Pending", notes = "", id = "", numberOfMonths = null) {
       const paymentsContainer = document.getElementById('paymentsContainer-' + modal);
 
       const paymentRow = document.createElement('div');
@@ -182,7 +246,9 @@
       const number_of_months = document.createElement('input');
       number_of_months.setAttribute('name', 'number_of_months[]');
       number_of_months.setAttribute('type',  id ? 'hidden' : 'text');
-      number_of_months.setAttribute('value', '1');
+      const monthsVal = (numberOfMonths != null && numberOfMonths !== '') ? String(numberOfMonths) : '1';
+      number_of_months.setAttribute('value', monthsVal);
+      number_of_months.value = monthsVal;
       number_of_months.setAttribute('placeholder', 'Number of months');
       number_of_months.className = 'w-[25%] bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-primary-500 focus:border-primary-500 block p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white dark:focus:ring-primary-500 dark:focus:border-primary-500';
       inputRow.appendChild(number_of_months);
