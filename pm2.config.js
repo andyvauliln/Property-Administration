@@ -4,5 +4,18 @@ module.exports = {
             name: 'telegram-notifications',
             script: 'cron.js',
         },
+        {
+            name: 'mcp-server',
+            script: '/home/superuser/site/venv/bin/python',
+            args: '/home/superuser/site/mcp_server.py',
+            cwd: '/home/superuser/site',
+            restart_delay: 5000,
+        },
+        {
+            name: 'mcp-tunnel',
+            script: '/home/superuser/site/cloudflared_start.sh',
+            cwd: '/home/superuser/site',
+            restart_delay: 5000,
+        },
     ],
 };
