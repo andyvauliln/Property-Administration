@@ -25,6 +25,9 @@
 
             <!-- Tab bar (hidden when only 1 payment) -->
             <div id="merge_tabs_bar" class="hidden px-6 pt-3 pb-0 flex gap-2 flex-wrap border-b border-gray-200"></div>
+            <div id="merge_multi_warning" class="hidden mx-6 mt-3 px-4 py-3 rounded-lg bg-amber-50 border border-amber-300 text-amber-900 text-sm">
+                <strong>Multiple payments:</strong> this bank line will be saved to <span id="merge_multi_count">2</span> DB records. Remove extra tabs unless you intentionally split one transaction.
+            </div>
 
             <!-- Body -->
             <form id="edit_form" method="POST" action="">
@@ -271,12 +274,19 @@
         activeMergeTab = 0;
 
         const count = mergedList.length;
+        const multiWarn = document.getElementById('merge_multi_warning');
         if (count === 1) {
             document.getElementById('modal_title').textContent = isEditOnlyMode ? 'Edit Payment' : (mergedList[0].id ? 'Merge Payment' : 'Create Payment');
             document.getElementById('save_payments_btn_label').textContent = 'Save Payment';
+            if (multiWarn) multiWarn.classList.add('hidden');
         } else {
-            document.getElementById('modal_title').textContent = `Merge ${count} Payments`;
+            document.getElementById('modal_title').textContent = `Merge into ${count} DB payments`;
             document.getElementById('save_payments_btn_label').textContent = `Save ${count} Payments`;
+            if (multiWarn) {
+                multiWarn.classList.remove('hidden');
+                const countEl = document.getElementById('merge_multi_count');
+                if (countEl) countEl.textContent = String(count);
+            }
         }
 
         const deleteBtn = document.getElementById('delete_payment_btn');
@@ -455,6 +465,25 @@
     function saveAllMergedPayments() {
         saveCurrentTabToData();
 
+        if (mergeTabsData.length >= 2) {
+            const targets = mergeTabsData.map((p, i) => {
+                const label = (!p.id || String(p.id) === 'new') ? 'Create new payment record' : `DB #${p.id}`;
+                return `${i + 1}. ${label} — $${Math.abs(parseFloat(p.amount || 0)).toFixed(2)}`;
+            }).join('\n');
+            const hasNewAndExisting = mergeTabsData.some(p => !p.id || String(p.id) === 'new')
+                && mergeTabsData.some(p => p.id && String(p.id) !== 'new');
+            let msg = targets;
+            if (hasNewAndExisting) {
+                msg = 'Warning: this includes both "Create new" and an existing payment — that often creates duplicates.\n\n' + msg;
+            }
+            const confirmFn = typeof confirmMergeIntoMultiplePayments === 'function'
+                ? confirmMergeIntoMultiplePayments
+                : (n, desc) => confirm(`Merge into ${n} payments?\n\n${desc}`);
+            if (!confirmFn(mergeTabsData.length, msg)) {
+                return;
+            }
+        }
+
         const enriched = mergeTabsData.map(payment => {
             const fileId = payment.file_id || payment.fileId;
             const file_payment = file_payments_json.find(p => String(p.id) === String(fileId));
@@ -465,46 +494,6 @@
                 file_notes: file_payment?.notes,
             };
         });
-
-        function applySavedToLocalState(savedPayments) {
-            savedPayments.forEach(payment => {
-                const dbId = payment.id;
-                if (dbId && String(dbId) !== 'new') {
-                    const dbp = db_payments_json.find(p => String(p.id) === String(dbId));
-                    if (dbp) {
-                        dbp.amount = payment.amount;
-                        dbp.payment_date = payment.payment_date;
-                        dbp.payment_status = payment.payment_status || 'Merged';
-                        dbp.merged_payment_key = payment.merged_payment_key || dbp.merged_payment_key;
-                        dbp.notes = payment.notes || '';
-                        dbp.tenant_notes = payment.tenant_notes || '';
-                        dbp.keywords = payment.keywords || '';
-                        dbp.payment_type = payment.payment_type ?? dbp.payment_type;
-                        dbp.payment_method = payment.payment_method ?? dbp.payment_method;
-                        dbp.bank = payment.bank ?? dbp.bank;
-                        dbp.apartment = payment.apartment ?? dbp.apartment;
-                        dbp.booking = payment.booking ?? dbp.booking;
-                        if (typeof apartments_dictionary !== 'undefined') dbp.apartment_name = payment.apartment ? (apartments_dictionary[payment.apartment] || dbp.apartment_name) : null;
-                        if (typeof payment_types_dictionary !== 'undefined') dbp.payment_type_name = payment.payment_type ? (payment_types_dictionary[payment.payment_type] || dbp.payment_type_name) : null;
-                        if (typeof payment_types_json !== 'undefined' && payment.payment_type) {
-                            const pt = payment_types_json.find(i => i.id == payment.payment_type);
-                            dbp.payment_type_obj = pt ? { id: pt.id, name: pt.name, type: pt.type } : dbp.payment_type_obj;
-                        }
-                        if (typeof payment_methods_dictionary !== 'undefined') {
-                            dbp.payment_method_name = payment.payment_method ? (payment_methods_dictionary[payment.payment_method] || dbp.payment_method_name) : null;
-                            dbp.bank_name = payment.bank ? (payment_methods_dictionary[payment.bank] || dbp.bank_name) : null;
-                        }
-                    }
-                }
-            });
-        }
-
-        // Mark all currently selected bank payments as merged
-        (selected_bank_payments || new Set()).forEach(id => {
-            const fp = file_payments_json.find(p => String(p.id) === String(id));
-            if (fp) fp.is_merged = true;
-        });
-        saveToLocalStorage();
 
         const btn = document.getElementById('save_payments_btn');
         const labelEl = document.getElementById('save_payments_btn_label');
@@ -524,8 +513,9 @@
             .then(r => r.json().catch(() => ({})).then(data => ({ ok: r.ok, data: data || {} })))
             .then(({ ok, data }) => {
                 if (!ok) throw new Error(data?.message || 'Save failed');
-                applySavedToLocalState(enriched);
-                saveToLocalStorage();
+                if (typeof applyPaymentSaveResults === 'function') {
+                    applyPaymentSaveResults(data.saved_payments || [], enriched);
+                }
                 closeModal();
                 if (typeof selected_bank_payments !== 'undefined') selected_bank_payments.clear();
                 if (typeof selected_db_payments !== 'undefined') selected_db_payments.clear();
@@ -659,7 +649,11 @@
             .then(r => r.json().catch(() => ({})).then(data => ({ ok: r.ok, data: data || {} })))
             .then(({ ok, data }) => {
                 if (!ok) throw new Error(data?.message || 'Save failed');
+                if (typeof applyPaymentSaveResults === 'function') {
+                    applyPaymentSaveResults(data.saved_payments || [], paymentsToSave);
+                }
                 selected_bank_payments.clear();
+                if (typeof selected_db_payments !== 'undefined') selected_db_payments.clear();
                 if (typeof showNotificationInHint === 'function') showNotificationInHint(data.message, 'success');
                 onBankSelectionChanged();
                 renderBankPayments();

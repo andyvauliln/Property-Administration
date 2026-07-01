@@ -1803,6 +1803,8 @@ class Cleaning(models.Model):
                 # Add tasks if present
                 if self.tasks:
                     message += f"\nTasks: {self.tasks}"
+
+                message += format_telegram_links(cleaning=self)
                 
                 # Send notification to the cleaner if one is assigned
                 telegram_token = os.environ.get("TELEGRAM_TOKEN")
@@ -1813,6 +1815,7 @@ class Cleaning(models.Model):
                 if orig.cleaner and orig.cleaner != self.cleaner and orig.cleaner.telegram_chat_id and telegram_token:
                     # Simple cancellation message instead of reassignment message
                     canceled_message = f"Cleaning canceled for apartment {apartment_name} on {self.date}."
+                    canceled_message += format_telegram_links(cleaning=self)
                     send_telegram_message(orig.cleaner.telegram_chat_id.strip(), telegram_token, canceled_message)
        
     @property
@@ -1860,6 +1863,8 @@ class Cleaning(models.Model):
         # Add notes if present
         if self.notes:
             message += f"Notes: {self.notes}\n"
+
+        message += format_telegram_links(cleaning=self)
         
         # Send notification to the cleaner
         telegram_token = os.environ.get("TELEGRAM_TOKEN")
@@ -1870,6 +1875,45 @@ class Cleaning(models.Model):
 def format_date(date):
     if date:
         return date.strftime("%B %d %Y")
+    return ""
+
+
+def get_site_url():
+    return os.environ.get("SITE_URL", "http://68.183.124.79").rstrip("/")
+
+
+def format_telegram_links(booking=None, payment=None, cleaning=None, apartment=None):
+    if apartment is None:
+        if booking and booking.apartment:
+            apartment = booking.apartment
+        elif payment:
+            apartment = payment.apartment or (
+                payment.booking.apartment if payment.booking and payment.booking.apartment else None
+            )
+        elif cleaning:
+            apartment = cleaning.apartment or (
+                cleaning.booking.apartment if cleaning.booking and cleaning.booking.apartment else None
+            )
+
+    if booking is None:
+        if payment and payment.booking:
+            booking = payment.booking
+        elif cleaning and cleaning.booking:
+            booking = cleaning.booking
+
+    site_url = get_site_url()
+    lines = []
+    if booking:
+        lines.append(f"Booking: {site_url}/bookings/?q=id={booking.id}")
+    if payment:
+        lines.append(f"Payment: {site_url}/payments/?q=id={payment.id}")
+    if cleaning:
+        lines.append(f"Cleaning: {site_url}/cleanings/?q=id={cleaning.id}")
+    if apartment:
+        lines.append(f"Apartment: {site_url}/apartments/?q=id={apartment.id}")
+
+    if lines:
+        return "\n\nLinks:\n" + "\n".join(lines)
     return ""
 
 
@@ -1962,6 +2006,10 @@ class Notification(models.Model):
             links_list.append(
                 {"name": cleaning_info,
                  "link": f"/cleanings/?q=id={self.cleaning.id}"})
+        if self.apartment:
+            links_list.append({
+                "name": f"Apartment: {self.apartment.name}",
+                "link": f"/apartments/?q=id={self.apartment.id}"})
 
         return links_list
 

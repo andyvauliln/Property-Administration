@@ -1,6 +1,6 @@
 import requests
 from datetime import timedelta, date
-from mysite.models import Booking, format_date
+from mysite.models import Booking, format_date, format_telegram_links
 import os
 from mysite.management.commands.base_command import BaseCommandWithErrorHandling
 
@@ -44,6 +44,7 @@ def my_cron_job(dry_run=False, stdout=None):
         message += f"\n- End Date: {booking.end_date}"
         message += f"\n- Apartment: {apt_name}"
         message += f"\n- Tenant: {tenant_name}"
+        message += format_telegram_links(booking=booking)
         send_telegram_message(normalize_group_chat_id(chat_id), token, message, dry_run=dry_run, stdout=stdout)
         sent += 1
     if sent == 0:

@@ -1,6 +1,6 @@
 import requests
 from datetime import timedelta, date
-from mysite.models import Cleaning
+from mysite.models import Cleaning, format_telegram_links
 import os
 from mysite.management.commands.base_command import BaseCommandWithErrorHandling
 from django.db.models import Q
@@ -28,6 +28,7 @@ def _build_cleaning_message(cleaning, prefix):
         message += f"\n- Tasks: {cleaning.tasks}"
     if cleaning.notes:
         message += f"\n- Notes: {cleaning.notes}"
+    message += format_telegram_links(cleaning=cleaning)
     return message
 
 

@@ -285,10 +285,13 @@ def sync_payments_v2(request):
             )
             if is_ajax:
                 try:
-                    update_payments(request, payments_to_update, add_per_payment_messages=False)
+                    saved_payments = update_payments(
+                        request, payments_to_update, add_per_payment_messages=False
+                    )
                     return JsonResponse({
                         'success': True,
                         'message': f"Successfully processed {len(payments_to_update)} payments",
+                        'saved_payments': saved_payments,
                     })
                 except Exception as e:
                     _log("sync_payments_v2.save_payments.error", rid=rid, error=str(e))
@@ -510,7 +513,14 @@ def process_csv_upload(request):
     if start_date and end_date:
         all_db_qs = query_db_payments_custom(start_date, end_date, db_days_before, db_days_after)
         db_payments_list = get_json_list(all_db_qs)
-    _log("process_csv_upload.db_payments", rid=rid, count=len(db_payments_list))
+    db_payments_list = _append_merged_db_payments_for_file(serialized_file_payments, db_payments_list)
+    mark_file_payments_merged_from_db(serialized_file_payments, db_payments_list)
+    _log(
+        "process_csv_upload.db_payments",
+        rid=rid,
+        count=len(db_payments_list),
+        bank_merged=sum(1 for p in serialized_file_payments if p.get('is_merged')),
+    )
 
     return {
         'file_payments_json': json.dumps(serialized_file_payments, default=str),
@@ -701,6 +711,60 @@ def _query_merged_db_payments_for_keys(keys):
     )
 
 
+def _append_merged_db_payments_for_file(file_payments, db_payments_list):
+    """Ensure db_payments_list includes Merged rows linked to this bank file (even outside date window)."""
+    merged_keys = _extract_merged_keys_from_file_payments(file_payments)
+    if not merged_keys:
+        return db_payments_list
+    merged_db_list = get_json_list(_query_merged_db_payments_for_keys(merged_keys))
+    if not merged_db_list:
+        return db_payments_list
+    existing_ids = {p.get('id') for p in db_payments_list}
+    for p in merged_db_list:
+        if p.get('id') not in existing_ids:
+            db_payments_list.append(p)
+    return db_payments_list
+
+
+def _build_merged_keys_from_db_payments(db_payments_list):
+    merged_keys = set()
+    for p in db_payments_list or []:
+        if str(p.get('payment_status') or '').lower() != 'merged':
+            continue
+        key = p.get('merged_payment_key')
+        if not key:
+            continue
+        full = str(key).strip()
+        if full:
+            merged_keys.add(full)
+        for part in _split_merged_payment_key(key):
+            merged_keys.add(part)
+    return merged_keys
+
+
+def _file_payment_matches_merged_keys(file_payment, merged_keys):
+    if not merged_keys or not file_payment:
+        return False
+    fk = file_payment.get('merged_payment_key')
+    if not fk:
+        return False
+    full = str(fk).strip()
+    if full in merged_keys:
+        return True
+    for part in _split_merged_payment_key(full):
+        if part in merged_keys:
+            return True
+    return False
+
+
+def mark_file_payments_merged_from_db(file_payments, db_payments_list):
+    """Set is_merged on bank file rows when a Merged DB payment shares the same key."""
+    merged_keys = _build_merged_keys_from_db_payments(db_payments_list)
+    for fp in file_payments or []:
+        fp['is_merged'] = _file_payment_matches_merged_keys(fp, merged_keys)
+    return file_payments
+
+
 def apply_ai_suggestions_to_db_payments(db_payments_list, matched_groups):
     """Adds `is_matched` + `matched_criteria` fields to db payment dicts based on best suggested match."""
     best_by_db_id = {}
@@ -769,14 +833,7 @@ def fetch_db_payments_for_matching(request):
 
     db_payments_qs = query_db_payments_custom(start_date, end_date, db_days_before, db_days_after)
     db_payments_list = get_json_list(db_payments_qs)
-    merged_keys = _extract_merged_keys_from_file_payments(file_payments)
-    merged_db_qs = _query_merged_db_payments_for_keys(merged_keys)
-    merged_db_list = get_json_list(merged_db_qs)
-    if merged_db_list:
-        existing_ids = {p.get('id') for p in db_payments_list}
-        for p in merged_db_list:
-            if p.get('id') not in existing_ids:
-                db_payments_list.append(p)
+    db_payments_list = _append_merged_db_payments_for_file(file_payments, db_payments_list)
     _trace_event(
         request,
         "fetch_db_payments_for_matching.db_payments_list",
@@ -2557,12 +2614,25 @@ def _resolve_payment_type_id(payment_info, existing_type_id=None):
     return _default_payment_type_pk()
 
 
+def _payment_for_sync_response(payment_id):
+    return Payment.objects.select_related(
+        'payment_type',
+        'payment_method',
+        'bank',
+        'apartment',
+        'booking',
+        'booking__tenant',
+        'booking__apartment',
+    ).get(pk=payment_id)
+
+
 def update_payments(request, payments_to_update, add_per_payment_messages=True):
-    """Update or create payments in database"""
+    """Update or create payments. Returns list of saved payment dicts for the sync UI."""
     rid = _request_id(request)
     _log("update_payments.start", rid=rid, count=len(payments_to_update or []), user=_user_tag(request))
     # Track per-key which payment ids we've saved in this batch (1→2: multiple share same key)
     key_to_saved_ids = {}
+    saved_payments = []
     for payment_info in payments_to_update:
         payment_id = None
         try:
@@ -2598,6 +2668,7 @@ def update_payments(request, payments_to_update, add_per_payment_messages=True):
                     messages.success(request, f"Updated Payment: {payment.id}")
                 if merged_key:
                     key_to_saved_ids.setdefault(merged_key, set()).add(payment_id)
+                saved_payments.append(_payment_to_rich_dict(_payment_for_sync_response(payment_id)))
             else:
                 # Create new payment
                 payment = create_new_payment(payment_info)
@@ -2614,6 +2685,7 @@ def update_payments(request, payments_to_update, add_per_payment_messages=True):
                     messages.success(request, f"Created new Payment: {payment.id}")
                 if merged_key:
                     key_to_saved_ids.setdefault(merged_key, set()).add(payment.id)
+                saved_payments.append(_payment_to_rich_dict(_payment_for_sync_response(payment.id)))
         except Exception as e:
             _log(
                 "update_payments.error",
@@ -2623,7 +2695,8 @@ def update_payments(request, payments_to_update, add_per_payment_messages=True):
             )
             messages.error(request, f"Failed to {'update' if payment_id else 'create'} payment: {payment_id or ''} due {str(e)}")
             raise
-    _log("update_payments.done", rid=rid)
+    _log("update_payments.done", rid=rid, saved_count=len(saved_payments))
+    return saved_payments
 
 
 def update_payment_fields(payment, payment_info):

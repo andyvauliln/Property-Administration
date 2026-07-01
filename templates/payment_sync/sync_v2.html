@@ -1773,6 +1773,14 @@
         return Array.from(byId.values());
     }
 
+    function filePaymentMatchesMergedKeys(filePayment, mergedKeys) {
+        if (!filePayment || !filePayment.merged_payment_key || !mergedKeys.size) return false;
+        const fileKey = String(filePayment.merged_payment_key);
+        if (mergedKeys.has(fileKey)) return true;
+        const fileParts = splitMergedPaymentKey(fileKey);
+        return fileParts.some(part => mergedKeys.has(part));
+    }
+
     function refreshMergedBankPaymentsFromDB() {
         if (!Array.isArray(db_payments_json) || !Array.isArray(file_payments_json)) return;
 
@@ -1783,12 +1791,13 @@
             if (!p || p.id === 'new') return;
             if (!p.merged_payment_key) return;
             if (p.payment_status && String(p.payment_status).toLowerCase() !== 'merged') return;
+            const fullKey = String(p.merged_payment_key);
+            mergedKeys.add(fullKey);
             splitMergedPaymentKey(p.merged_payment_key).forEach(k => mergedKeys.add(k));
         });
         if (!mergedKeys.size) return;
         file_payments_json.forEach(p => {
-            if (!p || !p.merged_payment_key) return;
-            if (mergedKeys.has(String(p.merged_payment_key))) {
+            if (filePaymentMatchesMergedKeys(p, mergedKeys)) {
                 p.is_merged = true;
             }
         });
@@ -1888,9 +1897,95 @@
         if (selected_db_payments.has(idStr)) {
             selected_db_payments.delete(idStr);
         } else {
+            // Avoid accidental "Create new" + existing DB row (duplicate merge)
+            if (idStr === 'new') {
+                selected_db_payments.forEach(selId => {
+                    if (selId !== 'new') selected_db_payments.delete(selId);
+                });
+            } else {
+                selected_db_payments.delete('new');
+            }
             selected_db_payments.add(idStr);
         }
         renderDBPayments();
+    }
+
+    function describeMergePaymentTarget(payment) {
+        if (!payment) return 'Unknown';
+        if (!payment.id || String(payment.id) === 'new') {
+            return 'Create new payment record';
+        }
+        const apt = payment.apartment_name || '';
+        return `DB #${payment.id}${apt ? ' (' + apt + ')' : ''} — $${Math.abs(parseFloat(payment.amount || 0)).toFixed(2)}`;
+    }
+
+    function confirmMergeIntoMultiplePayments(count, targetsDescription) {
+        return confirm(
+            `You are about to merge one bank payment into ${count} database payments:\n\n` +
+            targetsDescription +
+            `\n\nThis is only correct if you intentionally split one bank transaction across multiple records.\n\n` +
+            `Continue?`
+        );
+    }
+
+    function applyPaymentSaveResults(savedPayments, enrichedPayments) {
+        if (Array.isArray(savedPayments) && savedPayments.length && typeof mergeDBPayments === 'function') {
+            mergeDBPayments(savedPayments);
+            if (typeof normalizeDBPaymentsForUI === 'function') normalizeDBPaymentsForUI();
+            if (typeof ensureNewPaymentPlaceholder === 'function') ensureNewPaymentPlaceholder();
+        }
+
+        (enrichedPayments || []).forEach(payment => {
+            const dbId = payment.id;
+            if (!dbId || String(dbId) === 'new') return;
+            const dbp = (db_payments_json || []).find(p => String(p.id) === String(dbId));
+            if (!dbp) return;
+            dbp.amount = payment.amount;
+            dbp.payment_date = payment.payment_date;
+            dbp.payment_status = payment.payment_status || 'Merged';
+            dbp.merged_payment_key = payment.merged_payment_key || dbp.merged_payment_key;
+            dbp.notes = payment.notes || '';
+            dbp.tenant_notes = payment.tenant_notes || '';
+            dbp.keywords = payment.keywords || '';
+            dbp.payment_type = payment.payment_type ?? dbp.payment_type;
+            dbp.payment_method = payment.payment_method ?? dbp.payment_method;
+            dbp.bank = payment.bank ?? dbp.bank;
+            dbp.apartment = payment.apartment ?? dbp.apartment;
+            dbp.booking = payment.booking ?? dbp.booking;
+            if (typeof apartments_dictionary !== 'undefined') {
+                dbp.apartment_name = payment.apartment
+                    ? (apartments_dictionary[payment.apartment] || dbp.apartment_name)
+                    : dbp.apartment_name;
+            }
+            if (typeof payment_types_dictionary !== 'undefined') {
+                dbp.payment_type_name = payment.payment_type
+                    ? (payment_types_dictionary[payment.payment_type] || dbp.payment_type_name)
+                    : dbp.payment_type_name;
+            }
+            if (typeof payment_methods_dictionary !== 'undefined') {
+                dbp.payment_method_name = payment.payment_method
+                    ? (payment_methods_dictionary[payment.payment_method] || dbp.payment_method_name)
+                    : dbp.payment_method_name;
+                dbp.bank_name = payment.bank
+                    ? (payment_methods_dictionary[payment.bank] || dbp.bank_name)
+                    : dbp.bank_name;
+            }
+        });
+
+        const linkedFileIds = new Set();
+        (enrichedPayments || []).forEach(payment => {
+            const fileId = payment.file_id || payment.fileId;
+            if (fileId) linkedFileIds.add(String(fileId));
+        });
+        (selected_bank_payments || new Set()).forEach(id => linkedFileIds.add(String(id)));
+
+        linkedFileIds.forEach(id => {
+            const fp = (file_payments_json || []).find(p => String(p.id) === id);
+            if (fp) fp.is_merged = true;
+        });
+
+        refreshMergedBankPaymentsFromDB();
+        saveToLocalStorage();
     }
     
     // Merge Function
@@ -1975,6 +2070,18 @@
             });
             if (hasMergedSelected && !confirm('One or more selected payments are already merged. Do you want to merge additional bank payments into them?')) {
                 return;
+            }
+
+            if (mergedList.length >= 2) {
+                const hasNewAndExisting = dbIds.includes('new') && dbIds.some(id => id !== 'new');
+                const targets = mergedList.map((p, i) => `${i + 1}. ${describeMergePaymentTarget(p)}`).join('\n');
+                let msg = targets;
+                if (hasNewAndExisting) {
+                    msg = 'Warning: you selected both "Create new" and an existing DB payment.\nThat usually creates a duplicate.\n\n' + msg;
+                }
+                if (!confirmMergeIntoMultiplePayments(mergedList.length, msg)) {
+                    return;
+                }
             }
 
             openMergeModal(mergedList, bankIds[0]);

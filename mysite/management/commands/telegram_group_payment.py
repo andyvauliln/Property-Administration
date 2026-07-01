@@ -1,7 +1,7 @@
 import requests
 from datetime import timedelta, date
 from django.db.models import Q
-from mysite.models import Payment
+from mysite.models import Payment, format_telegram_links
 import os
 from mysite.management.commands.base_command import BaseCommandWithErrorHandling
 
@@ -38,6 +38,7 @@ def build_pending_payment_message(payment, direction):
         message += f"\n  Apartment: {payment.apartment.name}"
     if payment.notes:
         message += f"\n  Notes: {payment.notes}"
+    message += format_telegram_links(payment=payment)
     return message
 
 
@@ -84,6 +85,7 @@ def send_payment_notifications(chat_id, token, direction, next_day, dry_run=Fals
         message += f"\n- Type: {payment.payment_type.name if payment.payment_type else 'N/A'}"
         if payment.notes:
             message += f"\n- Notes: {payment.notes}"
+        message += format_telegram_links(payment=payment)
         send_telegram_message(normalize_group_chat_id(chat_id), token, message, dry_run=dry_run, stdout=stdout)
         sent += 1
     return sent

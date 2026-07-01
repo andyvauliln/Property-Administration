@@ -1,7 +1,7 @@
 import requests
 from datetime import timedelta, date
 from django.db.models import Q
-from mysite.models import Cleaning, format_date
+from mysite.models import Cleaning, format_date, format_telegram_links
 import os
 from mysite.management.commands.base_command import BaseCommandWithErrorHandling
 
@@ -46,6 +46,7 @@ def build_cleaning_message(cleaning, prefix):
         else "https://ro.am/join/fyy4jxbm-yr9qc7mo"
     )
     message += f"\nForm Link: {form_url}"
+    message += format_telegram_links(cleaning=cleaning)
     return message
 
 

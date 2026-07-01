@@ -1,5 +1,5 @@
 from datetime import timedelta, date
-from mysite.models import Payment, Booking, Cleaning, format_date
+from mysite.models import Payment, Booking, Cleaning, format_date, format_telegram_links
 import os
 from mysite.management.commands.base_command import BaseCommandWithErrorHandling
 from django.db.models import Q
@@ -7,8 +7,8 @@ from mysite.unified_logger import log_error, log_info, log_warning, logger
 import requests
 
 def send_telegram_message(chat_id, token, message):
-    base_url = f"https://api.telegram.org/bot{token}/sendMessage?chat_id={chat_id}&text={message}"
-    requests.get(base_url)
+    url = f"https://api.telegram.org/bot{token}/sendMessage"
+    requests.get(url, params={"chat_id": chat_id, "text": message})
 
 
 def sent_pending_payments_message(chat_ids, token):
@@ -43,6 +43,7 @@ def sent_pending_payments_message(chat_ids, token):
             message += f"\n  Apartment: {payment.apartment.name}"
         if payment.notes:
             message += f"\n  Notes: {payment.notes}"
+        message += format_telegram_links(payment=payment)
         for chat_id in chat_ids:
             send_telegram_message(chat_id.strip(), token, message)
         message = ""
@@ -74,6 +75,7 @@ def check_bookings_without_cleaning(chat_ids, token):
             if booking.tenant:
                 message += f"- Tenant: {booking.tenant.full_name}\n"
             message += f"Please schedule cleaning ASAP!"
+            message += format_telegram_links(booking=booking)
 
             for chat_id in chat_ids:
                 send_telegram_message(chat_id.strip(), token, message)
@@ -90,6 +92,7 @@ def _build_booking_message(booking, label):
     message += f"\n- End Date: {booking.end_date}"
     if booking.apartment:
         message += f"\n- Apartment: {booking.apartment.name}"
+    message += format_telegram_links(booking=booking)
     return message
 
 
@@ -107,6 +110,7 @@ def _build_payment_message(payment):
     message += f"\n- Type: {payment.payment_type.name if payment.payment_type else 'N/A'}"
     if payment.notes:
         message += f"\n- Notes: {payment.notes}"
+    message += format_telegram_links(payment=payment)
     return message
 
 
@@ -124,6 +128,7 @@ def _build_cleaning_message(cleaning, prefix):
         message += f"\n- Apartment: {cleaning.apartment.name}"
     message += f"\n- Status: {cleaning.status}"
     message += f"\n- Cleaner: {cleaner_name}"
+    message += format_telegram_links(cleaning=cleaning)
     return message
 
 

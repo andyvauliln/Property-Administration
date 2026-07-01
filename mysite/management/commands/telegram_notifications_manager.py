@@ -1,5 +1,5 @@
 from datetime import timedelta, date
-from mysite.models import Payment, User, Booking, Cleaning, format_date
+from mysite.models import Payment, User, Booking, Cleaning, format_date, format_telegram_links
 import os
 from mysite.management.commands.base_command import BaseCommandWithErrorHandling
 from django.db.models import Q
@@ -7,8 +7,8 @@ from mysite.unified_logger import log_error, log_info, log_warning, logger
 import requests
 
 def send_telegram_message(chat_id, token, message):
-    base_url = f"https://api.telegram.org/bot{token}/sendMessage?chat_id={chat_id}&text={message}"
-    requests.get(base_url)
+    url = f"https://api.telegram.org/bot{token}/sendMessage"
+    requests.get(url, params={"chat_id": chat_id, "text": message})
 
 
 def check_bookings_without_cleaning(chat_id, token):
@@ -34,6 +34,7 @@ def check_bookings_without_cleaning(chat_id, token):
                         if booking.tenant:
                             message += f"- Tenant: {booking.tenant.full_name}\n"
                         message += f"Please schedule cleaning ASAP!"
+                        message += format_telegram_links(booking=booking)
                         send_telegram_message(chat_id.strip(), token, message)
                         break
 
@@ -43,14 +44,18 @@ def _build_booking_message(booking, label):
     end_str = format_date(booking.end_date)
     apt_name = booking.apartment.name if booking.apartment else 'Unknown'
     tenant_name = booking.tenant.full_name if booking.tenant else 'Unknown'
-    return f"{label}: {start_str} - {end_str}, {apt_name}, {tenant_name}."
+    message = f"{label}: {start_str} - {end_str}, {apt_name}, {tenant_name}."
+    message += format_telegram_links(booking=booking)
+    return message
 
 
 def _build_payment_message(payment):
     apt_name = (payment.booking.apartment.name if payment.booking and payment.booking.apartment else
                 payment.apartment.name if payment.apartment else "")
     tenant_str = f" ({payment.booking.tenant.full_name})" if payment.booking and payment.booking.tenant else ""
-    return f"Payment: {payment.payment_type} {payment.amount}$ {format_date(payment.payment_date)} {apt_name}{tenant_str}[{payment.payment_status}]"
+    message = f"Payment: {payment.payment_type} {payment.amount}$ {format_date(payment.payment_date)} {apt_name}{tenant_str}[{payment.payment_status}]"
+    message += format_telegram_links(payment=payment)
+    return message
 
 
 def _build_cleaning_message(cleaning):
@@ -58,7 +63,9 @@ def _build_cleaning_message(cleaning):
     cleaner_name = cleaning.cleaner.full_name if cleaning.cleaner else "No cleaner assigned"
     apt_name = (cleaning.booking.apartment.name if cleaning.booking and cleaning.booking.apartment else
                 cleaning.apartment.name if cleaning.apartment else "")
-    return f"Cleaning: {date_str} by {cleaner_name} {apt_name} [{cleaning.status}]"
+    message = f"Cleaning: {date_str} by {cleaner_name} {apt_name} [{cleaning.status}]"
+    message += format_telegram_links(cleaning=cleaning)
+    return message
 
 
 def my_cron_job():

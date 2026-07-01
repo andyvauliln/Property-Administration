@@ -1,6 +1,6 @@
 import requests
 from datetime import timedelta, date
-from mysite.models import Booking, format_date
+from mysite.models import Booking, format_date, format_telegram_links
 import os
 from mysite.management.commands.base_command import BaseCommandWithErrorHandling
 
@@ -33,7 +33,8 @@ def build_tenant_review_message(booking):
         apt_name,
         dates_line,
     ]
-    return "\n".join(lines)
+    lines.append(format_telegram_links(booking=booking).strip())
+    return "\n".join(line for line in lines if line)
 
 
 def my_cron_job(dry_run=False, stdout=None):
