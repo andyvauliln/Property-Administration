@@ -7,8 +7,9 @@ from .notifications import notifications
 from .payments_report import paymentReport
 from .messaging import twilio_webhook
 from .login import CustomLogoutView, custom_login_view
-from .generic_view import users, apartment_prices, bookings, cleanings, payment_methods, payment_types, payments, ai_management_view
+from .generic_view import apartment_prices, bookings, cleanings, payment_methods, payment_types, payments, ai_management_view
 from .apartments_view import apartments_view as apartments
+from .users_view import users_view as users
 from .payment_sync import sync_payments
 from .payment_sync_v2 import sync_payments_v2, fetch_db_payments_for_matching, match_selection_v2, fetch_merged_db_payments_for_file
 from .docuseal import docuseal_callback

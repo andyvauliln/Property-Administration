@@ -108,31 +108,76 @@
                 <!-- Combined Monthly Table -->
                 <table class="w-full text-[7px] text-left text-gray-500 dark:text-gray-400">
                     <thead class="text-center text-gray-700 uppercase bg-gray-50 dark:bg-gray-700 dark:text-gray-400">
+                        <!-- Row 1: Month names (centered) -->
                         <tr>
-                            <th scope="col" class="p-1 border-r border-gray-500 w-20">Name</th>
-                            <th scope="col" class="p-1 border-r border-gray-500 w-20">Raiting</th>
+                            <th scope="col" rowspan="4" class="p-1 border-r border-gray-500 w-20 align-middle">Name</th>
+                            <th scope="col" rowspan="4" class="p-1 border-r border-gray-500 w-20 align-middle">Raiting</th>
                             {% for month_data in monthly_data|slice:":3" %}
-                                <!-- Month Header -->
-                                <th scope="col" colspan="{{ month_data.days_in_month }}" class="p-4 border-r border-gray-500 bg-zinc-200">
-                                    <div class="flex items-center justify-between">
-                                        <div class="flex items-center text-lg font-bold text-blue-500 underline">{{ month_data.month_name }}</div>
-                                        <div class="flex flex-col space-y-1">
-                                            <div class="flex space-x-4">
-                                                <div class="mr-4 text-blue-500"><span class="font-bold">Actual Revenue:</span> ${{ month_data.month_revenue|default:0|format_number }}</div>
-                                                <div class="text-yellow-500"><span class="font-bold">Occupancy:</span> {{ month_data.month_occupancy|default:0|format_number }}%</div>
-                                            </div>
-                                            <div class="flex space-x-4">
-                                                <div class="mr-4 text-green-600"><span class="font-bold">Max Revenue (Default):</span> ${{ month_data.month_max_revenue|default:0|format_number }}</div>
-                                                <div class="text-purple-600"><span class="font-bold">Max Revenue (Current):</span> ${{ month_data.month_current_price_revenue|default:0|format_number }}</div>
-                                            </div>
-                                        </div>
+                                <th scope="col" colspan="{{ month_data.days_in_month }}" class="px-2 py-2 border-r border-gray-500 bg-zinc-200">
+                                    <div class="text-lg font-bold text-blue-500 underline">{{ month_data.month_name }}</div>
+                                </th>
+                            {% endfor %}
+                        </tr>
+                        <!-- Row 2: Revenue / occupancy stats -->
+                        <tr>
+                            {% for month_data in monthly_data|slice:":3" %}
+                                <th scope="col" colspan="{{ month_data.days_in_month }}" class="px-2 py-1.5 border-r border-gray-500 bg-zinc-100">
+                                    <div class="flex flex-wrap items-center justify-center gap-x-4 gap-y-0.5 text-[8px] normal-case tracking-normal font-normal">
+                                        <span class="text-blue-500 cursor-help border-b border-dotted border-blue-400"
+                                              title="Sum of all Confirmed booking incoming (In) payments with a payment date in this month.">
+                                            <span class="font-bold">Actual Revenue:</span> ${{ month_data.month_revenue|default:0|format_number }}
+                                        </span>
+                                        <span class="text-yellow-600 cursor-help border-b border-dotted border-yellow-500"
+                                              title="Occupied days ÷ Available days × 100. Occupied days include Confirmed, Waiting Contract, Waiting Payment, Pending, and Problem Booking.">
+                                            <span class="font-bold">Occupancy:</span> {{ month_data.month_occupancy|default:0|format_number }}%
+                                        </span>
+                                        <span class="text-green-600 cursor-help border-b border-dotted border-green-500"
+                                              title="Estimated max revenue if all available days were rented at each apartment's default price: (default price ÷ 30) × available days per apartment, summed.">
+                                            <span class="font-bold">Max (Default):</span> ${{ month_data.month_max_revenue|default:0|format_number }}
+                                        </span>
+                                        <span class="text-purple-600 cursor-help border-b border-dotted border-purple-400"
+                                              title="Estimated max revenue if all available days were rented at each apartment's current price on the 1st of this month: (current price ÷ 30) × available days per apartment, summed.">
+                                            <span class="font-bold">Max (Current):</span> ${{ month_data.month_current_price_revenue|default:0|format_number }}
+                                        </span>
                                     </div>
                                 </th>
                             {% endfor %}
                         </tr>
+                        <!-- Row 3: Day counts (available / blocked / rented / pending) -->
                         <tr>
-                            <th scope="col" class="p-1 border-r border-gray-500 w-20"></th>
-                            <th scope="col" class="p-1 border-r border-gray-500 w-20"></th>
+                            {% for month_data in monthly_data|slice:":3" %}
+                                <th scope="col" colspan="{{ month_data.days_in_month }}" class="px-2 py-1 border-r border-gray-500 bg-zinc-50">
+                                    <div class="flex flex-wrap items-center justify-center gap-x-3 gap-y-0.5 text-[8px] normal-case tracking-normal font-normal">
+                                        <span class="text-slate-700 cursor-help border-b border-dotted border-slate-500"
+                                              title="Total apartment-days in this month: number of apartments × days in the month.">
+                                            <span class="font-bold">All days:</span> {{ month_data.all_days|default:0 }}
+                                        </span>
+                                        <span class="text-blue-600 cursor-help border-b border-dotted border-blue-400"
+                                              title="Days available for rent: All days minus Blocked days. Equals Rented + Pending + Unbooked.">
+                                            <span class="font-bold">Available:</span> {{ month_data.available_days|default:0 }}
+                                        </span>
+                                        <span class="text-gray-800 cursor-help border-b border-dotted border-gray-500"
+                                              title="Days marked Blocked: outside an apartment's start/end dates, or a booking with status Blocked.">
+                                            <span class="font-bold">Blocked:</span> {{ month_data.blocked_days|default:0 }}
+                                        </span>
+                                        <span class="text-green-700 cursor-help border-b border-dotted border-green-600"
+                                              title="Days with a Confirmed booking (rented / confirmed stays).">
+                                            <span class="font-bold">Rented:</span> {{ month_data.rented_days|default:0 }}
+                                        </span>
+                                        <span class="text-emerald-500 cursor-help border-b border-dotted border-emerald-400"
+                                              title="Days that are Waiting Contract, Waiting Payment, Pending, or Problem Booking (not yet Confirmed).">
+                                            <span class="font-bold">Pending:</span> {{ month_data.pending_days|default:0 }}
+                                        </span>
+                                        <span class="text-sky-700 cursor-help border-b border-dotted border-sky-500"
+                                              title="Days with no booking at all (free / unbooked cells). Available = Rented + Pending + Unbooked.">
+                                            <span class="font-bold">Unbooked:</span> {{ month_data.unbooked_days|default:0 }}
+                                        </span>
+                                    </div>
+                                </th>
+                            {% endfor %}
+                        </tr>
+                        <!-- Row 4: Day numbers -->
+                        <tr>
                             {% for month_data in monthly_data|slice:":3" %}
                                 {% for number in 1|range:month_data.days_in_month %}
                                     <th scope="col" class="p-0 border-r border-gray-500 w-3">{{ number }}</th>
