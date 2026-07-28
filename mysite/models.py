@@ -1437,7 +1437,7 @@ class PaymenType(models.Model):
 class Payment(models.Model):
     PAYMENT_STATUS = [
         ('Pending', 'Pending'),
-        ('Completed', 'Completed'),
+        ('Expected', 'Expected'),
         ('Merged', 'Merged'),
     ]
     invoice_url = models.TextField(blank=True, null=True)
@@ -1598,7 +1598,7 @@ class Payment(models.Model):
         user = get_current_user()
         if user is not None and getattr(user, 'role', None) == 'Manager':
             raise PermissionDenied("Only Admin can delete payments. Ask admin to delete it.")
-        if self.payment_status != "Completed" and self.payment_status != "Merged":
+        if self.payment_status != "Expected" and self.payment_status != "Merged":
             super(Payment, self).delete(*args, **kwargs)
     
     @property

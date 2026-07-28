@@ -190,6 +190,8 @@ def generic_view(request, model_name, form_class, template_name, pages=30):
         # Apply payment status filter if provided
         payment_status_filter = request.GET.get('payment_status_filter')
         if payment_status_filter:
+            if payment_status_filter == 'Completed':
+                payment_status_filter = 'Expected'
             items = items.filter(payment_status=payment_status_filter)
         
         items = items.order_by('-id')

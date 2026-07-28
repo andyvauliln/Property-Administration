@@ -25,6 +25,8 @@ def paymentReport(request):
     apartment_type_filter = request.GET.get('apartment_type', None)
     payment_method_filter = request.GET.get('payment_method', None)
     payment_status_filter = request.GET.get('payment_status', None)
+    if payment_status_filter == 'Completed':
+        payment_status_filter = 'Expected'
     payment_category_filter = request.GET.get('payment_category', None)
     payment_direction_filter = request.GET.get('payment_direction', None)
     tenant_search = request.GET.get('tenant_search', None)

@@ -104,7 +104,7 @@ class DataIntegrityChecker:
         orphaned = Payment.objects.filter(
             booking__isnull=True,
             apartment__isnull=True
-        ).exclude(payment_status='Completed').select_related('payment_type')
+        ).exclude(payment_status='Expected').select_related('payment_type')
         
         example_shown = False
         for payment in orphaned:

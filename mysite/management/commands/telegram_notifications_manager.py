@@ -108,7 +108,7 @@ def my_cron_job():
         ).filter(
             Q(booking__apartment_id__in=manager_apartment_ids) |
             Q(apartment_id__in=manager_apartment_ids)
-        ).exclude(payment_status__in=['Completed', 'Merged']).select_related(
+        ).exclude(payment_status__in=['Expected', 'Merged']).select_related(
             'payment_type', 'booking', 'booking__apartment', 'booking__tenant', 'apartment'
         ):
             message = _build_payment_message(payment)

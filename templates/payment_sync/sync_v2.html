@@ -1329,6 +1329,7 @@
                                     ${payment.payment_status ? `
                                         <span class="px-2 py-1 text-xs font-semibold rounded-full ${
                                             payment.payment_status === 'Merged' ? 'bg-red-100 text-red-700' :
+                                            payment.payment_status === 'Expected' ? 'bg-red-100 text-red-700' :
                                             payment.payment_status === 'Confirmed' ? 'bg-green-100 text-green-700' : 
                                             payment.payment_status === 'Pending' ? 'bg-yellow-100 text-yellow-700' : 
                                             'bg-gray-100 text-gray-700'
