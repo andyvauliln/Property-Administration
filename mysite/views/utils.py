@@ -14,6 +14,9 @@ from django.core.serializers.json import DjangoJSONEncoder
 from django.core.exceptions import PermissionDenied
 from mysite.error_logger import log_exception
 
+COUNTED_PAYMENT_STATUSES = frozenset({'Completed', 'Expected', 'Merged'})
+
+
 def handle_post_request(request, model, form_class):
     try:
         print(f"DEBUG - handle_post_request - POST data: {request.POST}")
@@ -82,9 +85,9 @@ def generate_weeks(month_start):
 
 def aggregate_data(payments):
     income = sum(payment.amount for payment in payments if payment.payment_type.type ==
-                 'In' and (payment.payment_status == 'Expected' or payment.payment_status == 'Merged'))
+                 'In' and payment.payment_status in COUNTED_PAYMENT_STATUSES)
     outcome = sum(payment.amount for payment in payments if payment.payment_type.type ==
-                  'Out' and (payment.payment_status == 'Expected' or payment.payment_status == 'Merged'))
+                  'Out' and payment.payment_status in COUNTED_PAYMENT_STATUSES)
     pending_income = sum(payment.amount for payment in payments if payment.payment_type.type ==
                          'In' and payment.payment_status == 'Pending')
     pending_outcome = sum(payment.amount for payment in payments if payment.payment_type.type ==
@@ -112,9 +115,9 @@ def aggregate_summary(payment_list):
     total_pending_outcome = Decimal('0.00')
 
     for payment in payment_list:
-        if payment.payment_type.type == 'In' and (payment.payment_status == 'Expected' or payment.payment_status == 'Merged'):
+        if payment.payment_type.type == 'In' and payment.payment_status in COUNTED_PAYMENT_STATUSES:
             total_income += payment.amount
-        elif payment.payment_type.type == 'Out' and (payment.payment_status == 'Expected' or payment.payment_status == 'Merged'):
+        elif payment.payment_type.type == 'Out' and payment.payment_status in COUNTED_PAYMENT_STATUSES:
             total_expense += payment.amount
         elif payment.payment_type.type == 'In' and payment.payment_status == 'Pending':
             total_pending_income += payment.amount
@@ -279,6 +282,7 @@ def get_payments_for_month(year, month):
     ).order_by(
         Case(
             When(payment_status="Pending", then=0),
+            When(payment_status="Completed", then=1),
             When(payment_status="Expected", then=1),
             When(payment_status="Merged", then=1),
         ),

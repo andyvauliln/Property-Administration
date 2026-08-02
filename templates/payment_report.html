@@ -60,6 +60,7 @@
                         <select name="payment_status" class=" bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-primary-500 focus:border-primary-500 block w-full p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white dark:focus:ring-primary-500 dark:focus:border-primary-500">
                             <option value="">All Statuses</option>
                             <option value="Pending" {% if current_payment_status == 'Pending' %}selected{% endif %}>Pending</option>
+                            <option value="Completed" {% if current_payment_status == 'Completed' %}selected{% endif %}>Completed</option>
                             <option value="Expected" {% if current_payment_status == 'Expected' %}selected{% endif %}>Expected</option>
                             <option value="Merged" {% if current_payment_status == 'Merged' %}selected{% endif %}>Merged</option>
                         </select>
@@ -204,7 +205,7 @@
                                                 <div class="text-xs text-red-500 mt-1">{{ payment.last_updated_by }}</div>
                                             {% endif %}
                                         </td>
-                                    {% elif payment.payment_status == "Merged" %}
+                                    {% elif payment.payment_status == "Completed" or payment.payment_status == "Merged" %}
                                         <td class="px-4 py-4">
                                             <div><span class="bg-green-200 text-green-700 px-2 py-1 rounded-full">{{ payment.payment_status }}</span></div>
                                             {% if payment.last_updated_by %}

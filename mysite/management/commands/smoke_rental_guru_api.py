@@ -157,7 +157,7 @@ class Command(BaseCommand):
         patch_pay_body = {
             'auth_token': token,
             'amount': '275.00',
-            'payment_status': 'Expected',
+            'payment_status': 'Completed',
             'notes': 'smoke payment patched',
         }
         r3 = patch_json(

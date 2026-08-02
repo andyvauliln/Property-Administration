@@ -115,18 +115,6 @@ def _body_scalars(body):
     }
 
 
-def _normalize_legacy_payment_status(value):
-    if value == 'Completed':
-        return 'Expected'
-    return value
-
-
-def _normalize_payment_form_scalars(flat):
-    if flat.get('payment_status') == 'Completed':
-        flat = {**flat, 'payment_status': 'Expected'}
-    return flat
-
-
 def _dict_to_querydict(data):
     qd = QueryDict(mutable=True)
     for key, value in data.items():
@@ -168,7 +156,7 @@ def _payments_parallel_from_rows(rows):
         pt = row.get('payment_type')
         payment_types.append('' if pt is None else str(pt))
         payment_notes.append(row.get('payment_notes') or row.get('notes') or '')
-        payment_status.append(_normalize_legacy_payment_status(row.get('payment_status') or 'Pending'))
+        payment_status.append(row.get('payment_status') or 'Pending')
         pid = row.get('payment_id')
         payment_id.append('' if pid is None else str(pid))
         nm = row.get('number_of_months', 1)
@@ -831,7 +819,7 @@ class RentalGuruCreatePaymentAPI(APIView):
             return err
         body = dict(request.data)
         _log_rental_guru_request(request, body)
-        flat = _normalize_payment_form_scalars(_body_scalars(body))
+        flat = _body_scalars(body)
         flat['source'] = RENTAL_GURU_SOURCE
         qd = _dict_to_querydict(flat)
         form = PaymentForm(qd, request=_fake_request(qd), action='create')
@@ -859,9 +847,7 @@ class RentalGuruUpdatePaymentAPI(APIView):
             return Response({'error': 'Payment not found'}, status=status.HTTP_404_NOT_FOUND)
         body = dict(request.data)
         _log_rental_guru_request(request, body)
-        flat = _normalize_payment_form_scalars(
-            _overlay_form_dict(_payment_as_form_dict(payment), _body_scalars(body))
-        )
+        flat = _overlay_form_dict(_payment_as_form_dict(payment), _body_scalars(body))
         flat['source'] = RENTAL_GURU_SOURCE
         qd = _dict_to_querydict(flat)
         form = PaymentForm(qd, request=_fake_request(qd), instance=payment, action='edit')

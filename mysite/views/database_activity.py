@@ -169,7 +169,7 @@ def get_data_integrity_issues(orphaned_page=1, zero_amount_page=1, mismatch_page
         booking__isnull=True,
         apartment__isnull=True,
         payment_date__gte=one_month_ago
-    ).exclude(payment_status='Expected').select_related('payment_type').order_by('-payment_date')
+    ).exclude(payment_status__in=['Completed', 'Expected']).select_related('payment_type').order_by('-payment_date')
     
     # Pagination for orphaned payments
     orphaned_total = orphaned_queryset.count()
@@ -205,7 +205,7 @@ def get_data_integrity_issues(orphaned_page=1, zero_amount_page=1, mismatch_page
     zero_amount_queryset = Payment.objects.filter(
         amount=0,
         payment_date__gte=one_month_ago
-    ).exclude(payment_status='Expected').select_related('payment_type', 'booking', 'apartment', 'booking__apartment').order_by('-payment_date')
+    ).exclude(payment_status__in=['Completed', 'Expected']).select_related('payment_type', 'booking', 'apartment', 'booking__apartment').order_by('-payment_date')
     
     # Pagination for zero amount payments
     zero_amount_total = zero_amount_queryset.count()

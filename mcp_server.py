@@ -690,8 +690,9 @@ def get_payment_report(period: str = "current") -> str:
 
     rows = [_payment_to_dict(p) for p in payments]
 
-    income = sum(float(p["amount"]) for p in rows if p["direction"] == "In" and p["payment_status"] == "Expected")
-    expense = sum(float(p["amount"]) for p in rows if p["direction"] == "Out" and p["payment_status"] == "Expected")
+    counted_statuses = {"Completed", "Expected", "Merged"}
+    income = sum(float(p["amount"]) for p in rows if p["direction"] == "In" and p["payment_status"] in counted_statuses)
+    expense = sum(float(p["amount"]) for p in rows if p["direction"] == "Out" and p["payment_status"] in counted_statuses)
     pending_in = sum(float(p["amount"]) for p in rows if p["direction"] == "In" and p["payment_status"] == "Pending")
     pending_out = sum(float(p["amount"]) for p in rows if p["direction"] == "Out" and p["payment_status"] == "Pending")
 
@@ -944,7 +945,7 @@ def get_booking_details(booking_id: int) -> str:
     apt = b.apartment
     tenant = b.tenant
     payments = [_payment_to_dict(p) for p in b.payments.all()]
-    total_paid = sum(float(p["amount"]) for p in payments if p["direction"] == "In" and p["payment_status"] == "Expected")
+    total_paid = sum(float(p["amount"]) for p in payments if p["direction"] == "In" and p["payment_status"] in {"Completed", "Expected", "Merged"})
 
     return _dumps({
         "id": b.id,
