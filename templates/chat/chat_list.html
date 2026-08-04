@@ -37,7 +37,7 @@
                         <input type="text" name="q" id="chat-search" 
                                value="{{ search_query|default:'' }}"
                                class="bg-gray-50 border border-gray-300 text-gray-900 sm:text-sm rounded-lg focus:ring-primary-500 focus:border-primary-500 block w-full p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white dark:focus:ring-primary-500 dark:focus:border-primary-500" 
-                               placeholder="Search by tenant name, phone, apartment">
+                               placeholder="Search by tenant name, phone, apartment, conversation ID">
                     </div>
                     <button type="submit" class="px-4 py-2.5 text-sm font-medium text-white bg-primary-700 rounded-lg border border-primary-700 hover:bg-primary-800 focus:ring-4 focus:outline-none focus:ring-primary-300 dark:bg-primary-600 dark:hover:bg-primary-700 dark:focus:ring-primary-800">
                         <svg class="w-4 h-4" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 20 20">
@@ -78,6 +78,10 @@
                                         <div class="ml-4 flex-1 min-w-0">
                                             <div class="text-sm font-medium text-gray-900 dark:text-white truncate">
                                                 {{ conv_data.display_info.name }}
+                                            </div>
+
+                                            <div class="text-xs font-mono text-gray-400 dark:text-gray-500 truncate" title="Conversation ID">
+                                                🆔 #{{ conv_data.conversation.id }} · {{ conv_data.conversation.conversation_sid }}
                                             </div>
 
                                             {% if conv_data.display_info.participants_text %}

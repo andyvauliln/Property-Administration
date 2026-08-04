@@ -320,7 +320,7 @@ def insert_monthly_data_report(sheets_service, spreadsheet_id, month_data):
             payment.payment_type.name,
             payment.payment_method.name if payment.payment_method else '', 
             payment.bank.name if payment.bank else '',
-            payment.booking.apartment.name if payment.booking and payment.booking.apartment else '',
+            payment.apartmentName,
             payment.booking.tenant.full_name if payment.booking else '', 
             payment.payment_status
         ])

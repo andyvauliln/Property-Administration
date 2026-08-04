@@ -103,7 +103,11 @@
                             {{ display_info.name }}
                         </h3>
                         
-                        <div class="flex items-center space-x-4 text-sm text-gray-500 dark:text-gray-400">
+                        <div class="flex items-center flex-wrap gap-x-4 gap-y-1 text-sm text-gray-500 dark:text-gray-400">
+                            <span class="font-mono text-xs" title="Conversation ID">
+                                🆔 #{{ conversation.id }} · {{ conversation.conversation_sid }}
+                            </span>
+
                             {% if display_info.apartment %}
                             <a href="/apartments/?q=id={{ conversation.apartment.id }}" target="_blank" rel="noopener noreferrer" class="hover:underline text-blue-600 dark:text-blue-400">
                                 📍 {{ display_info.apartment }}
@@ -161,6 +165,17 @@
                 </button>
                 {% endif %}
             </div>
+            
+            {% if not ai_ready %}
+            <div class="mx-4 mt-3 rounded-lg border border-yellow-300 bg-yellow-50 px-4 py-2 text-sm text-yellow-800 dark:border-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-200">
+                AI test mode needs this conversation linked to both an <strong>apartment</strong> and a <strong>booking</strong>.
+                {% if not conversation.booking_id %}Link a booking to enable AI replies.{% endif %}
+            </div>
+            {% elif not ai_assistant_enabled %}
+            <div class="mx-4 mt-3 rounded-lg border border-purple-300 bg-purple-50 px-4 py-2 text-sm text-purple-800 dark:border-purple-700 dark:bg-purple-900/30 dark:text-purple-200">
+                AI is in <strong>test mode</strong> — replies appear below your message but are not sent to SMS. Use “Send as Client” to simulate a tenant message.
+            </div>
+            {% endif %}
         </div>
         
         <!-- Messages Area -->
@@ -273,7 +288,7 @@
                         <label for="send-to-group-chat" class="inline-flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
                             <input id="send-to-group-chat"
                                    type="checkbox"
-                                   checked
+                                   {% if ai_assistant_enabled %}checked{% endif %}
                                    class="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-700 dark:focus:ring-blue-600">
                             <span>Send to group chat</span>
                         </label>
@@ -532,13 +547,25 @@ document.addEventListener('DOMContentLoaded', function() {
                 // Clear input
                 messageInput.value = '';
                 
+                const outboundAuthor = '{{ outbound_author_display|escapejs }}';
+                const outboundBody = senderType === 'client' ? `${message} (+++)` : message;
+
                 // Add message to chat (optimistic update)
                 addMessageToChat({
-                    author: '{{ outbound_author_display|escapejs }}',
-                    body: message,
+                    author: outboundAuthor,
+                    body: outboundBody,
                     direction: 'outbound',
                     timestamp: new Date().toISOString()
                 });
+
+                if (data.ai_skipped_reason) {
+                    alert(data.ai_skipped_reason);
+                } else if (data.ai_response) {
+                    appendAiResponseRow({
+                        ai_response: data.ai_response,
+                        ai_sent_to_chat: data.ai_sent_to_chat,
+                    });
+                }
                 
                 // Scroll to bottom
                 scrollToBottom();
@@ -668,6 +695,16 @@ document.addEventListener('DOMContentLoaded', function() {
         `;
         
         messagesContainer.appendChild(messageDiv);
+    }
+
+    function appendAiResponseRow(m) {
+        const html = buildAiResponseRow(m);
+        if (!html) return;
+        const tmp = document.createElement('div');
+        tmp.innerHTML = html;
+        while (tmp.firstChild) {
+            messagesContainer.appendChild(tmp.firstChild);
+        }
     }
     
     function escapeHtml(text) {

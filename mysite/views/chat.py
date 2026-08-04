@@ -18,6 +18,7 @@ from mysite.views.messaging import (
 from mysite.unified_logger import log_error, log_info, logger
 from mysite.error_logger import log_exception
 import json
+import os
 from uuid import uuid4
 
 
@@ -171,26 +172,33 @@ def chat_list(request):
     # Get search query
     search_query = request.GET.get('q', '').strip()
     
-    # Get all conversations with their latest message timestamp
-    base_conversations = TwilioConversation.objects.annotate(
+    conversations_with_messages = TwilioConversation.objects.annotate(
         last_message_time=Max('messages__message_timestamp')
     ).filter(
-        last_message_time__isnull=False  # Only conversations with messages
+        last_message_time__isnull=False
     )
+    total_all_conversations = conversations_with_messages.count()
 
-    total_all_conversations = base_conversations.count()
-
-    conversations = base_conversations
+    if search_query:
+        conversations = TwilioConversation.objects.annotate(
+            last_message_time=Max('messages__message_timestamp')
+        )
+    else:
+        conversations = conversations_with_messages
     
     # Apply search filter if provided
     if search_query:
-        conversations = conversations.filter(
+        search_filters = (
             Q(booking__tenant__full_name__icontains=search_query) |
             Q(booking__tenant__phone__icontains=search_query) |
             Q(apartment__name__icontains=search_query) |
             Q(friendly_name__icontains=search_query) |
+            Q(conversation_sid__icontains=search_query) |
             Q(messages__author__icontains=search_query)
-        ).distinct()
+        )
+        if search_query.isdigit():
+            search_filters |= Q(id=int(search_query))
+        conversations = conversations.filter(search_filters).distinct()
     
     conversations = conversations.order_by('-last_message_time')
 
@@ -280,6 +288,8 @@ def chat_detail(request, conversation_sid):
         'chat_templates': chat_templates,
         'messages_page_number': page_messages.number,
         'messages_has_previous': page_messages.has_previous(),
+        'ai_ready': bool(conversation.apartment_id and conversation.booking_id),
+        'ai_assistant_enabled': os.environ.get('AI_ASSISTANT_ENABLED', 'true').lower() == 'true',
     })
 
 
@@ -361,9 +371,11 @@ def send_message(request, conversation_sid):
                 pass
             
             # When sent as client: process AI synchronously (webhook may not fire for API-created messages)
+            ai_result = None
+            ai_assistant_enabled = os.environ.get('AI_ASSISTANT_ENABLED', 'true').lower() == 'true'
             if sender_type == 'client' and conversation.apartment_id and conversation.booking_id:
                 try:
-                    from mysite.models import Apartment, Booking
+                    from mysite.models import Apartment, Booking, TwilioMessage
                     from mysite.views.messaging import ai_answer_customer
                     from mysite.group_chat_logger import log_ai_customer_start, log_ai_customer_sent
                     apartment = Apartment.objects.prefetch_related('managers').select_related('owner').get(id=conversation.apartment_id)
@@ -372,7 +384,8 @@ def send_message(request, conversation_sid):
                         log_ai_customer_start(conversation_sid, 'ASSISTANT', original_message, conversation.apartment_id, conversation.booking_id)
                         ai_resp = ai_answer_customer(conversation_sid, original_message, apartment, booking)
                         if ai_resp:
-                            if send_to_group_chat:
+                            ai_sent_to_chat = bool(send_to_group_chat and ai_assistant_enabled)
+                            if ai_sent_to_chat:
                                 try:
                                     send_messsage_by_sid(conversation_sid, 'ASSISTANT', ai_resp, manager_phone, None)
                                 except Exception:
@@ -383,13 +396,31 @@ def send_message(request, conversation_sid):
                                         conversation_sid,
                                     )
                                     raise
-                            elif sent_message:
-                                sent_message.ai_response = ai_resp
-                                sent_message.ai_sent_to_chat = False
-                                sent_message.save(update_fields=['ai_response', 'ai_sent_to_chat', 'updated_at'])
+
+                            target_message = sent_message
+                            if not target_message:
+                                target_message = TwilioMessage.objects.filter(
+                                    conversation_sid=conversation_sid,
+                                    body=message_content,
+                                ).order_by('-message_timestamp').first()
+
+                            if target_message:
+                                target_message.ai_response = ai_resp
+                                target_message.ai_sent_to_chat = ai_sent_to_chat
+                                target_message.save(update_fields=['ai_response', 'ai_sent_to_chat', 'updated_at'])
+
+                            ai_result = {
+                                'ai_response': ai_resp,
+                                'ai_sent_to_chat': ai_sent_to_chat,
+                                'message_id': target_message.id if target_message else None,
+                            }
                             log_ai_customer_sent(conversation_sid, ai_resp)
                 except Exception as e:
                     log_exception(error=e, context="Chat - AI answer (client)", additional_info={'conversation_sid': conversation_sid})
+            elif sender_type == 'client' and not conversation.booking_id:
+                ai_result = {
+                    'ai_skipped_reason': 'This conversation has no linked booking — AI test mode requires both apartment and booking.',
+                }
             elif sender_type == 'manager' and conversation.apartment_id:
                 try:
                     from mysite.models import Apartment
@@ -406,10 +437,13 @@ def send_message(request, conversation_sid):
                 except Exception as e:
                     log_exception(error=e, context="Chat - AI extract (manager)", additional_info={'conversation_sid': conversation_sid})
             
-            return JsonResponse({
+            response_payload = {
                 'success': True,
-                'message': 'Message sent successfully'
-            })
+                'message': 'Message sent successfully',
+            }
+            if ai_result:
+                response_payload.update(ai_result)
+            return JsonResponse(response_payload)
             
         except Exception as e:
             log_info(f"Error sending message from chat interface: {e}")

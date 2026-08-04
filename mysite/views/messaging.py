@@ -666,16 +666,16 @@ def _extract_marked_body(text, marker):
 
 
 def _get_ai_client():
-    """Initialize OpenRouter client."""
+    """Initialize OpenRouter client. Returns (client, error_reason)."""
     try:
         from openai import OpenAI
         api_key = os.environ.get('OPENROUTER_API_KEY', '')
         if not api_key:
-            return None
-        return OpenAI(base_url="https://openrouter.ai/api/v1", api_key=api_key)
+            return None, 'OPENROUTER_API_KEY is not set'
+        return OpenAI(base_url="https://openrouter.ai/api/v1", api_key=api_key), None
     except Exception as e:
         log_error(e, "Failed to initialize AI client", source='web')
-        return None
+        return None, str(e)
 
 
 def _get_db_model(fallback="openai/gpt-4o-mini"):
@@ -891,9 +891,9 @@ def ai_answer_customer(conversation_sid, message_body, apartment, booking):
     Returns answer/clarifying-question string, or None if no relevant info.
     """
     try:
-        ai_client = _get_ai_client()
+        ai_client, ai_client_error = _get_ai_client()
         if not ai_client:
-            log_warning("OPENROUTER_API_KEY not set, skipping AI response", category='sms')
+            log_warning(f"AI client unavailable, skipping AI response: {ai_client_error}", category='sms')
             return None
 
         context, context_sources = build_full_context(conversation_sid, apartment, booking)
@@ -983,8 +983,9 @@ def ai_extract_knowledge(conversation_sid, message_body, apartment):
     Silent — no chat reply.
     """
     try:
-        ai_client = _get_ai_client()
+        ai_client, ai_client_error = _get_ai_client()
         if not ai_client:
+            log_warning(f"AI client unavailable, skipping knowledge extract: {ai_client_error}", category='sms')
             return False, None
 
         # Step 1: Check if message has valuable operational info
