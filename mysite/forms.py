@@ -924,7 +924,7 @@ class PaymentForm(forms.ModelForm):
 
     source = ChoiceFieldEx(
         choices=[('', '---------')] + list(Booking.SOURCE),
-        required=False, initial="", order=16, isColumn=False, isEdit=True, isCreate=False,
+        required=False, initial="", order=16, isColumn=True, isEdit=True, isCreate=False,
         ui_element="radio", _dropdown_options=lambda: get_dropdown_options("booking_source"))
     source_id = CharFieldEx(
         max_length=255, required=False, initial="", order=17, isColumn=False, isEdit=True, isCreate=False,

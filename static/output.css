@@ -4385,6 +4385,11 @@ label[textContent="Problem Booking"] {
   border-color: rgb(126 58 242 / var(--tw-border-opacity));
 }
 
+:is(.dark .dark\:border-purple-700) {
+  --tw-border-opacity: 1;
+  border-color: rgb(108 43 217 / var(--tw-border-opacity));
+}
+
 :is(.dark .dark\:border-red-500) {
   --tw-border-opacity: 1;
   border-color: rgb(240 82 82 / var(--tw-border-opacity));
@@ -4402,6 +4407,11 @@ label[textContent="Problem Booking"] {
 
 :is(.dark .dark\:border-transparent) {
   border-color: transparent;
+}
+
+:is(.dark .dark\:border-yellow-700) {
+  --tw-border-opacity: 1;
+  border-color: rgb(142 75 16 / var(--tw-border-opacity));
 }
 
 :is(.dark .dark\:bg-blue-600) {
@@ -4606,6 +4616,11 @@ label[textContent="Problem Booking"] {
   color: rgb(255 138 76 / var(--tw-text-opacity));
 }
 
+:is(.dark .dark\:text-purple-200) {
+  --tw-text-opacity: 1;
+  color: rgb(220 215 254 / var(--tw-text-opacity));
+}
+
 :is(.dark .dark\:text-purple-300) {
   --tw-text-opacity: 1;
   color: rgb(202 191 253 / var(--tw-text-opacity));
@@ -4639,6 +4654,11 @@ label[textContent="Problem Booking"] {
 :is(.dark .dark\:text-white) {
   --tw-text-opacity: 1;
   color: rgb(255 255 255 / var(--tw-text-opacity));
+}
+
+:is(.dark .dark\:text-yellow-200) {
+  --tw-text-opacity: 1;
+  color: rgb(252 233 106 / var(--tw-text-opacity));
 }
 
 :is(.dark .dark\:text-yellow-300) {

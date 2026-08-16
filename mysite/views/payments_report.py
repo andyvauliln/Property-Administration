@@ -305,7 +305,7 @@ def insert_monthly_data_report(sheets_service, spreadsheet_id, month_data):
         ["Pending Profit:", f"${month_data['pending_profit']}"],
         [],  # Empty row for spacing
         ["Payment Date", "Payment Notes", "Payment Amount", "Payment Type",
-            "Payment Method", "Bank", "Apartment", "Tenant", "Status"]
+            "Payment Method", "Bank", "Apartment", "Tenant", "Status", "Source"]
     ]
     # Append payment details to summary values
     for payment in month_data['payments']:
@@ -322,7 +322,8 @@ def insert_monthly_data_report(sheets_service, spreadsheet_id, month_data):
             payment.bank.name if payment.bank else '',
             payment.apartmentName,
             payment.booking.tenant.full_name if payment.booking else '', 
-            payment.payment_status
+            payment.payment_status,
+            payment.source or '',
         ])
 
     # Insert data into the month sheet
