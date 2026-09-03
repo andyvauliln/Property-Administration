@@ -2263,6 +2263,7 @@ class TwilioMessage(models.Model):
 
     # AI processing metadata
     ai_response = models.TextField(null=True, blank=True)
+    ai_response_why = models.TextField(null=True, blank=True)
     ai_sent_to_chat = models.BooleanField(null=True, blank=True)
     ai_kb_updated = models.BooleanField(null=True, blank=True)
     ai_kb_changes = models.TextField(null=True, blank=True)

@@ -6,6 +6,7 @@ from datetime import date
 from ..models import AIManagement
 from ..forms import AIManagementForm
 from .utils import handle_post_request, get_related_fields, parse_query, get_model_fields, DateEncoder
+from .messaging import DEFAULT_CHAT_MODEL, RECOMMENDED_CHAT_MODELS, normalize_chat_model
 from ..decorators import user_has_role
 
 def serialize_field(value):
@@ -34,6 +35,7 @@ def ai_management_view(request):
         if 'update_ai_model' in request.POST:
             model_name = request.POST.get('ai_model')
             if model_name:
+                model_name = normalize_chat_model(model_name)
                 AIManagement.objects.update_or_create(
                     prompt_key='ai_conversation_model',
                     defaults={
@@ -73,7 +75,7 @@ def ai_management_view(request):
 
     # Get current AI model
     current_model_obj = AIManagement.objects.filter(prompt_key='ai_conversation_model').first()
-    current_model = current_model_obj.content if current_model_obj else 'openai/gpt-4o-mini'
+    current_model = current_model_obj.content if current_model_obj else DEFAULT_CHAT_MODEL
 
     def _format_context_length(n):
         if n is None:
@@ -121,11 +123,12 @@ def ai_management_view(request):
 
     # Fallback/Static AI Model options if API fails or for core models
     ai_models = [
-        {'value': 'openai/gpt-4o', 'label': 'GPT-4o', 'context_length_display': '128k'},
-        {'value': 'openai/gpt-4o-mini', 'label': 'GPT-4o Mini', 'context_length_display': '128k'},
-        {'value': 'openai/o1-preview', 'label': 'O1 Preview', 'context_length_display': '128k'},
-        {'value': 'openai/o1-mini', 'label': 'O1 Mini', 'context_length_display': '128k'},
-        {'value': 'anthropic/claude-3.5-sonnet', 'label': 'Claude 3.5 Sonnet', 'context_length_display': '200k'},
+        {
+            'value': value,
+            'label': label,
+            'context_length_display': '1M' if '5.6' in value or '5.5' in value else '128k',
+        }
+        for value, label in RECOMMENDED_CHAT_MODELS
     ]
     
     # Use OpenRouter models if available

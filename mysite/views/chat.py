@@ -235,24 +235,14 @@ def chat_detail(request, conversation_sid):
     Display specific conversation with messages
     """
     conversation = get_object_or_404(TwilioConversation, conversation_sid=conversation_sid)
-    
-    # Get messages with pagination
-    chat_messages = conversation.messages.order_by('message_timestamp')
-    paginator = Paginator(chat_messages, 50)  # Show 50 messages per page
 
-    # Default to the latest page so the UI opens at the bottom (most recent messages).
-    page_number = request.GET.get('page')
-    if not page_number:
-        page_number = paginator.num_pages or 1
-
-    page_messages = paginator.get_page(page_number)
+    chat_messages = list(conversation.messages.order_by('message_timestamp'))
     
     # Get conversation display info
     display_info = get_conversation_display_info(conversation)
     author_display_map = _build_author_display_map(display_info.get("participants") or [])
 
-    # Add display author to messages for the template
-    for m in page_messages:
+    for m in chat_messages:
         raw_author = (m.author or "").strip()
         m.author_display = author_display_map.get(raw_author, _format_number_name(raw_author, "Unknown"))
     
@@ -281,13 +271,12 @@ def chat_detail(request, conversation_sid):
     return render(request, 'chat/chat_detail.html', {
         'title': f'Chat - {display_info["name"]}',
         'conversation': conversation,
-        'chat_messages': page_messages,
+        'chat_messages': chat_messages,
         'display_info': display_info,
         'sidebar_conversations': sidebar_conversations,
         'outbound_author_display': author_display_map.get(ASSISTANT_IDENTITY, _format_number_name(ASSISTANT_PROJECTED_PHONE, "Assistant")),
         'chat_templates': chat_templates,
-        'messages_page_number': page_messages.number,
-        'messages_has_previous': page_messages.has_previous(),
+        'message_count': len(chat_messages),
         'ai_ready': bool(conversation.apartment_id and conversation.booking_id),
         'ai_assistant_enabled': os.environ.get('AI_ASSISTANT_ENABLED', 'true').lower() == 'true',
     })
@@ -376,13 +365,14 @@ def send_message(request, conversation_sid):
             if sender_type == 'client' and conversation.apartment_id and conversation.booking_id:
                 try:
                     from mysite.models import Apartment, Booking, TwilioMessage
-                    from mysite.views.messaging import ai_answer_customer
+                    from mysite.views.messaging import ai_answer_customer_detailed, _persist_customer_ai_result
                     from mysite.group_chat_logger import log_ai_customer_start, log_ai_customer_sent
                     apartment = Apartment.objects.prefetch_related('managers').select_related('owner').get(id=conversation.apartment_id)
                     booking = Booking.objects.select_related('tenant').get(id=conversation.booking_id)
                     if len(original_message.strip()) > 3:
                         log_ai_customer_start(conversation_sid, 'ASSISTANT', original_message, conversation.apartment_id, conversation.booking_id)
-                        ai_resp = ai_answer_customer(conversation_sid, original_message, apartment, booking)
+                        ai_detail = ai_answer_customer_detailed(conversation_sid, original_message, apartment, booking)
+                        ai_resp = ai_detail.get("answer")
                         if ai_resp:
                             ai_sent_to_chat = bool(send_to_group_chat and ai_assistant_enabled)
                             if ai_sent_to_chat:
@@ -406,15 +396,29 @@ def send_message(request, conversation_sid):
 
                             if target_message:
                                 target_message.ai_response = ai_resp
+                                target_message.ai_response_why = ai_detail.get("why")
                                 target_message.ai_sent_to_chat = ai_sent_to_chat
-                                target_message.save(update_fields=['ai_response', 'ai_sent_to_chat', 'updated_at'])
+                                target_message.save(update_fields=['ai_response', 'ai_response_why', 'ai_sent_to_chat', 'updated_at'])
+                            elif sent_message:
+                                _persist_customer_ai_result(sent_message.message_sid, ai_detail, sent_to_chat=ai_sent_to_chat)
 
                             ai_result = {
                                 'ai_response': ai_resp,
+                                'ai_response_why': ai_detail.get("why"),
                                 'ai_sent_to_chat': ai_sent_to_chat,
                                 'message_id': target_message.id if target_message else None,
                             }
                             log_ai_customer_sent(conversation_sid, ai_resp)
+                        elif ai_detail.get("why") or ai_detail.get("no_answer"):
+                            target_message = sent_message
+                            if target_message:
+                                _persist_customer_ai_result(target_message.message_sid, ai_detail, sent_to_chat=False)
+                            ai_result = {
+                                'ai_response': None,
+                                'ai_response_why': ai_detail.get("why"),
+                                'ai_sent_to_chat': False,
+                                'message_id': target_message.id if target_message else None,
+                            }
                 except Exception as e:
                     log_exception(error=e, context="Chat - AI answer (client)", additional_info={'conversation_sid': conversation_sid})
             elif sender_type == 'client' and not conversation.booking_id:

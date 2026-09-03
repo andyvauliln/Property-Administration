@@ -227,6 +227,9 @@
                     <!-- Sent mode: solid purple bubble -->
                     <div class="bg-purple-500 text-white rounded-lg px-4 py-2 shadow">
                         <div class="text-sm whitespace-pre-wrap">{{ message.ai_response }}</div>
+                        {% if message.ai_response_why %}
+                        <div class="text-xs text-purple-100/90 mt-2 whitespace-pre-wrap italic">Why: {{ message.ai_response_why }}</div>
+                        {% endif %}
                         <div class="text-xs text-purple-100 mt-1 flex items-center gap-1">
                             <span class="font-medium">🤖 Virtual Assistant</span>
                             <span class="px-1.5 py-0.5 rounded bg-green-400/40 text-white font-medium">✓ Sent to SMS</span>
@@ -236,6 +239,9 @@
                     <!-- Test mode: dashed border, muted — NOT sent to SMS -->
                     <div class="border-2 border-dashed border-purple-300 dark:border-purple-600 bg-purple-50 dark:bg-purple-900/20 text-gray-700 dark:text-gray-200 rounded-lg px-4 py-2">
                         <div class="text-sm whitespace-pre-wrap">{{ message.ai_response }}</div>
+                        {% if message.ai_response_why %}
+                        <div class="text-xs text-purple-600 dark:text-purple-300 mt-2 whitespace-pre-wrap italic">Why: {{ message.ai_response_why }}</div>
+                        {% endif %}
                         <div class="text-xs text-purple-500 dark:text-purple-400 mt-1 flex items-center gap-1">
                             <span class="font-medium">🤖 Virtual Assistant</span>
                             <span class="px-1.5 py-0.5 rounded bg-yellow-100 text-yellow-700 dark:bg-yellow-900 dark:text-yellow-300 font-medium">⚠ Not sent to SMS (test mode)</span>
@@ -244,13 +250,21 @@
                     {% endif %}
                 </div>
             </div>
+            {% elif message.ai_response_why %}
+            <div class="flex justify-end ai-response-row">
+                <div class="max-w-xs lg:max-w-md xl:max-w-lg">
+                    <div class="border-2 border-dashed border-purple-300 dark:border-purple-600 bg-purple-50 dark:bg-purple-900/20 text-gray-700 dark:text-gray-200 rounded-lg px-4 py-2">
+                        <div class="text-sm whitespace-pre-wrap italic">NO_ANSWER</div>
+                        <div class="text-xs text-purple-600 dark:text-purple-300 mt-2 whitespace-pre-wrap italic">Why: {{ message.ai_response_why }}</div>
+                        <div class="text-xs text-purple-500 dark:text-purple-400 mt-1 flex items-center gap-1">
+                            <span class="font-medium">🤖 Virtual Assistant</span>
+                            <span class="px-1.5 py-0.5 rounded bg-yellow-100 text-yellow-700 dark:bg-yellow-900 dark:text-yellow-300 font-medium">⚠ Not sent to SMS (test mode)</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
             {% endif %}
             {% endfor %}
-            
-            <!-- Loading indicator for pagination -->
-            <div id="loading-indicator" class="hidden text-center py-4">
-                <div class="text-gray-500 dark:text-gray-400">Loading more messages...</div>
-            </div>
         </div>
         
         <!-- Message Input Area -->
@@ -410,109 +424,6 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // Initial scroll to bottom
     scrollToBottom();
-
-    // Infinite scroll (load older messages when you scroll to top)
-    let isLoadingOlder = false;
-    let currentPage = {{ messages_page_number|default:1 }};
-    let hasPrevious = {{ messages_has_previous|yesno:"true,false" }};
-
-    async function loadOlderMessages() {
-        if (isLoadingOlder || !hasPrevious) return;
-        isLoadingOlder = true;
-        loadingIndicator.classList.remove('hidden');
-
-        try {
-            const prevPage = currentPage - 1;
-            if (prevPage < 1) {
-                hasPrevious = false;
-                return;
-            }
-
-            // Preserve scroll position after prepending content
-            const prevScrollHeight = messagesContainer.scrollHeight;
-            const prevScrollTop = messagesContainer.scrollTop;
-
-            const resp = await fetch('{% url "load_more_messages" conversation.conversation_sid %}?page=' + prevPage, {
-                headers: { 'Accept': 'application/json' }
-            });
-            const data = await resp.json();
-            if (!resp.ok) {
-                throw new Error(data.error || 'Failed to load messages');
-            }
-
-            const deleteMsgUrlTemplate = '{% url "delete_chat_message" conversation.conversation_sid 0 %}';
-            const csrfToken = document.querySelector('input[name="csrfmiddlewaretoken"]')?.value || '';
-            const fragment = document.createDocumentFragment();
-            (data.messages || []).forEach((m) => {
-                const messageDiv = document.createElement('div');
-                messageDiv.className = `flex ${m.direction === 'outbound' ? 'justify-end' : 'justify-start'} message-row`;
-                messageDiv.dataset.messageId = m.id;
-                const deleteMsgUrl = deleteMsgUrlTemplate.replace('0', String(m.id));
-
-                const deleteButtonClass = m.direction === 'outbound'
-                    ? 'inline-flex items-center rounded px-1.5 py-0.5 bg-white/20 text-white hover:bg-white/30 text-xs font-medium transition-colors duration-200'
-                    : 'text-red-500 hover:text-red-600 text-xs font-medium transition-colors duration-200';
-                const deleteForm = csrfToken
-                    ? `<form method="post" action="${deleteMsgUrl}" class="delete-message-form inline" onsubmit="return confirm('Delete this message?');">
-                        <input type="hidden" name="csrfmiddlewaretoken" value="${csrfToken}">
-                        <button type="submit" class="${deleteButtonClass}">Delete</button>
-                       </form>`
-                    : `<form method="post" action="${deleteMsgUrl}" class="delete-message-form inline" onsubmit="return confirm('Delete this message?');">
-                        <button type="submit" class="${deleteButtonClass}">Delete</button>
-                       </form>`;
-
-                const isOut = m.direction === 'outbound';
-                messageDiv.innerHTML = `
-                    <div class="max-w-xs lg:max-w-md xl:max-w-lg">
-                        <div class="${isOut ? 'bg-blue-500 text-white' : 'bg-white dark:bg-gray-700 text-gray-900 dark:text-white'} rounded-lg px-4 py-2 shadow">
-                            <div class="text-sm">${escapeHtml(m.body)}</div>
-                            <div class="text-xs ${isOut ? 'text-blue-100' : 'text-gray-500 dark:text-gray-400'} mt-1 flex items-center justify-between gap-2">
-                                <span>
-                                    <span class="font-medium">${escapeHtml(m.author_display || m.author || '')}</span>
-                                    • ${escapeHtml(m.formatted_time || '')}
-                                </span>
-                                <div class="flex items-center gap-1 flex-wrap">
-                                    ${m.forwarded_to_group_sid ? '<span class="px-1.5 py-0.5 rounded text-xs bg-green-200 text-green-800">&#10003; Forwarded to group</span>' : ''}
-                                    ${deleteForm}
-                                </div>
-                            </div>
-                        </div>
-                        ${buildKbIndicator(m, isOut)}
-                    </div>
-                `;
-                fragment.appendChild(messageDiv);
-
-                if (m.ai_response) {
-                    const aiRowHtml = buildAiResponseRow(m);
-                    const tmp = document.createElement('div');
-                    tmp.innerHTML = aiRowHtml;
-                    while (tmp.firstChild) fragment.appendChild(tmp.firstChild);
-                }
-            });
-
-            // Insert before loading indicator (so indicator stays at bottom)
-            messagesContainer.insertBefore(fragment, loadingIndicator);
-
-            // Restore scroll position (so the viewport doesn't jump)
-            const newScrollHeight = messagesContainer.scrollHeight;
-            messagesContainer.scrollTop = prevScrollTop + (newScrollHeight - prevScrollHeight);
-
-            currentPage = prevPage;
-            hasPrevious = !!data.has_previous;
-        } catch (e) {
-            console.error(e);
-        } finally {
-            loadingIndicator.classList.add('hidden');
-            isLoadingOlder = false;
-        }
-    }
-
-    messagesContainer.addEventListener('scroll', function() {
-        // Trigger when close to top
-        if (messagesContainer.scrollTop <= 80) {
-            loadOlderMessages();
-        }
-    });
     
     // Handle form submission
     messageForm.addEventListener('submit', async function(e) {

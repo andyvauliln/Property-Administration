@@ -3409,6 +3409,10 @@ input:checked + .toggle-bg {
   color: rgb(237 235 254 / var(--tw-text-opacity));
 }
 
+.text-purple-100\/90 {
+  color: rgb(237 235 254 / 0.9);
+}
+
 .text-purple-500 {
   --tw-text-opacity: 1;
   color: rgb(144 97 249 / var(--tw-text-opacity));
