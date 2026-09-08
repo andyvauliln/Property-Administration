@@ -171,6 +171,8 @@ def get_dropdown_options(identifier, isData=False, request=None):
             {"value": "ai_answer_user", "label": "AI Answer User"},
             {"value": "ai_extract_check", "label": "AI Extract Check"},
             {"value": "ai_extract_merge", "label": "AI Extract Merge"},
+            {"value": "ai_extract_global_check", "label": "AI Extract Global Check"},
+            {"value": "ai_extract_global_merge", "label": "AI Extract Global Merge"},
             {"value": "contract_signed_message", "label": "Contract Signed Message"},
             {"value": "contract_message_template", "label": "Contract Message Template"},
             {"value": "welcome_message_template", "label": "Welcome Message Template"},

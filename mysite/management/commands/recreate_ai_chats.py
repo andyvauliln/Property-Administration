@@ -825,7 +825,7 @@ class Command(BaseCommand):
                 model=self.model,
                 messages=[{"role": "user", "content": check_content}],
                 temperature=0,
-                max_tokens=5,
+                max_tokens=400,
             )
             check_text = _safe_completion_content(check_response)
             if not check_text:
@@ -835,7 +835,9 @@ class Command(BaseCommand):
                     "global": None,
                     "why": "AI KB check returned empty content",
                 }
-            has_value = check_text.upper().startswith("YES")
+            from mysite.views.messaging import _parse_kb_check, _resolve_suggested_knowledge
+
+            has_value, suggested = _parse_kb_check(check_text)
             if not has_value and manager_message_has_operational_kb_hints(message_body):
                 has_value = True
             if not has_value:
@@ -846,11 +848,17 @@ class Command(BaseCommand):
                 return {"has_value": False, "apartment": None, "global": None, "why": why}
 
             kb_content = apartment.knowledge_base or "(empty)"
+            suggested_knowledge = _resolve_suggested_knowledge(suggested, message_body)
             merge_content, _merge_from_db = _get_prompt_with_source(
-                "ai_extract_merge", knowledge_base=kb_content, message_body=message_body
+                "ai_extract_merge",
+                knowledge_base=kb_content,
+                message_body=message_body,
+                suggested_knowledge=suggested_knowledge,
             )
             if not merge_content:
-                merge_content = build_ai_extract_merge_prompt(kb_content, message_body)
+                merge_content = build_ai_extract_merge_prompt(
+                    kb_content, message_body, suggested_knowledge
+                )
             update_response = ai_client.chat.completions.create(
                 model=self.model,
                 messages=[{"role": "user", "content": merge_content}],

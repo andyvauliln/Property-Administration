@@ -167,8 +167,10 @@
     const PROMPT_PLACEHOLDERS = {
         'ai_answer_system': 'No placeholders',
         'ai_answer_user': 'Supports: {context}, {message_body}',
-        'ai_extract_check': 'Supports: {fields_ctx}, {message_body}',
-        'ai_extract_merge': 'Supports: {knowledge_base}, {message_body}',
+        'ai_extract_check': 'Supports: {fields_ctx}, {chat_history}, {message_body}',
+        'ai_extract_merge': 'Supports: {knowledge_base}, {message_body}, {suggested_knowledge}',
+        'ai_extract_global_check': 'Supports: {chat_history}, {message_body}',
+        'ai_extract_global_merge': 'Supports: {knowledge_base}, {message_body}, {suggested_knowledge}',
         'contract_signed_message': 'Supports: {booking_id}',
         'contract_message_template': 'Supports: {tenant_name}, {apartment_name}, {start_date}, {end_date}, {contract_url}',
         'welcome_message_template': 'Supports: {tenant_name}, {apartment_name}, {start_date}, {end_date}',

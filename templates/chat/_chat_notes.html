@@ -1,0 +1,30 @@
+{% with notes_text=notes|default:'' %}
+{% if placement == 'actions' %}
+<span class="message-notes-badge cursor-pointer {% if not notes_text %}hidden{% endif %} px-1.5 py-0.5 rounded text-xs {{ badge_class }}" title="Show or hide notes" role="button">📝</span>
+<button type="button"
+        class="add-message-note-btn {% if notes_text %}hidden{% endif %} {{ add_class }} text-xs font-medium transition-colors duration-200">
+    Add note
+</button>
+{% else %}
+<div class="message-notes-panel mt-1">
+    <div class="message-notes-view notes-view-only {% if not notes_text %}hidden{% endif %} rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 dark:border-amber-700 dark:bg-amber-900/30">
+        <div class="flex items-start justify-between gap-2">
+            <div class="message-notes-text text-sm text-amber-900 dark:text-amber-100 whitespace-pre-wrap flex-1">{{ notes_text }}</div>
+            <div class="flex items-center gap-1 flex-shrink-0">
+                <button type="button" class="edit-message-note-btn text-xs font-medium text-amber-700 hover:text-amber-900 dark:text-amber-300">Edit</button>
+                <button type="button" class="delete-message-note-btn text-xs font-medium text-red-600 hover:text-red-800 dark:text-red-400">Delete</button>
+            </div>
+        </div>
+    </div>
+    <div class="message-notes-editor hidden rounded-lg border border-amber-200 bg-white px-3 py-2 dark:border-amber-700 dark:bg-gray-800 mt-1">
+        <textarea rows="2"
+                  class="message-notes-input block w-full rounded-lg border border-gray-300 bg-gray-50 p-2 text-sm text-gray-900 focus:border-amber-500 focus:ring-amber-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white"
+                  placeholder="{{ placeholder|default:'Notes...' }}">{{ notes_text }}</textarea>
+        <div class="mt-2 flex items-center justify-end gap-2">
+            <button type="button" class="cancel-message-note-btn px-2.5 py-1 text-xs font-medium text-gray-700 bg-white border border-gray-300 rounded hover:bg-gray-100 dark:bg-gray-700 dark:text-gray-200 dark:border-gray-600">Cancel</button>
+            <button type="button" class="save-message-note-btn px-2.5 py-1 text-xs font-medium text-white bg-amber-600 rounded hover:bg-amber-700">Save</button>
+        </div>
+    </div>
+</div>
+{% endif %}
+{% endwith %}

@@ -2201,6 +2201,8 @@ class TwilioConversation(models.Model):
         blank=True,
         related_name='twilio_conversations'
     )
+
+    notes = models.TextField(blank=True, null=True)
     
     # Tracking fields
     created_by = models.CharField(max_length=255, blank=True, null=True, editable=False)
@@ -2260,6 +2262,9 @@ class TwilioMessage(models.Model):
     
     # Timestamps
     message_timestamp = models.DateTimeField(auto_now_add=True)
+
+    notes = models.TextField(blank=True, null=True)
+    ai_notes = models.TextField(blank=True, null=True)
 
     # AI processing metadata
     ai_response = models.TextField(null=True, blank=True)

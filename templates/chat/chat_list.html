@@ -15,42 +15,53 @@
   @media (min-width: 768px) {
     .chat-viewport { left: 16rem; } /* sidebar width (w-64) */
   }
+  body:not(.show-notes-on) .notes-row:not(.notes-open) .notes-view-only { display: none !important; }
+  .notes-row.notes-collapsed .notes-view-only { display: none !important; }
 </style>
 
 <div class="chat-viewport">
 <div class="h-full min-h-0 overflow-hidden flex flex-col bg-white dark:bg-gray-800">
     <!-- Header -->
     <div class="flex-shrink-0 p-4 bg-white border-b border-gray-200 dark:bg-gray-800 dark:border-gray-700">
-        <div class="flex items-center justify-between">
+        <div class="flex items-center justify-between gap-4 flex-wrap">
             <div>
                 <h1 class="text-xl font-semibold text-gray-900 dark:text-white">Chat Interface</h1>
                 <p class="text-sm text-gray-500 dark:text-gray-400">
                     {{ total_conversations }}/{{ total_all_conversations }}
                 </p>
             </div>
+
+            <div class="flex items-center gap-3 flex-wrap">
+                <button type="button"
+                        id="toggle-show-notes"
+                        class="inline-flex items-center px-3 py-2 rounded-lg text-sm font-medium bg-amber-100 text-amber-800 hover:bg-amber-200 dark:bg-amber-900 dark:text-amber-200 dark:hover:bg-amber-800 transition-colors duration-200"
+                        aria-pressed="false">
+                    Show notes
+                </button>
             
-            <!-- Search Bar -->
-            <div class="w-80 xl:w-[28rem]">
-                <form action="{% url 'chat_list' %}" method="GET" class="flex space-x-2">
-                    <label for="chat-search" class="sr-only">Search</label>
-                    <div class="flex-1">
-                        <input type="text" name="q" id="chat-search" 
-                               value="{{ search_query|default:'' }}"
-                               class="bg-gray-50 border border-gray-300 text-gray-900 sm:text-sm rounded-lg focus:ring-primary-500 focus:border-primary-500 block w-full p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white dark:focus:ring-primary-500 dark:focus:border-primary-500" 
-                               placeholder="Search by tenant name, phone, apartment, conversation ID">
-                    </div>
-                    <button type="submit" class="px-4 py-2.5 text-sm font-medium text-white bg-primary-700 rounded-lg border border-primary-700 hover:bg-primary-800 focus:ring-4 focus:outline-none focus:ring-primary-300 dark:bg-primary-600 dark:hover:bg-primary-700 dark:focus:ring-primary-800">
-                        <svg class="w-4 h-4" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 20 20">
-                            <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m19 19-4-4m0-7A7 7 0 1 1 1 8a7 7 0 0 1 14 0Z"/>
-                        </svg>
-                        <span class="sr-only">Search</span>
-                    </button>
-                    {% if search_query %}
-                    <a href="{% url 'chat_list' %}" class="px-4 py-2.5 text-sm font-medium text-gray-500 bg-white border border-gray-300 rounded-lg hover:bg-gray-100 focus:ring-4 focus:outline-none focus:ring-gray-200 dark:bg-gray-800 dark:text-gray-400 dark:border-gray-600 dark:hover:bg-gray-700 dark:focus:ring-gray-700">
-                        Clear
-                    </a>
-                    {% endif %}
-                </form>
+                <!-- Search Bar -->
+                <div class="w-80 xl:w-[28rem]">
+                    <form action="{% url 'chat_list' %}" method="GET" class="flex space-x-2">
+                        <label for="chat-search" class="sr-only">Search</label>
+                        <div class="flex-1">
+                            <input type="text" name="q" id="chat-search" 
+                                   value="{{ search_query|default:'' }}"
+                                   class="bg-gray-50 border border-gray-300 text-gray-900 sm:text-sm rounded-lg focus:ring-primary-500 focus:border-primary-500 block w-full p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white dark:focus:ring-primary-500 dark:focus:border-primary-500" 
+                                   placeholder="Search by tenant name, phone, apartment, conversation ID">
+                        </div>
+                        <button type="submit" class="px-4 py-2.5 text-sm font-medium text-white bg-primary-700 rounded-lg border border-primary-700 hover:bg-primary-800 focus:ring-4 focus:outline-none focus:ring-primary-300 dark:bg-primary-600 dark:hover:bg-primary-700 dark:focus:ring-primary-800">
+                            <svg class="w-4 h-4" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 20 20">
+                                <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m19 19-4-4m0-7A7 7 0 1 1 1 8a7 7 0 0 1 14 0Z"/>
+                            </svg>
+                            <span class="sr-only">Search</span>
+                        </button>
+                        {% if search_query %}
+                        <a href="{% url 'chat_list' %}" class="px-4 py-2.5 text-sm font-medium text-gray-500 bg-white border border-gray-300 rounded-lg hover:bg-gray-100 focus:ring-4 focus:outline-none focus:ring-gray-200 dark:bg-gray-800 dark:text-gray-400 dark:border-gray-600 dark:hover:bg-gray-700 dark:focus:ring-gray-700">
+                            Clear
+                        </a>
+                        {% endif %}
+                    </form>
+                </div>
             </div>
         </div>
     </div>
@@ -62,7 +73,9 @@
                 {% if conversations %}
                     <div class="divide-y divide-gray-200 dark:divide-gray-600">
                         {% for conv_data in conversations %}
-                        <div class="p-4 hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer" 
+                        <div class="conversation-row p-4 hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer"
+                             data-conversation-sid="{{ conv_data.conversation.conversation_sid }}"
+                             data-notes-url="{% url 'update_conversation_notes' conv_data.conversation.conversation_sid %}"
                              onclick="window.location.href='{% url 'chat_detail' conv_data.conversation.conversation_sid %}'">
                             <div class="flex items-center justify-between">
                                 <div class="flex-1 min-w-0">
@@ -76,8 +89,9 @@
                                             </div>
                                         </div>
                                         <div class="ml-4 flex-1 min-w-0">
-                                            <div class="text-sm font-medium text-gray-900 dark:text-white truncate">
+                                            <div class="text-sm font-medium text-gray-900 dark:text-white truncate flex items-center gap-2">
                                                 {{ conv_data.display_info.name }}
+                                                <span class="conversation-notes-badge {% if not conv_data.conversation.notes %}hidden{% endif %} inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200 cursor-pointer" title="Show or hide notes" role="button">📝</span>
                                             </div>
 
                                             <div class="text-xs font-mono text-gray-400 dark:text-gray-500 truncate" title="Conversation ID">
@@ -114,6 +128,31 @@
                                                 {{ conv_data.latest_message.body|truncatechars:50 }}
                                             </div>
                                             {% endif %}
+
+                                            <div class="conversation-notes-area notes-row mt-2" onclick="event.stopPropagation();">
+                                                <button type="button"
+                                                        class="add-conversation-note-btn {% if conv_data.conversation.notes %}hidden{% endif %} inline-flex items-center px-2 py-1 text-xs font-medium text-amber-800 bg-amber-50 border border-amber-200 rounded hover:bg-amber-100 dark:bg-amber-900/40 dark:text-amber-200 dark:border-amber-700">
+                                                    Add note
+                                                </button>
+                                                <div class="conversation-notes-view notes-view-only {% if not conv_data.conversation.notes %}hidden{% endif %} rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 dark:border-amber-700 dark:bg-amber-900/30">
+                                                    <div class="flex items-start justify-between gap-2">
+                                                        <div class="conversation-notes-text text-sm text-amber-900 dark:text-amber-100 whitespace-pre-wrap flex-1">{{ conv_data.conversation.notes|default:'' }}</div>
+                                                        <div class="flex items-center gap-1 flex-shrink-0">
+                                                            <button type="button" class="edit-conversation-note-btn text-xs font-medium text-amber-700 hover:text-amber-900 dark:text-amber-300">Edit</button>
+                                                            <button type="button" class="delete-conversation-note-btn text-xs font-medium text-red-600 hover:text-red-800 dark:text-red-400">Delete</button>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                                <div class="conversation-notes-editor hidden rounded-lg border border-amber-200 bg-white px-3 py-2 dark:border-amber-700 dark:bg-gray-800 mt-1">
+                                                    <textarea rows="2"
+                                                              class="conversation-notes-input block w-full rounded-lg border border-gray-300 bg-gray-50 p-2 text-sm text-gray-900 focus:border-amber-500 focus:ring-amber-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white"
+                                                              placeholder="Conversation notes...">{{ conv_data.conversation.notes|default:'' }}</textarea>
+                                                    <div class="mt-2 flex items-center justify-end gap-2">
+                                                        <button type="button" class="cancel-conversation-note-btn px-2.5 py-1 text-xs font-medium text-gray-700 bg-white border border-gray-300 rounded hover:bg-gray-100 dark:bg-gray-700 dark:text-gray-200 dark:border-gray-600">Cancel</button>
+                                                        <button type="button" class="save-conversation-note-btn px-2.5 py-1 text-xs font-medium text-white bg-amber-600 rounded hover:bg-amber-700">Save</button>
+                                                    </div>
+                                                </div>
+                                            </div>
                                         </div>
                                     </div>
                                 </div>
@@ -167,12 +206,156 @@
 </div>
 
 <script>
-// Allow Enter key to submit search form
-document.getElementById('chat-search').addEventListener('keydown', function(e) {
-    if (e.key === 'Enter') {
-        e.preventDefault();
-        e.target.form.submit();
+document.addEventListener('DOMContentLoaded', function() {
+    const searchInput = document.getElementById('chat-search');
+    if (searchInput) {
+        searchInput.addEventListener('keydown', function(e) {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                e.target.form.submit();
+            }
+        });
     }
+
+    let showNotes = false;
+    const toggleShowNotesBtn = document.getElementById('toggle-show-notes');
+
+    function setShowNotes(on) {
+        showNotes = !!on;
+        document.body.classList.toggle('show-notes-on', showNotes);
+        if (showNotes) {
+            document.querySelectorAll('.notes-row.notes-collapsed').forEach(function(row) {
+                row.classList.remove('notes-collapsed');
+            });
+        }
+        if (toggleShowNotesBtn) {
+            toggleShowNotesBtn.setAttribute('aria-pressed', showNotes ? 'true' : 'false');
+            toggleShowNotesBtn.textContent = showNotes ? 'Hide notes' : 'Show notes';
+            toggleShowNotesBtn.classList.toggle('bg-amber-600', showNotes);
+            toggleShowNotesBtn.classList.toggle('text-white', showNotes);
+            toggleShowNotesBtn.classList.toggle('bg-amber-100', !showNotes);
+            toggleShowNotesBtn.classList.toggle('text-amber-800', !showNotes);
+        }
+    }
+
+    function isRowNotesVisible(row) {
+        if (!row) return false;
+        if (row.classList.contains('notes-collapsed')) return false;
+        if (row.classList.contains('notes-open')) return true;
+        return document.body.classList.contains('show-notes-on');
+    }
+
+    function toggleRowNotes(row) {
+        if (!row) return;
+        if (isRowNotesVisible(row)) {
+            row.classList.remove('notes-open');
+            row.classList.add('notes-collapsed');
+        } else {
+            row.classList.remove('notes-collapsed');
+            row.classList.add('notes-open');
+        }
+    }
+
+    function openRowNotes(row) {
+        if (!row) return;
+        row.classList.remove('notes-collapsed');
+        row.classList.add('notes-open');
+    }
+
+    if (toggleShowNotesBtn) {
+        toggleShowNotesBtn.addEventListener('click', function() {
+            setShowNotes(!showNotes);
+        });
+    }
+
+    function getNotes(row) {
+        const textEl = row.querySelector('.conversation-notes-text');
+        return textEl ? (textEl.textContent || '') : '';
+    }
+
+    function updateConversationNotesUi(row, notes) {
+        const hasNotes = !!(notes && notes.trim());
+        const textEl = row.querySelector('.conversation-notes-text');
+        const inputEl = row.querySelector('.conversation-notes-input');
+        const viewEl = row.querySelector('.conversation-notes-view');
+        const editorEl = row.querySelector('.conversation-notes-editor');
+        const addBtn = row.querySelector('.add-conversation-note-btn');
+        const badge = row.querySelector('.conversation-notes-badge');
+
+        if (textEl) textEl.textContent = notes || '';
+        if (inputEl) inputEl.value = notes || '';
+        if (viewEl) viewEl.classList.toggle('hidden', !hasNotes);
+        if (editorEl) editorEl.classList.add('hidden');
+        if (addBtn) addBtn.classList.toggle('hidden', hasNotes);
+        if (badge) badge.classList.toggle('hidden', !hasNotes);
+        if (hasNotes) openRowNotes(row);
+    }
+
+    function openEditor(row) {
+        const editorEl = row.querySelector('.conversation-notes-editor');
+        const inputEl = row.querySelector('.conversation-notes-input');
+        if (!editorEl || !inputEl) return;
+        openRowNotes(row);
+        inputEl.value = getNotes(row);
+        editorEl.classList.remove('hidden');
+        inputEl.focus();
+    }
+
+    async function saveNotes(row, notes) {
+        const url = row.getAttribute('data-notes-url');
+        if (!url) throw new Error('Missing notes URL');
+        const resp = await fetch(url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ notes: notes || '' }),
+        });
+        const data = await resp.json();
+        if (!resp.ok) throw new Error(data.error || 'Failed to save notes');
+        updateConversationNotesUi(row, data.notes || '');
+        return data;
+    }
+
+    document.querySelectorAll('.conversation-row').forEach(function(row) {
+        row.addEventListener('click', async function(e) {
+            const notesArea = e.target.closest('.conversation-notes-area');
+            if (!notesArea) return;
+            e.preventDefault();
+            e.stopPropagation();
+
+            if (e.target.closest('.conversation-notes-badge')) {
+                toggleRowNotes(row.querySelector('.conversation-notes-area') || row);
+                return;
+            }
+            if (e.target.closest('.add-conversation-note-btn') || e.target.closest('.edit-conversation-note-btn')) {
+                openEditor(row);
+                return;
+            }
+            if (e.target.closest('.cancel-conversation-note-btn')) {
+                const editorEl = row.querySelector('.conversation-notes-editor');
+                const inputEl = row.querySelector('.conversation-notes-input');
+                if (editorEl) editorEl.classList.add('hidden');
+                if (inputEl) inputEl.value = getNotes(row);
+                return;
+            }
+            if (e.target.closest('.save-conversation-note-btn')) {
+                try {
+                    const inputEl = row.querySelector('.conversation-notes-input');
+                    await saveNotes(row, inputEl ? inputEl.value : '');
+                } catch (err) {
+                    alert('Error saving conversation note: ' + err.message);
+                }
+                return;
+            }
+            if (e.target.closest('.delete-conversation-note-btn')) {
+                if (!confirm('Delete conversation note?')) return;
+                try {
+                    await saveNotes(row, '');
+                } catch (err) {
+                    alert('Error deleting conversation note: ' + err.message);
+                }
+            }
+        });
+    });
 });
 </script>
 {% endblock %}

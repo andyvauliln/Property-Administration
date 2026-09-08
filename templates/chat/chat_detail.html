@@ -15,6 +15,8 @@
   @media (min-width: 768px) {
     .chat-viewport { left: 16rem; } /* sidebar width (w-64) */
   }
+  body:not(.show-notes-on) .notes-row:not(.notes-open) .notes-view-only { display: none !important; }
+  .notes-row.notes-collapsed .notes-view-only { display: none !important; }
 </style>
 
 <div class="chat-viewport">
@@ -45,8 +47,11 @@
                     </div>
                     
                     <div class="flex-1 min-w-0">
-                        <div class="text-sm font-medium text-gray-900 dark:text-white truncate">
+                        <div class="text-sm font-medium text-gray-900 dark:text-white truncate flex items-center gap-1">
                             {{ conv_data.display_info.name }}
+                            {% if conv_data.conversation.notes %}
+                            <span class="inline-flex items-center px-1 py-0.5 rounded text-[10px] font-medium bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200" title="Has notes">📝</span>
+                            {% endif %}
                         </div>
                         
                         {% if conv_data.display_info.apartment %}
@@ -142,7 +147,24 @@
                     {% endif %}
                 </div>
             </div>
-            <div class="flex items-center space-x-2 mt-2">
+            <div class="flex items-center space-x-2 mt-2 flex-wrap gap-y-1">
+                <button type="button"
+                        id="toggle-show-notes"
+                        class="inline-flex items-center px-2.5 py-0.5 rounded text-xs font-medium bg-amber-100 text-amber-800 hover:bg-amber-200 dark:bg-amber-900 dark:text-amber-200 dark:hover:bg-amber-800 transition-colors duration-200"
+                        aria-pressed="false">
+                    Show notes
+                </button>
+                <span id="conversation-notes-badge"
+                      class="{% if not conversation.notes %}hidden{% endif %} inline-flex items-center px-2.5 py-0.5 rounded text-xs font-medium bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200 cursor-pointer"
+                      title="Show or hide conversation notes"
+                      role="button">
+                    📝 Has notes
+                </span>
+                <button type="button"
+                        id="add-conversation-note-btn"
+                        class="{% if conversation.notes %}hidden{% endif %} inline-flex items-center px-2.5 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-700 hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-200 dark:hover:bg-gray-600 transition-colors duration-200">
+                    Add note
+                </button>
                 <form method="post" action="{% url 'delete_all_chat_messages' conversation.conversation_sid %}" 
                       class="inline" onsubmit="return confirm('Delete all messages? This cannot be undone.');">
                     {% csrf_token %}
@@ -159,11 +181,54 @@
                 </form>
                 {% if conversation.apartment_id %}
                 <button type="button"
-                   id="open-apartment-kb-modal"
+                   id="open-kb-modal"
                    class="inline-flex items-center px-2.5 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800 hover:bg-blue-200 dark:bg-blue-900 dark:text-blue-300 dark:hover:bg-blue-800 transition-colors duration-200">
-                    Apartment Knowledge Base
+                    Knowledge Base
                 </button>
                 {% endif %}
+                {% if ai_ready %}
+                <button type="button"
+                        id="generate-all-ai-answers-btn"
+                        class="inline-flex items-center px-2.5 py-0.5 rounded text-xs font-medium bg-purple-100 text-purple-800 hover:bg-purple-200 dark:bg-purple-900 dark:text-purple-300 dark:hover:bg-purple-800 transition-colors duration-200">
+                    Generate all AI answers
+                </button>
+                <button type="button"
+                        id="edit-answer-system-prompt-btn"
+                        class="inline-flex items-center px-2.5 py-0.5 rounded text-xs font-medium bg-purple-50 text-purple-800 hover:bg-purple-100 dark:bg-purple-900/30 dark:text-purple-200 transition-colors duration-200">
+                    Answer system
+                </button>
+                <button type="button"
+                        id="edit-answer-user-prompt-btn"
+                        class="inline-flex items-center px-2.5 py-0.5 rounded text-xs font-medium bg-purple-50 text-purple-800 hover:bg-purple-100 dark:bg-purple-900/30 dark:text-purple-200 transition-colors duration-200">
+                    Answer user
+                </button>
+                <button type="button"
+                        id="edit-answer-rule-generate-prompt-btn"
+                        class="inline-flex items-center px-2.5 py-0.5 rounded text-xs font-medium bg-purple-50 text-purple-800 hover:bg-purple-100 dark:bg-purple-900/30 dark:text-purple-200 transition-colors duration-200">
+                    Rule generate
+                </button>
+                {% endif %}
+            </div>
+
+            <div id="conversation-notes-panel" class="notes-row mt-3">
+                <div id="conversation-notes-view" class="notes-view-only {% if not conversation.notes %}hidden{% endif %} rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 dark:border-amber-700 dark:bg-amber-900/30">
+                    <div class="flex items-start justify-between gap-2">
+                        <div id="conversation-notes-text" class="text-sm text-amber-900 dark:text-amber-100 whitespace-pre-wrap flex-1">{{ conversation.notes|default:'' }}</div>
+                        <div class="flex items-center gap-1 flex-shrink-0">
+                            <button type="button" id="edit-conversation-note-btn" class="text-xs font-medium text-amber-700 hover:text-amber-900 dark:text-amber-300">Edit</button>
+                            <button type="button" id="delete-conversation-note-btn" class="text-xs font-medium text-red-600 hover:text-red-800 dark:text-red-400">Delete</button>
+                        </div>
+                    </div>
+                </div>
+                <div id="conversation-notes-editor" class="hidden rounded-lg border border-amber-200 bg-white px-3 py-2 dark:border-amber-700 dark:bg-gray-800">
+                    <textarea id="conversation-notes-input" rows="3"
+                              class="block w-full rounded-lg border border-gray-300 bg-gray-50 p-2 text-sm text-gray-900 focus:border-amber-500 focus:ring-amber-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white"
+                              placeholder="Conversation notes...">{{ conversation.notes|default:'' }}</textarea>
+                    <div class="mt-2 flex items-center justify-end gap-2">
+                        <button type="button" id="cancel-conversation-note-btn" class="px-2.5 py-1 text-xs font-medium text-gray-700 bg-white border border-gray-300 rounded hover:bg-gray-100 dark:bg-gray-700 dark:text-gray-200 dark:border-gray-600">Cancel</button>
+                        <button type="button" id="save-conversation-note-btn" class="px-2.5 py-1 text-xs font-medium text-white bg-amber-600 rounded hover:bg-amber-700">Save</button>
+                    </div>
+                </div>
             </div>
             
             {% if not ai_ready %}
@@ -182,9 +247,9 @@
         <div id="messages-container" class="flex-1 min-h-0 overflow-y-auto p-4 space-y-4 bg-gray-50 dark:bg-gray-900">
             {% for message in chat_messages %}
             <!-- Regular message bubble -->
-            <div class="flex {% if message.direction == 'outbound' %}justify-end{% else %}justify-start{% endif %} message-row" data-message-id="{{ message.id }}">
-                <div class="max-w-xs lg:max-w-md xl:max-w-lg">
-                    <div class="{% if message.direction == 'outbound' %}bg-blue-500 text-white{% else %}bg-white dark:bg-gray-700 text-gray-900 dark:text-white{% endif %} rounded-lg px-4 py-2 shadow">
+            <div class="flex {% if message.direction == 'outbound' %}justify-end{% else %}justify-start{% endif %} message-row notes-row{% if message.is_customer_message %} customer-message-row{% endif %}" data-message-id="{{ message.id }}" data-notes-kind="message"{% if message.is_customer_message %} data-is-customer="1"{% endif %}>
+                <div class="max-w-xs lg:max-w-md xl:max-w-lg message-bubble-wrap">
+                    <div class="message-bubble {% if message.direction == 'outbound' %}bg-blue-500 text-white{% else %}bg-white dark:bg-gray-700 text-gray-900 dark:text-white{% endif %} rounded-lg px-4 py-2 shadow{% if message.is_kb_eligible and message.ai_kb_updated %} border-2 border-green-400 dark:border-green-500{% elif message.is_kb_eligible and message.ai_kb_updated == False %} border-2 border-gray-300 dark:border-gray-600{% endif %}">
                         <div class="text-sm">{{ message.body }}</div>
                         <div class="text-xs {% if message.direction == 'outbound' %}text-blue-100{% else %}text-gray-500 dark:text-gray-400{% endif %} mt-1 flex items-center justify-between gap-2">
                             <span>
@@ -192,8 +257,25 @@
                                 • {{ message.message_timestamp|date:"M d, Y H:i" }}
                             </span>
                             <div class="flex items-center gap-1 flex-wrap">
+                                {% if message.direction == 'outbound' %}
+                                {% include "chat/_chat_notes.html" with placement="actions" notes=message.notes badge_class="bg-white/20 text-white" add_class="inline-flex items-center rounded px-1.5 py-0.5 bg-white/20 text-white hover:bg-white/30" %}
+                                {% else %}
+                                {% include "chat/_chat_notes.html" with placement="actions" notes=message.notes badge_class="bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200" add_class="text-amber-600 hover:text-amber-700" %}
+                                {% endif %}
                                 {% if message.forwarded_to_group_sid %}
                                 <span class="px-1.5 py-0.5 rounded text-xs bg-green-200 text-green-800 dark:bg-green-800 dark:text-green-100">✓ Forwarded to group</span>
+                                {% endif %}
+                                {% if message.is_customer_message and ai_ready %}
+                                <button type="button"
+                                        class="generate-ai-answer-btn text-xs font-medium text-purple-600 hover:text-purple-800 dark:text-purple-300 dark:hover:text-purple-100"
+                                        data-message-id="{{ message.id }}">
+                                    {% if message.ai_response or message.ai_response_why %}Regenerate AI{% else %}Generate AI{% endif %}
+                                </button>
+                                {% endif %}
+                                {% if message.is_kb_eligible %}
+                                <button type="button"
+                                        class="add-kb-rule-btn {% if message.direction == 'outbound' %}inline-flex items-center rounded px-1.5 py-0.5 bg-white/20 text-white hover:bg-white/30{% else %}text-blue-600 hover:text-blue-800 dark:text-blue-300 dark:hover:text-blue-100{% endif %} text-xs font-medium"
+                                        data-message-id="{{ message.id }}">KB rule</button>
                                 {% endif %}
                                 <form method="post" action="{% url 'delete_chat_message' conversation.conversation_sid message.id %}" class="delete-message-form inline" onsubmit="return confirm('Delete this message?');">
                                     {% csrf_token %}
@@ -202,17 +284,18 @@
                             </div>
                         </div>
                     </div>
+                    {% include "chat/_chat_notes.html" with placement="panel" notes=message.notes placeholder="Message notes..." %}
                     {% if message.ai_kb_updated is not None %}
                     <!-- KB update indicator on manager message -->
                     <div class="mt-0.5 text-xs flex items-center gap-1 {% if message.direction == 'outbound' %}justify-end{% endif %}">
                         {% if message.ai_kb_updated %}
-                        <span class="px-1.5 py-0.5 rounded bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300">📚 KB updated</span>
+                        <span class="px-1.5 py-0.5 rounded bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200 border border-green-300 dark:border-green-700">📚 KB extracted</span>
                         <details>
-                            <summary class="cursor-pointer text-blue-500 dark:text-blue-400">show changes</summary>
-                            <div class="mt-1 text-gray-700 dark:text-gray-300 whitespace-pre-wrap font-mono text-xs bg-white dark:bg-gray-800 rounded p-2 border border-gray-200 dark:border-gray-600 max-w-xs">{{ message.ai_kb_changes }}</div>
+                            <summary class="cursor-pointer text-green-600 dark:text-green-400">show changes</summary>
+                            <div class="mt-1 text-gray-700 dark:text-gray-300 whitespace-pre-wrap font-mono text-xs bg-white dark:bg-gray-800 rounded p-2 border border-green-200 dark:border-green-700 max-w-xs">{{ message.ai_kb_changes }}</div>
                         </details>
                         {% else %}
-                        <span class="px-1.5 py-0.5 rounded bg-gray-100 text-gray-500 dark:bg-gray-700 dark:text-gray-400">📚 No KB update</span>
+                        <span class="px-1.5 py-0.5 rounded bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300 border border-gray-300 dark:border-gray-600">📚 No KB extracted</span>
                         {% endif %}
                     </div>
                     {% endif %}
@@ -221,7 +304,7 @@
 
             {% if message.ai_response %}
             <!-- AI response bubble (virtual — may or may not have been sent as SMS) -->
-            <div class="flex justify-end ai-response-row">
+            <div class="flex justify-end ai-response-row notes-row" data-message-id="{{ message.id }}" data-notes-kind="ai">
                 <div class="max-w-xs lg:max-w-md xl:max-w-lg">
                     {% if message.ai_sent_to_chat %}
                     <!-- Sent mode: solid purple bubble -->
@@ -230,9 +313,17 @@
                         {% if message.ai_response_why %}
                         <div class="text-xs text-purple-100/90 mt-2 whitespace-pre-wrap italic">Why: {{ message.ai_response_why }}</div>
                         {% endif %}
-                        <div class="text-xs text-purple-100 mt-1 flex items-center gap-1">
-                            <span class="font-medium">🤖 Virtual Assistant</span>
-                            <span class="px-1.5 py-0.5 rounded bg-green-400/40 text-white font-medium">✓ Sent to SMS</span>
+                        <div class="text-xs text-purple-100 mt-1 flex items-center justify-between gap-2">
+                            <span class="flex items-center gap-1">
+                                <span class="font-medium">🤖 Virtual Assistant</span>
+                                <span class="px-1.5 py-0.5 rounded bg-green-400/40 text-white font-medium">✓ Sent to SMS</span>
+                            </span>
+                            <span class="flex items-center gap-1 flex-wrap">
+                                {% include "chat/_chat_notes.html" with placement="actions" notes=message.ai_notes badge_class="bg-white/20 text-white" add_class="inline-flex items-center rounded px-1.5 py-0.5 bg-white/20 text-white hover:bg-white/30" %}
+                                {% if message.is_customer_message and ai_ready %}
+                                <button type="button" class="add-answer-rule-btn inline-flex items-center rounded px-1.5 py-0.5 bg-white/20 text-white hover:bg-white/30 text-xs font-medium" data-message-id="{{ message.id }}">Add rule</button>
+                                {% endif %}
+                            </span>
                         </div>
                     </div>
                     {% else %}
@@ -242,25 +333,43 @@
                         {% if message.ai_response_why %}
                         <div class="text-xs text-purple-600 dark:text-purple-300 mt-2 whitespace-pre-wrap italic">Why: {{ message.ai_response_why }}</div>
                         {% endif %}
-                        <div class="text-xs text-purple-500 dark:text-purple-400 mt-1 flex items-center gap-1">
-                            <span class="font-medium">🤖 Virtual Assistant</span>
-                            <span class="px-1.5 py-0.5 rounded bg-yellow-100 text-yellow-700 dark:bg-yellow-900 dark:text-yellow-300 font-medium">⚠ Not sent to SMS (test mode)</span>
+                        <div class="text-xs text-purple-500 dark:text-purple-400 mt-1 flex items-center justify-between gap-2">
+                            <span class="flex items-center gap-1">
+                                <span class="font-medium">🤖 Virtual Assistant</span>
+                                <span class="px-1.5 py-0.5 rounded bg-yellow-100 text-yellow-700 dark:bg-yellow-900 dark:text-yellow-300 font-medium">⚠ Not sent to SMS (test mode)</span>
+                            </span>
+                            <span class="flex items-center gap-1 flex-wrap">
+                                {% include "chat/_chat_notes.html" with placement="actions" notes=message.ai_notes badge_class="bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200" add_class="text-amber-600 hover:text-amber-700" %}
+                                {% if message.is_customer_message and ai_ready %}
+                                <button type="button" class="add-answer-rule-btn text-xs font-medium text-purple-600 hover:text-purple-800 dark:text-purple-300 dark:hover:text-purple-100" data-message-id="{{ message.id }}">Add rule</button>
+                                {% endif %}
+                            </span>
                         </div>
                     </div>
                     {% endif %}
+                    {% include "chat/_chat_notes.html" with placement="panel" notes=message.ai_notes placeholder="AI notes..." %}
                 </div>
             </div>
             {% elif message.ai_response_why %}
-            <div class="flex justify-end ai-response-row">
+            <div class="flex justify-end ai-response-row notes-row" data-message-id="{{ message.id }}" data-notes-kind="ai">
                 <div class="max-w-xs lg:max-w-md xl:max-w-lg">
                     <div class="border-2 border-dashed border-purple-300 dark:border-purple-600 bg-purple-50 dark:bg-purple-900/20 text-gray-700 dark:text-gray-200 rounded-lg px-4 py-2">
                         <div class="text-sm whitespace-pre-wrap italic">NO_ANSWER</div>
                         <div class="text-xs text-purple-600 dark:text-purple-300 mt-2 whitespace-pre-wrap italic">Why: {{ message.ai_response_why }}</div>
-                        <div class="text-xs text-purple-500 dark:text-purple-400 mt-1 flex items-center gap-1">
-                            <span class="font-medium">🤖 Virtual Assistant</span>
-                            <span class="px-1.5 py-0.5 rounded bg-yellow-100 text-yellow-700 dark:bg-yellow-900 dark:text-yellow-300 font-medium">⚠ Not sent to SMS (test mode)</span>
+                        <div class="text-xs text-purple-500 dark:text-purple-400 mt-1 flex items-center justify-between gap-2">
+                            <span class="flex items-center gap-1">
+                                <span class="font-medium">🤖 Virtual Assistant</span>
+                                <span class="px-1.5 py-0.5 rounded bg-yellow-100 text-yellow-700 dark:bg-yellow-900 dark:text-yellow-300 font-medium">⚠ Not sent to SMS (test mode)</span>
+                            </span>
+                            <span class="flex items-center gap-1 flex-wrap">
+                                {% include "chat/_chat_notes.html" with placement="actions" notes=message.ai_notes badge_class="bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200" add_class="text-amber-600 hover:text-amber-700" %}
+                                {% if message.is_customer_message and ai_ready %}
+                                <button type="button" class="add-answer-rule-btn text-xs font-medium text-purple-600 hover:text-purple-800 dark:text-purple-300 dark:hover:text-purple-100" data-message-id="{{ message.id }}">Add rule</button>
+                                {% endif %}
+                            </span>
                         </div>
                     </div>
+                    {% include "chat/_chat_notes.html" with placement="panel" notes=message.ai_notes placeholder="AI notes..." %}
                 </div>
             </div>
             {% endif %}
@@ -332,44 +441,276 @@
 </div>
 
 {% if conversation.apartment_id %}
-<div id="apartment-kb-modal" tabindex="-1" aria-hidden="true" class="hidden flex overflow-y-auto overflow-x-hidden fixed top-0 right-0 left-0 z-50 justify-center items-center w-full md:inset-0 h-[calc(100%-1rem)] max-h-full">
-    <div class="relative p-4 w-full max-w-4xl max-h-full">
+<div id="kb-modal" tabindex="-1" aria-hidden="true" class="hidden flex overflow-y-auto overflow-x-hidden fixed top-0 right-0 left-0 z-50 justify-center items-center w-full md:inset-0 h-[calc(100%-1rem)] max-h-full">
+    <div class="relative p-4 w-full max-w-5xl max-h-full">
         <div class="relative bg-white rounded-lg shadow dark:bg-gray-800">
             <div class="flex items-center justify-between p-4 border-b border-gray-200 rounded-t dark:border-gray-600">
                 <h3 class="text-lg font-semibold text-gray-900 dark:text-white">
-                    Apartment Knowledge Base
+                    Knowledge Base
                 </h3>
-                <button type="button" id="close-apartment-kb-modal" class="text-gray-400 bg-transparent hover:bg-gray-200 hover:text-gray-900 rounded-lg text-sm w-8 h-8 inline-flex justify-center items-center dark:hover:bg-gray-600 dark:hover:text-white">
+                <button type="button" id="close-kb-modal" class="text-gray-400 bg-transparent hover:bg-gray-200 hover:text-gray-900 rounded-lg text-sm w-8 h-8 inline-flex justify-center items-center dark:hover:bg-gray-600 dark:hover:text-white">
                     <svg class="w-3 h-3" fill="none" viewBox="0 0 14 14">
                         <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m1 1 12 12M13 1 1 13"/>
                     </svg>
                     <span class="sr-only">Close modal</span>
                 </button>
             </div>
-            <form method="post" action="{% url 'update_chat_apartment_kb' conversation.conversation_sid %}" class="p-4">
-                {% csrf_token %}
-                <div class="mb-4">
-                    <label for="chat-apartment-kb" class="block mb-2 text-sm font-medium text-gray-900 dark:text-white">
-                        {{ conversation.apartment.name }}
-                    </label>
-                    <textarea id="chat-apartment-kb" name="knowledge_base" rows="14"
-                              class="block w-full p-2.5 text-sm text-gray-900 bg-gray-50 rounded-lg border border-gray-300 focus:ring-primary-500 focus:border-primary-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
-                              placeholder="Apartment knowledge base...">{{ conversation.apartment.knowledge_base|default:'' }}</textarea>
+            <div class="p-4">
+                <div id="kb-generate-status" class="hidden mb-4 rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-sm text-blue-900 dark:border-blue-700 dark:bg-blue-900/30 dark:text-blue-100 whitespace-pre-wrap"></div>
+                <div id="kb-generate-legend" class="hidden mb-2 flex flex-wrap items-center gap-2 text-xs text-gray-600 dark:text-gray-300">
+                    <span class="inline-flex items-center gap-1 rounded border border-green-400 bg-green-50 px-2 py-0.5 dark:border-green-600 dark:bg-green-900/30">Green — KB extracted</span>
+                    <span class="inline-flex items-center gap-1 rounded border border-teal-400 bg-teal-50 px-2 py-0.5 dark:border-teal-600 dark:bg-teal-900/30">Teal — global KB</span>
+                    <span class="inline-flex items-center gap-1 rounded border border-gray-300 bg-gray-50 px-2 py-0.5 dark:border-gray-600 dark:bg-gray-800/50">Gray — no KB</span>
+                    <span class="inline-flex items-center gap-1 rounded ring-2 ring-amber-400 border border-amber-400 bg-amber-50 px-2 py-0.5 dark:bg-amber-900/20">Amber ring — rule saved to prompt (this session)</span>
                 </div>
-                <div class="flex items-center justify-end gap-2">
-                    <button type="button" id="cancel-apartment-kb-modal"
-                            class="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-100 dark:bg-gray-700 dark:text-gray-300 dark:border-gray-600 dark:hover:bg-gray-600">
-                        Cancel
-                    </button>
-                    <button type="submit"
-                            class="px-4 py-2 text-sm font-medium text-white bg-blue-700 rounded-lg hover:bg-blue-800 dark:bg-blue-600 dark:hover:bg-blue-700">
-                        Save KB
-                    </button>
+                <div id="kb-generate-why" class="hidden mb-4 space-y-2"></div>
+
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                    <div>
+                        <label for="chat-apartment-kb" class="block mb-2 text-sm font-medium text-gray-900 dark:text-white">
+                            Apartment Knowledge Base — {{ conversation.apartment.name }}
+                        </label>
+                        <textarea id="chat-apartment-kb" rows="16"
+                                  class="block w-full p-2.5 text-sm text-gray-900 bg-gray-50 rounded-lg border border-gray-300 focus:ring-primary-500 focus:border-primary-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                                  placeholder="Apartment knowledge base...">{{ conversation.apartment.knowledge_base|default:'' }}</textarea>
+                    </div>
+                    <div>
+                        <label for="chat-global-kb" class="block mb-2 text-sm font-medium text-gray-900 dark:text-white">
+                            Global Knowledge Base
+                        </label>
+                        <textarea id="chat-global-kb" rows="16"
+                                  class="block w-full p-2.5 text-sm text-gray-900 bg-gray-50 rounded-lg border border-gray-300 focus:ring-primary-500 focus:border-primary-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                                  placeholder="Global knowledge base...">{{ global_knowledge_base|default:'' }}</textarea>
+                    </div>
                 </div>
-            </form>
+
+                <div class="flex items-center justify-between gap-2 mt-4 flex-wrap">
+                    <div class="flex items-center gap-2 flex-wrap">
+                        <button type="button" id="generate-kb-btn"
+                                class="px-4 py-2 text-sm font-medium text-white bg-purple-600 rounded-lg hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed dark:bg-purple-700 dark:hover:bg-purple-800">
+                            Generate
+                        </button>
+                        <button type="button" id="edit-apartment-kb-check-prompt-btn"
+                                class="px-3 py-2 text-sm font-medium text-purple-700 bg-purple-50 border border-purple-200 rounded-lg hover:bg-purple-100 dark:bg-purple-900/30 dark:text-purple-200 dark:border-purple-700 dark:hover:bg-purple-900/50">
+                            Apt check
+                        </button>
+                        <button type="button" id="edit-apartment-kb-prompt-btn"
+                                class="px-3 py-2 text-sm font-medium text-purple-700 bg-purple-50 border border-purple-200 rounded-lg hover:bg-purple-100 dark:bg-purple-900/30 dark:text-purple-200 dark:border-purple-700 dark:hover:bg-purple-900/50">
+                            Apt merge
+                        </button>
+                        <button type="button" id="edit-global-kb-check-prompt-btn"
+                                class="px-3 py-2 text-sm font-medium text-purple-700 bg-purple-50 border border-purple-200 rounded-lg hover:bg-purple-100 dark:bg-purple-900/30 dark:text-purple-200 dark:border-purple-700 dark:hover:bg-purple-900/50">
+                            Global check
+                        </button>
+                        <button type="button" id="edit-global-kb-prompt-btn"
+                                class="px-3 py-2 text-sm font-medium text-purple-700 bg-purple-50 border border-purple-200 rounded-lg hover:bg-purple-100 dark:bg-purple-900/30 dark:text-purple-200 dark:border-purple-700 dark:hover:bg-purple-900/50">
+                            Global merge
+                        </button>
+                        <button type="button" id="edit-kb-rule-generate-prompt-btn"
+                                class="px-3 py-2 text-sm font-medium text-blue-700 bg-blue-50 border border-blue-200 rounded-lg hover:bg-blue-100 dark:bg-blue-900/30 dark:text-blue-200 dark:border-blue-700 dark:hover:bg-blue-900/50">
+                            KB rule generate
+                        </button>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <button type="button" id="cancel-kb-modal"
+                                class="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-100 dark:bg-gray-700 dark:text-gray-300 dark:border-gray-600 dark:hover:bg-gray-600">
+                            Cancel
+                        </button>
+                        <button type="button" id="save-kb-btn"
+                                class="px-4 py-2 text-sm font-medium text-white bg-blue-700 rounded-lg hover:bg-blue-800 disabled:opacity-50 disabled:cursor-not-allowed dark:bg-blue-600 dark:hover:bg-blue-700">
+                            Save KB
+                        </button>
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
 </div>
+
+<div id="kb-prompt-modal" tabindex="-1" aria-hidden="true" class="hidden flex overflow-y-auto overflow-x-hidden fixed top-0 right-0 left-0 z-[60] justify-center items-center w-full md:inset-0 h-[calc(100%-1rem)] max-h-full">
+    <div class="relative p-4 w-full max-w-3xl max-h-full">
+        <div class="relative bg-white rounded-lg shadow dark:bg-gray-800">
+            <div class="flex items-center justify-between p-4 border-b border-gray-200 rounded-t dark:border-gray-600">
+                <h3 id="kb-prompt-modal-title" class="text-lg font-semibold text-gray-900 dark:text-white">
+                    KB prompt
+                </h3>
+                <button type="button" id="close-kb-prompt-modal" class="text-gray-400 bg-transparent hover:bg-gray-200 hover:text-gray-900 rounded-lg text-sm w-8 h-8 inline-flex justify-center items-center dark:hover:bg-gray-600 dark:hover:text-white">
+                    <svg class="w-3 h-3" fill="none" viewBox="0 0 14 14">
+                        <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m1 1 12 12M13 1 1 13"/>
+                    </svg>
+                    <span class="sr-only">Close modal</span>
+                </button>
+            </div>
+            <div class="p-4">
+                <p id="kb-prompt-modal-description" class="mb-2 text-xs text-gray-500 dark:text-gray-400"></p>
+                <textarea id="kb-prompt-modal-content" rows="18"
+                          class="block w-full p-2.5 text-sm text-gray-900 bg-gray-50 rounded-lg border border-gray-300 focus:ring-primary-500 focus:border-primary-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white font-mono"></textarea>
+                <div class="flex items-center justify-end gap-2 mt-4">
+                    <button type="button" id="cancel-kb-prompt-modal"
+                            class="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-100 dark:bg-gray-700 dark:text-gray-300 dark:border-gray-600 dark:hover:bg-gray-600">
+                        Close
+                    </button>
+                    <button type="button" id="save-kb-prompt-modal"
+                            class="px-4 py-2 text-sm font-medium text-white bg-blue-700 rounded-lg hover:bg-blue-800 disabled:opacity-50 disabled:cursor-not-allowed dark:bg-blue-600 dark:hover:bg-blue-700">
+                        Save prompt
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% if conversation.apartment_id %}
+<div id="answer-rule-modal" tabindex="-1" aria-hidden="true" class="hidden flex overflow-y-auto overflow-x-hidden fixed top-0 right-0 left-0 z-[55] justify-center items-center w-full md:inset-0 h-[calc(100%-1rem)] max-h-full">
+    <div class="relative p-4 w-full max-w-3xl max-h-full">
+        <div class="relative bg-white rounded-lg shadow dark:bg-gray-800">
+            <div class="flex items-center justify-between p-4 border-b border-gray-200 rounded-t dark:border-gray-600">
+                <h3 class="text-lg font-semibold text-gray-900 dark:text-white">
+                    Add answer rule
+                </h3>
+                <button type="button" id="close-answer-rule-modal" class="text-gray-400 bg-transparent hover:bg-gray-200 hover:text-gray-900 rounded-lg text-sm w-8 h-8 inline-flex justify-center items-center dark:hover:bg-gray-600 dark:hover:text-white">
+                    <svg class="w-3 h-3" fill="none" viewBox="0 0 14 14">
+                        <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m1 1 12 12M13 1 1 13"/>
+                    </svg>
+                    <span class="sr-only">Close modal</span>
+                </button>
+            </div>
+            <div class="p-4 space-y-4">
+                <div id="answer-rule-status" class="hidden rounded-lg border px-3 py-2 text-sm whitespace-pre-wrap"></div>
+                <div>
+                    <label class="block mb-2 text-sm font-medium text-gray-900 dark:text-white">Client message</label>
+                    <div id="answer-rule-client-message" class="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-900 whitespace-pre-wrap dark:border-gray-600 dark:bg-gray-900/40 dark:text-gray-100 max-h-40 overflow-y-auto"></div>
+                </div>
+                <div>
+                    <label for="answer-rule-correct-answer" class="block mb-2 text-sm font-medium text-gray-900 dark:text-white">Correct answer</label>
+                    <textarea id="answer-rule-correct-answer" rows="4"
+                              class="block w-full p-2.5 text-sm text-gray-900 bg-gray-50 rounded-lg border border-gray-300 focus:ring-primary-500 focus:border-primary-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                              placeholder="What the assistant should answer..."></textarea>
+                </div>
+                <div>
+                    <div class="flex items-center justify-between gap-2 mb-2">
+                        <label for="answer-rule-generate-prompt" class="text-sm font-medium text-gray-900 dark:text-white">Generate prompt (optional override)</label>
+                        <button type="button" id="edit-answer-rule-generate-prompt-modal-btn"
+                                class="px-2.5 py-1 text-xs font-medium text-purple-700 bg-purple-50 border border-purple-200 rounded-lg hover:bg-purple-100 dark:bg-purple-900/30 dark:text-purple-200 dark:border-purple-700 dark:hover:bg-purple-900/50">
+                            Edit default prompt
+                        </button>
+                    </div>
+                    <p id="answer-rule-generate-prompt-description" class="mb-2 text-xs text-gray-500 dark:text-gray-400"></p>
+                    <textarea id="answer-rule-generate-prompt" rows="8"
+                              class="block w-full p-2.5 text-sm text-gray-900 bg-gray-50 rounded-lg border border-gray-300 focus:ring-primary-500 focus:border-primary-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white font-mono"
+                              placeholder="Leave as-is to use the default rule-generate prompt..."></textarea>
+                </div>
+                <div>
+                    <label for="answer-rule-text" class="block mb-2 text-sm font-medium text-gray-900 dark:text-white">Rule (added to answer system prompt)</label>
+                    <textarea id="answer-rule-text" rows="3"
+                              class="block w-full p-2.5 text-sm text-gray-900 bg-gray-50 rounded-lg border border-gray-300 focus:ring-primary-500 focus:border-primary-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white font-mono"
+                              placeholder="- One bullet rule..."></textarea>
+                </div>
+                <div class="flex items-center justify-between gap-2 flex-wrap">
+                    <button type="button" id="generate-answer-rule-btn"
+                            class="px-4 py-2 text-sm font-medium text-white bg-purple-600 rounded-lg hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed dark:bg-purple-700 dark:hover:bg-purple-800">
+                        Generate rule
+                    </button>
+                    <div class="flex items-center gap-2">
+                        <button type="button" id="cancel-answer-rule-modal"
+                                class="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-100 dark:bg-gray-700 dark:text-gray-300 dark:border-gray-600 dark:hover:bg-gray-600">
+                            Cancel
+                        </button>
+                        <button type="button" id="save-answer-rule-btn"
+                                class="px-4 py-2 text-sm font-medium text-white bg-blue-700 rounded-lg hover:bg-blue-800 disabled:opacity-50 disabled:cursor-not-allowed dark:bg-blue-600 dark:hover:bg-blue-700">
+                            Save to system prompt
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div id="kb-rule-modal" tabindex="-1" aria-hidden="true" class="hidden flex overflow-y-auto overflow-x-hidden fixed top-0 right-0 left-0 z-[55] justify-center items-center w-full md:inset-0 h-[calc(100%-1rem)] max-h-full">
+    <div class="relative p-4 w-full max-w-3xl max-h-full">
+        <div class="relative bg-white rounded-lg shadow dark:bg-gray-800">
+            <div class="flex items-center justify-between p-4 border-b border-gray-200 rounded-t dark:border-gray-600">
+                <h3 class="text-lg font-semibold text-gray-900 dark:text-white">
+                    Add KB extract rule
+                </h3>
+                <button type="button" id="close-kb-rule-modal" class="text-gray-400 bg-transparent hover:bg-gray-200 hover:text-gray-900 rounded-lg text-sm w-8 h-8 inline-flex justify-center items-center dark:hover:bg-gray-600 dark:hover:text-white">
+                    <svg class="w-3 h-3" fill="none" viewBox="0 0 14 14">
+                        <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m1 1 12 12M13 1 1 13"/>
+                    </svg>
+                    <span class="sr-only">Close modal</span>
+                </button>
+            </div>
+            <div class="p-4 space-y-4">
+                <div id="kb-rule-status" class="hidden rounded-lg border px-3 py-2 text-sm whitespace-pre-wrap"></div>
+                <div>
+                    <label class="block mb-2 text-sm font-medium text-gray-900 dark:text-white">Manager message</label>
+                    <div id="kb-rule-manager-message" class="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-900 whitespace-pre-wrap dark:border-gray-600 dark:bg-gray-900/40 dark:text-gray-100 max-h-40 overflow-y-auto"></div>
+                </div>
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                        <label for="kb-rule-scope" class="block mb-2 text-sm font-medium text-gray-900 dark:text-white">KB scope</label>
+                        <select id="kb-rule-scope"
+                                class="block w-full p-2.5 text-sm text-gray-900 bg-gray-50 rounded-lg border border-gray-300 focus:ring-primary-500 focus:border-primary-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white">
+                            <option value="apartment">Apartment KB check</option>
+                            <option value="global">Global KB check</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label for="kb-rule-intent" class="block mb-2 text-sm font-medium text-gray-900 dark:text-white">Rule intent</label>
+                        <select id="kb-rule-intent"
+                                class="block w-full p-2.5 text-sm text-gray-900 bg-gray-50 rounded-lg border border-gray-300 focus:ring-primary-500 focus:border-primary-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white">
+                            <option value="include">Include — save to KB</option>
+                            <option value="exclude">Exclude — do not save to KB</option>
+                        </select>
+                    </div>
+                </div>
+                <div>
+                    <label for="kb-rule-guidance" class="block mb-2 text-sm font-medium text-gray-900 dark:text-white">Guidance (what to add or exclude)</label>
+                    <textarea id="kb-rule-guidance" rows="4"
+                              class="block w-full p-2.5 text-sm text-gray-900 bg-gray-50 rounded-lg border border-gray-300 focus:ring-primary-500 focus:border-primary-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                              placeholder="Describe what should be included in or excluded from the knowledge base for messages like this..."></textarea>
+                </div>
+                <div>
+                    <div class="flex items-center justify-between gap-2 mb-2">
+                        <label for="kb-rule-generate-prompt" class="text-sm font-medium text-gray-900 dark:text-white">Generate prompt (optional override)</label>
+                        <button type="button" id="edit-kb-rule-generate-prompt-modal-btn"
+                                class="px-2.5 py-1 text-xs font-medium text-blue-700 bg-blue-50 border border-blue-200 rounded-lg hover:bg-blue-100 dark:bg-blue-900/30 dark:text-blue-200 dark:border-blue-700 dark:hover:bg-blue-900/50">
+                            Edit default prompt
+                        </button>
+                    </div>
+                    <p id="kb-rule-generate-prompt-description" class="mb-2 text-xs text-gray-500 dark:text-gray-400"></p>
+                    <textarea id="kb-rule-generate-prompt" rows="8"
+                              class="block w-full p-2.5 text-sm text-gray-900 bg-gray-50 rounded-lg border border-gray-300 focus:ring-primary-500 focus:border-primary-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white font-mono"
+                              placeholder="Leave as-is to use the default KB rule-generate prompt..."></textarea>
+                </div>
+                <div>
+                    <label for="kb-rule-text" class="block mb-2 text-sm font-medium text-gray-900 dark:text-white">Rule (added to KB check prompt)</label>
+                    <textarea id="kb-rule-text" rows="3"
+                              class="block w-full p-2.5 text-sm text-gray-900 bg-gray-50 rounded-lg border border-gray-300 focus:ring-primary-500 focus:border-primary-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white font-mono"
+                              placeholder="- One bullet rule for when to save or skip..."></textarea>
+                </div>
+                <div class="flex items-center justify-between gap-2 flex-wrap">
+                    <button type="button" id="generate-kb-rule-btn"
+                            class="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed dark:bg-blue-700 dark:hover:bg-blue-800">
+                        Generate rule
+                    </button>
+                    <div class="flex items-center gap-2">
+                        <button type="button" id="cancel-kb-rule-modal"
+                                class="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-100 dark:bg-gray-700 dark:text-gray-300 dark:border-gray-600 dark:hover:bg-gray-600">
+                            Cancel
+                        </button>
+                        <button type="button" id="save-kb-rule-btn"
+                                class="px-4 py-2 text-sm font-medium text-white bg-blue-700 rounded-lg hover:bg-blue-800 disabled:opacity-50 disabled:cursor-not-allowed dark:bg-blue-600 dark:hover:bg-blue-700">
+                            Save to KB check prompt
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
 {% endif %}
 
 {{ chat_templates|json_script:"chat-templates-data" }}
@@ -384,17 +725,133 @@ document.addEventListener('DOMContentLoaded', function() {
     const insertTemplateBtn = document.getElementById('insert-template-btn');
     const saveTemplateBtn = document.getElementById('save-template-btn');
     const sendToGroupChatInput = document.getElementById('send-to-group-chat');
-    const openKbModalBtn = document.getElementById('open-apartment-kb-modal');
-    const kbModal = document.getElementById('apartment-kb-modal');
-    const closeKbModalBtn = document.getElementById('close-apartment-kb-modal');
-    const cancelKbModalBtn = document.getElementById('cancel-apartment-kb-modal');
+    const openKbModalBtn = document.getElementById('open-kb-modal');
+    const kbModal = document.getElementById('kb-modal');
+    const closeKbModalBtn = document.getElementById('close-kb-modal');
+    const cancelKbModalBtn = document.getElementById('cancel-kb-modal');
+    const generateKbBtn = document.getElementById('generate-kb-btn');
+    const saveKbBtn = document.getElementById('save-kb-btn');
+    const chatApartmentKbInput = document.getElementById('chat-apartment-kb');
+    const chatGlobalKbInput = document.getElementById('chat-global-kb');
+    const kbGenerateStatus = document.getElementById('kb-generate-status');
+    const kbGenerateLegend = document.getElementById('kb-generate-legend');
+    const kbGenerateWhy = document.getElementById('kb-generate-why');
+    const kbSaveUrl = '{% url "update_chat_knowledge_base" conversation.conversation_sid %}';
+    const kbGenerateUrl = '{% url "generate_chat_knowledge_base" conversation.conversation_sid %}';
+    const kbApartmentCheckPromptUrl = '{% url "knowledge_base_prompt" "ai_extract_check" %}';
+    const kbApartmentPromptUrl = '{% url "knowledge_base_prompt" "ai_extract_merge" %}';
+    const kbGlobalCheckPromptUrl = '{% url "knowledge_base_prompt" "ai_extract_global_check" %}';
+    const kbGlobalPromptUrl = '{% url "knowledge_base_prompt" "ai_extract_global_merge" %}';
+    const answerSystemPromptUrl = '{% url "knowledge_base_prompt" "ai_answer_system" %}';
+    const answerUserPromptUrl = '{% url "knowledge_base_prompt" "ai_answer_user" %}';
+    const answerRuleGeneratePromptUrl = '{% url "knowledge_base_prompt" "ai_answer_rule_generate" %}';
+    const kbRuleGeneratePromptUrl = '{% url "knowledge_base_prompt" "ai_kb_rule_generate" %}';
+    const generateAllAiAnswersUrl = '{% url "generate_all_customer_ai_answers" conversation.conversation_sid %}';
+    const generateAiAnswerUrlTemplate = '{% url "generate_message_ai_answer" conversation.conversation_sid 0 %}'.replace('/0/generate-ai-answer/', '/__ID__/generate-ai-answer/');
+    const answerRuleContextUrlTemplate = '{% url "answer_rule_context" conversation.conversation_sid 0 %}'.replace('/0/answer-rule/', '/__ID__/answer-rule/');
+    const answerRuleGenerateUrlTemplate = '{% url "generate_answer_rule" conversation.conversation_sid 0 %}'.replace('/0/answer-rule/generate/', '/__ID__/answer-rule/generate/');
+    const answerRuleSaveUrlTemplate = '{% url "save_answer_rule" conversation.conversation_sid 0 %}'.replace('/0/answer-rule/save/', '/__ID__/answer-rule/save/');
+    const kbRuleContextUrlTemplate = '{% url "kb_rule_context" conversation.conversation_sid 0 %}'.replace('/0/kb-rule/', '/__ID__/kb-rule/');
+    const kbRuleGenerateUrlTemplate = '{% url "generate_kb_rule" conversation.conversation_sid 0 %}'.replace('/0/kb-rule/generate/', '/__ID__/kb-rule/generate/');
+    const kbRuleSaveUrlTemplate = '{% url "save_kb_rule" conversation.conversation_sid 0 %}'.replace('/0/kb-rule/save/', '/__ID__/kb-rule/save/');
+    const conversationNotesUrl = '{% url "update_conversation_notes" conversation.conversation_sid %}';
+    const messageNotesUrlTemplate = '{% url "update_message_notes" conversation.conversation_sid 0 %}'.replace('/0/notes/', '/__ID__/notes/');
+    const aiReady = {{ ai_ready|yesno:"true,false" }};
+    const hasApartmentKb = {{ conversation.apartment_id|yesno:"true,false" }};
 
     const templatesDataEl = document.getElementById('chat-templates-data');
     const templates = templatesDataEl ? JSON.parse(templatesDataEl.textContent) : [];
     const templateById = new Map(templates.map(t => [String(t.id), t]));
 
+    let showNotes = false;
+    const toggleShowNotesBtn = document.getElementById('toggle-show-notes');
+    const conversationNotesBadge = document.getElementById('conversation-notes-badge');
+    const addConversationNoteBtn = document.getElementById('add-conversation-note-btn');
+    const conversationNotesView = document.getElementById('conversation-notes-view');
+    const conversationNotesText = document.getElementById('conversation-notes-text');
+    const conversationNotesEditor = document.getElementById('conversation-notes-editor');
+    const conversationNotesInput = document.getElementById('conversation-notes-input');
+    const editConversationNoteBtn = document.getElementById('edit-conversation-note-btn');
+    const deleteConversationNoteBtn = document.getElementById('delete-conversation-note-btn');
+    const cancelConversationNoteBtn = document.getElementById('cancel-conversation-note-btn');
+    const saveConversationNoteBtn = document.getElementById('save-conversation-note-btn');
+    const kbPromptModal = document.getElementById('kb-prompt-modal');
+    const kbPromptModalTitle = document.getElementById('kb-prompt-modal-title');
+    const kbPromptModalDescription = document.getElementById('kb-prompt-modal-description');
+    const kbPromptModalContent = document.getElementById('kb-prompt-modal-content');
+    const closeKbPromptModalBtn = document.getElementById('close-kb-prompt-modal');
+    const cancelKbPromptModalBtn = document.getElementById('cancel-kb-prompt-modal');
+    const saveKbPromptModalBtn = document.getElementById('save-kb-prompt-modal');
+    const editApartmentKbCheckPromptBtn = document.getElementById('edit-apartment-kb-check-prompt-btn');
+    const editApartmentKbPromptBtn = document.getElementById('edit-apartment-kb-prompt-btn');
+    const editGlobalKbCheckPromptBtn = document.getElementById('edit-global-kb-check-prompt-btn');
+    const editGlobalKbPromptBtn = document.getElementById('edit-global-kb-prompt-btn');
+    const generateAllAiAnswersBtn = document.getElementById('generate-all-ai-answers-btn');
+    const editAnswerSystemPromptBtn = document.getElementById('edit-answer-system-prompt-btn');
+    const editAnswerUserPromptBtn = document.getElementById('edit-answer-user-prompt-btn');
+    const editAnswerRuleGeneratePromptBtn = document.getElementById('edit-answer-rule-generate-prompt-btn');
+    const answerRuleModal = document.getElementById('answer-rule-modal');
+    const closeAnswerRuleModalBtn = document.getElementById('close-answer-rule-modal');
+    const cancelAnswerRuleModalBtn = document.getElementById('cancel-answer-rule-modal');
+    const answerRuleClientMessageEl = document.getElementById('answer-rule-client-message');
+    const answerRuleCorrectAnswerInput = document.getElementById('answer-rule-correct-answer');
+    const answerRuleGeneratePromptInput = document.getElementById('answer-rule-generate-prompt');
+    const answerRuleGeneratePromptDescription = document.getElementById('answer-rule-generate-prompt-description');
+    const answerRuleTextInput = document.getElementById('answer-rule-text');
+    const generateAnswerRuleBtn = document.getElementById('generate-answer-rule-btn');
+    const saveAnswerRuleBtn = document.getElementById('save-answer-rule-btn');
+    const answerRuleStatusEl = document.getElementById('answer-rule-status');
+    const editAnswerRuleGeneratePromptModalBtn = document.getElementById('edit-answer-rule-generate-prompt-modal-btn');
+    const kbRuleModal = document.getElementById('kb-rule-modal');
+    const closeKbRuleModalBtn = document.getElementById('close-kb-rule-modal');
+    const cancelKbRuleModalBtn = document.getElementById('cancel-kb-rule-modal');
+    const kbRuleManagerMessageEl = document.getElementById('kb-rule-manager-message');
+    const kbRuleScopeSelect = document.getElementById('kb-rule-scope');
+    const kbRuleIntentSelect = document.getElementById('kb-rule-intent');
+    const kbRuleGuidanceInput = document.getElementById('kb-rule-guidance');
+    const kbRuleGeneratePromptInput = document.getElementById('kb-rule-generate-prompt');
+    const kbRuleGeneratePromptDescription = document.getElementById('kb-rule-generate-prompt-description');
+    const kbRuleTextInput = document.getElementById('kb-rule-text');
+    const generateKbRuleBtn = document.getElementById('generate-kb-rule-btn');
+    const saveKbRuleBtn = document.getElementById('save-kb-rule-btn');
+    const kbRuleStatusEl = document.getElementById('kb-rule-status');
+    const editKbRuleGeneratePromptBtn = document.getElementById('edit-kb-rule-generate-prompt-btn');
+    const editKbRuleGeneratePromptModalBtn = document.getElementById('edit-kb-rule-generate-prompt-modal-btn');
+
+    let activeAnswerRuleMessageId = null;
+    let activeAnswerRuleAiResponse = '';
+    let defaultAnswerRuleGeneratePrompt = '';
+    let activeKbRuleMessageId = null;
+    let activeKbRuleKbChanges = '';
+    let activeKbRuleScope = 'apartment';
+    let activeKbRuleIntent = 'include';
+    const sessionPromptRuleMessageIds = new Set();
+
+    let kbOriginalApartment = '';
+    let kbOriginalGlobal = '';
+    let activeKbPromptKey = null;
+    let activeKbPromptUrl = null;
+
+    function resetKbModalDraft() {
+        if (chatApartmentKbInput) chatApartmentKbInput.value = kbOriginalApartment;
+        if (chatGlobalKbInput) chatGlobalKbInput.value = kbOriginalGlobal;
+        if (kbGenerateStatus) {
+            kbGenerateStatus.classList.add('hidden');
+            kbGenerateStatus.textContent = '';
+        }
+        if (kbGenerateWhy) {
+            kbGenerateWhy.classList.add('hidden');
+            kbGenerateWhy.innerHTML = '';
+        }
+        if (kbGenerateLegend) {
+            kbGenerateLegend.classList.add('hidden');
+        }
+    }
+
     function openKbModal() {
         if (!kbModal) return;
+        kbOriginalApartment = chatApartmentKbInput ? chatApartmentKbInput.value : '';
+        kbOriginalGlobal = chatGlobalKbInput ? chatGlobalKbInput.value : '';
         kbModal.classList.remove('hidden');
         document.body.classList.add('overflow-hidden');
     }
@@ -405,17 +862,1003 @@ document.addEventListener('DOMContentLoaded', function() {
         document.body.classList.remove('overflow-hidden');
     }
 
+    function closeKbPromptModal() {
+        if (!kbPromptModal) return;
+        kbPromptModal.classList.add('hidden');
+        activeKbPromptKey = null;
+        activeKbPromptUrl = null;
+    }
+
+    async function openKbPromptModal(promptUrl) {
+        if (!kbPromptModal || !kbPromptModalContent) return;
+        activeKbPromptUrl = promptUrl;
+        kbPromptModalContent.value = 'Loading...';
+        kbPromptModal.classList.remove('hidden');
+        try {
+            const resp = await fetch(promptUrl, { method: 'GET' });
+            const data = await resp.json();
+            if (!resp.ok || !data.success) {
+                throw new Error(data.error || 'Failed to load prompt');
+            }
+            activeKbPromptKey = data.prompt_key;
+            if (kbPromptModalTitle) kbPromptModalTitle.textContent = data.label || 'KB prompt';
+            if (kbPromptModalDescription) {
+                kbPromptModalDescription.textContent = data.description || '';
+            }
+            kbPromptModalContent.value = data.content || '';
+        } catch (err) {
+            kbPromptModalContent.value = '';
+            alert('Error loading prompt: ' + err.message);
+            closeKbPromptModal();
+        }
+    }
+
     if (openKbModalBtn && kbModal) {
         openKbModalBtn.addEventListener('click', openKbModal);
         kbModal.addEventListener('click', function(e) {
-            if (e.target === kbModal) closeKbModal();
+            if (e.target === kbModal) {
+                resetKbModalDraft();
+                closeKbModal();
+            }
         });
-        if (closeKbModalBtn) closeKbModalBtn.addEventListener('click', closeKbModal);
-        if (cancelKbModalBtn) cancelKbModalBtn.addEventListener('click', closeKbModal);
+        if (closeKbModalBtn) closeKbModalBtn.addEventListener('click', function() {
+            resetKbModalDraft();
+            closeKbModal();
+        });
+        if (cancelKbModalBtn) cancelKbModalBtn.addEventListener('click', function() {
+            resetKbModalDraft();
+            closeKbModal();
+        });
         document.addEventListener('keydown', function(e) {
-            if (e.key === 'Escape') closeKbModal();
+            if (e.key === 'Escape' && kbModal && !kbModal.classList.contains('hidden')) {
+                resetKbModalDraft();
+                closeKbModal();
+            }
         });
     }
+
+    if (editApartmentKbCheckPromptBtn) {
+        editApartmentKbCheckPromptBtn.addEventListener('click', function() {
+            openKbPromptModal(kbApartmentCheckPromptUrl);
+        });
+    }
+    if (editApartmentKbPromptBtn) {
+        editApartmentKbPromptBtn.addEventListener('click', function() {
+            openKbPromptModal(kbApartmentPromptUrl);
+        });
+    }
+    if (editGlobalKbCheckPromptBtn) {
+        editGlobalKbCheckPromptBtn.addEventListener('click', function() {
+            openKbPromptModal(kbGlobalCheckPromptUrl);
+        });
+    }
+    if (editGlobalKbPromptBtn) {
+        editGlobalKbPromptBtn.addEventListener('click', function() {
+            openKbPromptModal(kbGlobalPromptUrl);
+        });
+    }
+    if (editAnswerSystemPromptBtn) {
+        editAnswerSystemPromptBtn.addEventListener('click', function() {
+            openKbPromptModal(answerSystemPromptUrl);
+        });
+    }
+    if (editAnswerUserPromptBtn) {
+        editAnswerUserPromptBtn.addEventListener('click', function() {
+            openKbPromptModal(answerUserPromptUrl);
+        });
+    }
+    if (editAnswerRuleGeneratePromptBtn) {
+        editAnswerRuleGeneratePromptBtn.addEventListener('click', function() {
+            openKbPromptModal(answerRuleGeneratePromptUrl);
+        });
+    }
+    if (editAnswerRuleGeneratePromptModalBtn) {
+        editAnswerRuleGeneratePromptModalBtn.addEventListener('click', function() {
+            openKbPromptModal(answerRuleGeneratePromptUrl);
+        });
+    }
+    if (editKbRuleGeneratePromptBtn) {
+        editKbRuleGeneratePromptBtn.addEventListener('click', function() {
+            openKbPromptModal(kbRuleGeneratePromptUrl);
+        });
+    }
+    if (editKbRuleGeneratePromptModalBtn) {
+        editKbRuleGeneratePromptModalBtn.addEventListener('click', function() {
+            openKbPromptModal(kbRuleGeneratePromptUrl);
+        });
+    }
+
+    function setAnswerRuleStatus(message, isError) {
+        if (!answerRuleStatusEl) return;
+        if (!message) {
+            answerRuleStatusEl.classList.add('hidden');
+            answerRuleStatusEl.textContent = '';
+            return;
+        }
+        answerRuleStatusEl.textContent = message;
+        answerRuleStatusEl.classList.remove('hidden');
+        answerRuleStatusEl.className = 'rounded-lg border px-3 py-2 text-sm whitespace-pre-wrap ' + (
+            isError
+                ? 'border-red-200 bg-red-50 text-red-900 dark:border-red-700 dark:bg-red-900/30 dark:text-red-100'
+                : 'border-green-200 bg-green-50 text-green-900 dark:border-green-700 dark:bg-green-900/30 dark:text-green-100'
+        );
+    }
+
+    function closeAnswerRuleModal() {
+        if (!answerRuleModal) return;
+        answerRuleModal.classList.add('hidden');
+        document.body.classList.remove('overflow-hidden');
+        activeAnswerRuleMessageId = null;
+        activeAnswerRuleAiResponse = '';
+        setAnswerRuleStatus('');
+    }
+
+    async function openAnswerRuleModal(messageId) {
+        if (!answerRuleModal || !aiReady) return;
+        const url = answerRuleContextUrlTemplate.replace('__ID__', String(messageId));
+        setAnswerRuleStatus('');
+        if (answerRuleTextInput) answerRuleTextInput.value = '';
+        if (answerRuleClientMessageEl) answerRuleClientMessageEl.textContent = 'Loading...';
+        if (answerRuleCorrectAnswerInput) answerRuleCorrectAnswerInput.value = '';
+        if (answerRuleGeneratePromptInput) answerRuleGeneratePromptInput.value = '';
+        answerRuleModal.classList.remove('hidden');
+        document.body.classList.add('overflow-hidden');
+        try {
+            const resp = await fetch(url, { method: 'GET' });
+            const contentType = resp.headers.get('content-type') || '';
+            if (!contentType.includes('application/json')) {
+                throw new Error('Server returned an invalid response.');
+            }
+            const data = await resp.json();
+            if (!resp.ok || !data.success) {
+                throw new Error(data.error || 'Failed to load rule context');
+            }
+            activeAnswerRuleMessageId = messageId;
+            activeAnswerRuleAiResponse = data.ai_response || '';
+            defaultAnswerRuleGeneratePrompt = data.generate_prompt || '';
+            if (answerRuleClientMessageEl) answerRuleClientMessageEl.textContent = data.client_message || '';
+            if (answerRuleCorrectAnswerInput) {
+                answerRuleCorrectAnswerInput.value = data.ai_response || '';
+            }
+            if (answerRuleGeneratePromptInput) {
+                answerRuleGeneratePromptInput.value = data.generate_prompt || '';
+            }
+            if (answerRuleGeneratePromptDescription) {
+                answerRuleGeneratePromptDescription.textContent = data.generate_prompt_description || '';
+            }
+        } catch (err) {
+            closeAnswerRuleModal();
+            alert('Error opening answer rule: ' + err.message);
+        }
+    }
+
+    async function generateAnswerRuleFromModal() {
+        if (!activeAnswerRuleMessageId) return;
+        const correctAnswer = answerRuleCorrectAnswerInput ? answerRuleCorrectAnswerInput.value.trim() : '';
+        if (!correctAnswer) {
+            setAnswerRuleStatus('Correct answer is required.', true);
+            return;
+        }
+        const url = answerRuleGenerateUrlTemplate.replace('__ID__', String(activeAnswerRuleMessageId));
+        const generatePrompt = answerRuleGeneratePromptInput ? answerRuleGeneratePromptInput.value : '';
+        if (generateAnswerRuleBtn) {
+            generateAnswerRuleBtn.disabled = true;
+            generateAnswerRuleBtn.textContent = 'Generating...';
+        }
+        setAnswerRuleStatus('');
+        try {
+            const resp = await fetch(url, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    correct_answer: correctAnswer,
+                    generate_prompt: generatePrompt,
+                    ai_response: activeAnswerRuleAiResponse,
+                }),
+            });
+            const data = await resp.json();
+            if (!resp.ok || !data.success) {
+                throw new Error(data.error || 'Failed to generate rule');
+            }
+            if (answerRuleTextInput) answerRuleTextInput.value = data.rule || '';
+            setAnswerRuleStatus('Rule generated. Review and click Save to add it to the system prompt.');
+        } catch (err) {
+            setAnswerRuleStatus('Error generating rule: ' + err.message, true);
+        } finally {
+            if (generateAnswerRuleBtn) {
+                generateAnswerRuleBtn.disabled = false;
+                generateAnswerRuleBtn.textContent = 'Generate rule';
+            }
+        }
+    }
+
+    async function saveAnswerRuleFromModal() {
+        if (!activeAnswerRuleMessageId) return;
+        const rule = answerRuleTextInput ? answerRuleTextInput.value.trim() : '';
+        if (!rule) {
+            setAnswerRuleStatus('Rule is required.', true);
+            return;
+        }
+        const url = answerRuleSaveUrlTemplate.replace('__ID__', String(activeAnswerRuleMessageId));
+        if (saveAnswerRuleBtn) {
+            saveAnswerRuleBtn.disabled = true;
+            saveAnswerRuleBtn.textContent = 'Saving...';
+        }
+        setAnswerRuleStatus('');
+        try {
+            const resp = await fetch(url, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ rule: rule }),
+            });
+            const data = await resp.json();
+            if (!resp.ok || !data.success) {
+                throw new Error(data.error || 'Failed to save rule');
+            }
+            setAnswerRuleStatus('Rule saved to answer system prompt.');
+            markPromptRuleSaved(activeAnswerRuleMessageId);
+            setTimeout(function() {
+                closeAnswerRuleModal();
+            }, 900);
+        } catch (err) {
+            setAnswerRuleStatus('Error saving rule: ' + err.message, true);
+        } finally {
+            if (saveAnswerRuleBtn) {
+                saveAnswerRuleBtn.disabled = false;
+                saveAnswerRuleBtn.textContent = 'Save to system prompt';
+            }
+        }
+    }
+
+    function setKbRuleStatus(message, isError) {
+        if (!kbRuleStatusEl) return;
+        if (!message) {
+            kbRuleStatusEl.classList.add('hidden');
+            kbRuleStatusEl.textContent = '';
+            return;
+        }
+        kbRuleStatusEl.classList.remove('hidden');
+        kbRuleStatusEl.textContent = message;
+        kbRuleStatusEl.className = 'rounded-lg border px-3 py-2 text-sm whitespace-pre-wrap ' + (
+            isError
+                ? 'border-red-200 bg-red-50 text-red-900 dark:border-red-700 dark:bg-red-900/30 dark:text-red-100'
+                : 'border-green-200 bg-green-50 text-green-900 dark:border-green-700 dark:bg-green-900/30 dark:text-green-100'
+        );
+    }
+
+    function closeKbRuleModal() {
+        if (!kbRuleModal) return;
+        kbRuleModal.classList.add('hidden');
+        document.body.classList.remove('overflow-hidden');
+        activeKbRuleMessageId = null;
+        activeKbRuleKbChanges = '';
+        activeKbRuleScope = 'apartment';
+        activeKbRuleIntent = 'include';
+        setKbRuleStatus('');
+    }
+
+    async function openKbRuleModal(messageId) {
+        if (!kbRuleModal || !hasApartmentKb) return;
+        const url = kbRuleContextUrlTemplate.replace('__ID__', String(messageId));
+        setKbRuleStatus('');
+        if (kbRuleTextInput) kbRuleTextInput.value = '';
+        if (kbRuleGuidanceInput) kbRuleGuidanceInput.value = '';
+        if (kbRuleManagerMessageEl) kbRuleManagerMessageEl.textContent = 'Loading...';
+        if (kbRuleScopeSelect) kbRuleScopeSelect.value = 'apartment';
+        if (kbRuleIntentSelect) kbRuleIntentSelect.value = 'include';
+        if (kbRuleGeneratePromptInput) kbRuleGeneratePromptInput.value = '';
+        kbRuleModal.classList.remove('hidden');
+        document.body.classList.add('overflow-hidden');
+        try {
+            const resp = await fetch(url, { method: 'GET' });
+            const contentType = resp.headers.get('content-type') || '';
+            if (!contentType.includes('application/json')) {
+                throw new Error('Server returned an invalid response.');
+            }
+            const data = await resp.json();
+            if (!resp.ok || !data.success) {
+                throw new Error(data.error || 'Failed to load KB rule context');
+            }
+            activeKbRuleMessageId = messageId;
+            activeKbRuleKbChanges = data.kb_changes || '';
+            activeKbRuleScope = data.default_scope || 'apartment';
+            activeKbRuleIntent = data.default_rule_intent || 'include';
+            if (kbRuleManagerMessageEl) kbRuleManagerMessageEl.textContent = data.manager_message || '';
+            if (kbRuleScopeSelect) kbRuleScopeSelect.value = activeKbRuleScope;
+            if (kbRuleIntentSelect) kbRuleIntentSelect.value = activeKbRuleIntent;
+            if (kbRuleGeneratePromptInput) kbRuleGeneratePromptInput.value = data.generate_prompt || '';
+            if (kbRuleGeneratePromptDescription) {
+                kbRuleGeneratePromptDescription.textContent = data.generate_prompt_description || '';
+            }
+        } catch (err) {
+            closeKbRuleModal();
+            alert('Error opening KB rule: ' + err.message);
+        }
+    }
+
+    async function generateKbRuleFromModal() {
+        if (!activeKbRuleMessageId) return;
+        const guidance = kbRuleGuidanceInput ? kbRuleGuidanceInput.value.trim() : '';
+        if (!guidance) {
+            setKbRuleStatus('Guidance is required.', true);
+            return;
+        }
+        const scope = kbRuleScopeSelect ? kbRuleScopeSelect.value : 'apartment';
+        const ruleIntent = kbRuleIntentSelect ? kbRuleIntentSelect.value : 'include';
+        activeKbRuleScope = scope;
+        activeKbRuleIntent = ruleIntent;
+        const url = kbRuleGenerateUrlTemplate.replace('__ID__', String(activeKbRuleMessageId));
+        const generatePrompt = kbRuleGeneratePromptInput ? kbRuleGeneratePromptInput.value : '';
+        if (generateKbRuleBtn) {
+            generateKbRuleBtn.disabled = true;
+            generateKbRuleBtn.textContent = 'Generating...';
+        }
+        setKbRuleStatus('');
+        try {
+            const resp = await fetch(url, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    guidance: guidance,
+                    scope: scope,
+                    rule_intent: ruleIntent,
+                    generate_prompt: generatePrompt,
+                    kb_changes: activeKbRuleKbChanges,
+                }),
+            });
+            const data = await resp.json();
+            if (!resp.ok || !data.success) {
+                throw new Error(data.error || 'Failed to generate KB rule');
+            }
+            if (kbRuleTextInput) kbRuleTextInput.value = data.rule || '';
+            if (data.scope && kbRuleScopeSelect) {
+                kbRuleScopeSelect.value = data.scope;
+                activeKbRuleScope = data.scope;
+            }
+            setKbRuleStatus('Rule generated. Review and click Save to add it to the KB check prompt.');
+        } catch (err) {
+            setKbRuleStatus('Error generating rule: ' + err.message, true);
+        } finally {
+            if (generateKbRuleBtn) {
+                generateKbRuleBtn.disabled = false;
+                generateKbRuleBtn.textContent = 'Generate rule';
+            }
+        }
+    }
+
+    async function saveKbRuleFromModal() {
+        if (!activeKbRuleMessageId) return;
+        const rule = kbRuleTextInput ? kbRuleTextInput.value.trim() : '';
+        if (!rule) {
+            setKbRuleStatus('Rule is required.', true);
+            return;
+        }
+        const scope = kbRuleScopeSelect ? kbRuleScopeSelect.value : activeKbRuleScope;
+        const url = kbRuleSaveUrlTemplate.replace('__ID__', String(activeKbRuleMessageId));
+        if (saveKbRuleBtn) {
+            saveKbRuleBtn.disabled = true;
+            saveKbRuleBtn.textContent = 'Saving...';
+        }
+        setKbRuleStatus('');
+        try {
+            const resp = await fetch(url, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ rule: rule, scope: scope }),
+            });
+            const data = await resp.json();
+            if (!resp.ok || !data.success) {
+                throw new Error(data.error || 'Failed to save KB rule');
+            }
+            const scopeLabel = scope === 'global' ? 'global KB check' : 'apartment KB check';
+            setKbRuleStatus('Rule saved to ' + scopeLabel + ' prompt.');
+            markPromptRuleSaved(activeKbRuleMessageId);
+            setTimeout(function() {
+                closeKbRuleModal();
+            }, 900);
+        } catch (err) {
+            setKbRuleStatus('Error saving rule: ' + err.message, true);
+        } finally {
+            if (saveKbRuleBtn) {
+                saveKbRuleBtn.disabled = false;
+                saveKbRuleBtn.textContent = 'Save to KB check prompt';
+            }
+        }
+    }
+
+    if (answerRuleModal) {
+        answerRuleModal.addEventListener('click', function(e) {
+            if (e.target === answerRuleModal) closeAnswerRuleModal();
+        });
+        if (closeAnswerRuleModalBtn) closeAnswerRuleModalBtn.addEventListener('click', closeAnswerRuleModal);
+        if (cancelAnswerRuleModalBtn) cancelAnswerRuleModalBtn.addEventListener('click', closeAnswerRuleModal);
+        if (generateAnswerRuleBtn) generateAnswerRuleBtn.addEventListener('click', generateAnswerRuleFromModal);
+        if (saveAnswerRuleBtn) saveAnswerRuleBtn.addEventListener('click', saveAnswerRuleFromModal);
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape' && !answerRuleModal.classList.contains('hidden')) {
+                closeAnswerRuleModal();
+            }
+        });
+    }
+
+    if (kbRuleModal) {
+        kbRuleModal.addEventListener('click', function(e) {
+            if (e.target === kbRuleModal) closeKbRuleModal();
+        });
+        if (closeKbRuleModalBtn) closeKbRuleModalBtn.addEventListener('click', closeKbRuleModal);
+        if (cancelKbRuleModalBtn) cancelKbRuleModalBtn.addEventListener('click', closeKbRuleModal);
+        if (generateKbRuleBtn) generateKbRuleBtn.addEventListener('click', generateKbRuleFromModal);
+        if (saveKbRuleBtn) saveKbRuleBtn.addEventListener('click', saveKbRuleFromModal);
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape' && !kbRuleModal.classList.contains('hidden')) {
+                closeKbRuleModal();
+            }
+        });
+    }
+
+    document.addEventListener('click', function(e) {
+        const addAnswerRuleBtn = e.target.closest('.add-answer-rule-btn');
+        if (addAnswerRuleBtn) {
+            const messageId = addAnswerRuleBtn.getAttribute('data-message-id');
+            if (messageId) openAnswerRuleModal(messageId);
+            return;
+        }
+        const addKbRuleBtn = e.target.closest('.add-kb-rule-btn');
+        if (addKbRuleBtn) {
+            const messageId = addKbRuleBtn.getAttribute('data-message-id');
+            if (messageId) openKbRuleModal(messageId);
+        }
+    });
+
+    if (messagesContainer) {
+        messagesContainer.addEventListener('click', function(e) {
+            const btn = e.target.closest('.generate-ai-answer-btn');
+            if (!btn) return;
+            const messageId = btn.getAttribute('data-message-id');
+            if (!messageId) return;
+            generateAiAnswerForMessage(messageId, btn);
+        });
+    }
+
+    function upsertAiResponseRow(messageId, data) {
+        document.querySelectorAll(`.ai-response-row[data-message-id="${messageId}"]`).forEach(function(el) {
+            el.remove();
+        });
+        const html = buildAiResponseRow(Object.assign({ id: messageId }, data));
+        if (!html) return;
+        const msgRow = document.querySelector(`.message-row[data-message-id="${messageId}"]`);
+        if (!msgRow) return;
+        const tmp = document.createElement('div');
+        tmp.innerHTML = html.trim();
+        const aiRow = tmp.firstElementChild;
+        msgRow.insertAdjacentElement('afterend', aiRow);
+        const btn = msgRow.querySelector('.generate-ai-answer-btn');
+        if (btn) btn.textContent = 'Regenerate AI';
+    }
+
+    async function generateAiAnswerForMessage(messageId, buttonEl) {
+        const url = generateAiAnswerUrlTemplate.replace('__ID__', String(messageId));
+        if (buttonEl) {
+            buttonEl.disabled = true;
+            buttonEl.textContent = 'Generating...';
+        }
+        try {
+            const resp = await fetch(url, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({}),
+            });
+            const data = await resp.json();
+            if (!resp.ok || !data.success) {
+                throw new Error(data.error || 'Failed to generate AI answer');
+            }
+            upsertAiResponseRow(messageId, data);
+        } catch (err) {
+            alert('Error generating AI answer: ' + err.message);
+        } finally {
+            if (buttonEl) {
+                buttonEl.disabled = false;
+                if (buttonEl.textContent === 'Generating...') {
+                    buttonEl.textContent = 'Generate AI';
+                }
+            }
+        }
+    }
+
+    if (generateAllAiAnswersBtn && aiReady) {
+        generateAllAiAnswersBtn.addEventListener('click', async function() {
+            if (!confirm('Generate or regenerate AI answers for all customer messages? Nothing will be sent to SMS.')) {
+                return;
+            }
+            generateAllAiAnswersBtn.disabled = true;
+            const prevText = generateAllAiAnswersBtn.textContent;
+            generateAllAiAnswersBtn.textContent = 'Generating...';
+            try {
+                const resp = await fetch(generateAllAiAnswersUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({}),
+                });
+                const data = await resp.json();
+                if (!resp.ok || !data.success) {
+                    throw new Error(data.error || 'Failed to generate AI answers');
+                }
+                (data.results || []).forEach(function(item) {
+                    if (item && item.success && item.message_id) {
+                        upsertAiResponseRow(item.message_id, item);
+                    }
+                });
+                const errText = (data.errors || []).length ? '\nErrors:\n' + data.errors.join('\n') : '';
+                alert(`Generated ${data.processed || 0} of ${data.total_customer_messages || 0} customer messages (${data.skipped || 0} skipped).${errText}`);
+            } catch (err) {
+                alert('Error: ' + err.message);
+            } finally {
+                generateAllAiAnswersBtn.disabled = false;
+                generateAllAiAnswersBtn.textContent = prevText;
+            }
+        });
+    }
+    if (kbPromptModal) {
+        kbPromptModal.addEventListener('click', function(e) {
+            if (e.target === kbPromptModal) closeKbPromptModal();
+        });
+    }
+    if (closeKbPromptModalBtn) closeKbPromptModalBtn.addEventListener('click', closeKbPromptModal);
+    if (cancelKbPromptModalBtn) cancelKbPromptModalBtn.addEventListener('click', closeKbPromptModal);
+    if (saveKbPromptModalBtn) {
+        saveKbPromptModalBtn.addEventListener('click', async function() {
+            if (!activeKbPromptUrl) return;
+            saveKbPromptModalBtn.disabled = true;
+            saveKbPromptModalBtn.textContent = 'Saving...';
+            try {
+                const resp = await fetch(activeKbPromptUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        content: kbPromptModalContent ? kbPromptModalContent.value : '',
+                    }),
+                });
+                const data = await resp.json();
+                if (!resp.ok || !data.success) {
+                    throw new Error(data.error || 'Failed to save prompt');
+                }
+                closeKbPromptModal();
+            } catch (err) {
+                alert('Error saving prompt: ' + err.message);
+            } finally {
+                saveKbPromptModalBtn.disabled = false;
+                saveKbPromptModalBtn.textContent = 'Save prompt';
+            }
+        });
+    }
+
+    if (generateKbBtn) {
+        generateKbBtn.addEventListener('click', async function() {
+            generateKbBtn.disabled = true;
+            saveKbBtn.disabled = true;
+            generateKbBtn.textContent = 'Generating...';
+            if (kbGenerateStatus) {
+                kbGenerateStatus.classList.remove('hidden');
+                kbGenerateStatus.textContent = 'Loading messages to analyze...';
+            }
+            if (kbGenerateWhy) {
+                kbGenerateWhy.classList.add('hidden');
+                kbGenerateWhy.innerHTML = '';
+            }
+            if (kbGenerateLegend) {
+                kbGenerateLegend.classList.add('hidden');
+            }
+
+            async function fetchKbJson(body) {
+                const resp = await fetch(kbGenerateUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(body || {}),
+                });
+                const contentType = resp.headers.get('content-type') || '';
+                if (!contentType.includes('application/json')) {
+                    const raw = await resp.text();
+                    if (raw.trim().startsWith('<')) {
+                        throw new Error(
+                            'Server returned an error page instead of JSON. ' +
+                            'This often means the request timed out — try again, or contact support if it keeps happening.'
+                        );
+                    }
+                    throw new Error(raw.slice(0, 200) || ('Request failed with status ' + resp.status));
+                }
+                const data = await resp.json();
+                if (!resp.ok || !data.success) {
+                    throw new Error(data.error || 'Knowledge base request failed');
+                }
+                return data;
+            }
+
+            function buildKbSummary(analyzed, stats) {
+                if (!analyzed) {
+                    return 'No manager messages found to analyze.';
+                }
+                let summary = 'Analyzed ' + analyzed + ' manager message' + (analyzed === 1 ? '' : 's') + '.';
+                const parts = [];
+                if (stats.apartment_updates) parts.push(stats.apartment_updates + ' added to apartment KB');
+                if (stats.global_updates) parts.push(stats.global_updates + ' added to global KB');
+                if (stats.no_knowledge) parts.push(stats.no_knowledge + ' with no reusable knowledge');
+                if (stats.skipped) parts.push(stats.skipped + ' skipped due to errors');
+                if (parts.length) {
+                    summary += ' ' + parts.join(', ') + '.';
+                } else {
+                    summary += ' No reusable knowledge found.';
+                }
+                return summary + ' Review suggestions below, then Save KB.';
+            }
+
+            function getKbWhyEntryClasses(entry) {
+                const classes = ['kb-why-entry', 'rounded-lg', 'border', 'px-3', 'py-2', 'flex', 'items-start', 'justify-between', 'gap-2'];
+                if (entry.ruleAdded) {
+                    classes.push('ring-2', 'ring-amber-400', 'border-amber-400', 'bg-amber-50', 'dark:bg-amber-900/20', 'dark:border-amber-500');
+                } else if (entry.skipped) {
+                    classes.push('border-red-300', 'bg-red-50', 'dark:bg-red-900/20', 'dark:border-red-700');
+                } else if (entry.apartmentChanged && entry.globalChanged) {
+                    classes.push('border-emerald-400', 'bg-emerald-50', 'dark:bg-emerald-900/20', 'dark:border-emerald-600');
+                } else if (entry.apartmentChanged) {
+                    classes.push('border-green-400', 'bg-green-50', 'dark:bg-green-900/20', 'dark:border-green-600');
+                } else if (entry.globalChanged) {
+                    classes.push('border-teal-400', 'bg-teal-50', 'dark:bg-teal-900/20', 'dark:border-teal-600');
+                } else {
+                    classes.push('border-gray-300', 'bg-gray-50', 'dark:bg-gray-800/50', 'dark:border-gray-600');
+                }
+                return classes.join(' ');
+            }
+
+            function renderKbWhyEntries(entries) {
+                if (!entries.length) return '';
+                return entries.map(function(entry) {
+                    const line = escapeHtml(entry.line || '');
+                    const btn = entry.messageId
+                        ? '<button type="button" class="add-kb-rule-btn flex-shrink-0 px-2 py-0.5 text-xs font-medium text-blue-700 bg-blue-50 border border-blue-200 rounded hover:bg-blue-100 dark:bg-blue-900/30 dark:text-blue-200 dark:border-blue-700 dark:hover:bg-blue-900/50" data-message-id="' + entry.messageId + '">KB rule</button>'
+                        : '';
+                    const ruleAttr = entry.ruleAdded ? ' data-rule-added="1"' : '';
+                    return '<div class="' + getKbWhyEntryClasses(entry) + '" data-message-id="' + (entry.messageId || '') + '"' + ruleAttr + '><span class="flex-1 text-sm whitespace-pre-wrap break-words">' + line + '</span>' + btn + '</div>';
+                }).join('');
+            }
+
+            try {
+                const listData = await fetchKbJson({});
+                const messageIds = listData.message_ids || [];
+                let apartmentKb = listData.apartment_kb || '';
+                let globalKb = listData.global_kb || '';
+                const whyLines = [];
+                const stats = {
+                    apartment_updates: 0,
+                    global_updates: 0,
+                    no_knowledge: 0,
+                    skipped: 0,
+                };
+
+                for (let i = 0; i < messageIds.length; i++) {
+                    if (kbGenerateStatus) {
+                        kbGenerateStatus.textContent = 'Analyzing message ' + (i + 1) + ' of ' + messageIds.length + '...';
+                    }
+                    const stepData = await fetchKbJson({
+                        message_id: messageIds[i],
+                        apartment_kb: apartmentKb,
+                        global_kb: globalKb,
+                    });
+                    apartmentKb = stepData.apartment_kb || apartmentKb;
+                    globalKb = stepData.global_kb || globalKb;
+                    if (stepData.line) {
+                        whyLines.push({
+                            messageId: messageIds[i],
+                            line: stepData.line,
+                            apartmentChanged: !!stepData.apartment_changed,
+                            globalChanged: !!stepData.global_changed,
+                            noKnowledge: !!stepData.no_knowledge,
+                            skipped: !!stepData.skipped,
+                            ruleAdded: sessionPromptRuleMessageIds.has(String(messageIds[i])),
+                        });
+                    }
+                    if (stepData.skipped) {
+                        stats.skipped += 1;
+                    } else {
+                        if (stepData.apartment_changed) stats.apartment_updates += 1;
+                        if (stepData.global_changed) stats.global_updates += 1;
+                        if (stepData.no_knowledge) stats.no_knowledge += 1;
+                    }
+                }
+
+                if (chatApartmentKbInput) chatApartmentKbInput.value = apartmentKb;
+                if (chatGlobalKbInput) chatGlobalKbInput.value = globalKb;
+                if (kbGenerateStatus) {
+                    kbGenerateStatus.textContent = buildKbSummary(messageIds.length, stats);
+                }
+                if (kbGenerateWhy) {
+                    if (whyLines.length) {
+                        kbGenerateWhy.innerHTML = renderKbWhyEntries(whyLines);
+                        kbGenerateWhy.classList.remove('hidden');
+                        if (kbGenerateLegend) kbGenerateLegend.classList.remove('hidden');
+                    } else {
+                        kbGenerateWhy.classList.add('hidden');
+                        kbGenerateWhy.innerHTML = '';
+                        if (kbGenerateLegend) kbGenerateLegend.classList.add('hidden');
+                    }
+                }
+            } catch (err) {
+                if (kbGenerateStatus) {
+                    kbGenerateStatus.textContent = 'Error: ' + err.message;
+                }
+            } finally {
+                generateKbBtn.disabled = false;
+                saveKbBtn.disabled = false;
+                generateKbBtn.textContent = 'Generate';
+            }
+        });
+    }
+
+    if (saveKbBtn) {
+        saveKbBtn.addEventListener('click', async function() {
+            saveKbBtn.disabled = true;
+            generateKbBtn.disabled = true;
+            saveKbBtn.textContent = 'Saving...';
+            try {
+                const resp = await fetch(kbSaveUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        apartment_kb: chatApartmentKbInput ? chatApartmentKbInput.value : '',
+                        global_kb: chatGlobalKbInput ? chatGlobalKbInput.value : '',
+                    }),
+                });
+                const data = await resp.json();
+                if (!resp.ok || !data.success) {
+                    throw new Error(data.error || 'Failed to save knowledge bases');
+                }
+                if (chatApartmentKbInput) chatApartmentKbInput.value = data.apartment_kb || '';
+                if (chatGlobalKbInput) chatGlobalKbInput.value = data.global_kb || '';
+                if (kbGenerateStatus) {
+                    kbGenerateStatus.classList.remove('hidden');
+                    kbGenerateStatus.textContent = 'Knowledge bases saved.';
+                }
+                closeKbModal();
+            } catch (err) {
+                alert('Error saving knowledge bases: ' + err.message);
+            } finally {
+                saveKbBtn.disabled = false;
+                generateKbBtn.disabled = false;
+                saveKbBtn.textContent = 'Save KB';
+            }
+        });
+    }
+
+    function setShowNotes(on) {
+        showNotes = !!on;
+        document.body.classList.toggle('show-notes-on', showNotes);
+        if (showNotes) {
+            document.querySelectorAll('.notes-row.notes-collapsed').forEach(function(row) {
+                row.classList.remove('notes-collapsed');
+            });
+        }
+        if (toggleShowNotesBtn) {
+            toggleShowNotesBtn.setAttribute('aria-pressed', showNotes ? 'true' : 'false');
+            toggleShowNotesBtn.textContent = showNotes ? 'Hide notes' : 'Show notes';
+            toggleShowNotesBtn.classList.toggle('bg-amber-600', showNotes);
+            toggleShowNotesBtn.classList.toggle('text-white', showNotes);
+            toggleShowNotesBtn.classList.toggle('bg-amber-100', !showNotes);
+            toggleShowNotesBtn.classList.toggle('text-amber-800', !showNotes);
+        }
+    }
+
+    function isRowNotesVisible(row) {
+        if (!row) return false;
+        if (row.classList.contains('notes-collapsed')) return false;
+        if (row.classList.contains('notes-open')) return true;
+        return document.body.classList.contains('show-notes-on');
+    }
+
+    function toggleRowNotes(row) {
+        if (!row) return;
+        if (isRowNotesVisible(row)) {
+            row.classList.remove('notes-open');
+            row.classList.add('notes-collapsed');
+        } else {
+            row.classList.remove('notes-collapsed');
+            row.classList.add('notes-open');
+        }
+    }
+
+    function openRowNotes(row) {
+        if (!row) return;
+        row.classList.remove('notes-collapsed');
+        row.classList.add('notes-open');
+    }
+
+    if (toggleShowNotesBtn) {
+        toggleShowNotesBtn.addEventListener('click', function() {
+            setShowNotes(!showNotes);
+        });
+    }
+
+    if (conversationNotesBadge) {
+        conversationNotesBadge.addEventListener('click', function() {
+            const panel = document.getElementById('conversation-notes-panel');
+            toggleRowNotes(panel);
+        });
+    }
+
+    function updateConversationNotesUi(notes) {
+        const hasNotes = !!(notes && notes.trim());
+        if (conversationNotesText) conversationNotesText.textContent = notes || '';
+        if (conversationNotesInput) conversationNotesInput.value = notes || '';
+        if (conversationNotesBadge) conversationNotesBadge.classList.toggle('hidden', !hasNotes);
+        if (addConversationNoteBtn) addConversationNoteBtn.classList.toggle('hidden', hasNotes);
+        if (conversationNotesView) conversationNotesView.classList.toggle('hidden', !hasNotes);
+        if (conversationNotesEditor) conversationNotesEditor.classList.add('hidden');
+    }
+
+    function openConversationEditor() {
+        if (!conversationNotesEditor || !conversationNotesInput) return;
+        conversationNotesInput.value = conversationNotesText ? conversationNotesText.textContent : '';
+        conversationNotesEditor.classList.remove('hidden');
+        conversationNotesInput.focus();
+    }
+
+    async function saveConversationNotes(notes) {
+        const resp = await fetch(conversationNotesUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ notes: notes || '' }),
+        });
+        const data = await resp.json();
+        if (!resp.ok) throw new Error(data.error || 'Failed to save notes');
+        updateConversationNotesUi(data.notes || '');
+        return data;
+    }
+
+    if (addConversationNoteBtn) {
+        addConversationNoteBtn.addEventListener('click', openConversationEditor);
+    }
+    if (editConversationNoteBtn) {
+        editConversationNoteBtn.addEventListener('click', openConversationEditor);
+    }
+    if (cancelConversationNoteBtn) {
+        cancelConversationNoteBtn.addEventListener('click', function() {
+            if (conversationNotesEditor) conversationNotesEditor.classList.add('hidden');
+            if (conversationNotesInput && conversationNotesText) {
+                conversationNotesInput.value = conversationNotesText.textContent || '';
+            }
+        });
+    }
+    if (saveConversationNoteBtn) {
+        saveConversationNoteBtn.addEventListener('click', async function() {
+            try {
+                await saveConversationNotes(conversationNotesInput ? conversationNotesInput.value : '');
+            } catch (e) {
+                alert('Error saving conversation note: ' + e.message);
+            }
+        });
+    }
+    if (deleteConversationNoteBtn) {
+        deleteConversationNoteBtn.addEventListener('click', async function() {
+            if (!confirm('Delete conversation note?')) return;
+            try {
+                await saveConversationNotes('');
+            } catch (e) {
+                alert('Error deleting conversation note: ' + e.message);
+            }
+        });
+    }
+
+    function messageNotesUrl(messageId) {
+        return messageNotesUrlTemplate.replace('__ID__', String(messageId));
+    }
+
+    function getMessageNotes(row) {
+        const textEl = row.querySelector('.message-notes-text');
+        return textEl ? (textEl.textContent || '') : '';
+    }
+
+    function updateMessageNotesUi(row, notes) {
+        const hasNotes = !!(notes && notes.trim());
+        const textEl = row.querySelector('.message-notes-text');
+        const inputEl = row.querySelector('.message-notes-input');
+        const viewEl = row.querySelector('.message-notes-view');
+        const editorEl = row.querySelector('.message-notes-editor');
+        const addBtn = row.querySelector('.add-message-note-btn');
+        let badge = row.querySelector('.message-notes-badge');
+        const isOutbound = row.classList.contains('justify-end');
+        const isAi = row.getAttribute('data-notes-kind') === 'ai';
+        const badgeClass = (isOutbound || isAi)
+            ? (isAi && !row.querySelector('.bg-purple-500')
+                ? 'bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200'
+                : 'bg-white/20 text-white')
+            : 'bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200';
+
+        if (textEl) textEl.textContent = notes || '';
+        if (inputEl) inputEl.value = notes || '';
+        if (viewEl) viewEl.classList.toggle('hidden', !hasNotes);
+        if (editorEl) editorEl.classList.add('hidden');
+        if (addBtn) addBtn.classList.toggle('hidden', hasNotes);
+
+        if (hasNotes && !badge) {
+            badge = document.createElement('span');
+            badge.className = `message-notes-badge cursor-pointer px-1.5 py-0.5 rounded text-xs ${badgeClass}`;
+            badge.title = 'Show or hide notes';
+            badge.setAttribute('role', 'button');
+            badge.textContent = '📝';
+            if (addBtn && addBtn.parentNode) {
+                addBtn.parentNode.insertBefore(badge, addBtn);
+            }
+        } else if (!hasNotes && badge) {
+            badge.remove();
+        }
+        if (hasNotes) openRowNotes(row);
+    }
+
+    function openMessageEditor(row) {
+        const editorEl = row.querySelector('.message-notes-editor');
+        const inputEl = row.querySelector('.message-notes-input');
+        if (!editorEl || !inputEl) return;
+        openRowNotes(row);
+        inputEl.value = getMessageNotes(row);
+        editorEl.classList.remove('hidden');
+        inputEl.focus();
+    }
+
+    async function saveMessageNotes(row, notes) {
+        const messageId = row.getAttribute('data-message-id');
+        if (!messageId) throw new Error('Missing message id');
+        const kind = row.getAttribute('data-notes-kind') || 'message';
+        const resp = await fetch(messageNotesUrl(messageId), {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ notes: notes || '', kind }),
+        });
+        const data = await resp.json();
+        if (!resp.ok) throw new Error(data.error || 'Failed to save notes');
+        updateMessageNotesUi(row, data.notes || '');
+        return data;
+    }
+
+    messagesContainer.addEventListener('click', async function(e) {
+        const row = e.target.closest('.notes-row');
+        if (!row || !messagesContainer.contains(row)) return;
+
+        if (e.target.closest('.message-notes-badge')) {
+            e.preventDefault();
+            toggleRowNotes(row);
+            return;
+        }
+        if (e.target.closest('.add-message-note-btn') || e.target.closest('.edit-message-note-btn')) {
+            e.preventDefault();
+            openMessageEditor(row);
+            return;
+        }
+        if (e.target.closest('.cancel-message-note-btn')) {
+            e.preventDefault();
+            const editorEl = row.querySelector('.message-notes-editor');
+            const inputEl = row.querySelector('.message-notes-input');
+            if (editorEl) editorEl.classList.add('hidden');
+            if (inputEl) inputEl.value = getMessageNotes(row);
+            return;
+        }
+        if (e.target.closest('.save-message-note-btn')) {
+            e.preventDefault();
+            try {
+                const inputEl = row.querySelector('.message-notes-input');
+                await saveMessageNotes(row, inputEl ? inputEl.value : '');
+            } catch (err) {
+                alert('Error saving note: ' + err.message);
+            }
+            return;
+        }
+        if (e.target.closest('.delete-message-note-btn')) {
+            e.preventDefault();
+            if (!confirm('Delete note?')) return;
+            try {
+                await saveMessageNotes(row, '');
+            } catch (err) {
+                alert('Error deleting note: ' + err.message);
+            }
+        }
+    });
     
     // Auto-scroll to bottom
     function scrollToBottom() {
@@ -463,18 +1906,23 @@ document.addEventListener('DOMContentLoaded', function() {
 
                 // Add message to chat (optimistic update)
                 addMessageToChat({
+                    id: data.message_id || null,
                     author: outboundAuthor,
                     body: outboundBody,
                     direction: 'outbound',
-                    timestamp: new Date().toISOString()
+                    timestamp: new Date().toISOString(),
+                    notes: ''
                 });
 
                 if (data.ai_skipped_reason) {
                     alert(data.ai_skipped_reason);
-                } else if (data.ai_response) {
+                } else if (data.ai_response || data.ai_response_why) {
                     appendAiResponseRow({
+                        id: data.message_id || null,
                         ai_response: data.ai_response,
+                        ai_response_why: data.ai_response_why,
                         ai_sent_to_chat: data.ai_sent_to_chat,
+                        ai_notes: '',
                     });
                 }
                 
@@ -582,7 +2030,11 @@ document.addEventListener('DOMContentLoaded', function() {
     // Function to add message to chat UI
     function addMessageToChat(message) {
         const messageDiv = document.createElement('div');
-        messageDiv.className = `flex ${message.direction === 'outbound' ? 'justify-end' : 'justify-start'}`;
+        messageDiv.className = `flex ${message.direction === 'outbound' ? 'justify-end' : 'justify-start'} message-row notes-row`;
+        messageDiv.setAttribute('data-notes-kind', 'message');
+        if (message.id) {
+            messageDiv.setAttribute('data-message-id', String(message.id));
+        }
         
         const timestamp = new Date(message.timestamp);
         const formattedTime = timestamp.toLocaleDateString('en-US', { 
@@ -592,20 +2044,104 @@ document.addEventListener('DOMContentLoaded', function() {
             hour: '2-digit', 
             minute: '2-digit' 
         });
+        const isOutbound = message.direction === 'outbound';
+        const metaClass = isOutbound ? 'text-blue-100' : 'text-gray-500 dark:text-gray-400';
+        const addBtnClass = isOutbound
+            ? 'inline-flex items-center rounded px-1.5 py-0.5 bg-white/20 text-white hover:bg-white/30'
+            : 'text-amber-600 hover:text-amber-700';
+        const badgeClass = isOutbound
+            ? 'bg-white/20 text-white'
+            : 'bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200';
+        const notesActions = message.id
+            ? `<span class="message-notes-badge cursor-pointer hidden px-1.5 py-0.5 rounded text-xs ${badgeClass}" title="Show or hide notes" role="button">📝</span>
+               <button type="button" class="add-message-note-btn ${addBtnClass} text-xs font-medium transition-colors duration-200">Add note</button>`
+            : '';
         
         messageDiv.innerHTML = `
             <div class="max-w-xs lg:max-w-md xl:max-w-lg">
-                <div class="${message.direction === 'outbound' ? 'bg-blue-500 text-white' : 'bg-white dark:bg-gray-700 text-gray-900 dark:text-white'} rounded-lg px-4 py-2 shadow">
+                <div class="${isOutbound ? 'bg-blue-500 text-white' : 'bg-white dark:bg-gray-700 text-gray-900 dark:text-white'} rounded-lg px-4 py-2 shadow">
                     <div class="text-sm">${escapeHtml(message.body)}</div>
-                    <div class="text-xs ${message.direction === 'outbound' ? 'text-blue-100' : 'text-gray-500 dark:text-gray-400'} mt-1">
-                        <span class="font-medium">${escapeHtml(message.author)}</span>
-                        • ${formattedTime}
+                    <div class="text-xs ${metaClass} mt-1 flex items-center justify-between gap-2">
+                        <span>
+                            <span class="font-medium">${escapeHtml(message.author)}</span>
+                            • ${formattedTime}
+                        </span>
+                        <div class="flex items-center gap-1 flex-wrap">
+                            ${notesActions}
+                        </div>
+                    </div>
+                </div>
+                <div class="message-notes-panel mt-1">
+                    <div class="message-notes-view notes-view-only hidden rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 dark:border-amber-700 dark:bg-amber-900/30">
+                        <div class="flex items-start justify-between gap-2">
+                            <div class="message-notes-text text-sm text-amber-900 dark:text-amber-100 whitespace-pre-wrap flex-1"></div>
+                            <div class="flex items-center gap-1 flex-shrink-0">
+                                <button type="button" class="edit-message-note-btn text-xs font-medium text-amber-700 hover:text-amber-900 dark:text-amber-300">Edit</button>
+                                <button type="button" class="delete-message-note-btn text-xs font-medium text-red-600 hover:text-red-800 dark:text-red-400">Delete</button>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="message-notes-editor hidden rounded-lg border border-amber-200 bg-white px-3 py-2 dark:border-amber-700 dark:bg-gray-800 mt-1">
+                        <textarea rows="2" class="message-notes-input block w-full rounded-lg border border-gray-300 bg-gray-50 p-2 text-sm text-gray-900 focus:border-amber-500 focus:ring-amber-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white" placeholder="Message notes..."></textarea>
+                        <div class="mt-2 flex items-center justify-end gap-2">
+                            <button type="button" class="cancel-message-note-btn px-2.5 py-1 text-xs font-medium text-gray-700 bg-white border border-gray-300 rounded hover:bg-gray-100 dark:bg-gray-700 dark:text-gray-200 dark:border-gray-600">Cancel</button>
+                            <button type="button" class="save-message-note-btn px-2.5 py-1 text-xs font-medium text-white bg-amber-600 rounded hover:bg-amber-700">Save</button>
+                        </div>
                     </div>
                 </div>
             </div>
         `;
         
         messagesContainer.appendChild(messageDiv);
+    }
+
+    function buildAddRuleButton(messageId, sentSolid) {
+        if (!messageId || !aiReady) return '';
+        if (sentSolid) {
+            return `<button type="button" class="add-answer-rule-btn inline-flex items-center rounded px-1.5 py-0.5 bg-white/20 text-white hover:bg-white/30 text-xs font-medium" data-message-id="${messageId}">Add rule</button>`;
+        }
+        return `<button type="button" class="add-answer-rule-btn text-xs font-medium text-purple-600 hover:text-purple-800 dark:text-purple-300 dark:hover:text-purple-100" data-message-id="${messageId}">Add rule</button>`;
+    }
+
+    function buildManagerAddRuleButton(messageId, isOutbound) {
+        if (!messageId || !hasApartmentKb) return '';
+        if (isOutbound) {
+            return `<button type="button" class="add-kb-rule-btn inline-flex items-center rounded px-1.5 py-0.5 bg-white/20 text-white hover:bg-white/30 text-xs font-medium" data-message-id="${messageId}">KB rule</button>`;
+        }
+        return `<button type="button" class="add-kb-rule-btn text-xs font-medium text-blue-600 hover:text-blue-800 dark:text-blue-300 dark:hover:text-blue-100" data-message-id="${messageId}">KB rule</button>`;
+    }
+
+    function buildAiNotesActions(sentSolid, messageId) {
+        const badgeClass = sentSolid
+            ? 'bg-white/20 text-white'
+            : 'bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200';
+        const addClass = sentSolid
+            ? 'inline-flex items-center rounded px-1.5 py-0.5 bg-white/20 text-white hover:bg-white/30'
+            : 'text-amber-600 hover:text-amber-700';
+        return `<span class="message-notes-badge cursor-pointer hidden px-1.5 py-0.5 rounded text-xs ${badgeClass}" title="Show or hide notes" role="button">📝</span>
+                <button type="button" class="add-message-note-btn ${addClass} text-xs font-medium transition-colors duration-200">Add note</button>
+                ${buildAddRuleButton(messageId, sentSolid)}`;
+    }
+
+    function buildAiNotesPanel() {
+        return `<div class="message-notes-panel mt-1">
+            <div class="message-notes-view notes-view-only hidden rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 dark:border-amber-700 dark:bg-amber-900/30">
+                <div class="flex items-start justify-between gap-2">
+                    <div class="message-notes-text text-sm text-amber-900 dark:text-amber-100 whitespace-pre-wrap flex-1"></div>
+                    <div class="flex items-center gap-1 flex-shrink-0">
+                        <button type="button" class="edit-message-note-btn text-xs font-medium text-amber-700 hover:text-amber-900 dark:text-amber-300">Edit</button>
+                        <button type="button" class="delete-message-note-btn text-xs font-medium text-red-600 hover:text-red-800 dark:text-red-400">Delete</button>
+                    </div>
+                </div>
+            </div>
+            <div class="message-notes-editor hidden rounded-lg border border-amber-200 bg-white px-3 py-2 dark:border-amber-700 dark:bg-gray-800 mt-1">
+                <textarea rows="2" class="message-notes-input block w-full rounded-lg border border-gray-300 bg-gray-50 p-2 text-sm text-gray-900 focus:border-amber-500 focus:ring-amber-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white" placeholder="AI notes..."></textarea>
+                <div class="mt-2 flex items-center justify-end gap-2">
+                    <button type="button" class="cancel-message-note-btn px-2.5 py-1 text-xs font-medium text-gray-700 bg-white border border-gray-300 rounded hover:bg-gray-100 dark:bg-gray-700 dark:text-gray-200 dark:border-gray-600">Cancel</button>
+                    <button type="button" class="save-message-note-btn px-2.5 py-1 text-xs font-medium text-white bg-amber-600 rounded hover:bg-amber-700">Save</button>
+                </div>
+            </div>
+        </div>`;
     }
 
     function appendAiResponseRow(m) {
@@ -624,43 +2160,106 @@ document.addEventListener('DOMContentLoaded', function() {
         return div.innerHTML;
     }
 
+    function markPromptRuleSaved(messageId) {
+        if (!messageId) return;
+        sessionPromptRuleMessageIds.add(String(messageId));
+        const row = document.querySelector('.message-row[data-message-id="' + messageId + '"]');
+        if (row) {
+            const wrapper = row.querySelector('.message-bubble-wrap') || row.querySelector('.max-w-xs');
+            if (wrapper) {
+                wrapper.classList.add('p-0.5', 'rounded-lg', 'ring-2', 'ring-amber-400', 'dark:ring-amber-500');
+            }
+        }
+        const whyEntry = document.querySelector('.kb-why-entry[data-message-id="' + messageId + '"]');
+        if (whyEntry) {
+            whyEntry.setAttribute('data-rule-added', '1');
+            whyEntry.classList.add('ring-2', 'ring-amber-400', 'border-amber-400', 'bg-amber-50', 'dark:bg-amber-900/20', 'dark:border-amber-500');
+        }
+    }
+
+    function buildKbExtractBorderClass(m) {
+        if (!m || m.ai_kb_updated == null) return '';
+        if (m.ai_kb_updated === true) {
+            return ' border-2 border-green-400 dark:border-green-500';
+        }
+        return ' border-2 border-gray-300 dark:border-gray-600';
+    }
+
     function buildKbIndicator(m, isOutbound) {
         if (m.ai_kb_updated == null) return '';
         const alignClass = isOutbound ? 'justify-end' : '';
         if (m.ai_kb_updated === true) {
             const kbHtml = m.ai_kb_changes
-                ? `<details><summary class="cursor-pointer text-blue-500">show changes</summary><div class="mt-1 text-gray-700 whitespace-pre-wrap font-mono text-xs bg-white rounded p-2 border border-gray-200 max-w-xs">${escapeHtml(m.ai_kb_changes)}</div></details>` : '';
-            return `<div class="mt-0.5 text-xs flex items-center gap-1 ${alignClass}"><span class="px-1.5 py-0.5 rounded bg-blue-100 text-blue-700">&#128218; KB updated</span>${kbHtml}</div>`;
+                ? `<details><summary class="cursor-pointer text-green-600 dark:text-green-400">show changes</summary><div class="mt-1 text-gray-700 dark:text-gray-300 whitespace-pre-wrap font-mono text-xs bg-white dark:bg-gray-800 rounded p-2 border border-green-200 dark:border-green-700 max-w-xs">${escapeHtml(m.ai_kb_changes)}</div></details>` : '';
+            return `<div class="mt-0.5 text-xs flex items-center gap-1 flex-wrap ${alignClass}"><span class="px-1.5 py-0.5 rounded bg-green-100 text-green-800 border border-green-300 dark:bg-green-900 dark:text-green-200 dark:border-green-700">&#128218; KB extracted</span>${kbHtml}</div>`;
         }
-        return `<div class="mt-0.5 text-xs flex items-center gap-1 ${alignClass}"><span class="px-1.5 py-0.5 rounded bg-gray-100 text-gray-500">&#128218; No KB update</span></div>`;
+        return `<div class="mt-0.5 text-xs flex items-center gap-1 flex-wrap ${alignClass}"><span class="px-1.5 py-0.5 rounded bg-gray-100 text-gray-600 border border-gray-300 dark:bg-gray-700 dark:text-gray-300 dark:border-gray-600">&#128218; No KB extracted</span></div>`;
+    }
+
+    function buildAiWhyHtml(why) {
+        if (!why) return '';
+        return `<div class="text-xs text-purple-600 dark:text-purple-300 mt-2 whitespace-pre-wrap italic">Why: ${escapeHtml(why)}</div>`;
     }
 
     function buildAiResponseRow(m) {
-        if (!m.ai_response) return '';
-        if (m.ai_sent_to_chat === true) {
-            return `<div class="flex justify-end ai-response-row">
+        const idAttr = m.id ? `data-message-id="${m.id}"` : '';
+        const notesPanel = buildAiNotesPanel();
+        const whyHtml = buildAiWhyHtml(m.ai_response_why);
+        if (m.ai_response) {
+            if (m.ai_sent_to_chat === true) {
+                return `<div class="flex justify-end ai-response-row notes-row" ${idAttr} data-notes-kind="ai">
+                    <div class="max-w-xs lg:max-w-md xl:max-w-lg">
+                        <div class="bg-purple-500 text-white rounded-lg px-4 py-2 shadow">
+                            <div class="text-sm whitespace-pre-wrap">${escapeHtml(m.ai_response)}</div>
+                            ${m.ai_response_why ? `<div class="text-xs text-purple-100/90 mt-2 whitespace-pre-wrap italic">Why: ${escapeHtml(m.ai_response_why)}</div>` : ''}
+                            <div class="text-xs text-purple-100 mt-1 flex items-center justify-between gap-2">
+                                <span class="flex items-center gap-1">
+                                    <span class="font-medium">&#129302; Virtual Assistant</span>
+                                    <span class="px-1.5 py-0.5 rounded bg-green-400/40 text-white font-medium">&#10003; Sent to SMS</span>
+                                </span>
+                                <span class="flex items-center gap-1 flex-wrap">${m.id ? buildAiNotesActions(true, m.id) : ''}</span>
+                            </div>
+                        </div>
+                        ${m.id ? notesPanel : ''}
+                    </div>
+                </div>`;
+            }
+            return `<div class="flex justify-end ai-response-row notes-row" ${idAttr} data-notes-kind="ai">
                 <div class="max-w-xs lg:max-w-md xl:max-w-lg">
-                    <div class="bg-purple-500 text-white rounded-lg px-4 py-2 shadow">
+                    <div class="border-2 border-dashed border-purple-300 dark:border-purple-600 bg-purple-50 dark:bg-purple-900/20 text-gray-700 dark:text-gray-200 rounded-lg px-4 py-2">
                         <div class="text-sm whitespace-pre-wrap">${escapeHtml(m.ai_response)}</div>
-                        <div class="text-xs text-purple-100 mt-1 flex items-center gap-1">
-                            <span class="font-medium">&#129302; Virtual Assistant</span>
-                            <span class="px-1.5 py-0.5 rounded bg-green-400/40 text-white font-medium">&#10003; Sent to SMS</span>
+                        ${whyHtml}
+                        <div class="text-xs text-purple-500 dark:text-purple-400 mt-1 flex items-center justify-between gap-2">
+                            <span class="flex items-center gap-1">
+                                <span class="font-medium">&#129302; Virtual Assistant</span>
+                                <span class="px-1.5 py-0.5 rounded bg-yellow-100 text-yellow-700 dark:bg-yellow-900 dark:text-yellow-300 font-medium">&#9888; Not sent to SMS</span>
+                            </span>
+                            <span class="flex items-center gap-1 flex-wrap">${m.id ? buildAiNotesActions(false, m.id) : ''}</span>
                         </div>
                     </div>
+                    ${m.id ? notesPanel : ''}
                 </div>
             </div>`;
         }
-        return `<div class="flex justify-end ai-response-row">
-            <div class="max-w-xs lg:max-w-md xl:max-w-lg">
-                <div class="border-2 border-dashed border-purple-300 bg-purple-50 text-gray-700 rounded-lg px-4 py-2">
-                    <div class="text-sm whitespace-pre-wrap">${escapeHtml(m.ai_response)}</div>
-                    <div class="text-xs text-purple-500 mt-1 flex items-center gap-1">
-                        <span class="font-medium">&#129302; Virtual Assistant</span>
-                        <span class="px-1.5 py-0.5 rounded bg-yellow-100 text-yellow-700 font-medium">&#9888; Not sent to SMS (test mode)</span>
+        if (m.ai_response_why) {
+            return `<div class="flex justify-end ai-response-row notes-row" ${idAttr} data-notes-kind="ai">
+                <div class="max-w-xs lg:max-w-md xl:max-w-lg">
+                    <div class="border-2 border-dashed border-purple-300 dark:border-purple-600 bg-purple-50 dark:bg-purple-900/20 text-gray-700 dark:text-gray-200 rounded-lg px-4 py-2">
+                        <div class="text-sm whitespace-pre-wrap italic">NO_ANSWER</div>
+                        ${whyHtml}
+                        <div class="text-xs text-purple-500 dark:text-purple-400 mt-1 flex items-center justify-between gap-2">
+                            <span class="flex items-center gap-1">
+                                <span class="font-medium">&#129302; Virtual Assistant</span>
+                                <span class="px-1.5 py-0.5 rounded bg-yellow-100 text-yellow-700 dark:bg-yellow-900 dark:text-yellow-300 font-medium">&#9888; Not sent to SMS</span>
+                            </span>
+                            <span class="flex items-center gap-1 flex-wrap">${m.id ? buildAiNotesActions(false, m.id) : ''}</span>
+                        </div>
                     </div>
+                    ${m.id ? notesPanel : ''}
                 </div>
-            </div>
-        </div>`;
+            </div>`;
+        }
+        return '';
     }
     
     // Auto-refresh messages every 10 seconds

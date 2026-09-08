@@ -14,6 +14,37 @@ from mysite.views.messaging import (
     delete_message as twilio_delete_message,
     delete_all_messages as twilio_delete_all_messages,
     _notify_manager_chat_delivery_failed,
+    get_global_knowledge_base_text,
+    save_global_knowledge_base_text,
+    list_conversation_kb_eligible,
+    generate_conversation_kb_step,
+    generate_customer_ai_answer_for_message,
+    generate_all_customer_ai_answers,
+    get_ai_prompt_template,
+    save_ai_prompt_template,
+    is_customer_message,
+    get_customer_message_body,
+    generate_answer_rule_text,
+    append_rule_to_ai_answer_system,
+    get_answer_rule_modal_context,
+    is_answer_rule_eligible_message,
+    get_answer_rule_message_body,
+    get_kb_rule_modal_context,
+    is_kb_rule_eligible_message,
+    get_kb_manager_message_body,
+    generate_kb_rule_text,
+    append_rule_to_kb_extract_check,
+    should_run_kb_extraction_for_message,
+    KB_EXTRACT_APARTMENT_CHECK_KEY,
+    KB_EXTRACT_APARTMENT_MERGE_KEY,
+    KB_EXTRACT_GLOBAL_CHECK_KEY,
+    KB_EXTRACT_GLOBAL_MERGE_KEY,
+    KB_EXTRACT_PROMPT_KEYS,
+    AI_ANSWER_SYSTEM_KEY,
+    AI_ANSWER_USER_KEY,
+    AI_ANSWER_RULE_GENERATE_KEY,
+    AI_KB_RULE_GENERATE_KEY,
+    CHAT_EDITABLE_PROMPT_KEYS,
 )
 from mysite.unified_logger import log_error, log_info, logger
 from mysite.error_logger import log_exception
@@ -245,6 +276,9 @@ def chat_detail(request, conversation_sid):
     for m in chat_messages:
         raw_author = (m.author or "").strip()
         m.author_display = author_display_map.get(raw_author, _format_number_name(raw_author, "Unknown"))
+        m.is_customer_message = is_customer_message(m)
+        m.customer_message_body = get_customer_message_body(m) if m.is_customer_message else ''
+        m.is_kb_eligible = should_run_kb_extraction_for_message(m)
     
     chat_templates = list(
         ChatMessageTemplate.objects.order_by("name", "-created_at").values("id", "name", "body")
@@ -279,6 +313,7 @@ def chat_detail(request, conversation_sid):
         'message_count': len(chat_messages),
         'ai_ready': bool(conversation.apartment_id and conversation.booking_id),
         'ai_assistant_enabled': os.environ.get('AI_ASSISTANT_ENABLED', 'true').lower() == 'true',
+        'global_knowledge_base': get_global_knowledge_base_text(),
     })
 
 
@@ -427,7 +462,7 @@ def send_message(request, conversation_sid):
                 }
             elif sender_type == 'manager' and conversation.apartment_id:
                 try:
-                    from mysite.models import Apartment
+                    from mysite.models import Apartment, TwilioMessage
                     from mysite.views.messaging import ai_extract_knowledge, KB_SUFFIX, _extract_marked_body, _is_skippable_message
                     from mysite.group_chat_logger import log_ai_manager_start
 
@@ -437,7 +472,16 @@ def send_message(request, conversation_sid):
                     if body_for_extract and not _is_skippable_message(body_for_extract):
                         apartment = Apartment.objects.get(id=conversation.apartment_id)
                         log_ai_manager_start(conversation_sid, 'ASSISTANT', body_for_extract, conversation.apartment_id)
-                        ai_extract_knowledge(conversation_sid, body_for_extract, apartment)
+                        history_msg = sent_message
+                        if not history_msg:
+                            history_msg = TwilioMessage.objects.filter(
+                                conversation_sid=conversation_sid,
+                                body=message_content,
+                            ).order_by('-message_timestamp', '-id').first()
+                        ai_extract_knowledge(
+                            conversation_sid, body_for_extract, apartment,
+                            conversation=conversation, history_before=history_msg,
+                        )
                 except Exception as e:
                     log_exception(error=e, context="Chat - AI extract (manager)", additional_info={'conversation_sid': conversation_sid})
             
@@ -447,6 +491,17 @@ def send_message(request, conversation_sid):
             }
             if ai_result:
                 response_payload.update(ai_result)
+            message_id = response_payload.get('message_id')
+            if not message_id and sent_message is not None:
+                message_id = sent_message.id
+            if not message_id:
+                latest = conversation.messages.filter(
+                    body=message_content, direction='outbound'
+                ).order_by('-message_timestamp').first()
+                if latest:
+                    message_id = latest.id
+            if message_id:
+                response_payload['message_id'] = message_id
             return JsonResponse(response_payload)
             
         except Exception as e:
@@ -518,24 +573,450 @@ def delete_chat_conversation(request, conversation_sid):
 
 @login_required
 @require_http_methods(["POST"])
-def update_chat_apartment_kb(request, conversation_sid):
+@csrf_exempt
+def update_chat_knowledge_base(request, conversation_sid):
     """
-    Update apartment knowledge base directly from chat detail modal.
+    Update apartment and global knowledge bases from chat detail modal.
     """
     try:
         conversation = get_object_or_404(TwilioConversation, conversation_sid=conversation_sid)
         if not conversation.apartment_id:
-            return redirect('chat_detail', conversation_sid=conversation_sid)
+            return JsonResponse({'error': 'Conversation must be linked to an apartment.'}, status=400)
 
-        kb_text = (request.POST.get('knowledge_base') or '').strip()
-        conversation.apartment.knowledge_base = kb_text
-        conversation.apartment.save()
+        payload = {}
+        if request.body:
+            try:
+                payload = json.loads(request.body)
+            except json.JSONDecodeError:
+                payload = {}
+        if not payload:
+            payload = request.POST.dict()
 
-        log_info(f"Updated apartment KB from chat for conversation {conversation_sid}")
-        return redirect('chat_detail', conversation_sid=conversation_sid)
+        apartment_kb = payload.get('apartment_kb')
+        if apartment_kb is None:
+            apartment_kb = payload.get('knowledge_base')
+        global_kb = payload.get('global_kb')
+
+        if apartment_kb is not None:
+            conversation.apartment.knowledge_base = str(apartment_kb).strip() or None
+            conversation.apartment.save(update_fields=['knowledge_base', 'updated_at'])
+
+        if global_kb is not None:
+            save_global_knowledge_base_text(str(global_kb).strip(), conversation_sid)
+
+        log_info(f'Updated knowledge bases from chat for conversation {conversation_sid}')
+        return JsonResponse({
+            'success': True,
+            'apartment_kb': conversation.apartment.knowledge_base or '',
+            'global_kb': get_global_knowledge_base_text(),
+        })
     except Exception as e:
-        log_exception(error=e, context="Chat - Update Apartment KB", additional_info={'conversation_sid': conversation_sid})
-        return redirect('chat_detail', conversation_sid=conversation_sid)
+        log_exception(error=e, context='Chat - Update Knowledge Base', additional_info={'conversation_sid': conversation_sid})
+        return JsonResponse({'error': str(e)}, status=500)
+
+
+@login_required
+@require_http_methods(["GET", "POST"])
+@csrf_exempt
+def knowledge_base_prompt(request, prompt_key):
+    """
+    Load or save bulk KB generation prompts used by the chat modal.
+    """
+    if prompt_key not in CHAT_EDITABLE_PROMPT_KEYS:
+        return JsonResponse({'error': 'Unknown prompt key.'}, status=404)
+    try:
+        if request.method == 'GET':
+            content, from_db, description = get_ai_prompt_template(prompt_key)
+            if content is None:
+                return JsonResponse({'error': 'Prompt not found.'}, status=404)
+            labels = {
+                KB_EXTRACT_APARTMENT_CHECK_KEY: 'Apartment KB check prompt',
+                KB_EXTRACT_APARTMENT_MERGE_KEY: 'Apartment KB merge prompt',
+                KB_EXTRACT_GLOBAL_CHECK_KEY: 'Global KB check prompt',
+                KB_EXTRACT_GLOBAL_MERGE_KEY: 'Global KB merge prompt',
+                AI_ANSWER_SYSTEM_KEY: 'Customer answer system prompt',
+                AI_ANSWER_USER_KEY: 'Customer answer user prompt',
+                AI_ANSWER_RULE_GENERATE_KEY: 'Generate answer rule prompt',
+                AI_KB_RULE_GENERATE_KEY: 'Generate KB extract rule prompt',
+            }
+            return JsonResponse({
+                'success': True,
+                'prompt_key': prompt_key,
+                'label': labels.get(prompt_key, prompt_key),
+                'content': content,
+                'description': description,
+                'from_db': from_db,
+            })
+
+        payload = {}
+        if request.body:
+            try:
+                payload = json.loads(request.body)
+            except json.JSONDecodeError:
+                payload = {}
+        if not payload:
+            payload = request.POST.dict()
+        content = payload.get('content')
+        if content is None:
+            return JsonResponse({'error': 'content is required.'}, status=400)
+        description = payload.get('description')
+        entry = save_ai_prompt_template(prompt_key, content, description=description)
+        return JsonResponse({
+            'success': True,
+            'prompt_key': prompt_key,
+            'content': entry.content or '',
+            'description': entry.description or '',
+            'from_db': True,
+        })
+    except Exception as e:
+        log_exception(error=e, context='Chat - Knowledge Base Prompt', additional_info={'prompt_key': prompt_key})
+        return JsonResponse({'error': str(e)}, status=500)
+
+
+def _parse_json_body(request):
+    if not request.body:
+        return {}
+    try:
+        payload = json.loads(request.body)
+        return payload if isinstance(payload, dict) else {}
+    except json.JSONDecodeError:
+        return {}
+
+
+@login_required
+@require_http_methods(["GET"])
+def answer_rule_context(request, conversation_sid, message_id):
+    """Load Add Rule modal context for a customer message (tenant AI answers)."""
+    try:
+        conversation = get_object_or_404(TwilioConversation, conversation_sid=conversation_sid)
+        message = get_object_or_404(TwilioMessage, id=message_id, conversation=conversation)
+        context = get_answer_rule_modal_context(message)
+        if not context:
+            return JsonResponse({'error': 'Not a customer message.'}, status=400)
+        return JsonResponse({'success': True, **context})
+    except Exception as e:
+        log_exception(
+            error=e,
+            context='Chat - Answer Rule Context',
+            additional_info={'conversation_sid': conversation_sid, 'message_id': message_id},
+        )
+        return JsonResponse({'error': str(e)}, status=500)
+
+
+@login_required
+@require_http_methods(["POST"])
+@csrf_exempt
+def generate_answer_rule(request, conversation_sid, message_id):
+    """Generate a system-prompt rule from client message + correct answer."""
+    try:
+        conversation = get_object_or_404(TwilioConversation, conversation_sid=conversation_sid)
+        message = get_object_or_404(TwilioMessage, id=message_id, conversation=conversation)
+        if not is_answer_rule_eligible_message(message):
+            return JsonResponse({'success': False, 'error': 'Not a customer message.'}, status=400)
+
+        payload = _parse_json_body(request)
+        correct_answer = (payload.get('correct_answer') or '').strip()
+        generate_prompt = payload.get('generate_prompt')
+        ai_response = payload.get('ai_response')
+        if ai_response is None:
+            ai_response = message.ai_response
+
+        result = generate_answer_rule_text(
+            get_answer_rule_message_body(message),
+            correct_answer,
+            ai_response=ai_response,
+            generate_prompt=generate_prompt,
+        )
+        status = 200 if result.get('success') else 400
+        return JsonResponse(result, status=status)
+    except Exception as e:
+        log_exception(
+            error=e,
+            context='Chat - Generate Answer Rule',
+            additional_info={'conversation_sid': conversation_sid, 'message_id': message_id},
+        )
+        return JsonResponse({'success': False, 'error': str(e)}, status=500)
+
+
+@login_required
+@require_http_methods(["POST"])
+@csrf_exempt
+def save_answer_rule(request, conversation_sid, message_id):
+    """Append rule text to ai_answer_system prompt in DB."""
+    try:
+        conversation = get_object_or_404(TwilioConversation, conversation_sid=conversation_sid)
+        message = get_object_or_404(TwilioMessage, id=message_id, conversation=conversation)
+        if not is_answer_rule_eligible_message(message):
+            return JsonResponse({'success': False, 'error': 'Not a customer message.'}, status=400)
+
+        payload = _parse_json_body(request)
+        rule = (payload.get('rule') or '').strip()
+        if not rule:
+            return JsonResponse({'success': False, 'error': 'Rule is required.'}, status=400)
+
+        updated_prompt = append_rule_to_ai_answer_system(rule)
+        return JsonResponse({
+            'success': True,
+            'rule': rule if rule.startswith('-') else f'- {rule}',
+            'system_prompt_length': len(updated_prompt or ''),
+        })
+    except Exception as e:
+        log_exception(
+            error=e,
+            context='Chat - Save Answer Rule',
+            additional_info={'conversation_sid': conversation_sid, 'message_id': message_id},
+        )
+        return JsonResponse({'success': False, 'error': str(e)}, status=500)
+
+
+@login_required
+@require_http_methods(["GET"])
+def kb_rule_context(request, conversation_sid, message_id):
+    """Load Add KB Rule modal context for a manager KB source message."""
+    try:
+        conversation = get_object_or_404(TwilioConversation, conversation_sid=conversation_sid)
+        message = get_object_or_404(TwilioMessage, id=message_id, conversation=conversation)
+        context = get_kb_rule_modal_context(message)
+        if not context:
+            return JsonResponse({'error': 'Not a KB-eligible manager message.'}, status=400)
+        return JsonResponse({'success': True, **context})
+    except Exception as e:
+        log_exception(
+            error=e,
+            context='Chat - KB Rule Context',
+            additional_info={'conversation_sid': conversation_sid, 'message_id': message_id},
+        )
+        return JsonResponse({'error': str(e)}, status=500)
+
+
+@login_required
+@require_http_methods(["POST"])
+@csrf_exempt
+def generate_kb_rule(request, conversation_sid, message_id):
+    """Generate a KB extract check rule from manager message + guidance."""
+    try:
+        conversation = get_object_or_404(TwilioConversation, conversation_sid=conversation_sid)
+        message = get_object_or_404(TwilioMessage, id=message_id, conversation=conversation)
+        if not is_kb_rule_eligible_message(message):
+            return JsonResponse({'success': False, 'error': 'Not a KB-eligible manager message.'}, status=400)
+
+        payload = _parse_json_body(request)
+        guidance = (payload.get('guidance') or '').strip()
+        scope = payload.get('scope')
+        rule_intent = payload.get('rule_intent')
+        generate_prompt = payload.get('generate_prompt')
+        kb_changes = payload.get('kb_changes')
+        if kb_changes is None:
+            kb_changes = message.ai_kb_changes
+
+        result = generate_kb_rule_text(
+            get_kb_manager_message_body(message),
+            guidance,
+            scope=scope,
+            rule_intent=rule_intent,
+            kb_changes=kb_changes,
+            generate_prompt=generate_prompt,
+        )
+        status = 200 if result.get('success') else 400
+        return JsonResponse(result, status=status)
+    except Exception as e:
+        log_exception(
+            error=e,
+            context='Chat - Generate KB Rule',
+            additional_info={'conversation_sid': conversation_sid, 'message_id': message_id},
+        )
+        return JsonResponse({'success': False, 'error': str(e)}, status=500)
+
+
+@login_required
+@require_http_methods(["POST"])
+@csrf_exempt
+def save_kb_rule(request, conversation_sid, message_id):
+    """Append rule text to apartment or global KB check prompt in DB."""
+    try:
+        conversation = get_object_or_404(TwilioConversation, conversation_sid=conversation_sid)
+        message = get_object_or_404(TwilioMessage, id=message_id, conversation=conversation)
+        if not is_kb_rule_eligible_message(message):
+            return JsonResponse({'success': False, 'error': 'Not a KB-eligible manager message.'}, status=400)
+
+        payload = _parse_json_body(request)
+        rule = (payload.get('rule') or '').strip()
+        scope = payload.get('scope') or 'apartment'
+        if not rule:
+            return JsonResponse({'success': False, 'error': 'Rule is required.'}, status=400)
+
+        updated_prompt, prompt_key = append_rule_to_kb_extract_check(rule, scope=scope)
+        return JsonResponse({
+            'success': True,
+            'rule': rule if rule.startswith('-') else f'- {rule}',
+            'scope': scope,
+            'prompt_key': prompt_key,
+            'check_prompt_length': len(updated_prompt or ''),
+        })
+    except Exception as e:
+        log_exception(
+            error=e,
+            context='Chat - Save KB Rule',
+            additional_info={'conversation_sid': conversation_sid, 'message_id': message_id},
+        )
+        return JsonResponse({'success': False, 'error': str(e)}, status=500)
+
+
+@login_required
+@require_http_methods(["POST"])
+@csrf_exempt
+def generate_message_ai_answer(request, conversation_sid, message_id):
+    """Generate or regenerate AI tenant answer for one customer message (DB only)."""
+    try:
+        conversation = get_object_or_404(TwilioConversation, conversation_sid=conversation_sid)
+        message = get_object_or_404(TwilioMessage, id=message_id, conversation=conversation)
+        result = generate_customer_ai_answer_for_message(message, conversation=conversation, save=True)
+        status = 200 if result.get('success') else 400
+        return JsonResponse(result, status=status)
+    except Exception as e:
+        log_exception(
+            error=e,
+            context='Chat - Generate Message AI Answer',
+            additional_info={'conversation_sid': conversation_sid, 'message_id': message_id},
+        )
+        return JsonResponse({'success': False, 'error': str(e)}, status=500)
+
+
+@login_required
+@require_http_methods(["POST"])
+@csrf_exempt
+def generate_all_customer_ai_answers_view(request, conversation_sid):
+    """Generate or regenerate AI answers for all customer messages (DB only)."""
+    try:
+        result = generate_all_customer_ai_answers(conversation_sid)
+        status = 200 if result.get('success') else 400
+        return JsonResponse(result, status=status)
+    except Exception as e:
+        log_exception(
+            error=e,
+            context='Chat - Generate All Customer AI Answers',
+            additional_info={'conversation_sid': conversation_sid},
+        )
+        return JsonResponse({'success': False, 'error': str(e)}, status=500)
+
+
+@login_required
+@require_http_methods(["POST"])
+@csrf_exempt
+def generate_chat_knowledge_base(request, conversation_sid):
+    """
+    KB modal generate API.
+    POST {} — list eligible manager message ids (fast, no AI).
+    POST {message_id, apartment_kb, global_kb} — analyze one message and return updated drafts.
+    """
+    try:
+        payload = _parse_json_body(request)
+        message_id = payload.get('message_id')
+        if message_id:
+            result = generate_conversation_kb_step(
+                conversation_sid,
+                message_id,
+                apartment_kb_draft=payload.get('apartment_kb'),
+                global_kb_draft=payload.get('global_kb'),
+            )
+        else:
+            result = list_conversation_kb_eligible(conversation_sid)
+        status = 200 if result.get('success') else 400
+        return JsonResponse(result, status=status)
+    except Exception as e:
+        log_exception(error=e, context='Chat - Generate Knowledge Base', additional_info={'conversation_sid': conversation_sid})
+        return JsonResponse({'success': False, 'error': str(e)}, status=500)
+
+
+@login_required
+@require_http_methods(["POST"])
+def update_chat_apartment_kb(request, conversation_sid):
+    """Backward-compatible alias for update_chat_knowledge_base."""
+    return update_chat_knowledge_base(request, conversation_sid)
+
+
+def _parse_notes_payload(request):
+    notes = None
+    kind = 'message'
+    if request.body:
+        try:
+            payload = json.loads(request.body)
+            if isinstance(payload, dict):
+                if 'notes' in payload:
+                    notes = payload.get('notes')
+                kind = (payload.get('kind') or kind or 'message').strip().lower()
+        except json.JSONDecodeError:
+            pass
+    if notes is None:
+        notes = request.POST.get('notes', '')
+        kind = (request.POST.get('kind') or kind or 'message').strip().lower()
+    if notes is None:
+        notes = ''
+    notes = str(notes).strip()
+    if kind not in ('message', 'ai'):
+        kind = 'message'
+    return notes or None, kind
+
+
+@login_required
+@require_http_methods(["POST"])
+@csrf_exempt
+def update_conversation_notes(request, conversation_sid):
+    """
+    Set or clear notes on a Twilio conversation. Empty string clears.
+    """
+    try:
+        conversation = get_object_or_404(TwilioConversation, conversation_sid=conversation_sid)
+        notes, _kind = _parse_notes_payload(request)
+        conversation.notes = notes
+        conversation.save(update_fields=['notes', 'updated_at'])
+        return JsonResponse({
+            'success': True,
+            'notes': conversation.notes or '',
+            'has_notes': bool(conversation.notes),
+        })
+    except Exception as e:
+        log_exception(
+            error=e,
+            context="Chat - Update Conversation Notes",
+            additional_info={'conversation_sid': conversation_sid},
+        )
+        return JsonResponse({'error': str(e)}, status=500)
+
+
+@login_required
+@require_http_methods(["POST"])
+@csrf_exempt
+def update_message_notes(request, conversation_sid, message_id):
+    """
+    Set or clear notes on a Twilio message. Empty string clears.
+    """
+    try:
+        conversation = get_object_or_404(TwilioConversation, conversation_sid=conversation_sid)
+        message = get_object_or_404(TwilioMessage, id=message_id, conversation=conversation)
+        notes, kind = _parse_notes_payload(request)
+        if kind == 'ai':
+            message.ai_notes = notes
+            message.save(update_fields=['ai_notes', 'updated_at'])
+            stored = message.ai_notes or ''
+        else:
+            message.notes = notes
+            message.save(update_fields=['notes', 'updated_at'])
+            stored = message.notes or ''
+        return JsonResponse({
+            'success': True,
+            'notes': stored,
+            'has_notes': bool(stored),
+            'message_id': message.id,
+            'kind': kind,
+        })
+    except Exception as e:
+        log_exception(
+            error=e,
+            context="Chat - Update Message Notes",
+            additional_info={'conversation_sid': conversation_sid, 'message_id': message_id},
+        )
+        return JsonResponse({'error': str(e)}, status=500)
 
 
 @login_required
@@ -593,7 +1074,10 @@ def load_more_messages(request, conversation_sid):
                 'direction': message.direction,
                 'timestamp': message.message_timestamp.isoformat(),
                 'formatted_time': message.message_timestamp.strftime('%b %d, %Y at %I:%M %p'),
+                'notes': message.notes or '',
+                'ai_notes': message.ai_notes or '',
                 'ai_response': message.ai_response,
+                'ai_response_why': message.ai_response_why,
                 'ai_sent_to_chat': message.ai_sent_to_chat,
                 'ai_kb_updated': message.ai_kb_updated,
                 'ai_kb_changes': message.ai_kb_changes,
