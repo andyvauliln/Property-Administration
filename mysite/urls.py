@@ -50,6 +50,7 @@ urlpatterns = [
     path('api/payments/<int:pk>/', views.RentalGuruUpdatePaymentAPI.as_view(), name='api_rental_guru_update_payment'),
     # Chat interface URLs
     path('chat/', views.chat_list, name='chat_list'),
+    path('chat/export.md/', views.export_group_chats_md, name='export_group_chats_md'),
     path('chat/<str:conversation_sid>/', views.chat_detail, name='chat_detail'),
     path('chat/<str:conversation_sid>/send/', views.send_message, name='send_message'),
     path('chat/<str:conversation_sid>/delete-all-messages/', views.delete_all_chat_messages, name='delete_all_chat_messages'),

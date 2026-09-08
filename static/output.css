@@ -5467,3 +5467,7 @@ label[textContent="Problem Booking"] {
     padding: 2rem;
   }
 }
+
+.\[\&\>\*\]\:shrink-0>* {
+  flex-shrink: 0;
+}

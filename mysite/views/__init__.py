@@ -35,6 +35,7 @@ from .calendar_notes import (
 )
 from .chat import (
     chat_list,
+    export_group_chats_md,
     chat_detail,
     send_message,
     delete_all_chat_messages,

@@ -32,6 +32,10 @@
             </div>
 
             <div class="flex items-center gap-3 flex-wrap">
+                <a href="{% url 'export_group_chats_md' %}{% if search_query %}?q={{ search_query|urlencode }}{% endif %}"
+                   class="inline-flex items-center px-3 py-2 rounded-lg text-sm font-medium text-white bg-primary-700 hover:bg-primary-800 dark:bg-primary-600 dark:hover:bg-primary-700 transition-colors duration-200">
+                    {% if search_query %}Download searched .md{% else %}Download .md{% endif %}
+                </a>
                 <button type="button"
                         id="toggle-show-notes"
                         class="inline-flex items-center px-3 py-2 rounded-lg text-sm font-medium bg-amber-100 text-amber-800 hover:bg-amber-200 dark:bg-amber-900 dark:text-amber-200 dark:hover:bg-amber-800 transition-colors duration-200"

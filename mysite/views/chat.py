@@ -1,5 +1,5 @@
 from django.shortcuts import render, get_object_or_404, redirect
-from django.http import JsonResponse
+from django.http import HttpResponse, JsonResponse
 from django.contrib.auth.decorators import login_required
 from django.views.decorators.http import require_http_methods
 from django.views.decorators.csrf import csrf_exempt
@@ -262,6 +262,22 @@ def chat_list(request):
         'total_conversations': total_conversations,
         'total_all_conversations': total_all_conversations,
     })
+
+
+@login_required
+def export_group_chats_md(request):
+    """Download group chats as Markdown for the current list (or current search)."""
+    from mysite.group_chat_md_export import GroupChatMarkdownExporter
+
+    search_query = request.GET.get("q", "").strip()
+    exporter = GroupChatMarkdownExporter()
+    conversations = exporter.get_list_conversations(search_query)
+    markdown = exporter.render_markdown(conversations, search_query=search_query)
+
+    filename = "group_chats_search.md" if search_query else "group_chats.md"
+    response = HttpResponse(markdown, content_type="text/markdown; charset=utf-8")
+    response["Content-Disposition"] = f'attachment; filename="{filename}"'
+    return response
 
 
 @login_required
@@ -634,14 +650,14 @@ def knowledge_base_prompt(request, prompt_key):
             if content is None:
                 return JsonResponse({'error': 'Prompt not found.'}, status=404)
             labels = {
-                KB_EXTRACT_APARTMENT_CHECK_KEY: 'Apartment KB check prompt',
-                KB_EXTRACT_APARTMENT_MERGE_KEY: 'Apartment KB merge prompt',
-                KB_EXTRACT_GLOBAL_CHECK_KEY: 'Global KB check prompt',
-                KB_EXTRACT_GLOBAL_MERGE_KEY: 'Global KB merge prompt',
-                AI_ANSWER_SYSTEM_KEY: 'Customer answer system prompt',
-                AI_ANSWER_USER_KEY: 'Customer answer user prompt',
-                AI_ANSWER_RULE_GENERATE_KEY: 'Generate answer rule prompt',
-                AI_KB_RULE_GENERATE_KEY: 'Generate KB extract rule prompt',
+                KB_EXTRACT_APARTMENT_CHECK_KEY: 'Apartment: when to save (prompt)',
+                KB_EXTRACT_APARTMENT_MERGE_KEY: 'Apartment: how to update (prompt)',
+                KB_EXTRACT_GLOBAL_CHECK_KEY: 'Global: when to save (prompt)',
+                KB_EXTRACT_GLOBAL_MERGE_KEY: 'Global: how to update (prompt)',
+                AI_ANSWER_SYSTEM_KEY: 'Answer instructions prompt',
+                AI_ANSWER_USER_KEY: 'Answer request prompt',
+                AI_ANSWER_RULE_GENERATE_KEY: 'Teach-answer-rule prompt',
+                AI_KB_RULE_GENERATE_KEY: 'Teach-KB-rule prompt',
             }
             return JsonResponse({
                 'success': True,
