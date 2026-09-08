@@ -56,11 +56,15 @@ from uuid import uuid4
 MANAGER_PHONE = "+15612205252"
 MANAGER_PHONE_2 = "+17282001917"
 MANAGER_PHONE_3 = "+15614603904"
+MANAGER_PHONE_4 = "+15618438867"
+MANAGER_PHONE_NAMES = {
+    MANAGER_PHONE_4: "Janna",
+}
 ASSISTANT_IDENTITY = "ASSISTANT"
 # This is the projected address used for the assistant participant in Twilio Conversations.
 ASSISTANT_PROJECTED_PHONE = "+13153524379"
 # Other system phones that can appear as authors.
-SYSTEM_PHONES = {"+13153524379", "+17282001917", MANAGER_PHONE, MANAGER_PHONE_2, MANAGER_PHONE_3}
+SYSTEM_PHONES = {"+13153524379", "+17282001917", MANAGER_PHONE, MANAGER_PHONE_2, MANAGER_PHONE_3, MANAGER_PHONE_4}
 
 
 def _is_e164(value: str) -> bool:
@@ -113,7 +117,7 @@ def _build_conversation_participants(conversation):
         pass
 
     # Ensure we always include manager + assistant.
-    raw_candidates.extend([MANAGER_PHONE, MANAGER_PHONE_2, MANAGER_PHONE_3, ASSISTANT_IDENTITY, "Virtual Assistant"])
+    raw_candidates.extend([MANAGER_PHONE, MANAGER_PHONE_2, MANAGER_PHONE_3, MANAGER_PHONE_4, ASSISTANT_IDENTITY, "Virtual Assistant"])
 
     raw_candidates = _dedupe_preserve_order([str(x).strip() for x in raw_candidates if str(x).strip()])
 
@@ -147,10 +151,10 @@ def _build_conversation_participants(conversation):
             name = None
             if tenant_phone and raw == tenant_phone and tenant_name:
                 name = tenant_name
-            elif raw in (MANAGER_PHONE, MANAGER_PHONE_2, MANAGER_PHONE_3):
+            elif raw in (MANAGER_PHONE, MANAGER_PHONE_2, MANAGER_PHONE_3, MANAGER_PHONE_4):
                 # Prefer a real user name if present, fallback to "Manager"
                 u = users_by_phone.get(raw)
-                name = (u.full_name or "").strip() if u and u.full_name else "Manager"
+                name = (u.full_name or "").strip() if u and u.full_name else MANAGER_PHONE_NAMES.get(raw, "Manager")
             else:
                 u = users_by_phone.get(raw)
                 if u and u.full_name:

@@ -11,9 +11,12 @@ from django.utils import timezone
 from mysite.models import TwilioConversation, TwilioMessage, User
 
 try:
-    from mysite.views.messaging import MANAGER_PHONES, TWILIO_ASSISTANT_PHONE
+    from mysite.views.messaging import MANAGER_PHONE_NAMES, MANAGER_PHONES, TWILIO_ASSISTANT_PHONE
 except Exception:
-    MANAGER_PHONES = ("+15612205252", "+17282001917", "+15614603904")
+    MANAGER_PHONES = ("+15612205252", "+17282001917", "+15614603904", "+15618438867")
+    MANAGER_PHONE_NAMES = {
+        "+15618438867": "Janna",
+    }
     TWILIO_ASSISTANT_PHONE = "+13153524379"
 
 
@@ -242,7 +245,7 @@ class Command(BaseCommand):
     def _display_name(self, phone, user_names):
         if phone in AI_AUTHORS:
             return "Virtual Assistant"
-        return user_names.get(phone) or "Unknown"
+        return user_names.get(phone) or MANAGER_PHONE_NAMES.get(phone) or "Unknown"
 
     def _conversation_apartment(self, conversation):
         if conversation.apartment:

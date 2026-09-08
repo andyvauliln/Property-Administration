@@ -35,6 +35,9 @@ MANAGER_CHAT_SID = os.environ.get("MANAGER_CHAT_SID", "CH10c59b85e2ec4aad98e9829
 
 TWILIO_ASSISTANT_PHONE = "+13153524379"
 MANAGER_PHONES = ("+15612205252", "+17282001917", "+15614603904", "+15618438867")
+MANAGER_PHONE_NAMES = {
+    "+15618438867": "Janna",
+}
 RESERVED_PHONES = frozenset(MANAGER_PHONES + (TWILIO_ASSISTANT_PHONE,))
 
 
@@ -1788,7 +1791,7 @@ def _build_kb_author_labels(conversation):
             return f'{TWILIO_ASSISTANT_PHONE} (Assistant)'
         if author in MANAGER_PHONES:
             user = users_by_phone.get(author)
-            name = (user.full_name or '').strip() if user and user.full_name else 'Manager'
+            name = (user.full_name or '').strip() if user and user.full_name else MANAGER_PHONE_NAMES.get(author, 'Manager')
             return f'{author} ({name})'
         if tenant_phone and author == tenant_phone:
             name = tenant_name or 'Customer'

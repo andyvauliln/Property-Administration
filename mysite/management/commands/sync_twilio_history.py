@@ -69,6 +69,7 @@ class Command(BaseCommand):
         self.manager_phone = "+15612205252"
         self.manager_phone_2 = "+17282001917"
         self.manager_phone_3 = "+15614603904"
+        self.manager_phone_4 = "+15618438867"
         
         # Sync conversations and messages
         try:
@@ -210,7 +211,7 @@ class Command(BaseCommand):
                     address = participant.messaging_binding.get('address', '')
                     
                     # Skip system phones
-                    if address in [self.twilio_phone, self.manager_phone, self.manager_phone_2, self.manager_phone_3]:
+                    if address in [self.twilio_phone, self.manager_phone, self.manager_phone_2, self.manager_phone_3, self.manager_phone_4]:
                         continue
                     
                     # Try to find booking from this phone number
@@ -327,7 +328,7 @@ class Command(BaseCommand):
 
         # Determine direction
         author = twilio_message.author
-        direction = 'inbound' if author not in [self.twilio_phone, 'ASSISTANT', 'Virtual Assistant', self.manager_phone, self.manager_phone_2, self.manager_phone_3] else 'outbound'
+        direction = 'inbound' if author not in [self.twilio_phone, 'ASSISTANT', 'Virtual Assistant', self.manager_phone, self.manager_phone_2, self.manager_phone_3, self.manager_phone_4] else 'outbound'
         body = twilio_message.body or ''
         body_preview = (body[:50] + '...') if len(body) > 50 else body
 
