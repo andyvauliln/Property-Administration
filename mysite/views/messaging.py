@@ -58,6 +58,12 @@ def _enqueue_for_ai_agent(conversation_sid, message_sid, body, **kwargs):
     return enqueue_tenant_message(conversation_sid, message_sid, body, **kwargs)
 
 
+def _enqueue_staff_for_ai_agent(conversation_sid, message_sid, body, **kwargs):
+    """Queues a manager's message for the Claude agent. Never replaces the knowledge-base extraction."""
+    from mysite.ai_agent.service import enqueue_staff_message
+    return enqueue_staff_message(conversation_sid, message_sid, body, **kwargs)
+
+
 def _conversation_ai_group_chat_enabled(conversation_sid):
     try:
         from mysite.models import TwilioConversation
@@ -3031,6 +3037,9 @@ def twilio_webhook(request):
                             else:
                                 from mysite.models import TwilioMessage
                                 _history_msg = TwilioMessage.objects.filter(message_sid=message_sid).first() if message_sid else None
+                                if author in MANAGER_PHONES:
+                                    # Claude agent: a manager's message updates issues / follow-ups (no-op on the legacy backend)
+                                    _enqueue_staff_for_ai_agent(conversation_sid, message_sid, body)
                                 if _history_msg and should_run_kb_extraction_for_message(_history_msg):
                                     log_ai_manager_start(conversation_sid, author, body, _conv.apartment_id)
                                     _kb_saved, _kb_new = ai_extract_knowledge(
@@ -3090,6 +3099,9 @@ def twilio_webhook(request):
                             else:
                                 from mysite.models import TwilioMessage
                                 _history_msg = TwilioMessage.objects.filter(message_sid=message_sid).first() if message_sid else None
+                                if author in MANAGER_PHONES:
+                                    # Claude agent: a manager's message updates issues / follow-ups (no-op on the legacy backend)
+                                    _enqueue_staff_for_ai_agent(conversation_sid, message_sid, body)
                                 if _history_msg and should_run_kb_extraction_for_message(_history_msg):
                                     log_ai_manager_start(conversation_sid, author, body, _conv.apartment_id)
                                     _kb_saved, _kb_new = ai_extract_knowledge(

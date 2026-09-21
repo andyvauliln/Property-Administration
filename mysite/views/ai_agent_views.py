@@ -3,11 +3,13 @@ from pathlib import Path
 from django.core.paginator import Paginator
 from django.db.models import Sum
 from django.http import Http404, JsonResponse
-from django.shortcuts import get_object_or_404, render
+from django.shortcuts import get_object_or_404, redirect, render
+from django.utils import timezone
+from django.views.decorators.http import require_http_methods
 
 from ..ai_agent import config as agent_config
 from ..decorators import user_has_role
-from ..models import AIEvent, AIRun, TwilioMessage
+from ..models import AICaseNote, AIEvent, AIFollowUp, AIIssue, AIRun, StaffMember, TwilioMessage
 
 # Files of a run folder that may be shown in the browser, in display order
 REPORT_FILES = (
@@ -105,4 +107,78 @@ def ai_agent_message_status(request, conversation_sid, message_id):
             'cost_usd': float(ai_run.cost_usd or 0),
             'url': f'/ai-runs/{ai_run.id}/',
         } if ai_run else None,
+    })
+
+
+def get_ai_activity(conversation_sid):
+    """What the AI agent is tracking in one chat (issues, timers, notes). None when there is nothing."""
+    try:
+        issues = AIIssue.objects.filter(conversation_sid=conversation_sid)
+        open_issues = list(issues.exclude(state=AIIssue.STATE_RESOLVED).order_by('id'))
+        resolved = list(issues.filter(state=AIIssue.STATE_RESOLVED).order_by('-resolved_at')[:5])
+        followups = list(AIFollowUp.objects.filter(
+            conversation_sid=conversation_sid, status=AIFollowUp.STATUS_PENDING,
+        ).select_related('issue').order_by('due_at'))
+        notes = list(AICaseNote.objects.filter(conversation_sid=conversation_sid).order_by('-id')[:8])
+        runs = list(AIRun.objects.filter(conversation_sid=conversation_sid).order_by('-id')[:5])
+    except Exception:
+        return None  # tables not migrated yet
+    if not (open_issues or resolved or followups or notes or runs):
+        return None
+    return {'open_issues': open_issues, 'resolved_issues': resolved, 'followups': followups, 'notes': notes, 'runs': runs}
+
+
+@user_has_role('Admin', 'Manager')
+@require_http_methods(["POST"])
+def ai_issue_resolve(request, issue_id):
+    """A manager closes an issue by hand; its pending timers stop, so the AI stops reminding."""
+    issue = get_object_or_404(AIIssue, id=issue_id)
+    if issue.is_open:
+        issue.state = AIIssue.STATE_RESOLVED
+        issue.resolved_at = timezone.now()
+        issue.save()
+        issue.followups.filter(status=AIFollowUp.STATUS_PENDING).update(
+            status=AIFollowUp.STATUS_CANCELLED, status_note='issue resolved by a manager', updated_at=timezone.now(),
+        )
+    return redirect(request.POST.get('next') or f'/chat/{issue.conversation_sid}/')
+
+
+@user_has_role('Admin', 'Manager')
+def ai_issues_view(request):
+    issues = AIIssue.objects.select_related('apartment', 'booking__tenant').prefetch_related('followups')
+    if request.GET.get('all'):
+        title = 'All AI issues'
+    else:
+        issues = issues.exclude(state=AIIssue.STATE_RESOLVED)
+        title = 'Open AI issues'
+    page = Paginator(issues.order_by('-id'), 50).get_page(request.GET.get('page', 1))
+    return render(request, 'ai_issues.html', {
+        'page': page, 'title': title, 'show_all': bool(request.GET.get('all')),
+        'pending_followups': AIFollowUp.objects.filter(status=AIFollowUp.STATUS_PENDING).count(),
+    })
+
+
+@user_has_role('Admin')
+def ai_staff_view(request):
+    """Who is Edy / Kevin / Janna: phone identifies them in the tenant chat, ClickUp id is for routing."""
+    error = None
+    if request.method == 'POST':
+        member = get_object_or_404(StaffMember, id=request.POST['id']) if request.POST.get('id') else StaffMember()
+        try:
+            member.ai_name = (request.POST.get('ai_name') or '').strip()
+            member.full_name = (request.POST.get('full_name') or '').strip() or None
+            member.role = request.POST.get('role') or StaffMember.ROLE_STAFF
+            member.phone = (request.POST.get('phone') or '').strip() or None
+            member.secondary_phone = (request.POST.get('secondary_phone') or '').strip() or None
+            member.clickup_user_id = (request.POST.get('clickup_user_id') or '').strip() or None
+            member.telegram_username = (request.POST.get('telegram_username') or '').strip() or None
+            member.is_active = bool(request.POST.get('is_active'))
+            if not member.ai_name:
+                raise ValueError("AI name is required")
+            member.save()
+            return redirect('/ai-staff/')
+        except Exception as e:
+            error = str(e)
+    return render(request, 'ai_staff.html', {
+        'members': StaffMember.objects.all(), 'roles': StaffMember.ROLE_CHOICES, 'error': error,
     })

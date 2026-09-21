@@ -23,12 +23,17 @@ class Command(BaseCommand):
         from mysite.models import AIEvent
 
         self.stdout.write(f"[{timezone.now():%Y-%m-%d %H:%M:%S}] ai-agent worker started")
-        last_stale_check = 0.0
+        last_stale_check = last_followup_check = 0.0
         while True:
             close_old_connections()
             if time.monotonic() - last_stale_check > 60:
                 service.release_stale_events()
                 last_stale_check = time.monotonic()
+            if time.monotonic() - last_followup_check > 30:
+                fired = service.fire_due_followups()
+                if fired:
+                    self.stdout.write(f"[{timezone.now():%H:%M:%S}] {fired} follow-up(s) became due")
+                last_followup_check = time.monotonic()
 
             batch = service.claim_next_batch()
             if not batch:

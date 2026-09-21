@@ -1,0 +1,204 @@
+"""End-to-end Phase 2 test on a throwaway SQLite DB with a scripted fake Claude."""
+import os, sys, django
+from datetime import date, timedelta
+os.environ["DJANGO_SETTINGS_MODULE"] = "testbed_settings"
+django.setup()
+from django.db import connection
+assert connection.vendor == "sqlite", "refusing to run outside the testbed"
+
+from django.utils import timezone
+from mysite.models import (User, Apartment, Booking, TwilioConversation, TwilioMessage, AIManagement,
+                           AIEvent, AIRun, AIIssue, AIFollowUp, AICaseNote, StaffMember)
+from mysite.ai_agent import service, runner, actions, notify, config
+import mysite.ai_agent.actions as actions_mod
+import mysite.views.messaging as messaging
+
+# ---- capture every outward side effect -------------------------------------------------
+telegram, sms = [], []
+def fake_notify(text): telegram.append(text); return True, "captured"
+actions_mod.notify_ai_chat = fake_notify
+notify.notify_ai_chat = fake_notify
+service.report_error = lambda e, ctx, info=None, source='task': telegram.append(f"ERROR {ctx}: {e}")
+def fake_send(sid, author, message, sender, receiver): sms.append((sid, author, message))
+messaging.send_messsage_by_sid = fake_send
+from django.conf import settings as _s
+config.RUNS_DIR = _s.TESTBED_DIR / "ai_runs"
+config.WORK_DIR = config.RUNS_DIR / "_cwd"
+
+script, inputs_seen = [], []
+def fake_run_claude(system_prompt, user_input, conversation_sid, run_dir, until_message_id=None, model=None):
+    inputs_seen.append(user_input)
+    out = script.pop(0)
+    (run_dir / "01_system_prompt.md").write_text(system_prompt)
+    return {'ok': out is not None, 'error': None if out is not None else 'claude CLI timed out after 180s',
+            'output': out, 'events': [], 'result_event': {}, 'stdout': '', 'stderr': '', 'command': 'fake',
+            'mcp_config': {}, 'model': 'fake-model', 'exit_code': 0, 'duration_ms': 5, 'timed_out': out is None}
+runner.run_claude = fake_run_claude
+
+checks = []
+def check(name, cond, extra=''):
+    checks.append(bool(cond)); print(("PASS " if cond else "FAIL ") + name + (f"  -> {extra}" if extra and not cond else ''))
+
+# ---- fixtures (bulk_create: no model save() side effects such as DocuSeal) --------------
+SID = "CHtest0001"
+User.objects.bulk_create([User(email="t@example.com", full_name="Test Tenant", role="Tenant", phone="+15550001111")])
+tenant = User.objects.get(email="t@example.com")
+Apartment.objects.bulk_create([Apartment(name="630-999", building_n="630", apartment_n="999", street="Test St", state="FL",
+    city="WPB", zip_index="33401", bedrooms=1, bathrooms=1, apartment_type="In Management", status="Available",
+    knowledge_base="WiFi: TestNet / pass123")])
+apt = Apartment.objects.get(name="630-999")
+Booking.objects.bulk_create([Booking(apartment=apt, tenant=tenant, start_date=date.today()-timedelta(days=3),
+    end_date=date.today()+timedelta(days=30), status="Confirmed")])
+booking = Booking.objects.get(apartment=apt)
+TwilioConversation.objects.bulk_create([TwilioConversation(conversation_sid=SID, friendly_name="test", apartment=apt, booking=booking)])
+conv = TwilioConversation.objects.get(conversation_sid=SID)
+AIManagement.objects.bulk_create([AIManagement(name="backend", entry_type="ai_model", prompt_key="ai_backend", content="claude_cli")])
+StaffMember.objects.bulk_create([StaffMember(ai_name="Edy", full_name="Farouk Ahmed", role="operations", phone="+15612205252"),
+                                 StaffMember(ai_name="Janna", full_name="Janna", role="accounting", phone="+15618438867")])
+n = [0]
+def msg(author, body, direction='inbound'):
+    n[0] += 1
+    TwilioMessage.objects.bulk_create([TwilioMessage(message_sid=f"IM{n[0]:04d}", conversation=conv, conversation_sid=SID,
+        author=author, body=body, direction=direction)])
+    return TwilioMessage.objects.get(message_sid=f"IM{n[0]:04d}")
+
+def drain():
+    """What the worker loop does, without waiting."""
+    AIEvent.objects.filter(status='pending').update(created_at=timezone.now()-timedelta(minutes=5))
+    runs = []
+    while True:
+        batch = service.claim_next_batch()
+        if not batch: return runs
+        runs.append(service.process_events(batch))
+
+print("\n=== 1. tenant reports a problem (test mode) ===")
+m1 = msg("+15550001111", "The kitchen sink is dripping")
+check("enqueue returns True on claude_cli backend", service.enqueue_tenant_message(SID, m1.message_sid, m1.body))
+check("same message is not queued twice", service.enqueue_tenant_message(SID, m1.message_sid, m1.body) and AIEvent.objects.count() == 1)
+script.append({'answer': "Thanks for letting us know. I've logged the dripping kitchen sink and passed it to the team.", 'why': 'routine maintenance',
+  'actions': [
+    {'type': 'SCHEDULE_FOLLOWUP', 'issue_id': 'new-1', 'kind': 'staff_reminder', 'reason': 'recheck sink'},   # before CREATE_ISSUE on purpose
+    {'type': 'CREATE_ISSUE', 'temp_id': 'new-1', 'summary': 'Kitchen sink dripping', 'owner': 'Edy', 'state': 'MAINTENANCE_OPEN'},
+    {'type': 'CREATE_TICKET', 'issue_id': 'new-1', 'priority': 'routine', 'title': 'Kitchen sink dripping - 630-999', 'description': 'drips'},
+    {'type': 'INTERNAL_ALERT', 'issue_id': 'new-1', 'priority': 'routine', 'responsible': ['Edy'], 'text': '630-999 sink dripping'},
+    {'type': 'KB_UPDATE', 'key': 'x', 'value': 'y'},
+    {'type': 'DELETE_EVERYTHING'},
+    {'type': 'UPDATE_ISSUE_STATE', 'issue_id': 'i-9999', 'state': 'RESOLVED'},
+  ]})
+run1 = drain()[0]
+issue = AIIssue.objects.get()
+st = {a['action'].get('type'): a['status'] for a in run1.actions}
+check("issue created with state + owner", issue.state == 'MAINTENANCE_OPEN' and issue.owner == 'Edy' and issue.mode == 'test')
+check("ticket title stored on issue", issue.ticket_title == 'Kitchen sink dripping - 630-999')
+check("follow-up created although it came before CREATE_ISSUE", AIFollowUp.objects.filter(issue=issue, kind='staff_reminder', status='pending').count() == 1)
+check("unknown action rejected", st.get('DELETE_EVERYTHING') == 'rejected')
+check("foreign/unknown issue id rejected", st.get('UPDATE_ISSUE_STATE') == 'rejected')
+check("KB_UPDATE only recorded", st.get('KB_UPDATE') == 'simulated')
+check("2 Telegram alerts, marked TEST, staff name resolved", len(telegram) == 2 and all('TEST MODE' in t for t in telegram) and 'Edy (Farouk Ahmed)' in telegram[0], telegram)
+m1.refresh_from_db()
+check("answer stored on message, NOT sent (test mode)", m1.ai_response and m1.ai_sent_to_chat is False and not sms)
+check("run report folder written", os.path.exists(os.path.join(run1.report_dir, 'report.md')) and os.path.exists(os.path.join(run1.report_dir, '07_actions.json')))
+
+print("\n=== 2. follow-up becomes due -> AI is woken ===")
+f1 = AIFollowUp.objects.get()
+check("routine staff reminder is ~24h away and inside staff hours", f1.due_at > timezone.now() + timedelta(hours=20))
+AIFollowUp.objects.filter(id=f1.id).update(due_at=timezone.now() - timedelta(minutes=1))
+check("due follow-up fires one event", service.fire_due_followups() == 1 and service.fire_due_followups() == 0)
+telegram.clear()
+script.append({'answer': 'NO_ANSWER', 'why': 'no update from staff, remind Edy',
+  'actions': [{'type': 'INTERNAL_ALERT', 'issue_id': issue.public_id, 'priority': 'routine', 'responsible': ['Edy'], 'text': 'Reminder: sink still open'},
+              {'type': 'SCHEDULE_FOLLOWUP', 'issue_id': issue.public_id, 'kind': 'staff_reminder', 'reason': 'recheck again'}]})
+run2 = drain()[0]
+seen = inputs_seen[-1]
+check("FOLLOWUP_DUE input shows event, the follow-up, open issue and ticket", all(x in seen for x in ("EVENT: FOLLOWUP_DUE", "followup_id: f-1", "issue_id: i-1", "ticket_id: t-1", "STAFF (authorized")), seen[:600])
+check("reminder delivered + new follow-up scheduled", len(telegram) == 1 and AIFollowUp.objects.filter(status='pending').count() == 1)
+check("run is linked as FOLLOWUP_DUE, no message touched", run2.event_type == 'FOLLOWUP_DUE' and run2.message_id is None)
+
+print("\n=== 3. staff says fixed -> AI asks tenant to confirm ===")
+m2 = msg("+15612205252", "Plumber was there, sink is fixed now", direction='outbound')
+check("staff message queued", service.enqueue_staff_message(SID, m2.message_sid, m2.body))
+script.append({'answer': 'Just checking - is the sink working properly now?', 'why': 'staff reported fixed',
+  'actions': [{'type': 'UPDATE_ISSUE_STATE', 'issue_id': 'i-1', 'state': 'WAITING_FOR_TENANT_CONFIRMATION'},
+              {'type': 'SCHEDULE_FOLLOWUP', 'issue_id': 'i-1', 'kind': 'tenant_nudge', 'reason': 'waiting for confirmation'},
+              {'type': 'CASE_NOTE', 'issue_id': 'i-1', 'text': 'Plumber visited, reported fixed by Edy'}]})
+run3 = drain()[0]
+issue.refresh_from_db()
+check("staff sender shown by name + role STAFF", "Edy (STAFF): Plumber was there" in inputs_seen[-1], inputs_seen[-1][-400:])
+check("state moved, tenant nudge pending, case note saved", issue.state == 'WAITING_FOR_TENANT_CONFIRMATION'
+      and AIFollowUp.objects.filter(kind='tenant_nudge', status='pending').exists() and AICaseNote.objects.filter(issue=issue).count() == 1)
+check("STAFF_MESSAGE run did not overwrite a tenant message's AI fields", run3.event_type == 'STAFF_MESSAGE' and TwilioMessage.objects.get(id=m2.id).ai_response is None)
+
+print("\n=== 4. tenant confirms -> resolved, timers cancelled ===")
+m3 = msg("+15550001111", "Yes all good now, thank you")
+service.enqueue_tenant_message(SID, m3.message_sid, m3.body)
+script.append({'answer': 'NO_ANSWER', 'why': 'confirmed fixed',
+  'actions': [{'type': 'UPDATE_TICKET', 'ticket_id': 't-1', 'status': 'tenant_confirmed_fixed'},
+              {'type': 'UPDATE_ISSUE_STATE', 'issue_id': 'i-1', 'state': 'RESOLVED'}]})
+drain()
+issue.refresh_from_db()
+check("issue RESOLVED with timestamp", issue.state == 'RESOLVED' and issue.resolved_at is not None)
+check("all pending follow-ups cancelled", not AIFollowUp.objects.filter(status='pending').exists())
+check("case notes appear in the next input", "CASE_NOTES" in inputs_seen[-1] and "Plumber visited" in inputs_seen[-1])
+check("ticket update kept as a note on the issue", AICaseNote.objects.filter(issue=issue, text__contains='UPDATE_TICKET').exists())
+
+print("\n=== 5. promise without action -> backend adds the alert ===")
+telegram.clear()
+m4 = msg("+15550001111", "My neighbour is very loud every night")
+service.enqueue_tenant_message(SID, m4.message_sid, m4.body)
+script.append({'answer': "Thank you. I've passed your message to the team.", 'why': 'x', 'actions': []})
+run5 = drain()[0]
+check("backend-added INTERNAL_ALERT executed", len(run5.actions) == 1 and run5.actions[0]['status'] == 'executed' and 'added by backend' in run5.actions[0]['detail'] and len(telegram) == 1)
+
+print("\n=== 6. live mode: answer is really sent; staff-reply guard; burst = one run ===")
+Apartment.objects.filter(id=apt.id).update(ai_group_chat_enabled=True)
+m5 = msg("+15550001111", "what is the wifi")
+m6 = msg("+15550001111", "password?")
+service.enqueue_tenant_message(SID, m5.message_sid, m5.body); service.enqueue_tenant_message(SID, m6.message_sid, m6.body)
+script.append({'answer': 'WiFi is TestNet, password pass123.', 'why': 'kb', 'actions': []})
+runs = drain()
+check("two quick messages -> ONE run, both shown as new", len(runs) == 1 and "what is the wifi" in inputs_seen[-1].split("NEW MESSAGE(S)")[1] and "password?" in inputs_seen[-1].split("NEW MESSAGE(S)")[1])
+check("live answer sent once as Virtual Assistant", sms == [(SID, 'Virtual Assistant', 'WiFi is TestNet, password pass123.')] and runs[0].mode == 'live' and runs[0].sent_to_chat)
+sms.clear()
+m7 = msg("+15550001111", "where do I park?")
+service.enqueue_tenant_message(SID, m7.message_sid, m7.body)
+msg("+15612205252", "Spot 12, right side", direction='outbound')     # staff answers while the AI is "thinking"
+script.append({'answer': 'Parking spot 12.', 'why': 'kb', 'actions': []})
+run7 = drain()[0]
+check("AI answer suppressed because staff replied first", not sms and not run7.sent_to_chat and 'staff replied' in (run7.delivery_note or ''))
+m8 = msg("+15550001111", "ok can you check the AC")
+service.enqueue_tenant_message(SID, m8.message_sid, m8.body, send_allowed=False, source='chat_ui')
+script.append({'answer': 'Which room is the AC in?', 'why': 'clarify', 'actions': []})
+run8 = drain()[0]
+check("'Send to group chat' unticked -> test mode even on a live apartment", run8.mode == 'test' and not sms)
+
+print("\n=== 7. failures and limits ===")
+telegram.clear()
+m9 = msg("+15550001111", "hello anyone there?")
+service.enqueue_tenant_message(SID, m9.message_sid, m9.body)
+script.append(None)                                   # Claude times out
+run9 = drain()[0]
+check("failed run: event failed, error kept, human alerted with the message", AIEvent.objects.get(message=m9).status == 'failed'
+      and 'timed out' in (run9.error or '') and len(telegram) == 1 and 'needs a human' in telegram[0], telegram)
+check("emergency skips the 1-minute wait; normal waits 60s; follow-up 0s",
+      service._batch_wait_seconds([AIEvent(event_type='TENANT_MESSAGE', body='there is smoke in the kitchen', payload={})]) == 0
+      and service._batch_wait_seconds([AIEvent(event_type='TENANT_MESSAGE', body='wifi?', payload={'source': 'webhook'})]) == 60
+      and service._batch_wait_seconds([AIEvent(event_type='FOLLOWUP_DUE', body='x', payload={})]) == 0)
+big = AIIssue.objects.create(conversation_sid=SID, summary='loop test', state='WAITING_FOR_EDY')
+ctx = actions.ActionContext('test', {'apartment': '630-999', 'tenant': 'T'}, 'm', SID, apartment=apt, booking=booking)
+for i in range(12):
+    AIFollowUp.objects.filter(issue=big, status='pending').update(status='fired')
+    res = actions.execute_actions({'answer': None, 'actions': [{'type': 'SCHEDULE_FOLLOWUP', 'issue_id': big.public_id, 'kind': 'staff_reminder', 'reason': 'r'}]}, ctx)
+check("follow-up loop is capped per issue", res[0]['status'] == 'rejected' and big.followups.count() == 8, res)
+other = AIIssue.objects.create(conversation_sid="CHother", summary='other tenant issue', state='WAITING_FOR_EDY')
+res = actions.execute_actions({'answer': None, 'actions': [{'type': 'UPDATE_ISSUE_STATE', 'issue_id': other.public_id, 'state': 'RESOLVED'}]}, ctx)
+other.refresh_from_db()
+check("cannot touch another conversation's issue", res[0]['status'] == 'rejected' and other.state == 'WAITING_FOR_EDY')
+res = actions.execute_actions({'answer': None, 'actions': [{'type': 'CREATE_ISSUE', 'summary': 'replay issue', 'state': 'WAITING_FOR_EDY'}]},
+                              actions.ActionContext('test', {}, 'm', SID, persist=False, notify=False))
+check("replay saves nothing", res[0]['status'] == 'simulated' and not AIIssue.objects.filter(summary='replay issue').exists())
+AIManagement.objects.filter(prompt_key='ai_backend').update(content='openrouter')
+check("backend switched back -> enqueue returns False (legacy AI handles it)", service.enqueue_tenant_message(SID, m9.message_sid, 'x') is False
+      and service.enqueue_staff_message(SID, m2.message_sid, 'some text') is False)
+
+print(f"\n{sum(checks)}/{len(checks)} checks passed")
+sys.exit(0 if all(checks) else 1)

@@ -2,26 +2,21 @@
 Queue + processing for the AI agent.
 
 enqueue_tenant_message()  called from the Twilio webhook / chat UI (fast, no AI call)
+enqueue_staff_message()   same, for a manager's message in a tenant chat
+fire_due_followups()      worker tick: due AIFollowUp -> FOLLOWUP_DUE event
 process_events()          called by the run_ai_agent worker for one conversation batch
-run_agent()               one Claude run + run report, no sending (also used by ai_agent_replay)
+run_agent()               one Claude run, no sending, no saving (also used by ai_agent_replay)
 """
+import os
 import re
+from datetime import timedelta
 
 from django.utils import timezone
 
+from mysite.ai_agent import actions as agent_actions
 from mysite.ai_agent import config, inputs, prompts, run_report, runner
-from mysite.ai_agent.notify import notify_ai_chat, report_error
+from mysite.ai_agent.notify import report_error
 from mysite.unified_logger import log_info, log_warning
-
-ACTION_TYPES = frozenset([
-    'CREATE_ISSUE', 'UPDATE_ISSUE_STATE', 'CREATE_TICKET', 'TICKET_COMMENT', 'UPDATE_TICKET',
-    'INTERNAL_ALERT', 'QUEUE_FOR_REVIEW', 'SCHEDULE_FOLLOWUP', 'CANCEL_FOLLOWUP', 'KB_UPDATE', 'CASE_NOTE',
-])
-# Until issue tracking / ClickUp are connected, these are the actions staff must actually see
-FORWARDED_ACTION_TYPES = frozenset(['INTERNAL_ALERT', 'QUEUE_FOR_REVIEW', 'CREATE_TICKET'])
-# Actions that make "I've logged it / passed it to the team" true
-LOGGING_ACTION_TYPES = FORWARDED_ACTION_TYPES | {'CREATE_ISSUE'}
-_PROMISE = re.compile(r"\b(logged|passed (it|this|that|your message) (on )?to|reported this|let the team know)\b", re.I)
 
 # A message that looks like an emergency is never held back by the 1-minute wait
 _EMERGENCY = re.compile(
@@ -29,14 +24,29 @@ _EMERGENCY = re.compile(
     r"sparks?|burning|break[- ]?in|broke in|intruder|injur(y|ed)|bleeding|ambulance|911|emergency)\b", re.I,
 )
 
-STATUS_EXECUTED = 'executed'
-STATUS_SIMULATED = 'simulated'
-STATUS_REJECTED = 'rejected'
-
 
 # ---------------------------------------------------------------------------
 # Enqueue (webhook / chat UI side)
 # ---------------------------------------------------------------------------
+
+def _enqueue_message(event_type, conversation_sid, message_sid, body, send_allowed, payload):
+    """Creates one AIEvent per stored message. Returns the event, or None when it already exists."""
+    from mysite.models import AIEvent, TwilioConversation, TwilioMessage
+
+    conversation = TwilioConversation.objects.filter(conversation_sid=conversation_sid).first()
+    message = TwilioMessage.objects.filter(message_sid=message_sid).first() if message_sid else None
+    existing = AIEvent.objects.filter(message=message, event_type=event_type) if message else None
+    if existing is not None and existing.exists():
+        if payload.get('source') == 'chat_ui':
+            # The Twilio webhook may have queued the same message first; the chat UI knows
+            # whether the manager ticked "Send to group chat"
+            existing.filter(status=AIEvent.STATUS_PENDING).update(send_allowed=bool(send_allowed), payload=payload)
+        return None
+    return AIEvent.objects.create(
+        event_type=event_type, conversation=conversation, conversation_sid=conversation_sid,
+        message=message, body=body, send_allowed=bool(send_allowed), payload=payload,
+    )
+
 
 def enqueue_tenant_message(conversation_sid, message_sid, body, send_allowed=True,
                            reply_author='Virtual Assistant', sender_phone=None, source='webhook'):
@@ -49,42 +59,83 @@ def enqueue_tenant_message(conversation_sid, message_sid, body, send_allowed=Tru
             return False
 
         from mysite.group_chat_logger import log_ai_customer_skipped, log_ai_customer_start
-        from mysite.models import AIEvent, TwilioConversation, TwilioMessage
+        from mysite.models import AIEvent
         from mysite.views.messaging import _is_skippable_message
 
         if _is_skippable_message(body):
             log_ai_customer_skipped(conversation_sid, body)
             return True
 
-        conversation = TwilioConversation.objects.filter(conversation_sid=conversation_sid).first()
-        message = TwilioMessage.objects.filter(message_sid=message_sid).first() if message_sid else None
         payload = {'reply_author': reply_author, 'sender_phone': sender_phone, 'source': source}
-        existing = AIEvent.objects.filter(message=message, event_type=AIEvent.TYPE_TENANT_MESSAGE) if message else None
-        if existing is not None and existing.exists():
-            if source == 'chat_ui':
-                # The Twilio webhook may have queued the same message first; the chat UI knows
-                # whether the manager ticked "Send to group chat"
-                existing.filter(status=AIEvent.STATUS_PENDING).update(send_allowed=bool(send_allowed), payload=payload)
-            return True
-
-        AIEvent.objects.create(
-            event_type=AIEvent.TYPE_TENANT_MESSAGE,
-            conversation=conversation,
-            conversation_sid=conversation_sid,
-            message=message,
-            body=body,
-            send_allowed=bool(send_allowed),
-            payload=payload,
-        )
-        log_ai_customer_start(
-            conversation_sid, reply_author, body,
-            getattr(conversation, 'apartment_id', None), getattr(conversation, 'booking_id', None),
-        )
+        event = _enqueue_message(AIEvent.TYPE_TENANT_MESSAGE, conversation_sid, message_sid, body, send_allowed, payload)
+        if event:
+            conversation = event.conversation
+            log_ai_customer_start(
+                conversation_sid, reply_author, body,
+                getattr(conversation, 'apartment_id', None), getattr(conversation, 'booking_id', None),
+            )
         return True
     except Exception as e:
         # Never lose a tenant message because of the queue: fall back to the legacy path
         report_error(e, "could not queue a tenant message, the old AI handled it instead", source='webhook')
         return False
+
+
+def enqueue_staff_message(conversation_sid, message_sid, body, source='webhook'):
+    """
+    A manager wrote in a tenant chat: the AI updates issues / follow-ups (normally without replying).
+    Runs next to the legacy knowledge-base extraction, never instead of it. Returns True when queued.
+    AI_AGENT_STAFF_EVENTS: all (default) | open_issues (only chats with open issues or follow-ups) | off
+    """
+    try:
+        if not config.is_agent_backend_enabled():
+            return False
+        from mysite.models import AIEvent, AIFollowUp, AIIssue
+        from mysite.views.messaging import _is_skippable_message
+
+        setting = os.environ.get('AI_AGENT_STAFF_EVENTS', 'all').lower()
+        if setting == 'off' or _is_skippable_message(body):
+            return False
+        if setting == 'open_issues':
+            has_work = (
+                AIIssue.objects.filter(conversation_sid=conversation_sid).exclude(state=AIIssue.STATE_RESOLVED).exists()
+                or AIFollowUp.objects.filter(conversation_sid=conversation_sid, status=AIFollowUp.STATUS_PENDING).exists()
+            )
+            if not has_work:
+                return False
+        payload = {'source': source}
+        return _enqueue_message(AIEvent.TYPE_STAFF_MESSAGE, conversation_sid, message_sid, body, True, payload) is not None
+    except Exception as e:
+        report_error(e, "could not queue a staff message for the AI agent", source='webhook')
+        return False
+
+
+def fire_due_followups():
+    """Due follow-ups become FOLLOWUP_DUE events. Returns how many were fired."""
+    from mysite.models import AIEvent, AIFollowUp, TwilioConversation
+
+    fired = 0
+    due = AIFollowUp.objects.filter(status=AIFollowUp.STATUS_PENDING, due_at__lte=timezone.now()).select_related('issue')
+    for followup in due[:50]:
+        claimed = AIFollowUp.objects.filter(id=followup.id, status=AIFollowUp.STATUS_PENDING).update(
+            status=AIFollowUp.STATUS_FIRED, updated_at=timezone.now(),
+        )
+        if not claimed:
+            continue
+        if followup.issue and not followup.issue.is_open:
+            AIFollowUp.objects.filter(id=followup.id).update(
+                status=AIFollowUp.STATUS_CANCELLED, status_note='issue already resolved - AI not woken',
+            )
+            continue
+        AIEvent.objects.create(
+            event_type=AIEvent.TYPE_FOLLOWUP_DUE,
+            conversation=TwilioConversation.objects.filter(conversation_sid=followup.conversation_sid).first(),
+            conversation_sid=followup.conversation_sid,
+            body=followup.reason,
+            payload={'followup_id': followup.id, 'source': 'followup'},
+        )
+        fired += 1
+    return fired
 
 
 # ---------------------------------------------------------------------------
@@ -105,13 +156,15 @@ def _parse_output(output):
     }
 
 
-def run_agent(event_type, conversation_sid, apartment, booking, trigger_messages, mode, body_override=None, now=None):
+def run_agent(event_type, conversation_sid, apartment, booking, trigger_messages, mode,
+              body_override=None, now=None, extra_block=None):
     """Runs Claude once. Returns a dict with everything needed for delivery and for the report."""
     started_at = timezone.now()
     run_dir = run_report.new_run_dir(conversation_sid, apartment, event_type)
     system_prompt, system_source = prompts.get_system_prompt()
     user_input, sources = inputs.build_agent_input(
-        event_type, conversation_sid, apartment, booking, trigger_messages, body_override=body_override, now=now,
+        event_type, conversation_sid, apartment, booking, trigger_messages,
+        body_override=body_override, now=now, extra_block=extra_block,
     )
     until_id = trigger_messages[-1].id if trigger_messages else None
     run = runner.run_claude(system_prompt, user_input, conversation_sid, run_dir, until_message_id=until_id)
@@ -146,67 +199,8 @@ def run_agent(event_type, conversation_sid, apartment, booking, trigger_messages
 
 
 # ---------------------------------------------------------------------------
-# Actions + delivery
+# Delivery
 # ---------------------------------------------------------------------------
-
-def _alert_text(action, meta, new_messages_text, is_test=False):
-    priority = str(action.get('priority') or 'routine').upper()
-    responsible = action.get('responsible') or action.get('owner') or ''
-    if isinstance(responsible, list):
-        responsible = ", ".join(str(r) for r in responsible)
-    text = action.get('text') or action.get('description') or action.get('title') or action.get('summary') or ''
-    return (
-        f"{'🧪 TEST MODE (tenant was NOT answered) - ' if is_test else ''}🤖 AI {action.get('type')} [{priority}]\n"
-        f"Unit: {meta.get('apartment')} | Tenant: {meta.get('tenant')}\n"
-        f"For: {responsible or 'team'}\n\n{text}\n\n"
-        f"Tenant message:\n{new_messages_text[:1500]}"
-    )
-
-
-def handle_actions(parsed, mode, meta, new_messages_text, forward_alerts=True):
-    """
-    Validates actions and returns [{'action', 'status', 'detail'}].
-    Alerts go to the AI Telegram chat in live AND test mode (test alerts are marked).
-    forward_alerts=False (replay) records everything without notifying anyone.
-    """
-    from mysite.models import AIRun
-
-    actions = list(parsed.get('actions') or [])
-    answer = parsed.get('answer') or ''
-    emitted = {a.get('type') for a in actions if isinstance(a, dict)}
-    backend_added = None
-    if answer and _PROMISE.search(answer) and not (emitted & LOGGING_ACTION_TYPES):
-        backend_added = {
-            'type': 'INTERNAL_ALERT', 'priority': 'routine', 'responsible': ['Edy'],
-            'text': f"AI told the tenant the matter was passed to the team: \"{answer}\"",
-        }
-        actions.append(backend_added)
-
-    results = []
-    for action in actions:
-        if not isinstance(action, dict) or action.get('type') not in ACTION_TYPES:
-            results.append({'action': action, 'status': STATUS_REJECTED, 'detail': 'unknown action type'})
-            continue
-        detail = ''
-        if action is backend_added:
-            detail = 'added by backend: the answer promised escalation but no matching action was emitted. '
-        is_test = mode != AIRun.MODE_LIVE
-        if action['type'] in FORWARDED_ACTION_TYPES and not forward_alerts:
-            results.append({'action': action, 'status': STATUS_SIMULATED, 'detail': detail + 'replay - nobody notified'})
-        elif action['type'] in FORWARDED_ACTION_TYPES:
-            ok, note = notify_ai_chat(_alert_text(action, meta, new_messages_text, is_test))
-            results.append({
-                'action': action,
-                'status': STATUS_EXECUTED if ok else STATUS_REJECTED,
-                'detail': detail + note,
-            })
-        else:
-            results.append({
-                'action': action, 'status': STATUS_SIMULATED,
-                'detail': detail + ('test mode, ' if is_test else '') + 'recorded only (issue tracking not connected yet)',
-            })
-    return results
-
 
 def _staff_replied_after(conversation_sid, last_message):
     from mysite.models import TwilioMessage
@@ -221,9 +215,7 @@ def deliver(parsed, mode, conversation_sid, booking, last_message, payload):
     """Sends the answer to the Twilio group chat in live mode. Returns {'sent_to_chat', 'note'}."""
     from mysite.group_chat_logger import log_ai_customer_no_answer, log_ai_customer_sent, log_ai_disabled
     from mysite.models import AIRun
-    from mysite.views.messaging import (
-        TWILIO_ASSISTANT_PHONE, send_messsage_by_sid,
-    )
+    from mysite.views.messaging import TWILIO_ASSISTANT_PHONE, send_messsage_by_sid
 
     answer = parsed.get('answer')
     if not answer:
@@ -265,6 +257,33 @@ def _finish_events(events, status, error=None):
     )
 
 
+def _batch_event_type(events):
+    """One run handles the whole batch; the most important event names it."""
+    from mysite.models import AIEvent
+    types = {e.event_type for e in events}
+    for event_type in (AIEvent.TYPE_TENANT_MESSAGE, AIEvent.TYPE_STAFF_MESSAGE, AIEvent.TYPE_FOLLOWUP_DUE):
+        if event_type in types:
+            return event_type
+    return events[-1].event_type
+
+
+def _followup_block(events):
+    """Text for the AI about the follow-up(s) that became due."""
+    from mysite.models import AIEvent, AIFollowUp
+
+    ids = [(e.payload or {}).get('followup_id') for e in events if e.event_type == AIEvent.TYPE_FOLLOWUP_DUE]
+    followups = AIFollowUp.objects.filter(id__in=[i for i in ids if i]).select_related('issue')
+    if not followups:
+        return None
+    lines = ["FOLLOWUP_DUE (re-check the current state before acting; cancel or do nothing when it is no longer needed):"]
+    for f in followups:
+        lines.append(
+            f"- followup_id: {f.public_id} | kind: {f.kind} | issue_id: {f.issue.public_id if f.issue else '-'} | "
+            f"scheduled: {f.created_at.astimezone(inputs._team_tz()).strftime('%Y-%m-%d %H:%M')} | reason: {f.reason or '-'}"
+        )
+    return "\n".join(lines)
+
+
 def process_events(events):
     """
     events: pending AIEvent rows of ONE conversation (oldest first), already marked running.
@@ -284,75 +303,90 @@ def process_events(events):
 
     apartment = Apartment.objects.prefetch_related('managers').select_related('owner').get(id=conversation.apartment_id)
     booking = Booking.objects.select_related('tenant').get(id=conversation.booking_id)
-    trigger_messages = [e.message for e in events if e.message_id]
+    event_type = _batch_event_type(events)
+    trigger_messages = sorted((e.message for e in events if e.message_id), key=lambda m: (m.message_timestamp, m.id))
+    tenant_events = [e for e in events if e.event_type == AIEvent.TYPE_TENANT_MESSAGE]
     last_message = trigger_messages[-1] if trigger_messages else None
+    last_tenant_message = next((e.message for e in reversed(tenant_events) if e.message_id), None)
     live = all(e.send_allowed for e in events) and _should_send_ai_to_group(apartment)
     mode = AIRun.MODE_LIVE if live else AIRun.MODE_TEST
+    reply_payload = (tenant_events[-1].payload if tenant_events else None) or {}
 
     outcome = run_agent(
-        last_event.event_type, conversation_sid, apartment, booking, trigger_messages, mode,
-        body_override="\n".join(e.body or '' for e in events),
+        event_type, conversation_sid, apartment, booking, trigger_messages, mode,
+        body_override="\n".join(e.body or '' for e in tenant_events if not e.message_id) or None,
+        extra_block=_followup_block(events),
     )
     run, parsed, meta = outcome['run'], outcome['parsed'], outcome['meta']
 
-    actions, delivery = [], {'sent_to_chat': False, 'note': 'run failed - nothing sent'}
+    ai_run = AIRun.objects.create(
+        event=last_event, conversation_sid=conversation_sid, message=last_tenant_message or last_message,
+        event_type=event_type, mode=mode, model=run.get('model'),
+        report_dir=str(outcome['run_dir']), error=run.get('error'),
+    )
+    meta['run_id'] = ai_run.id
+    meta['event_ids'] = [e.id for e in events]
+
+    action_results, delivery = [], {'sent_to_chat': False, 'note': 'run failed - nothing sent'}
     if parsed:
-        delivery = deliver(parsed, mode, conversation_sid, booking, last_message, last_event.payload or {})
-        actions = handle_actions(parsed, mode, meta, outcome['new_messages_text'])
-        if last_message:
+        delivery = deliver(parsed, mode, conversation_sid, booking, last_message, reply_payload)
+        action_results = agent_actions.execute_actions(parsed, agent_actions.ActionContext(
+            mode, meta, outcome['new_messages_text'], conversation_sid,
+            apartment=apartment, booking=booking, ai_run=ai_run,
+        ))
+        if last_tenant_message:
             _persist_customer_ai_result(
-                last_message.message_sid,
+                last_tenant_message.message_sid,
                 {'answer': parsed['answer'], 'why': parsed['why']},
                 sent_to_chat=delivery['sent_to_chat'],
             )
 
-    ai_run = AIRun.objects.create(
-        event=last_event, conversation_sid=conversation_sid, message=last_message,
-        event_type=last_event.event_type, mode=mode, model=run.get('model'),
-        answer=parsed['answer'] if parsed else None,
-        why=parsed['why'] if parsed else None,
-        no_answer=bool(parsed and parsed['no_answer']),
-        actions=actions, sent_to_chat=delivery['sent_to_chat'], delivery_note=(delivery.get('note') or '')[:255],
-        report_dir=str(outcome['run_dir']), error=run.get('error') or delivery.get('error'),
-    )
-    meta['run_id'] = ai_run.id
-    meta['event_ids'] = [e.id for e in events]
     summary = run_report.write_report(
-        outcome['run_dir'], meta, outcome['user_input'], run, parsed, actions, delivery,
+        outcome['run_dir'], meta, outcome['user_input'], run, parsed, action_results, delivery,
         new_messages_text=outcome['new_messages_text'],
     )
     AIRun.objects.filter(id=ai_run.id).update(
+        answer=parsed['answer'] if parsed else None,
+        why=parsed['why'] if parsed else None,
+        no_answer=bool(parsed and parsed['no_answer']),
+        actions=action_results, sent_to_chat=delivery['sent_to_chat'],
+        delivery_note=(delivery.get('note') or '')[:255],
+        error=run.get('error') or delivery.get('error'),
         session_id=summary['session_id'],
         input_tokens=summary['input_tokens'], output_tokens=summary['output_tokens'],
         cache_read_tokens=summary['cache_read_tokens'], cache_write_tokens=summary['cache_write_tokens'],
         cost_usd=summary['cost_usd'], num_turns=summary['num_turns'],
         tool_calls=len(summary['tool_calls']), duration_ms=summary['duration_ms'],
     )
+    ai_run.refresh_from_db()
 
     if parsed:
         _finish_events(events, AIEvent.STATUS_DONE)
         log_info(
-            f"AI agent run #{ai_run.id} {mode} {meta['apartment']}: "
-            f"{'NO_ANSWER' if parsed['no_answer'] else 'ANSWER'}, {len(actions)} actions, ${summary['cost_usd']:.4f}",
+            f"AI agent run #{ai_run.id} {event_type} {mode} {meta['apartment']}: "
+            f"{'NO_ANSWER' if parsed['no_answer'] else 'ANSWER'}, {len(action_results)} actions, ${summary['cost_usd']:.4f}",
             category='sms',
         )
     else:
         _finish_events(events, AIEvent.STATUS_FAILED, run.get('error'))
         log_ai_error(conversation_sid, "ai_agent", run.get('error') or 'unknown error')
-        # The tenant message must still reach a human when the AI is down
+        # The message must still reach a human when the AI is down
         report_error(
             Exception(run.get('error') or 'AI agent run failed'),
-            f"run failed - tenant message needs a human ({meta['apartment']})",
+            f"run failed - {event_type} needs a human ({meta['apartment']})",
             {
                 'tenant': meta.get('tenant'), 'conversation_sid': conversation_sid,
-                'tenant_message': outcome['new_messages_text'], 'report': f"/ai-runs/{ai_run.id}/",
+                'message': outcome['new_messages_text'], 'report': f"/ai-runs/{ai_run.id}/",
             },
         )
     return ai_run
 
 
 def _batch_wait_seconds(batch):
-    if any(_EMERGENCY.search(e.body or '') for e in batch):
+    from mysite.models import AIEvent
+    if any(_EMERGENCY.search(e.body or '') for e in batch if e.event_type == AIEvent.TYPE_TENANT_MESSAGE):
+        return 0
+    if all(e.event_type == AIEvent.TYPE_FOLLOWUP_DUE for e in batch):
         return 0
     if all((e.payload or {}).get('source') == 'chat_ui' for e in batch):
         return config.chat_ui_debounce_seconds()
@@ -361,11 +395,9 @@ def _batch_wait_seconds(batch):
 
 def claim_next_batch():
     """
-    Picks the oldest pending conversation whose newest pending event is older than the debounce
-    window, marks its events running and returns them (oldest first). Returns [] when idle.
+    Picks the oldest pending conversation whose newest pending event is older than its wait
+    time, marks its events running and returns them (oldest first). Returns [] when idle.
     """
-    from datetime import timedelta
-
     from mysite.models import AIEvent
 
     now = timezone.now()
@@ -392,8 +424,6 @@ def claim_next_batch():
 
 def release_stale_events(max_attempts=2):
     """Events left 'running' by a crashed worker go back to pending (or fail after max_attempts)."""
-    from datetime import timedelta
-
     from mysite.models import AIEvent
 
     stale_before = timezone.now() - timedelta(seconds=config.run_timeout_seconds() + 120)

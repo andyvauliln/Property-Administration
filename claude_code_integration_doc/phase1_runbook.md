@@ -17,7 +17,7 @@ steps below are done. The old OpenRouter AI keeps working exactly as before.
 
 ## Turn it on
 
-1. **Apply the migration** (2 new tables, nothing else is altered):
+1. **Apply the migrations** `0083` + `0084` (6 new tables and 4 seeded staff rows; no existing table is altered):
    `python manage.py migrate mysite`
 2. **Claude login for the worker.** Production should use an API key: put `ANTHROPIC_API_KEY=...`
    in `.env` (optionally `AI_AGENT_CLI_BARE=true`). For a first trial with an existing CLI login:

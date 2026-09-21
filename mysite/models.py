@@ -2683,6 +2683,229 @@ class AIRun(models.Model):
         return []
 
 
+class StaffMember(models.Model):
+    """
+    Who the AI agent talks about. The AI only uses ai_name ("Edy", "Kevin", "Janna");
+    phone identifies the person in the tenant chat, clickup_user_id is for ClickUp routing.
+    """
+
+    ROLE_OWNER = 'owner'
+    ROLE_OPERATIONS = 'operations'
+    ROLE_SUPERVISOR = 'supervisor'
+    ROLE_ACCOUNTING = 'accounting'
+    ROLE_ENGINEERING = 'engineering'
+    ROLE_STAFF = 'staff'
+    ROLE_CHOICES = [
+        (ROLE_OWNER, 'Owner of the company'),
+        (ROLE_OPERATIONS, 'Property manager (operations, maintenance, tenant requests)'),
+        (ROLE_SUPERVISOR, 'Supervisor (escalations, sensitive matters)'),
+        (ROLE_ACCOUNTING, 'Accounting (payments, deposits, refunds)'),
+        (ROLE_ENGINEERING, 'Engineering (AI / system errors)'),
+        (ROLE_STAFF, 'Other authorized staff'),
+    ]
+
+    ai_name = models.CharField(max_length=50, unique=True, help_text='Name the AI uses for this person, e.g. Edy')
+    full_name = models.CharField(max_length=255, blank=True, null=True)
+    role = models.CharField(max_length=20, choices=ROLE_CHOICES, default=ROLE_STAFF)
+    phone = models.CharField(max_length=20, blank=True, null=True, db_index=True)
+    secondary_phone = models.CharField(max_length=20, blank=True, null=True, db_index=True)
+    clickup_user_id = models.CharField(max_length=30, blank=True, null=True)
+    telegram_username = models.CharField(max_length=100, blank=True, null=True)
+    is_active = models.BooleanField(default=True)
+
+    created_by = models.CharField(max_length=255, blank=True, null=True, editable=False)
+    last_updated_by = models.CharField(max_length=255, blank=True, null=True, editable=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['ai_name']
+
+    def __str__(self):
+        return f"{self.ai_name} ({self.get_role_display()})"
+
+    def save(self, *args, **kwargs):
+        from mysite.request_context import apply_user_tracking
+        updated_by = kwargs.pop('updated_by', None)
+        apply_user_tracking(self, updated_by)
+        for field in ('phone', 'secondary_phone'):
+            value = getattr(self, field)
+            if value:
+                formatted = validate_and_format_phone(value)
+                if not formatted:
+                    raise ValueError(f"Invalid phone number: {value}")
+                setattr(self, field, formatted)
+        super().save(*args, **kwargs)
+
+    @property
+    def phones(self):
+        return [p for p in (self.phone, self.secondary_phone) if p]
+
+    @property
+    def links(self):
+        return []
+
+
+class AIIssue(models.Model):
+    """Something the AI agent tracks until it is really resolved (Farid's prompt, step 3)."""
+
+    STATE_WAITING_FOR_TENANT = 'WAITING_FOR_TENANT'
+    STATE_WAITING_FOR_EDY = 'WAITING_FOR_EDY'
+    STATE_WAITING_FOR_JANNA = 'WAITING_FOR_JANNA'
+    STATE_WAITING_FOR_KEVIN = 'WAITING_FOR_KEVIN'
+    STATE_STAFF_HANDLING = 'STAFF_HANDLING'
+    STATE_MAINTENANCE_OPEN = 'MAINTENANCE_OPEN'
+    STATE_WAITING_FOR_TENANT_CONFIRMATION = 'WAITING_FOR_TENANT_CONFIRMATION'
+    STATE_ESCALATED_SENSITIVE = 'ESCALATED_SENSITIVE'
+    STATE_RESOLVED = 'RESOLVED'
+    STATE_CHOICES = [
+        (STATE_WAITING_FOR_TENANT, 'Waiting for tenant'),
+        (STATE_WAITING_FOR_EDY, 'Waiting for Edy'),
+        (STATE_WAITING_FOR_JANNA, 'Waiting for Janna'),
+        (STATE_WAITING_FOR_KEVIN, 'Waiting for Kevin'),
+        (STATE_STAFF_HANDLING, 'Staff handling'),
+        (STATE_MAINTENANCE_OPEN, 'Maintenance open'),
+        (STATE_WAITING_FOR_TENANT_CONFIRMATION, 'Waiting for tenant confirmation'),
+        (STATE_ESCALATED_SENSITIVE, 'Escalated (sensitive)'),
+        (STATE_RESOLVED, 'Resolved'),
+    ]
+    PRIORITY_CHOICES = [('routine', 'Routine'), ('urgent', 'Urgent'), ('emergency', 'Emergency')]
+
+    conversation_sid = models.CharField(max_length=100, db_index=True)
+    apartment = models.ForeignKey(Apartment, on_delete=models.SET_NULL, null=True, blank=True, related_name='ai_issues')
+    booking = models.ForeignKey(Booking, on_delete=models.SET_NULL, null=True, blank=True, related_name='ai_issues')
+    summary = models.CharField(max_length=500)
+    owner = models.CharField(max_length=50, blank=True, null=True)  # StaffMember.ai_name
+    state = models.CharField(max_length=40, choices=STATE_CHOICES, default=STATE_WAITING_FOR_EDY, db_index=True)
+    priority = models.CharField(max_length=10, choices=PRIORITY_CHOICES, default='routine')
+    # Ticket requested by the AI; becomes a ClickUp task id when ClickUp is connected
+    ticket_title = models.CharField(max_length=255, blank=True, null=True)
+    ticket_ref = models.CharField(max_length=100, blank=True, null=True)
+    # 'test' when created while the apartment was in test mode
+    mode = models.CharField(max_length=10, default='test')
+    created_by_run = models.ForeignKey(AIRun, on_delete=models.SET_NULL, null=True, blank=True, related_name='created_issues')
+    resolved_at = models.DateTimeField(null=True, blank=True)
+
+    created_by = models.CharField(max_length=255, blank=True, null=True, editable=False)
+    last_updated_by = models.CharField(max_length=255, blank=True, null=True, editable=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-id']
+
+    def __str__(self):
+        return f"{self.public_id} [{self.state}] {self.summary[:60]}"
+
+    def save(self, *args, **kwargs):
+        from mysite.request_context import apply_user_tracking
+        updated_by = kwargs.pop('updated_by', None)
+        apply_user_tracking(self, updated_by)
+        super().save(*args, **kwargs)
+
+    @property
+    def public_id(self):
+        """Id as the AI sees it."""
+        return f"i-{self.id}"
+
+    @property
+    def is_open(self):
+        return self.state != self.STATE_RESOLVED
+
+    @property
+    def links(self):
+        return []
+
+
+class AIFollowUp(models.Model):
+    """Server-side timer: when due, the worker wakes the AI with EVENT=FOLLOWUP_DUE."""
+
+    KIND_TENANT_NUDGE = 'tenant_nudge'
+    KIND_SECOND_TENANT_NUDGE = 'second_tenant_nudge'
+    KIND_STAFF_REMINDER = 'staff_reminder'
+    KIND_ESCALATION_CHECK = 'escalation_check'
+    KIND_CHOICES = [
+        (KIND_TENANT_NUDGE, 'Tenant nudge'),
+        (KIND_SECOND_TENANT_NUDGE, 'Second tenant nudge'),
+        (KIND_STAFF_REMINDER, 'Staff reminder'),
+        (KIND_ESCALATION_CHECK, 'Escalation check'),
+    ]
+
+    STATUS_PENDING = 'pending'
+    STATUS_FIRED = 'fired'
+    STATUS_CANCELLED = 'cancelled'
+    STATUS_CHOICES = [
+        (STATUS_PENDING, 'Pending'),
+        (STATUS_FIRED, 'Fired'),
+        (STATUS_CANCELLED, 'Cancelled'),
+    ]
+
+    conversation_sid = models.CharField(max_length=100, db_index=True)
+    issue = models.ForeignKey(AIIssue, on_delete=models.CASCADE, null=True, blank=True, related_name='followups')
+    kind = models.CharField(max_length=30, choices=KIND_CHOICES)
+    reason = models.TextField(blank=True, null=True)
+    due_at = models.DateTimeField(db_index=True)
+    status = models.CharField(max_length=10, choices=STATUS_CHOICES, default=STATUS_PENDING, db_index=True)
+    status_note = models.CharField(max_length=255, blank=True, null=True)
+    created_by_run = models.ForeignKey(AIRun, on_delete=models.SET_NULL, null=True, blank=True, related_name='created_followups')
+
+    created_by = models.CharField(max_length=255, blank=True, null=True, editable=False)
+    last_updated_by = models.CharField(max_length=255, blank=True, null=True, editable=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['due_at']
+
+    def __str__(self):
+        return f"{self.public_id} {self.kind} [{self.status}] due {self.due_at:%Y-%m-%d %H:%M}"
+
+    def save(self, *args, **kwargs):
+        from mysite.request_context import apply_user_tracking
+        updated_by = kwargs.pop('updated_by', None)
+        apply_user_tracking(self, updated_by)
+        super().save(*args, **kwargs)
+
+    @property
+    def public_id(self):
+        return f"f-{self.id}"
+
+    @property
+    def links(self):
+        return []
+
+
+class AICaseNote(models.Model):
+    """One-off arrangement or fact for this tenant/stay. Never goes into the knowledge base."""
+
+    conversation_sid = models.CharField(max_length=100, db_index=True)
+    booking = models.ForeignKey(Booking, on_delete=models.SET_NULL, null=True, blank=True, related_name='ai_case_notes')
+    issue = models.ForeignKey(AIIssue, on_delete=models.SET_NULL, null=True, blank=True, related_name='case_notes')
+    text = models.TextField()
+    created_by_run = models.ForeignKey(AIRun, on_delete=models.SET_NULL, null=True, blank=True, related_name='created_case_notes')
+
+    created_by = models.CharField(max_length=255, blank=True, null=True, editable=False)
+    last_updated_by = models.CharField(max_length=255, blank=True, null=True, editable=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-id']
+
+    def __str__(self):
+        return self.text[:80]
+
+    def save(self, *args, **kwargs):
+        from mysite.request_context import apply_user_tracking
+        updated_by = kwargs.pop('updated_by', None)
+        apply_user_tracking(self, updated_by)
+        super().save(*args, **kwargs)
+
+    @property
+    def links(self):
+        return []
+
+
 def send_telegram_message(chat_id, token, message):
     if chat_id and token:
         url = f"https://api.telegram.org/bot{token}/sendMessage"

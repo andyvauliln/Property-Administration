@@ -1,0 +1,12 @@
+#!/bin/bash
+# AI agent tests on a throwaway SQLite database: fake Claude, no Telegram, no Twilio, no cost.
+# Usage: bash claude_code_integration_doc/testbed/run_tests.sh      (from the project root)
+set -e
+HERE="$(cd "$(dirname "$0")" && pwd)"
+ROOT="$(cd "$HERE/../.." && pwd)"
+cd "$ROOT"
+export PYTHONPATH="$HERE:$ROOT" DJANGO_SETTINGS_MODULE=testbed_settings
+rm -rf "${TMPDIR:-/tmp}/ai_agent_testbed"
+./venv/bin/python manage.py migrate --run-syncdb > /dev/null 2>&1
+./venv/bin/python "$HERE/e2e_phase2.py" 2>&1 | grep -E "^(===|PASS|FAIL|[0-9]+/)"
+./venv/bin/python "$HERE/ui_test.py" 2>&1 | grep -E "^(PASS|FAIL|[0-9]+/)"

@@ -106,7 +106,7 @@ Only the **per-apartment** switch is active now.
 |---|---|
 | What to say to the tenant (or to stay silent) | Whether the message is really sent (test mode / live) |
 | What the team needs to do and who owns it | How the team is notified (Telegram now, ClickUp later) |
-| How urgent it is | Timers and reminders (later phases) |
+| How urgent it is | When reminders fire (timers live in the CRM) |
 
 Claude never sends anything itself. It only returns text and a list of requests; the CRM does the rest.
 
@@ -152,9 +152,23 @@ page says the AI is not ready and nothing is run.
 
 ## Messages from managers
 
-When a manager writes in the chat, the AI does not answer. The old logic still runs here: it checks
-whether the manager said something reusable (new WiFi password, parking spot) and saves it to the
-knowledge base. This part moves to Claude in a later phase.
+When a manager writes in the tenant chat, two things happen:
+1. Claude is woken with `STAFF_MESSAGE`. It normally says nothing to the tenant; it updates its
+   issues ("Edy is handling this"), stops reminders that are no longer needed, and sets a tenant
+   reminder if the manager asked the tenant for something.
+2. The old logic still checks whether the manager said something reusable (new WiFi password,
+   parking spot) and saves it to the knowledge base. This part moves to Claude in Phase 3.
+
+## Issues and reminders (Phase 2)
+
+- When something needs a human or a repair, Claude opens an **issue** for the chat and the CRM
+  keeps it until it is really resolved — not just until someone replied.
+- Claude asks for a **reminder**; the CRM sets the clock (30 min / 1 h / 3 h / 24 h, never at night
+  for routine things). When the time comes the worker wakes Claude, Claude looks at the chat again
+  and either does nothing (already handled) or reminds the right person.
+- Managers see all of this in the chat page ("AI agent activity") and on `/ai-issues/`, and can
+  close an issue by hand, which stops the reminders.
+- Full description: `phase2_issues_followups.md`.
 
 ## Old flow vs new flow
 

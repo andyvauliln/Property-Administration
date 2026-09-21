@@ -1,0 +1,63 @@
+{% extends "_base.html" %}
+{% block content %}
+<section class="bg-gray-50 dark:bg-gray-900 p-3 sm:p-5 antialiased">
+    <div class="mx-auto max-w-screen-2xl px-4 lg:px-12">
+        <div class="mb-4 p-4 bg-white dark:bg-gray-800 shadow-md sm:rounded-lg flex flex-wrap items-center justify-between gap-3">
+            <h2 class="text-lg font-semibold dark:text-white">{{ title }} <span class="text-sm font-normal text-gray-500">· {{ pending_followups }} pending follow-ups</span></h2>
+            <div class="flex gap-3 text-sm">
+                {% if show_all %}<a href="/ai-issues/" class="text-blue-600 hover:underline dark:text-blue-400">Open only</a>
+                {% else %}<a href="?all=1" class="text-blue-600 hover:underline dark:text-blue-400">Include resolved</a>{% endif %}
+                <a href="/ai-runs/" class="text-blue-600 hover:underline dark:text-blue-400">AI runs</a>
+                <a href="/ai-staff/" class="text-blue-600 hover:underline dark:text-blue-400">Staff</a>
+            </div>
+        </div>
+
+        <div class="bg-white dark:bg-gray-800 shadow-md sm:rounded-lg overflow-x-auto">
+            <table class="w-full text-sm text-left text-gray-700 dark:text-gray-300">
+                <thead class="text-xs uppercase bg-gray-100 dark:bg-gray-700 dark:text-gray-300">
+                    <tr>
+                        <th class="px-3 py-2">Id</th>
+                        <th class="px-3 py-2">Unit / tenant</th>
+                        <th class="px-3 py-2">Issue</th>
+                        <th class="px-3 py-2">State</th>
+                        <th class="px-3 py-2">Owner</th>
+                        <th class="px-3 py-2">Opened</th>
+                        <th class="px-3 py-2">Next follow-up</th>
+                        <th class="px-3 py-2"></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for issue in page %}
+                    <tr class="border-b dark:border-gray-700 align-top">
+                        <td class="px-3 py-2 font-mono text-xs">{{ issue.public_id }}{% if issue.mode == 'test' %} <span class="rounded bg-purple-100 px-1 text-purple-800">test</span>{% endif %}</td>
+                        <td class="px-3 py-2"><a href="/chat/{{ issue.conversation_sid }}/" class="text-blue-600 hover:underline dark:text-blue-400">{{ issue.apartment.name|default:"—" }}</a><br><span class="text-xs text-gray-500">{{ issue.booking.tenant.full_name|default:"" }}</span></td>
+                        <td class="px-3 py-2 max-w-md">{{ issue.summary }}{% if issue.ticket_title %}<div class="text-xs text-gray-500">ticket: {{ issue.ticket_title }}</div>{% endif %}</td>
+                        <td class="px-3 py-2 whitespace-nowrap">{{ issue.get_state_display }}{% if issue.priority != 'routine' %} <span class="rounded bg-red-100 px-1 text-xs text-red-800">{{ issue.priority }}</span>{% endif %}</td>
+                        <td class="px-3 py-2">{{ issue.owner|default:"—" }}</td>
+                        <td class="px-3 py-2 whitespace-nowrap text-xs">{{ issue.created_at|timesince }} ago</td>
+                        <td class="px-3 py-2 text-xs">
+                            {% for followup in issue.followups.all %}{% if followup.status == 'pending' %}<div>{{ followup.get_kind_display }} · {{ followup.due_at|date:"M d, H:i" }} UTC</div>{% endif %}{% endfor %}
+                        </td>
+                        <td class="px-3 py-2">
+                            {% if issue.is_open %}
+                            <form method="post" action="/ai-issues/{{ issue.id }}/resolve/" onsubmit="return confirm('Mark as resolved?');">
+                                {% csrf_token %}<input type="hidden" name="next" value="/ai-issues/">
+                                <button type="submit" class="text-blue-600 hover:underline dark:text-blue-400">Resolve</button>
+                            </form>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr><td colspan="8" class="px-3 py-6 text-center text-gray-500">Nothing here.</td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        <div class="mt-3 flex gap-3 text-sm dark:text-gray-300">
+            {% if page.has_previous %}<a class="text-blue-600 hover:underline" href="?page={{ page.previous_page_number }}{% if show_all %}&all=1{% endif %}">← newer</a>{% endif %}
+            <span>page {{ page.number }} / {{ page.paginator.num_pages }}</span>
+            {% if page.has_next %}<a class="text-blue-600 hover:underline" href="?page={{ page.next_page_number }}{% if show_all %}&all=1{% endif %}">older →</a>{% endif %}
+        </div>
+    </div>
+</section>
+{% endblock %}

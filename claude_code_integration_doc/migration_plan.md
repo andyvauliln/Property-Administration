@@ -4,6 +4,8 @@
 - `how_ai_messages_work.md` — simple overview: how a tenant message is handled, step by step
 - `migration_plan.md` — this file: opinion on the vision + migration phases
 - `phase1_runbook.md` — what was built in Phase 1, how to turn it on, how to read run reports
+- `phase2_issues_followups.md` — issues, real actions, follow-up timers, staff, new pages
+- `testbed/` — `run_tests.sh`: 51 automatic checks on a throwaway database (no cost, no production data)
 - `farid_vision.md` — the customer's system prompt (source of the requirements)
 - `clickup_users.json` — ClickUp users for staff mapping
 
@@ -120,6 +122,7 @@ Goal: swap the brain, keep everything else. No issues/ClickUp yet.
 - **Fallback**: CLI error/timeout → `log_error(severity='high')` → Telegram with the raw tenant message.
 
 ### Phase 2 — Issues, actions, follow-ups (the vision's core)
+**Status 2026-09-21: built and tested, switched off with the same switch as Phase 1. Details: `phase2_issues_followups.md`.**
 - **Models**: `AIIssue` (conversation, booking, summary, owner, state — the 9 states from the doc), `AIFollowUp` (issue, kind, reason, due_at, status), `AICaseNote`, `StaffMember` (name, phone, role, clickup_user_id, telegram) replacing hardcoded phones.
 - **Action executor** `mysite/ai_agent/actions.py`: one small handler per action type; resolves `new-1` temp IDs; rejects unknown/invalid actions; in test mode marks them `simulated`.
 - **Timing policy in backend config** (30 min / 1 h / 3 h / 24 h, quiet hours 9–20 tenant time, staff hours) — AI never outputs timestamps, exactly as the doc says.

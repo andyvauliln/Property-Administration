@@ -8,6 +8,7 @@ Writes a full run report per message and compares with the answer stored by the 
 """
 from django.core.management.base import BaseCommand, CommandError
 
+from mysite.ai_agent import actions as agent_actions
 from mysite.ai_agent import inputs, run_report, service
 
 
@@ -63,9 +64,10 @@ class Command(BaseCommand):
             )
             parsed, run, meta = outcome['parsed'], outcome['run'], outcome['meta']
             meta['replay'] = True
-            actions = service.handle_actions(
-                parsed, AIRun.MODE_TEST, meta, outcome['new_messages_text'], forward_alerts=False,
-            ) if parsed else []
+            actions = agent_actions.execute_actions(parsed, agent_actions.ActionContext(
+                AIRun.MODE_TEST, meta, outcome['new_messages_text'], message.conversation_sid,
+                persist=False, notify=False,
+            )) if parsed else []
             delivery = {'sent_to_chat': False, 'note': 'replay - never sent'}
             summary = run_report.write_report(
                 outcome['run_dir'], meta, outcome['user_input'], run, parsed, actions, delivery,

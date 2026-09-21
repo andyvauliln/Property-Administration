@@ -38,6 +38,7 @@ from mysite.views.messaging import (
     _is_ai_assistant_globally_enabled,
     _should_send_ai_to_group,
     _enqueue_for_ai_agent,
+    _enqueue_staff_for_ai_agent,
     KB_EXTRACT_APARTMENT_CHECK_KEY,
     KB_EXTRACT_APARTMENT_MERGE_KEY,
     KB_EXTRACT_GLOBAL_CHECK_KEY,
@@ -51,6 +52,7 @@ from mysite.views.messaging import (
 )
 from mysite.unified_logger import log_error, log_info, logger
 from mysite.ai_agent.config import get_ai_backend
+from mysite.views.ai_agent_views import get_ai_activity
 from mysite.error_logger import log_exception
 import json
 from uuid import uuid4
@@ -342,6 +344,7 @@ def chat_detail(request, conversation_sid):
         'ai_assistant_enabled': ai_assistant_enabled,
         'apartment_ai_group_chat_enabled': apartment_ai_group_chat_enabled,
         'ai_backend': get_ai_backend(),
+        'ai_activity': get_ai_activity(conversation.conversation_sid),
         'ai_can_send_to_group': ai_can_send_to_group,
         'global_knowledge_base': get_global_knowledge_base_text(),
     })
@@ -500,6 +503,9 @@ def send_message(request, conversation_sid):
                     'ai_skipped_reason': 'This conversation has no linked booking — AI test mode requires both apartment and booking.',
                 }
             elif sender_type == 'manager' and conversation.apartment_id:
+                if sent_message and conversation.booking_id and send_to_group_chat:
+                    # Claude agent: a manager's message updates issues / follow-ups (no-op on the legacy backend)
+                    _enqueue_staff_for_ai_agent(conversation_sid, sent_message.message_sid, original_message, source='chat_ui')
                 try:
                     from mysite.models import Apartment, TwilioMessage
                     from mysite.views.messaging import ai_extract_knowledge, KB_SUFFIX, _extract_marked_body, _is_skippable_message

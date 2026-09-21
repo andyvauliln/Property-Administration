@@ -1,0 +1,69 @@
+{% if ai_activity %}
+<details class="mx-4 mt-3 rounded-lg border border-blue-200 bg-blue-50 text-sm text-gray-800 dark:border-blue-800 dark:bg-blue-900/20 dark:text-gray-200" {% if ai_activity.open_issues %}open{% endif %}>
+    <summary class="cursor-pointer px-4 py-2 font-semibold">
+        AI agent activity —
+        {{ ai_activity.open_issues|length }} open issue{{ ai_activity.open_issues|length|pluralize }},
+        {{ ai_activity.followups|length }} pending follow-up{{ ai_activity.followups|length|pluralize }}
+    </summary>
+    <div class="px-4 pb-3 space-y-3">
+        {% if ai_activity.open_issues %}
+        <div>
+            <div class="text-xs font-semibold uppercase text-gray-500 dark:text-gray-400">Open issues</div>
+            {% for issue in ai_activity.open_issues %}
+            <div class="mt-1 flex flex-wrap items-center gap-2">
+                <span class="font-mono text-xs">{{ issue.public_id }}</span>
+                <span class="rounded bg-white px-2 py-0.5 text-xs dark:bg-gray-800">{{ issue.get_state_display }}</span>
+                {% if issue.priority != 'routine' %}<span class="rounded bg-red-100 px-2 py-0.5 text-xs text-red-800">{{ issue.priority }}</span>{% endif %}
+                {% if issue.mode == 'test' %}<span class="rounded bg-purple-100 px-2 py-0.5 text-xs text-purple-800">test</span>{% endif %}
+                <span>{{ issue.summary }}</span>
+                <span class="text-xs text-gray-500">owner: {{ issue.owner|default:"—" }} · opened {{ issue.created_at|timesince }} ago{% if issue.ticket_title %} · ticket: {{ issue.ticket_title }}{% endif %}</span>
+                <form method="post" action="/ai-issues/{{ issue.id }}/resolve/" class="inline" onsubmit="return confirm('Mark this issue as resolved? The AI will stop its reminders for it.');">
+                    {% csrf_token %}
+                    <input type="hidden" name="next" value="{{ request.path }}">
+                    <button type="submit" class="text-xs text-blue-700 underline dark:text-blue-300">resolve</button>
+                </form>
+            </div>
+            {% endfor %}
+        </div>
+        {% endif %}
+
+        {% if ai_activity.followups %}
+        <div>
+            <div class="text-xs font-semibold uppercase text-gray-500 dark:text-gray-400">Pending follow-ups (the AI will be woken at this time)</div>
+            {% for followup in ai_activity.followups %}
+            <div class="mt-1 text-xs">
+                <span class="font-mono">{{ followup.public_id }}</span> · {{ followup.get_kind_display }} · due {{ followup.due_at|date:"M d, H:i" }} UTC
+                {% if followup.issue %} · {{ followup.issue.public_id }}{% endif %} — {{ followup.reason|default:"" }}
+            </div>
+            {% endfor %}
+        </div>
+        {% endif %}
+
+        {% if ai_activity.notes %}
+        <div>
+            <div class="text-xs font-semibold uppercase text-gray-500 dark:text-gray-400">Case notes (one-off arrangements, never added to the knowledge base)</div>
+            {% for note in ai_activity.notes %}
+            <div class="mt-1 text-xs">{{ note.created_at|date:"M d, H:i" }} — {{ note.text }}</div>
+            {% endfor %}
+        </div>
+        {% endif %}
+
+        {% if ai_activity.resolved_issues %}
+        <div class="text-xs text-gray-500 dark:text-gray-400">
+            Recently resolved:
+            {% for issue in ai_activity.resolved_issues %}{{ issue.public_id }} {{ issue.summary|truncatechars:50 }}{% if not forloop.last %}; {% endif %}{% endfor %}
+        </div>
+        {% endif %}
+
+        {% if ai_activity.runs %}
+        <div class="text-xs">
+            Last runs:
+            {% for run in ai_activity.runs %}
+            <a href="/ai-runs/{{ run.id }}/" target="_blank" class="underline">#{{ run.id }} {{ run.event_type|lower }} ({{ run.mode }})</a>{% if not forloop.last %} · {% endif %}
+            {% endfor %}
+            · <a href="/ai-runs/?conversation={{ conversation.conversation_sid }}" target="_blank" class="underline">all</a>
+        </div>
+        {% endif %}
+    </div>
+</details>
+{% endif %}
