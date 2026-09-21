@@ -76,6 +76,10 @@ urlpatterns = [
     # AI Management
     path('ai-management/', views.ai_management_view, name='ai_management'),
     path('globalknowledgebase/', RedirectView.as_view(url='/ai-management/', permanent=True)),
+    # AI agent (Claude) runs and reports
+    path('ai-runs/', views.ai_runs_view, name='ai_runs'),
+    path('ai-runs/<int:run_id>/', views.ai_run_detail_view, name='ai_run_detail'),
+    path('chat/<str:conversation_sid>/messages/<int:message_id>/ai-agent-status/', views.ai_agent_message_status, name='ai_agent_message_status'),
     # Database Activity Monitoring
     path('database-activity/', views.database_activity, name='database_activity'),
 

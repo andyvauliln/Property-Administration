@@ -1,0 +1,39 @@
+{% extends "_base.html" %}
+{% block content %}
+<section class="bg-gray-50 dark:bg-gray-900 p-3 sm:p-5 antialiased">
+    <div class="mx-auto max-w-screen-xl px-4 lg:px-12">
+        <div class="mb-4 p-4 bg-white dark:bg-gray-800 shadow-md sm:rounded-lg">
+            <div class="flex flex-wrap items-center justify-between gap-3">
+                <h2 class="text-lg font-semibold dark:text-white">AI run #{{ run.id }} <span class="text-sm font-normal text-gray-500">{{ run.created_at|date:"M d, Y H:i:s" }}</span></h2>
+                <div class="flex gap-3 text-sm">
+                    <a href="/ai-runs/?conversation={{ run.conversation_sid }}" class="text-blue-600 hover:underline dark:text-blue-400">Runs of this chat</a>
+                    <a href="/chat/{{ run.conversation_sid }}/" class="text-blue-600 hover:underline dark:text-blue-400">Open chat</a>
+                    <a href="/ai-runs/" class="text-blue-600 hover:underline dark:text-blue-400">All runs</a>
+                </div>
+            </div>
+            <div class="mt-3 grid grid-cols-2 md:grid-cols-4 gap-3 text-sm text-gray-700 dark:text-gray-300">
+                <div><div class="text-xs text-gray-500">Mode</div><b>{{ run.mode }}</b>{% if run.sent_to_chat %} · sent to group chat{% endif %}</div>
+                <div><div class="text-xs text-gray-500">Model</div>{{ run.model }}</div>
+                <div><div class="text-xs text-gray-500">Tokens (in / out)</div>{{ run.input_tokens }} / {{ run.output_tokens }}</div>
+                <div><div class="text-xs text-gray-500">Cache (read / write)</div>{{ run.cache_read_tokens }} / {{ run.cache_write_tokens }}</div>
+                <div><div class="text-xs text-gray-500">Cost</div><b>${{ run.cost_usd|floatformat:6 }}</b></div>
+                <div><div class="text-xs text-gray-500">Turns / tool calls</div>{{ run.num_turns }} / {{ run.tool_calls }}</div>
+                <div><div class="text-xs text-gray-500">Duration</div>{{ run.duration_ms }} ms</div>
+                <div><div class="text-xs text-gray-500">Delivery</div>{{ run.delivery_note|default:"—" }}</div>
+            </div>
+            {% if run.error %}<div class="mt-3 p-2 rounded bg-red-50 text-red-800 text-sm">{{ run.error }}</div>{% endif %}
+        </div>
+
+        {% if report_missing %}
+        <div class="p-4 bg-yellow-50 text-yellow-800 rounded-lg text-sm">The report folder for this run is not on disk any more ({{ run.report_dir }}).</div>
+        {% else %}
+        <div class="mb-3 flex flex-wrap gap-2">
+            {% for name in files %}
+            <a href="?file={{ name }}" class="px-3 py-1 rounded text-xs {% if name == selected %}bg-blue-600 text-white{% else %}bg-white dark:bg-gray-800 dark:text-gray-300 border border-gray-200 dark:border-gray-700{% endif %}">{{ name }}</a>
+            {% endfor %}
+        </div>
+        <pre class="p-4 bg-white dark:bg-gray-800 dark:text-gray-200 shadow-md sm:rounded-lg text-xs whitespace-pre-wrap break-words overflow-x-auto">{{ content }}</pre>
+        {% endif %}
+    </div>
+</section>
+{% endblock %}

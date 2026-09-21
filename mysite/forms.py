@@ -187,6 +187,9 @@ def get_dropdown_options(identifier, isData=False, request=None):
             {"value": "move_out", "label": "Move Out"},
             {"value": "safe_travel", "label": "Safe Travel"},
             {"value": "ai_conversation_model", "label": "AI Conversation Model"},
+            {"value": "ai_backend", "label": "AI Backend (openrouter / claude_cli)"},
+            {"value": "ai_agent_model", "label": "AI Agent Model (Claude)"},
+            {"value": "ai_agent_system", "label": "AI Agent System Prompt (Claude)"},
         ]
 
     else:

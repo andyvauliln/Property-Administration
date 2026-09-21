@@ -37,6 +37,7 @@ from mysite.views.messaging import (
     should_run_kb_extraction_for_message,
     _is_ai_assistant_globally_enabled,
     _should_send_ai_to_group,
+    _enqueue_for_ai_agent,
     KB_EXTRACT_APARTMENT_CHECK_KEY,
     KB_EXTRACT_APARTMENT_MERGE_KEY,
     KB_EXTRACT_GLOBAL_CHECK_KEY,
@@ -49,6 +50,7 @@ from mysite.views.messaging import (
     CHAT_EDITABLE_PROMPT_KEYS,
 )
 from mysite.unified_logger import log_error, log_info, logger
+from mysite.ai_agent.config import get_ai_backend
 from mysite.error_logger import log_exception
 import json
 from uuid import uuid4
@@ -339,6 +341,7 @@ def chat_detail(request, conversation_sid):
         'ai_ready': bool(conversation.apartment_id and conversation.booking_id),
         'ai_assistant_enabled': ai_assistant_enabled,
         'apartment_ai_group_chat_enabled': apartment_ai_group_chat_enabled,
+        'ai_backend': get_ai_backend(),
         'ai_can_send_to_group': ai_can_send_to_group,
         'global_knowledge_base': get_global_knowledge_base_text(),
     })
@@ -423,7 +426,17 @@ def send_message(request, conversation_sid):
             
             # When sent as client: process AI synchronously (webhook may not fire for API-created messages)
             ai_result = None
-            if sender_type == 'client' and conversation.apartment_id and conversation.booking_id:
+            if (
+                sender_type == 'client' and conversation.apartment_id and conversation.booking_id and sent_message
+                and _enqueue_for_ai_agent(
+                    conversation_sid, sent_message.message_sid, original_message,
+                    send_allowed=bool(send_to_group_chat), reply_author='ASSISTANT',
+                    sender_phone=manager_phone, source='chat_ui',
+                )
+            ):
+                # Claude agent backend: the ai-agent worker answers, the page polls ai-agent-status
+                ai_result = {'ai_queued': True, 'message_id': sent_message.id}
+            elif sender_type == 'client' and conversation.apartment_id and conversation.booking_id:
                 try:
                     from mysite.models import Booking, TwilioMessage
                     from mysite.views.messaging import ai_answer_customer_detailed, _persist_customer_ai_result

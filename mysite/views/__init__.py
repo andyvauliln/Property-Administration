@@ -8,6 +8,7 @@ from .payments_report import paymentReport
 from .messaging import twilio_webhook
 from .login import CustomLogoutView, custom_login_view
 from .generic_view import apartment_prices, bookings, cleanings, payment_methods, payment_types, payments, ai_management_view
+from .ai_agent_views import ai_runs_view, ai_run_detail_view, ai_agent_message_status
 from .apartments_view import apartments_view as apartments
 from .users_view import users_view as users
 from .payment_sync import sync_payments

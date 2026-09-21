@@ -1,0 +1,88 @@
+{% extends "_base.html" %}
+{% block content %}
+<section class="bg-gray-50 dark:bg-gray-900 p-3 sm:p-5 antialiased">
+    <div class="mx-auto max-w-screen-2xl px-4 lg:px-12">
+        <div class="mb-4 p-4 bg-white dark:bg-gray-800 shadow-md sm:rounded-lg">
+            <div class="flex flex-wrap items-center justify-between gap-3">
+                <h2 class="text-lg font-semibold dark:text-white">AI agent runs</h2>
+                <div class="flex flex-wrap gap-2 text-xs">
+                    <span class="px-2 py-1 rounded bg-gray-100 dark:bg-gray-700 dark:text-gray-200">backend: <b>{{ ai_backend }}</b></span>
+                    <span class="px-2 py-1 rounded bg-gray-100 dark:bg-gray-700 dark:text-gray-200">model: <b>{{ agent_model }}</b></span>
+                    <span class="px-2 py-1 rounded {% if pending_events %}bg-yellow-100 text-yellow-800{% else %}bg-gray-100 dark:bg-gray-700 dark:text-gray-200{% endif %}">queue: <b>{{ pending_events }}</b></span>
+                </div>
+            </div>
+            <p class="mt-2 text-sm text-gray-600 dark:text-gray-300">
+                {{ runs_count }} runs ·
+                input {{ totals.input_tokens|default:0 }} · output {{ totals.output_tokens|default:0 }} ·
+                cache read {{ totals.cache_read_tokens|default:0 }} · cache write {{ totals.cache_write_tokens|default:0 }} ·
+                cost <b>${{ totals.cost_usd|default:0|floatformat:4 }}</b>
+            </p>
+            <div class="mt-3 flex flex-wrap gap-2 text-sm">
+                <a href="/ai-runs/" class="text-blue-600 hover:underline dark:text-blue-400">All</a>
+                <a href="?mode=live" class="text-blue-600 hover:underline dark:text-blue-400">Live only</a>
+                <a href="?mode=test" class="text-blue-600 hover:underline dark:text-blue-400">Test only</a>
+                <a href="?errors=1" class="text-red-600 hover:underline dark:text-red-400">Errors only</a>
+                {% if conversation_sid %}<span class="text-gray-500">conversation: {{ conversation_sid }}</span>{% endif %}
+            </div>
+        </div>
+
+        <div class="bg-white dark:bg-gray-800 shadow-md sm:rounded-lg overflow-x-auto">
+            <table class="w-full text-sm text-left text-gray-700 dark:text-gray-300">
+                <thead class="text-xs uppercase bg-gray-100 dark:bg-gray-700 dark:text-gray-300">
+                    <tr>
+                        <th class="px-3 py-2">#</th>
+                        <th class="px-3 py-2">Time</th>
+                        <th class="px-3 py-2">Mode</th>
+                        <th class="px-3 py-2">Tenant message</th>
+                        <th class="px-3 py-2">Answer / why</th>
+                        <th class="px-3 py-2">Actions</th>
+                        <th class="px-3 py-2">Tokens in / out / cache</th>
+                        <th class="px-3 py-2">Cost</th>
+                        <th class="px-3 py-2">Time</th>
+                        <th class="px-3 py-2"></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for run in page %}
+                    <tr class="border-b dark:border-gray-700 align-top {% if run.error %}bg-red-50 dark:bg-red-900/20{% endif %}">
+                        <td class="px-3 py-2">{{ run.id }}</td>
+                        <td class="px-3 py-2 whitespace-nowrap">{{ run.created_at|date:"M d H:i" }}</td>
+                        <td class="px-3 py-2">
+                            {% if run.mode == 'live' %}
+                            <span class="px-2 py-0.5 rounded bg-green-100 text-green-800 text-xs">live{% if run.sent_to_chat %} · sent{% endif %}</span>
+                            {% else %}
+                            <span class="px-2 py-0.5 rounded bg-purple-100 text-purple-800 text-xs">test</span>
+                            {% endif %}
+                        </td>
+                        <td class="px-3 py-2 max-w-xs">
+                            <a href="/chat/{{ run.conversation_sid }}/" class="text-blue-600 hover:underline dark:text-blue-400">{{ run.message.body|default:"(message deleted)"|truncatechars:140 }}</a>
+                        </td>
+                        <td class="px-3 py-2 max-w-md">
+                            {% if run.error %}<div class="text-red-700 dark:text-red-300">{{ run.error|truncatechars:200 }}</div>
+                            {% elif run.no_answer %}<div class="text-gray-500">NO_ANSWER</div>
+                            {% else %}<div class="whitespace-pre-wrap">{{ run.answer|truncatechars:240 }}</div>{% endif %}
+                            {% if run.why %}<div class="mt-1 text-xs italic text-gray-500">{{ run.why|truncatechars:240 }}</div>{% endif %}
+                        </td>
+                        <td class="px-3 py-2 text-xs">
+                            {% for item in run.actions %}<div>{{ item.action.type }} <span class="text-gray-500">({{ item.status }})</span></div>{% empty %}—{% endfor %}
+                        </td>
+                        <td class="px-3 py-2 whitespace-nowrap text-xs">{{ run.input_tokens }} / {{ run.output_tokens }} / {{ run.cache_read_tokens }}+{{ run.cache_write_tokens }}</td>
+                        <td class="px-3 py-2 whitespace-nowrap">${{ run.cost_usd|floatformat:4 }}</td>
+                        <td class="px-3 py-2 whitespace-nowrap text-xs">{{ run.duration_ms }} ms<br>{{ run.num_turns }} turns · {{ run.tool_calls }} tools</td>
+                        <td class="px-3 py-2"><a href="/ai-runs/{{ run.id }}/" class="text-blue-600 hover:underline dark:text-blue-400">Report</a></td>
+                    </tr>
+                    {% empty %}
+                    <tr><td colspan="10" class="px-3 py-6 text-center text-gray-500">No runs yet.</td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        <div class="mt-3 flex gap-3 text-sm dark:text-gray-300">
+            {% if page.has_previous %}<a class="text-blue-600 hover:underline" href="?page={{ page.previous_page_number }}{% if conversation_sid %}&conversation={{ conversation_sid }}{% endif %}">← newer</a>{% endif %}
+            <span>page {{ page.number }} / {{ page.paginator.num_pages }}</span>
+            {% if page.has_next %}<a class="text-blue-600 hover:underline" href="?page={{ page.next_page_number }}{% if conversation_sid %}&conversation={{ conversation_sid }}{% endif %}">older →</a>{% endif %}
+        </div>
+    </div>
+</section>
+{% endblock %}

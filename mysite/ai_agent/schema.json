@@ -1,0 +1,40 @@
+{
+  "type": "object",
+  "properties": {
+    "answer": {
+      "type": "string",
+      "description": "Tenant-facing message, or exactly NO_ANSWER when nothing should be sent to the tenant."
+    },
+    "actions": {
+      "type": "array",
+      "description": "Internal actions for the backend. Empty array when none.",
+      "items": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": [
+              "CREATE_ISSUE",
+              "UPDATE_ISSUE_STATE",
+              "CREATE_TICKET",
+              "TICKET_COMMENT",
+              "UPDATE_TICKET",
+              "INTERNAL_ALERT",
+              "QUEUE_FOR_REVIEW",
+              "SCHEDULE_FOLLOWUP",
+              "CANCEL_FOLLOWUP",
+              "KB_UPDATE",
+              "CASE_NOTE"
+            ]
+          }
+        },
+        "required": ["type"]
+      }
+    },
+    "why": {
+      "type": "string",
+      "description": "1-2 concise internal sentences explaining the decision. Never shown to the tenant."
+    }
+  },
+  "required": ["answer", "actions", "why"]
+}

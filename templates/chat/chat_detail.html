@@ -439,6 +439,12 @@
                             AI not ready
                         </span>
                         {% endif %}
+                        {% if ai_backend == 'claude_cli' %}
+                        <a href="/ai-runs/?conversation={{ conversation.conversation_sid }}" target="_blank"
+                           class="inline-flex items-center rounded-full bg-blue-100 px-2.5 py-0.5 text-xs font-semibold text-blue-800 hover:underline dark:bg-blue-900 dark:text-blue-200">
+                            Claude agent · run reports
+                        </a>
+                        {% endif %}
                     </div>
 
                     <textarea id="message-input" 
@@ -1946,6 +1952,8 @@ document.addEventListener('DOMContentLoaded', function() {
 
                 if (data.ai_skipped_reason) {
                     alert(data.ai_skipped_reason);
+                } else if (data.ai_queued && data.message_id) {
+                    pollAiAgentStatus(data.message_id);
                 } else if (data.ai_response || data.ai_response_why) {
                     appendAiResponseRow({
                         id: data.message_id || null,
@@ -2172,6 +2180,54 @@ document.addEventListener('DOMContentLoaded', function() {
                 </div>
             </div>
         </div>`;
+    }
+
+    // Claude agent backend: the answer is produced by the ai-agent worker, so poll for it
+    function pollAiAgentStatus(messageId) {
+        const statusRow = document.createElement('div');
+        statusRow.className = 'text-xs text-purple-600 dark:text-purple-300 italic px-2 py-1';
+        statusRow.textContent = 'AI agent is working on this message…';
+        messagesContainer.appendChild(statusRow);
+        scrollToBottom();
+
+        const startedAt = Date.now();
+        const timer = setInterval(async function() {
+            try {
+                const response = await fetch(`/chat/{{ conversation.conversation_sid }}/messages/${messageId}/ai-agent-status/`);
+                const data = await response.json();
+                if (!data.finished && Date.now() - startedAt < 5 * 60 * 1000) {
+                    statusRow.textContent = `AI agent: ${data.status}…`;
+                    return;
+                }
+                clearInterval(timer);
+                if (data.ai_response || data.ai_response_why) {
+                    appendAiResponseRow({
+                        id: data.message_id,
+                        ai_response: data.ai_response,
+                        ai_response_why: data.ai_response_why,
+                        ai_sent_to_chat: data.ai_sent_to_chat,
+                        ai_notes: '',
+                    });
+                }
+                statusRow.className = 'text-xs text-gray-500 dark:text-gray-400 px-2 py-1';
+                statusRow.textContent = '';
+                if (data.run) {
+                    const link = document.createElement('a');
+                    link.href = data.run.url;
+                    link.target = '_blank';
+                    link.className = 'underline';
+                    link.textContent = `AI run #${data.run.id} (${data.run.mode}) · ${data.run.actions} actions · ${data.run.tokens} tokens · $${data.run.cost_usd.toFixed(4)} · open report`;
+                    statusRow.appendChild(link);
+                } else {
+                    statusRow.textContent = data.finished
+                        ? `AI agent: ${data.status}${data.error ? ' - ' + data.error : ''}`
+                        : 'AI agent did not answer within 5 minutes - is the ai-agent worker running? (pm2 status)';
+                }
+                scrollToBottom();
+            } catch (error) {
+                console.error('AI agent status error:', error);
+            }
+        }, 3000);
     }
 
     function appendAiResponseRow(m) {

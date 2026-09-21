@@ -49,6 +49,15 @@ def _should_send_ai_to_group(apartment):
     return bool(apartment and apartment.ai_group_chat_enabled)
 
 
+def _enqueue_for_ai_agent(conversation_sid, message_sid, body, **kwargs):
+    """
+    True when the Claude agent backend (AIManagement 'ai_backend' = claude_cli) queued the tenant
+    message for the ai-agent worker; False means the legacy inline AI must handle it.
+    """
+    from mysite.ai_agent.service import enqueue_tenant_message
+    return enqueue_tenant_message(conversation_sid, message_sid, body, **kwargs)
+
+
 def _conversation_ai_group_chat_enabled(conversation_sid):
     try:
         from mysite.models import TwilioConversation
@@ -786,7 +795,7 @@ def _apartment_fields_context(apartment):
     )
 
 
-def build_full_context(conversation_sid, apartment, booking, history_before=None):
+def build_full_context(conversation_sid, apartment, booking, history_before=None, include_history=True, now=None):
     """
     Full context for AI: apartment notes + structured fields + booking (all fields) +
     parking + cleanings + payments + handyman + recent chat history.
@@ -795,6 +804,8 @@ def build_full_context(conversation_sid, apartment, booking, history_before=None
 
     history_before: optional TwilioMessage — include only chat messages strictly before this
     one (point-in-time replay). When omitted, uses the latest 10 messages in the conversation.
+    include_history: False when the caller renders chat history itself (mysite.ai_agent.inputs).
+    now: naive datetime to use as the current moment (replay / team timezone); defaults to server time.
     """
     from mysite.models import ParkingBooking, HandymanCalendar, Cleaning, Payment, TwilioMessage, AIManagement
     from datetime import date
@@ -802,9 +813,10 @@ def build_full_context(conversation_sid, apartment, booking, history_before=None
     from datetime import datetime
     parts = []
     context_sources = {}
-    today = date.today()
-    now = datetime.now()
-    parts.append(f"=== CURRENT DATE & TIME ===\n{now.strftime('%A, %B %d, %Y %H:%M')} (local server time)")
+    now_label = "as given by caller" if now is not None else "local server time"
+    now = now or datetime.now()
+    today = now.date()
+    parts.append(f"=== CURRENT DATE & TIME ===\n{now.strftime('%A, %B %d, %Y %H:%M')} ({now_label})")
 
     # Global knowledge base (only knowledge entries, not prompts)
     global_kb_entries = AIManagement.objects.filter(
@@ -898,7 +910,7 @@ def build_full_context(conversation_sid, apartment, booking, history_before=None
     messages = history_qs.order_by("-message_timestamp", "-id")[:10]
     context_sources["chat_history"] = messages.exists()
     context_sources["chat_history_point_in_time"] = history_before is not None
-    if messages.exists():
+    if include_history and messages.exists():
         history = [
             f"[{m.message_timestamp.strftime('%Y-%m-%d %H:%M')}] {'Customer' if m.direction == 'inbound' else 'Assistant'}: {m.body}"
             for m in reversed(list(messages))
@@ -2943,7 +2955,9 @@ def twilio_webhook(request):
                             if _conv and _conv.apartment_id and _conv.booking_id:
                                 _apartment = Apartment.objects.prefetch_related('managers').select_related('owner').get(id=_conv.apartment_id)
                                 _booking = Booking.objects.select_related('tenant').get(id=_conv.booking_id)
-                                if not _is_skippable_message(body_for_customer):
+                                if _enqueue_for_ai_agent(conversation_sid, message_sid, body_for_customer):
+                                    pass  # answered asynchronously by the ai-agent worker
+                                elif not _is_skippable_message(body_for_customer):
                                     log_ai_customer_start(conversation_sid, author, body_for_customer, _conv.apartment_id, _conv.booking_id)
                                     _ai_result = ai_answer_customer_detailed(conversation_sid, body_for_customer, _apartment, _booking)
                                     _ai_resp = _ai_result.get("answer")
@@ -3000,7 +3014,9 @@ def twilio_webhook(request):
                             _booking = Booking.objects.select_related('tenant').get(id=_conv.booking_id)
                             _is_customer = author not in [twilio_phone, manager_phone, manager_phone_2, manager_phone_3, manager_phone_4, 'ASSISTANT', 'Virtual Assistant']
 
-                            if _is_customer:
+                            if _is_customer and _enqueue_for_ai_agent(conversation_sid, message_sid, body):
+                                pass  # answered asynchronously by the ai-agent worker
+                            elif _is_customer:
                                 if _is_skippable_message(body):
                                     log_ai_customer_skipped(conversation_sid, body)
                                 else:
@@ -3041,7 +3057,9 @@ def twilio_webhook(request):
                             _booking = Booking.objects.select_related('tenant').get(id=_conv.booking_id)
                             _is_customer = author not in [twilio_phone, manager_phone, manager_phone_2, manager_phone_3, manager_phone_4, 'ASSISTANT', 'Virtual Assistant']
 
-                            if _is_customer:
+                            if _is_customer and _enqueue_for_ai_agent(conversation_sid, message_sid, body):
+                                pass  # answered asynchronously by the ai-agent worker
+                            elif _is_customer:
                                 # Customer → skip short ack messages, then AI tries to answer/clarify
                                 if _is_skippable_message(body):
                                     log_ai_customer_skipped(conversation_sid, body)

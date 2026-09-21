@@ -2542,6 +2542,147 @@ class AIManagement(models.Model):
         return []
 
 
+class AIEvent(models.Model):
+    """Queue of events waiting for the AI agent worker (management command run_ai_agent)."""
+
+    TYPE_TENANT_MESSAGE = 'TENANT_MESSAGE'
+    TYPE_STAFF_MESSAGE = 'STAFF_MESSAGE'
+    TYPE_CLICKUP_MESSAGE = 'CLICKUP_MESSAGE'
+    TYPE_FOLLOWUP_DUE = 'FOLLOWUP_DUE'
+    TYPE_TICKET_UPDATE = 'TICKET_UPDATE'
+    EVENT_TYPE_CHOICES = [
+        (TYPE_TENANT_MESSAGE, 'Tenant message'),
+        (TYPE_STAFF_MESSAGE, 'Staff message'),
+        (TYPE_CLICKUP_MESSAGE, 'ClickUp message'),
+        (TYPE_FOLLOWUP_DUE, 'Follow-up due'),
+        (TYPE_TICKET_UPDATE, 'Ticket update'),
+    ]
+
+    STATUS_PENDING = 'pending'
+    STATUS_RUNNING = 'running'
+    STATUS_DONE = 'done'
+    STATUS_FAILED = 'failed'
+    STATUS_SKIPPED = 'skipped'
+    STATUS_CHOICES = [
+        (STATUS_PENDING, 'Pending'),
+        (STATUS_RUNNING, 'Running'),
+        (STATUS_DONE, 'Done'),
+        (STATUS_FAILED, 'Failed'),
+        (STATUS_SKIPPED, 'Skipped'),
+    ]
+
+    event_type = models.CharField(max_length=30, choices=EVENT_TYPE_CHOICES, default=TYPE_TENANT_MESSAGE, db_index=True)
+    status = models.CharField(max_length=10, choices=STATUS_CHOICES, default=STATUS_PENDING, db_index=True)
+    conversation = models.ForeignKey(
+        TwilioConversation, on_delete=models.SET_NULL, null=True, blank=True, related_name='ai_events'
+    )
+    conversation_sid = models.CharField(max_length=100, db_index=True)
+    message = models.ForeignKey(
+        TwilioMessage, on_delete=models.SET_NULL, null=True, blank=True, related_name='ai_events'
+    )
+    # Text the AI must react to (tenant message without UI markers)
+    body = models.TextField(blank=True, null=True)
+    # False when the manager unchecked "Send to group chat" in the chat UI
+    send_allowed = models.BooleanField(default=True)
+    # reply_author, sender_phone, source (webhook / chat_ui / replay)
+    payload = models.JSONField(default=dict, blank=True)
+    attempts = models.PositiveIntegerField(default=0)
+    error = models.TextField(blank=True, null=True)
+    started_at = models.DateTimeField(null=True, blank=True)
+    finished_at = models.DateTimeField(null=True, blank=True)
+
+    created_by = models.CharField(max_length=255, blank=True, null=True, editable=False)
+    last_updated_by = models.CharField(max_length=255, blank=True, null=True, editable=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['id']
+        indexes = [
+            models.Index(fields=['status', 'id']),
+        ]
+
+    def __str__(self):
+        return f"{self.event_type} #{self.id} [{self.status}] {self.conversation_sid}"
+
+    def save(self, *args, **kwargs):
+        from mysite.request_context import apply_user_tracking
+        updated_by = kwargs.pop('updated_by', None)
+        apply_user_tracking(self, updated_by)
+        super().save(*args, **kwargs)
+
+    @property
+    def links(self):
+        return []
+
+
+class AIRun(models.Model):
+    """One AI agent run: totals live here, the full input/steps/output live in report_dir."""
+
+    MODE_LIVE = 'live'
+    MODE_TEST = 'test'
+    MODE_CHOICES = [
+        (MODE_LIVE, 'Live (sent to group chat)'),
+        (MODE_TEST, 'Test (stored only)'),
+    ]
+
+    event = models.ForeignKey(AIEvent, on_delete=models.SET_NULL, null=True, blank=True, related_name='runs')
+    conversation_sid = models.CharField(max_length=100, db_index=True)
+    message = models.ForeignKey(
+        TwilioMessage, on_delete=models.SET_NULL, null=True, blank=True, related_name='ai_runs'
+    )
+    event_type = models.CharField(max_length=30, default=AIEvent.TYPE_TENANT_MESSAGE)
+    mode = models.CharField(max_length=10, choices=MODE_CHOICES, default=MODE_TEST)
+    backend = models.CharField(max_length=30, default='claude_cli')
+    model = models.CharField(max_length=100, blank=True, null=True)
+    session_id = models.CharField(max_length=100, blank=True, null=True)
+
+    answer = models.TextField(blank=True, null=True)
+    why = models.TextField(blank=True, null=True)
+    no_answer = models.BooleanField(default=False)
+    # [{"action": {...}, "status": "executed|simulated|rejected", "detail": "..."}]
+    actions = models.JSONField(default=list, blank=True)
+    sent_to_chat = models.BooleanField(default=False)
+    delivery_note = models.CharField(max_length=255, blank=True, null=True)
+
+    input_tokens = models.PositiveIntegerField(default=0)
+    output_tokens = models.PositiveIntegerField(default=0)
+    cache_read_tokens = models.PositiveIntegerField(default=0)
+    cache_write_tokens = models.PositiveIntegerField(default=0)
+    cost_usd = models.DecimalField(max_digits=10, decimal_places=6, default=0)
+    num_turns = models.PositiveIntegerField(default=0)
+    tool_calls = models.PositiveIntegerField(default=0)
+    duration_ms = models.PositiveIntegerField(default=0)
+
+    report_dir = models.CharField(max_length=500, blank=True, null=True)
+    error = models.TextField(blank=True, null=True)
+
+    created_by = models.CharField(max_length=255, blank=True, null=True, editable=False)
+    last_updated_by = models.CharField(max_length=255, blank=True, null=True, editable=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-id']
+
+    def __str__(self):
+        return f"AIRun #{self.id} {self.conversation_sid} [{self.mode}]"
+
+    def save(self, *args, **kwargs):
+        from mysite.request_context import apply_user_tracking
+        updated_by = kwargs.pop('updated_by', None)
+        apply_user_tracking(self, updated_by)
+        super().save(*args, **kwargs)
+
+    @property
+    def total_tokens(self):
+        return self.input_tokens + self.output_tokens + self.cache_read_tokens + self.cache_write_tokens
+
+    @property
+    def links(self):
+        return []
+
+
 def send_telegram_message(chat_id, token, message):
     if chat_id and token:
         url = f"https://api.telegram.org/bot{token}/sendMessage"
