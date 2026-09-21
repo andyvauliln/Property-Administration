@@ -4,7 +4,7 @@ from zoneinfo import ZoneInfo
 
 from django.db.models import Q
 
-from mysite.ai_agent import config
+from mysite.ai_agent import config, knowledge
 
 HISTORY_LIMIT = 20
 
@@ -55,8 +55,8 @@ def classify_sender(message, ai_answers=frozenset()):
     ai_answers: bodies of AI answers already given in this conversation.
     """
     from mysite.views.messaging import (
-        CLIENT_SUFFIX, KB_SUFFIX, MANAGER_PHONES, MANAGER_PHONE_NAMES,
-        TWILIO_ASSISTANT_PHONE, _extract_marked_body,
+        CLIENT_SUFFIX, KB_SUFFIX, MANAGER_PHONE_NAMES,
+        TWILIO_ASSISTANT_PHONE, _extract_marked_body, get_manager_phones,
     )
     author = (message.author or '').strip()
     body = (message.body or '').strip()
@@ -69,7 +69,7 @@ def classify_sender(message, ai_answers=frozenset()):
     staff_name = _staff_names().get(author)
     if staff_name:
         return ROLE_STAFF, staff_name
-    if author in MANAGER_PHONES:
+    if author in get_manager_phones():
         return ROLE_STAFF, MANAGER_PHONE_NAMES.get(author, f'Manager {author[-4:]}')
     if body in ai_answers or author == 'Virtual Assistant':
         return ROLE_AI, config.ASSISTANT_NAME
@@ -182,6 +182,21 @@ def build_agent_input(event_type, conversation_sid, apartment, booking, trigger_
         now=now.replace(tzinfo=None),
     )
     context = context.replace("(as given by caller)", f"({config.TEAM_TIMEZONE})")
+    context = context.replace("=== BOOKING PAYMENTS ===", "=== PAYMENT_RECORDS (every payment row the CRM has for this booking) ===")
+    if not sources.get('payments'):
+        context += "\n\n=== PAYMENT_RECORDS ===\nnone on file for this booking - do not state any payment status, route payment questions to Janna"
+
+    # Code-level guard: access codes only from 24h before check-in until checkout
+    codes_allowed = knowledge.access_codes_allowed(booking, now)
+    if not codes_allowed:
+        context, hidden_lines = knowledge.redact_access_codes(context)
+        sources['kb_text_code_lines_hidden'] = hidden_lines
+    kb_block = knowledge.knowledge_block(apartment, booking, now, sources)
+    access_line = (
+        "ACCESS_CODES: allowed now (inside the window: 24h before check-in until checkout)" if codes_allowed else
+        "ACCESS_CODES: NOT allowed now (outside the window) - codes are hidden from you; if asked, say they are "
+        "shared closer to check-in, and route to Edy when the tenant needs access earlier"
+    )
 
     parts = [
         f"EVENT: {event_type}",
@@ -193,7 +208,9 @@ def build_agent_input(event_type, conversation_sid, apartment, booking, trigger_
         tracking_block(conversation_sid, booking, sources),
         "RECENT_CLICKUP_HISTORY: [] (ClickUp is not connected yet)",
         extra_block,
+        access_line,
         context,
+        kb_block,
     ]
 
     all_messages = TwilioMessage.objects.filter(conversation_sid=conversation_sid)

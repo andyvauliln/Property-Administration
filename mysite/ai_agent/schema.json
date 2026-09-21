@@ -28,13 +28,23 @@
             ]
           }
         },
-        "required": ["type"]
+        "required": [
+          "type"
+        ]
       }
     },
     "why": {
       "type": "string",
       "description": "1-2 concise internal sentences explaining the decision. Never shown to the tenant."
+    },
+    "review_answer": {
+      "type": "string",
+      "description": "Only when answer is NO_ANSWER because staff already answered or are handling the topic: the reply you would have given if staff had not replied. Never sent to the tenant - managers read it to review the AI. Empty string otherwise."
     }
   },
-  "required": ["answer", "actions", "why"]
+  "required": [
+    "answer",
+    "actions",
+    "why"
+  ]
 }

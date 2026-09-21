@@ -33,7 +33,7 @@ class ActionError(Exception):
 
 class ActionContext:
     def __init__(self, mode, meta, new_messages_text, conversation_sid, apartment=None, booking=None,
-                 ai_run=None, persist=True, notify=True):
+                 ai_run=None, persist=True, notify=True, staff_in_trigger=False):
         self.mode = mode
         self.meta = meta
         self.new_messages_text = new_messages_text
@@ -43,6 +43,7 @@ class ActionContext:
         self.ai_run = ai_run
         self.persist = persist      # False: replay, nothing is written
         self.notify = notify        # False: replay, nobody is notified
+        self.staff_in_trigger = staff_in_trigger  # an authorized STAFF message started this run
         self.temp_ids = {}          # "new-1" -> AIIssue
 
     @property
@@ -239,6 +240,11 @@ def _notify_action(ctx, action):
     return _ok(note + (f", linked to {issue.public_id}" if issue else ""))
 
 
+def _kb_update(ctx, action):
+    from mysite.ai_agent.knowledge import apply_kb_update
+    return _ok(apply_kb_update(ctx, action, ctx.staff_in_trigger))
+
+
 def _ticket_note(ctx, action):
     text = action.get('text') or f"ticket status -> {action.get('status')}"
     return _case_note(ctx, {'issue_id': None, 'ticket_id': action.get('ticket_id'), 'text': text},
@@ -256,6 +262,7 @@ HANDLERS = {
     'CREATE_TICKET': _notify_action,
     'TICKET_COMMENT': _ticket_note,
     'UPDATE_TICKET': _ticket_note,
+    'KB_UPDATE': _kb_update,
 }
 
 
@@ -284,8 +291,6 @@ def execute_actions(parsed, ctx):
         note = 'added by backend: the answer promised escalation but no matching action was emitted. ' if action is backend_added else ''
         if not isinstance(action, dict) or action.get('type') not in ACTION_TYPES:
             status, detail = STATUS_REJECTED, 'unknown action type'
-        elif action['type'] == 'KB_UPDATE':
-            status, detail = STATUS_SIMULATED, 'recorded only (knowledge base moves to the agent in Phase 3)'
         elif not ctx.persist or (action['type'] in NOTIFY_ACTION_TYPES and not ctx.notify):
             status, detail = STATUS_SIMULATED, 'replay - nothing saved, nobody notified'
         else:

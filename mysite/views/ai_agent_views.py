@@ -9,13 +9,19 @@ from django.views.decorators.http import require_http_methods
 
 from ..ai_agent import config as agent_config
 from ..decorators import user_has_role
-from ..models import AICaseNote, AIEvent, AIFollowUp, AIIssue, AIRun, StaffMember, TwilioMessage
+from ..models import AICaseNote, AIEvent, AIFollowUp, AIIssue, AIKnowledge, AIRun, StaffMember, TwilioMessage
 
 # Files of a run folder that may be shown in the browser, in display order
 REPORT_FILES = (
     'report.md', '02_input.md', '05_steps.md', '06_output.json', '07_actions.json', '08_delivery.json',
     '01_system_prompt.md', '03_command.txt', '00_meta.json', 'stderr.txt', '04_transcript.jsonl',
 )
+
+
+def _safe_next(request, default):
+    """Only local paths are accepted as a redirect target."""
+    target = request.POST.get('next') or ''
+    return target if target.startswith('/') and not target.startswith('//') else default
 
 
 def _run_dir(ai_run):
@@ -121,11 +127,15 @@ def get_ai_activity(conversation_sid):
         ).select_related('issue').order_by('due_at'))
         notes = list(AICaseNote.objects.filter(conversation_sid=conversation_sid).order_by('-id')[:8])
         runs = list(AIRun.objects.filter(conversation_sid=conversation_sid).order_by('-id')[:5])
+        kb_candidates = AIKnowledge.objects.filter(
+            conversation_sid=conversation_sid, status=AIKnowledge.STATUS_ACTIVE, confidence=AIKnowledge.CONFIDENCE_CANDIDATE,
+        ).count()
     except Exception:
         return None  # tables not migrated yet
-    if not (open_issues or resolved or followups or notes or runs):
+    if not (open_issues or resolved or followups or notes or runs or kb_candidates):
         return None
-    return {'open_issues': open_issues, 'resolved_issues': resolved, 'followups': followups, 'notes': notes, 'runs': runs}
+    return {'open_issues': open_issues, 'resolved_issues': resolved, 'followups': followups, 'notes': notes,
+            'runs': runs, 'kb_candidates': kb_candidates}
 
 
 @user_has_role('Admin', 'Manager')
@@ -140,7 +150,7 @@ def ai_issue_resolve(request, issue_id):
         issue.followups.filter(status=AIFollowUp.STATUS_PENDING).update(
             status=AIFollowUp.STATUS_CANCELLED, status_note='issue resolved by a manager', updated_at=timezone.now(),
         )
-    return redirect(request.POST.get('next') or f'/chat/{issue.conversation_sid}/')
+    return redirect(_safe_next(request, f'/chat/{issue.conversation_sid}/'))
 
 
 @user_has_role('Admin', 'Manager')
@@ -181,4 +191,43 @@ def ai_staff_view(request):
             error = str(e)
     return render(request, 'ai_staff.html', {
         'members': StaffMember.objects.all(), 'roles': StaffMember.ROLE_CHOICES, 'error': error,
+    })
+
+
+@user_has_role('Admin', 'Manager')
+def ai_knowledge_view(request):
+    """What the AI agent learned. Candidates wait here until a manager approves or rejects them."""
+    from ..ai_agent import knowledge
+
+    if request.method == 'POST':
+        entry = get_object_or_404(AIKnowledge, id=request.POST.get('id'))
+        reviewer = getattr(request.user, 'full_name', None) or str(request.user)
+        action = request.POST.get('action')
+        new_value = (request.POST.get('value') or '').strip()
+        if action in ('approve', 'save') and new_value and new_value != entry.value:
+            entry.value = new_value
+            entry.is_access_code = knowledge.looks_like_access_code(entry.key, new_value)
+        if action == 'approve':
+            knowledge.approve(entry, reviewer)
+        elif action == 'reject':
+            knowledge.reject(entry, reviewer)
+        elif action == 'save':
+            entry.save()
+        return redirect(_safe_next(request, '/ai-knowledge/'))
+
+    show = request.GET.get('show', 'candidates')
+    entries = AIKnowledge.objects.select_related('apartment')
+    if show == 'candidates':
+        entries = entries.filter(status=AIKnowledge.STATUS_ACTIVE, confidence=AIKnowledge.CONFIDENCE_CANDIDATE)
+    elif show == 'verified':
+        entries = entries.filter(status=AIKnowledge.STATUS_ACTIVE, confidence=AIKnowledge.CONFIDENCE_VERIFIED)
+    if request.GET.get('apartment'):
+        entries = entries.filter(apartment_id=request.GET['apartment'])
+    page = Paginator(entries.order_by('-id'), 50).get_page(request.GET.get('page', 1))
+    return render(request, 'ai_knowledge.html', {
+        'page': page, 'show': show,
+        'candidates_count': AIKnowledge.objects.filter(
+            status=AIKnowledge.STATUS_ACTIVE, confidence=AIKnowledge.CONFIDENCE_CANDIDATE).count(),
+        'verified_count': AIKnowledge.objects.filter(
+            status=AIKnowledge.STATUS_ACTIVE, confidence=AIKnowledge.CONFIDENCE_VERIFIED).count(),
     })

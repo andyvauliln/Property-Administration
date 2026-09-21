@@ -120,7 +120,12 @@ Claude never sends anything itself. It only returns text and a list of requests;
 
 ## Safety nets
 
-- If a manager replies while Claude is still thinking → the AI answer is **not** sent.
+- **If a manager answers first, the AI still writes its answer — but only for review.** It is never
+  sent to the tenant, even on a live apartment. In the chat page it appears under the tenant's message
+  like a test-mode answer, marked "[NOT SENT - staff answered first, shown for review only]", so you can
+  compare what the AI would have said with what the manager said. This covers both cases: the manager
+  replied during the 1-minute wait (Claude sees the reply, stays silent and fills a "review answer"),
+  or the manager replied while Claude was already working (the finished answer is held back).
 - If Claude says "I've passed it to the team" but forgot to create the alert → the CRM creates the alert itself.
 - If Claude fails or times out → the tenant's message goes to the AI Telegram chat so a human sees it.
 - An emergency message is never held back by the 1-minute wait.
@@ -156,8 +161,18 @@ When a manager writes in the tenant chat, two things happen:
 1. Claude is woken with `STAFF_MESSAGE`. It normally says nothing to the tenant; it updates its
    issues ("Edy is handling this"), stops reminders that are no longer needed, and sets a tenant
    reminder if the manager asked the tenant for something.
-2. The old logic still checks whether the manager said something reusable (new WiFi password,
-   parking spot) and saves it to the knowledge base. This part moves to Claude in Phase 3.
+2. If the manager said something reusable (new WiFi password, trash room), Claude saves it as
+   **verified knowledge** and uses it from the next message. General rules and anything a tenant
+   claims wait for a manager's approval on `/ai-knowledge/`. One-time arrangements become case
+   notes, never knowledge. (The old knowledge extraction still runs next to this.)
+
+## What the AI is not allowed to see or say (Phase 3)
+
+- **Access codes** reach the AI only from 24 hours before check-in until checkout. Earlier than
+  that the codes are hidden from it, and if an answer still contained one the CRM blocks it.
+- **Payments:** the AI sees the booking's payment rows; with none on file it must send the
+  question to Janna instead of guessing.
+- Full description: `phase3_knowledge_guards.md`.
 
 ## Issues and reminders (Phase 2)
 

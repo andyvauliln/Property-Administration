@@ -79,9 +79,10 @@ still runs next to it. Cost control: `AI_AGENT_STAFF_EVENTS=all` (default) | `op
 - **`/ai-issues/`** — all open issues across apartments, next follow-up, *Resolve* button.
   Resolving by hand stops the AI's reminders for that issue.
 - **`/ai-staff/`** (Admin) — who is Edy / Kevin / Janna: phone (how they are recognised in the chat),
-  ClickUp id, role. Seeded by the migration: Edy = Farouk Ahmed, Kevin = Farid Gazizov, Janna, Andrei.
-  **Only Janna's phone is known — please fill in Edy's and Kevin's phones there**, otherwise their
-  messages appear to the AI as "Manager 1917" instead of "Edy".
+  up to two phones, ClickUp id, role. Seeded by the migration: Edy = Farouk Ahmed, Janna,
+  Farid = owner (both his phones), Andrei, and Kevin = supervisor role with **no person yet**.
+  **Edy's phone is still missing — please add it there**, otherwise his messages appear to the AI
+  as "Manager 1917"-style names instead of "Edy". Assign Kevin when you know who it is.
 
 ## Tests (no production data, no cost)
 

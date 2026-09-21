@@ -40,6 +40,30 @@ MANAGER_PHONE_NAMES = {
 }
 RESERVED_PHONES = frozenset(MANAGER_PHONES + (TWILIO_ASSISTANT_PHONE,))
 
+_manager_phones_cache = {'at': 0.0, 'phones': frozenset(MANAGER_PHONES)}
+
+
+def get_manager_phones():
+    """
+    Phones that are STAFF, never a tenant: the hardcoded MANAGER_PHONES plus every active phone on
+    /ai-staff/ (StaffMember). Adding a manager there needs no deploy. The hardcoded list stays as a
+    safety net so a manager is never treated as a tenant; set STAFF_PHONES_FROM_TABLE_ONLY=true to
+    drop it once the staff table is complete. Cached for 30 seconds, never raises.
+    """
+    now = time.monotonic()
+    if now - _manager_phones_cache['at'] > 30:
+        phones = set()
+        try:
+            from mysite.models import StaffMember
+            for member in StaffMember.objects.filter(is_active=True):
+                phones.update(member.phones)
+        except Exception:
+            phones = set()  # table not migrated yet / DB problem: fall back to the hardcoded list
+        if not phones or os.environ.get('STAFF_PHONES_FROM_TABLE_ONLY', '').lower() != 'true':
+            phones.update(MANAGER_PHONES)
+        _manager_phones_cache.update(at=now, phones=frozenset(phones))
+    return _manager_phones_cache['phones']
+
 
 def _is_ai_assistant_globally_enabled():
     return os.environ.get('AI_ASSISTANT_ENABLED', 'true').lower() == 'true'
@@ -84,7 +108,7 @@ def is_reserved_phone(phone):
         return False
     from mysite.models import validate_and_format_phone
     formatted = validate_and_format_phone(phone)
-    return formatted in RESERVED_PHONES
+    return formatted in RESERVED_PHONES or formatted in get_manager_phones()
 
 # Unified logger throughout the app
 
@@ -159,7 +183,7 @@ def save_conversation_to_db(conversation_sid, friendly_name, booking=None, apart
                 manager_phone_3 = "+15614603904"
                 manager_phone_4 = "+15618438867"
                 
-                if author not in [twilio_phone, 'Virtual Assistant', 'ASSISTANT', manager_phone, manager_phone_2, manager_phone_3, manager_phone_4]:
+                if author not in (twilio_phone, 'Virtual Assistant', 'ASSISTANT') and author not in get_manager_phones():
                     booking = get_booking_from_phone(author)
                     if booking:
                         conversation.booking = booking
@@ -1109,7 +1133,7 @@ def is_customer_message(message):
     author = (message.author or '').strip()
     if author in ('ASSISTANT', 'Virtual Assistant', TWILIO_ASSISTANT_PHONE):
         return False
-    if author in MANAGER_PHONES:
+    if author in get_manager_phones():
         return False
     return message.direction == 'inbound'
 
@@ -1812,7 +1836,7 @@ def _build_kb_author_labels(conversation):
         tenant_phone = (conversation.booking.tenant.phone or '').strip()
         tenant_name = (conversation.booking.tenant.full_name or '').strip()
 
-    phones = set(MANAGER_PHONES)
+    phones = set(get_manager_phones())
     if tenant_phone:
         phones.add(tenant_phone)
     for author in conversation.messages.values_list('author', flat=True).distinct():
@@ -1829,7 +1853,7 @@ def _build_kb_author_labels(conversation):
         author = (author or '').strip()
         if author in ('ASSISTANT', 'Virtual Assistant'):
             return f'{TWILIO_ASSISTANT_PHONE} (Assistant)'
-        if author in MANAGER_PHONES:
+        if author in get_manager_phones():
             user = users_by_phone.get(author)
             name = (user.full_name or '').strip() if user and user.full_name else MANAGER_PHONE_NAMES.get(author, 'Manager')
             return f'{author} ({name})'
@@ -1846,7 +1870,7 @@ def _build_kb_author_labels(conversation):
         author = (author or '').strip()
         if author:
             labels[author] = label_for(author)
-    for key in MANAGER_PHONES + ('ASSISTANT', 'Virtual Assistant'):
+    for key in tuple(get_manager_phones()) + ('ASSISTANT', 'Virtual Assistant'):
         labels[key] = label_for(key)
     return labels
 
@@ -2482,7 +2506,7 @@ def _is_manager_kb_candidate(author, body, direction=None):
     """True for manager-authored messages or VA messages explicitly marked with (+)."""
     author = (author or '').strip()
     body = (body or '').strip()
-    if author in MANAGER_PHONES:
+    if author in get_manager_phones():
         return True
     if KB_SUFFIX in body:
         return True
@@ -2924,7 +2948,7 @@ def twilio_webhook(request):
                     body_to_save = body or ''
 
                     # Determine direction based on author
-                    direction = 'inbound' if author not in [twilio_phone, 'Virtual Assistant', 'ASSISTANT', manager_phone, manager_phone_2, manager_phone_3, manager_phone_4] else 'outbound'
+                    direction = 'inbound' if author not in (twilio_phone, 'Virtual Assistant', 'ASSISTANT') and author not in get_manager_phones() else 'outbound'
 
                     log_message_received(
                         conversation_sid=conversation_sid or '',
@@ -3018,7 +3042,7 @@ def twilio_webhook(request):
                         if _conv and _conv.apartment_id and _conv.booking_id:
                             _apartment = Apartment.objects.prefetch_related('managers').select_related('owner').get(id=_conv.apartment_id)
                             _booking = Booking.objects.select_related('tenant').get(id=_conv.booking_id)
-                            _is_customer = author not in [twilio_phone, manager_phone, manager_phone_2, manager_phone_3, manager_phone_4, 'ASSISTANT', 'Virtual Assistant']
+                            _is_customer = author not in (twilio_phone, 'ASSISTANT', 'Virtual Assistant') and author not in get_manager_phones()
 
                             if _is_customer and _enqueue_for_ai_agent(conversation_sid, message_sid, body):
                                 pass  # answered asynchronously by the ai-agent worker
@@ -3037,7 +3061,7 @@ def twilio_webhook(request):
                             else:
                                 from mysite.models import TwilioMessage
                                 _history_msg = TwilioMessage.objects.filter(message_sid=message_sid).first() if message_sid else None
-                                if author in MANAGER_PHONES:
+                                if author in get_manager_phones():
                                     # Claude agent: a manager's message updates issues / follow-ups (no-op on the legacy backend)
                                     _enqueue_staff_for_ai_agent(conversation_sid, message_sid, body)
                                 if _history_msg and should_run_kb_extraction_for_message(_history_msg):
@@ -3064,7 +3088,7 @@ def twilio_webhook(request):
                         if _conv and _conv.apartment_id and _conv.booking_id:
                             _apartment = Apartment.objects.prefetch_related('managers').select_related('owner').get(id=_conv.apartment_id)
                             _booking = Booking.objects.select_related('tenant').get(id=_conv.booking_id)
-                            _is_customer = author not in [twilio_phone, manager_phone, manager_phone_2, manager_phone_3, manager_phone_4, 'ASSISTANT', 'Virtual Assistant']
+                            _is_customer = author not in (twilio_phone, 'ASSISTANT', 'Virtual Assistant') and author not in get_manager_phones()
 
                             if _is_customer and _enqueue_for_ai_agent(conversation_sid, message_sid, body):
                                 pass  # answered asynchronously by the ai-agent worker
@@ -3099,7 +3123,7 @@ def twilio_webhook(request):
                             else:
                                 from mysite.models import TwilioMessage
                                 _history_msg = TwilioMessage.objects.filter(message_sid=message_sid).first() if message_sid else None
-                                if author in MANAGER_PHONES:
+                                if author in get_manager_phones():
                                     # Claude agent: a manager's message updates issues / follow-ups (no-op on the legacy backend)
                                     _enqueue_staff_for_ai_agent(conversation_sid, message_sid, body)
                                 if _history_msg and should_run_kb_extraction_for_message(_history_msg):
@@ -3120,7 +3144,7 @@ def twilio_webhook(request):
                         log_error(e, "Error in AI message routing", source='web')
                 # --- end AI processing ---
                 # Check if author is not twilio_phone and not manager_phone
-                author_is_customer = (author != twilio_phone and author not in [manager_phone, manager_phone_2, manager_phone_3, manager_phone_4, 'ASSISTANT', 'Virtual Assistant'])
+                author_is_customer = author not in (twilio_phone, 'ASSISTANT', 'Virtual Assistant') and author not in get_manager_phones()
                 
                 if author_is_customer:
                     log_info(f"Author {author} is a customer, checking for existing group conversations", category='sms')

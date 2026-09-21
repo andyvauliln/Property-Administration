@@ -5,7 +5,9 @@
 - `migration_plan.md` — this file: opinion on the vision + migration phases
 - `phase1_runbook.md` — what was built in Phase 1, how to turn it on, how to read run reports
 - `phase2_issues_followups.md` — issues, real actions, follow-up timers, staff, new pages
-- `testbed/` — `run_tests.sh`: 51 automatic checks on a throwaway database (no cost, no production data)
+- `phase3_knowledge_guards.md` — what the AI learns and from whom, access-code and payment guards, staff phones
+- `clickup_apartment_map.md` (+ `.json`, `clickup_channels.json`) — which CRM apartment has which ClickUp channel, and what is missing
+- `testbed/` — `run_tests.sh`: 82 automatic checks on a throwaway database (no cost, no production data)
 - `farid_vision.md` — the customer's system prompt (source of the requirements)
 - `clickup_users.json` — ClickUp users for staff mapping
 
@@ -131,11 +133,13 @@ Goal: swap the brain, keep everything else. No issues/ClickUp yet.
 - **UI**: "AI activity" panel in `templates/chat/chat_detail.html` — per message: answer, why, actions (executed / simulated), open issues, pending follow-ups.
 
 ### Phase 3 — Knowledge base upgrade
+**Status 2026-09-21: built and tested, switched off with the same switch. Details: `phase3_knowledge_guards.md`.**
 - `KB_UPDATE` with scope (apartment / building / company) and confidence (verified / candidate). Candidates shown to managers for one-click approve in the existing AI management modal. Only verified KB goes into the prompt.
 - Code-level guards: access codes only inside the check-in window; payment block only when records are complete.
 - Retire the old OpenRouter KB-extract path once this matches it.
 
 ### Phase 4 — ClickUp
+**Decision 2026-09-21: postponed. For now everything goes to the one AI Telegram chat only.** The apartment ↔ channel map is ready for later (`clickup_apartment_map.md`).
 - `Apartment.clickup_channel_id` / `clickup_list_id`, auto-matched once by name (`630-429` ↔ `building_n-apartment_n`), editable in the apartment form.
 - Outbound first: alerts → apartment channel, `CREATE_TICKET` → task in the apartment list, Telegram kept for urgent/emergency.
 - Inbound second: task webhooks → `TICKET_UPDATE`; channel messages → `CLICKUP_MESSAGE` (webhook if available, else 1–2 min polling in the worker).
@@ -155,6 +159,20 @@ Edy: property manager (day-to-day operations, maintenance, scheduling, tenant re
 Kevin: supervisor (escalations, sensitive matters, overdue issues)
 Janna: accounting (payments, deposits, refunds, invoices)
 Other authorized staff (role STAFF in metadata)
+
+Confirmed mapping (2026-09-21) — this is what migration `0084` puts into the staff table (`/ai-staff/`):
+
+| Name the AI uses | Person | Role | Phone in tenant chats | ClickUp user id |
+|---|---|---|---|---|
+| Edy | Farouk Ahmed | property manager (operations) | ❓ not known yet | 176673799 |
+| Kevin | ❓ person not decided yet | supervisor (escalations, sensitive) | — | — |
+| Janna | Janna | accounting | +15618438867 | 118004539 |
+| Farid | Farid Gazizov | **owner of the company** | +15614603904, second phone +15612205252 | 126173964 |
+| Andrei | Andrei Vaulin | engineering (AI / system errors) | — | 89595503 |
+
+Until Kevin is a real person, alerts addressed to Kevin show "Kevin (role not assigned to a person yet)";
+they still arrive in the one AI Telegram chat. `+17282001917` is the fourth hardcoded manager number and
+its owner is not confirmed (the AI sees it as "Manager 1917").
 
 
 Other accounts (jimmyscourtyards 118023004, Ivan K. 112003526, Babken Norayr 105985413, Imie Malaay 118026268) get role `STAFF` with no ownership until assigned. The AI only outputs role names (`Edy|Kevin|Janna`); the backend resolves them to ClickUp id / phone / Telegram from `StaffMember`, so changing a person never touches the prompt.

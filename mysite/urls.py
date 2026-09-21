@@ -82,6 +82,7 @@ urlpatterns = [
     path('ai-issues/', views.ai_issues_view, name='ai_issues'),
     path('ai-issues/<int:issue_id>/resolve/', views.ai_issue_resolve, name='ai_issue_resolve'),
     path('ai-staff/', views.ai_staff_view, name='ai_staff'),
+    path('ai-knowledge/', views.ai_knowledge_view, name='ai_knowledge'),
     path('chat/<str:conversation_sid>/messages/<int:message_id>/ai-agent-status/', views.ai_agent_message_status, name='ai_agent_message_status'),
     # Database Activity Monitoring
     path('database-activity/', views.database_activity, name='database_activity'),

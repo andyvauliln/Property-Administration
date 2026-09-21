@@ -25,6 +25,7 @@
                 {% if conversation_sid %}<span class="text-gray-500">conversation: {{ conversation_sid }}</span>{% endif %}
                 <span class="text-gray-400">|</span>
                 <a href="/ai-issues/" class="text-blue-600 hover:underline dark:text-blue-400">AI issues</a>
+                <a href="/ai-knowledge/" class="text-blue-600 hover:underline dark:text-blue-400">AI knowledge</a>
                 <a href="/ai-staff/" class="text-blue-600 hover:underline dark:text-blue-400">Staff</a>
             </div>
         </div>
@@ -63,6 +64,7 @@
                         <td class="px-3 py-2 max-w-md">
                             {% if run.error %}<div class="text-red-700 dark:text-red-300">{{ run.error|truncatechars:200 }}</div>
                             {% elif run.no_answer %}<div class="text-gray-500">NO_ANSWER</div>
+                            {% if run.review_answer %}<div class="mt-1 rounded bg-purple-50 px-2 py-1 text-xs text-purple-900 dark:bg-purple-900/30 dark:text-purple-100"><b>Would have said (not sent, staff answered first):</b> {{ run.review_answer|truncatechars:240 }}</div>{% endif %}
                             {% else %}<div class="whitespace-pre-wrap">{{ run.answer|truncatechars:240 }}</div>{% endif %}
                             {% if run.why %}<div class="mt-1 text-xs italic text-gray-500">{{ run.why|truncatechars:240 }}</div>{% endif %}
                         </td>

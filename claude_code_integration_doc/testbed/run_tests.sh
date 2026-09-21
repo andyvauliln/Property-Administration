@@ -10,3 +10,4 @@ rm -rf "${TMPDIR:-/tmp}/ai_agent_testbed"
 ./venv/bin/python manage.py migrate --run-syncdb > /dev/null 2>&1
 ./venv/bin/python "$HERE/e2e_phase2.py" 2>&1 | grep -E "^(===|PASS|FAIL|[0-9]+/)"
 ./venv/bin/python "$HERE/ui_test.py" 2>&1 | grep -E "^(PASS|FAIL|[0-9]+/)"
+./venv/bin/python "$HERE/e2e_phase3.py" 2>&1 | grep -E "^(===|PASS|FAIL|[0-9]+/|Traceback|\w+Error)"

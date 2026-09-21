@@ -93,7 +93,8 @@ check("ticket title stored on issue", issue.ticket_title == 'Kitchen sink drippi
 check("follow-up created although it came before CREATE_ISSUE", AIFollowUp.objects.filter(issue=issue, kind='staff_reminder', status='pending').count() == 1)
 check("unknown action rejected", st.get('DELETE_EVERYTHING') == 'rejected')
 check("foreign/unknown issue id rejected", st.get('UPDATE_ISSUE_STATE') == 'rejected')
-check("KB_UPDATE only recorded", st.get('KB_UPDATE') == 'simulated')
+check("KB_UPDATE from a tenant-only run is stored as a candidate, never verified", st.get('KB_UPDATE') == 'executed'
+      and __import__('mysite.models').models.AIKnowledge.objects.get(key='x').confidence == 'candidate')
 check("2 Telegram alerts, marked TEST, staff name resolved", len(telegram) == 2 and all('TEST MODE' in t for t in telegram) and 'Edy (Farouk Ahmed)' in telegram[0], telegram)
 m1.refresh_from_db()
 check("answer stored on message, NOT sent (test mode)", m1.ai_response and m1.ai_sent_to_chat is False and not sms)

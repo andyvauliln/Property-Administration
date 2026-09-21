@@ -18,6 +18,8 @@ from mysite.ai_agent import config, inputs, prompts, run_report, runner
 from mysite.ai_agent.notify import report_error
 from mysite.unified_logger import log_info, log_warning
 
+REVIEW_ONLY_PREFIX = "[NOT SENT - staff answered first, shown for review only]"
+
 # A message that looks like an emergency is never held back by the 1-minute wait
 _EMERGENCY = re.compile(
     r"\b(fire|smoke|gas smell|smell(s)? (of )?gas|carbon monoxide|co alarm|flood(ing|ed)?|water (is )?(pouring|everywhere)|"
@@ -152,6 +154,7 @@ def _parse_output(output):
         'answer': None if no_answer else answer,
         'why': str(output.get('why') or '').strip() or None,
         'no_answer': no_answer,
+        'review_answer': (str(output.get('review_answer') or '').strip() or None) if no_answer else None,
         'actions': actions if isinstance(actions, list) else [],
     }
 
@@ -211,7 +214,15 @@ def _staff_replied_after(conversation_sid, last_message):
     return any(inputs.classify_sender(m, ai_answers)[0] == inputs.ROLE_STAFF for m in later)
 
 
-def deliver(parsed, mode, conversation_sid, booking, last_message, payload):
+def _leaked_access_code(answer, apartment, booking):
+    """True when the answer contains a code that is hidden at this moment (outside the access window)."""
+    from mysite.ai_agent import knowledge
+    if not answer or knowledge.access_codes_allowed(booking):
+        return False
+    return any(value in answer for value in knowledge.hidden_code_values(apartment))
+
+
+def deliver(parsed, mode, conversation_sid, booking, last_message, payload, apartment=None):
     """Sends the answer to the Twilio group chat in live mode. Returns {'sent_to_chat', 'note'}."""
     from mysite.group_chat_logger import log_ai_customer_no_answer, log_ai_customer_sent, log_ai_disabled
     from mysite.models import AIRun
@@ -221,6 +232,13 @@ def deliver(parsed, mode, conversation_sid, booking, last_message, payload):
     if not answer:
         log_ai_customer_no_answer(conversation_sid, getattr(last_message, 'body', '') or '', parsed.get('why') or '')
         return {'sent_to_chat': False, 'note': 'NO_ANSWER - nothing to send'}
+    if _leaked_access_code(answer, apartment, booking):
+        report_error(
+            Exception("answer contained an access code outside the allowed window"),
+            "AI answer BLOCKED - not sent to the tenant", {'conversation_sid': conversation_sid, 'mode': mode},
+        )
+        return {'sent_to_chat': False, 'note': 'BLOCKED - answer contained an access code outside the allowed window',
+                'error': 'answer blocked: access code outside the allowed window'}
     if mode != AIRun.MODE_LIVE:
         log_ai_disabled(conversation_sid, payload.get('reply_author') or '', answer)
         return {'sent_to_chat': False, 'note': 'test mode - stored in DB, not sent to Twilio'}
@@ -329,15 +347,26 @@ def process_events(events):
 
     action_results, delivery = [], {'sent_to_chat': False, 'note': 'run failed - nothing sent'}
     if parsed:
-        delivery = deliver(parsed, mode, conversation_sid, booking, last_message, reply_payload)
+        delivery = deliver(parsed, mode, conversation_sid, booking, last_message, reply_payload, apartment=apartment)
         action_results = agent_actions.execute_actions(parsed, agent_actions.ActionContext(
             mode, meta, outcome['new_messages_text'], conversation_sid,
             apartment=apartment, booking=booking, ai_run=ai_run,
+            staff_in_trigger=any(e.event_type == AIEvent.TYPE_STAFF_MESSAGE for e in events),
         ))
+        if parsed['review_answer']:
+            delivery['note'] = 'NO_ANSWER - staff answered first; the review answer is stored for managers, never sent'
         if last_tenant_message:
+            shown_answer, shown_why = parsed['answer'], parsed['why']
+            if parsed['review_answer']:
+                # Visible in the chat page like a test-mode answer, so managers can compare it with staff's reply
+                shown_answer = parsed['review_answer']
+                shown_why = f"{REVIEW_ONLY_PREFIX} {parsed['why'] or ''}".strip()
+            elif parsed['answer'] and (delivery.get('note') or '').startswith('suppressed'):
+                # Live mode, but a manager replied while the AI was working: keep the answer for review only
+                shown_why = f"{REVIEW_ONLY_PREFIX} {parsed['why'] or ''}".strip()
             _persist_customer_ai_result(
                 last_tenant_message.message_sid,
-                {'answer': parsed['answer'], 'why': parsed['why']},
+                {'answer': shown_answer, 'why': shown_why},
                 sent_to_chat=delivery['sent_to_chat'],
             )
 
@@ -349,6 +378,7 @@ def process_events(events):
         answer=parsed['answer'] if parsed else None,
         why=parsed['why'] if parsed else None,
         no_answer=bool(parsed and parsed['no_answer']),
+        review_answer=parsed['review_answer'] if parsed else None,
         actions=action_results, sent_to_chat=delivery['sent_to_chat'],
         delivery_note=(delivery.get('note') or '')[:255],
         error=run.get('error') or delivery.get('error'),

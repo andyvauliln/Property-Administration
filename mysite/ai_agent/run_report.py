@@ -222,6 +222,8 @@ def _report_markdown(meta, summary, parsed, actions, delivery, run, new_messages
         "NO_ANSWER" if (parsed and parsed.get('no_answer')) else (answer or '(none)'),
         "```",
         "",
+        *(["## Review answer (staff answered first - NEVER sent, for managers only)", "```", parsed['review_answer'], "```", ""]
+          if parsed and parsed.get('review_answer') else []),
         "## Why",
         (parsed or {}).get('why') or '(none)',
         "",
