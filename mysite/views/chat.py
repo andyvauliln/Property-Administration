@@ -6,7 +6,7 @@ from django.views.decorators.csrf import csrf_exempt
 from django.db.models import Max, Q
 from django.utils import timezone
 from django.core.paginator import Paginator
-from mysite.models import TwilioConversation, TwilioMessage, User, ChatMessageTemplate
+from mysite.models import Apartment, TwilioConversation, TwilioMessage, User, ChatMessageTemplate
 from mysite.views.messaging import (
     send_messsage_by_sid,
     save_message_to_db,
@@ -35,6 +35,8 @@ from mysite.views.messaging import (
     generate_kb_rule_text,
     append_rule_to_kb_extract_check,
     should_run_kb_extraction_for_message,
+    _is_ai_assistant_globally_enabled,
+    _should_send_ai_to_group,
     KB_EXTRACT_APARTMENT_CHECK_KEY,
     KB_EXTRACT_APARTMENT_MERGE_KEY,
     KB_EXTRACT_GLOBAL_CHECK_KEY,
@@ -49,7 +51,6 @@ from mysite.views.messaging import (
 from mysite.unified_logger import log_error, log_info, logger
 from mysite.error_logger import log_exception
 import json
-import os
 from uuid import uuid4
 
 
@@ -303,6 +304,10 @@ def chat_detail(request, conversation_sid):
     chat_templates = list(
         ChatMessageTemplate.objects.order_by("name", "-created_at").values("id", "name", "body")
     )
+    apartment = conversation.apartment if conversation.apartment_id else None
+    ai_assistant_enabled = _is_ai_assistant_globally_enabled()
+    apartment_ai_group_chat_enabled = bool(apartment and apartment.ai_group_chat_enabled)
+    ai_can_send_to_group = _should_send_ai_to_group(apartment)
 
     # Get all conversations for sidebar
     all_conversations = TwilioConversation.objects.annotate(
@@ -332,7 +337,9 @@ def chat_detail(request, conversation_sid):
         'chat_templates': chat_templates,
         'message_count': len(chat_messages),
         'ai_ready': bool(conversation.apartment_id and conversation.booking_id),
-        'ai_assistant_enabled': os.environ.get('AI_ASSISTANT_ENABLED', 'true').lower() == 'true',
+        'ai_assistant_enabled': ai_assistant_enabled,
+        'apartment_ai_group_chat_enabled': apartment_ai_group_chat_enabled,
+        'ai_can_send_to_group': ai_can_send_to_group,
         'global_knowledge_base': get_global_knowledge_base_text(),
     })
 
@@ -416,10 +423,9 @@ def send_message(request, conversation_sid):
             
             # When sent as client: process AI synchronously (webhook may not fire for API-created messages)
             ai_result = None
-            ai_assistant_enabled = os.environ.get('AI_ASSISTANT_ENABLED', 'true').lower() == 'true'
             if sender_type == 'client' and conversation.apartment_id and conversation.booking_id:
                 try:
-                    from mysite.models import Apartment, Booking, TwilioMessage
+                    from mysite.models import Booking, TwilioMessage
                     from mysite.views.messaging import ai_answer_customer_detailed, _persist_customer_ai_result
                     from mysite.group_chat_logger import log_ai_customer_start, log_ai_customer_sent
                     apartment = Apartment.objects.prefetch_related('managers').select_related('owner').get(id=conversation.apartment_id)
@@ -429,7 +435,7 @@ def send_message(request, conversation_sid):
                         ai_detail = ai_answer_customer_detailed(conversation_sid, original_message, apartment, booking)
                         ai_resp = ai_detail.get("answer")
                         if ai_resp:
-                            ai_sent_to_chat = bool(send_to_group_chat and ai_assistant_enabled)
+                            ai_sent_to_chat = bool(send_to_group_chat and _should_send_ai_to_group(apartment))
                             if ai_sent_to_chat:
                                 try:
                                     send_messsage_by_sid(conversation_sid, 'ASSISTANT', ai_resp, manager_phone, None)

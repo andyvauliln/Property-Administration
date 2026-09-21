@@ -115,6 +115,7 @@ def apartments_view(request):
             'status': apt.status,
             'notes': apt.notes,
             'knowledge_base': apt.knowledge_base,
+            'ai_group_chat_enabled': apt.ai_group_chat_enabled,
             'keywords': apt.keywords,
             'raiting': float(apt.raiting) if apt.raiting else 0,
             'default_price': float(apt.default_price) if apt.default_price else 0,

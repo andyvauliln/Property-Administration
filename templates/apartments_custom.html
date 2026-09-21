@@ -244,6 +244,13 @@
                         <textarea name="knowledge_base" id="create_knowledge_base" rows="3" class="block p-2.5 w-full text-sm text-gray-900 bg-gray-50 rounded-lg border border-gray-300 focus:ring-primary-500 focus:border-primary-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"></textarea>
                     </div>
                     <div class="col-span-3">
+                        <label for="create_ai_group_chat_enabled" class="inline-flex items-center gap-2 text-sm font-medium text-gray-900 dark:text-white">
+                            <input type="checkbox" name="ai_group_chat_enabled" id="create_ai_group_chat_enabled" class="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-700 dark:focus:ring-blue-600">
+                            <span>Enable real group chat AI answers</span>
+                        </label>
+                        <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">When off, AI answers are saved for review but not sent into the group chat.</p>
+                    </div>
+                    <div class="col-span-3">
                         <label for="create_keywords" class="block mb-2 text-sm font-medium text-gray-900 dark:text-white">Keywords</label>
                         <textarea name="keywords" id="create_keywords" rows="2" class="block p-2.5 w-full text-sm text-gray-900 bg-gray-50 rounded-lg border border-gray-300 focus:ring-primary-500 focus:border-primary-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"></textarea>
                     </div>
@@ -391,6 +398,13 @@
                             <button type="button" onclick="openExpand('edit_knowledge_base', 'Knowledge Base')" class="text-xs text-blue-600 hover:text-blue-800 font-medium">Expand ↗</button>
                         </div>
                         <textarea name="knowledge_base" id="edit_knowledge_base" rows="3" class="block p-2.5 w-full text-sm text-gray-900 bg-gray-50 rounded-lg border border-gray-300 focus:ring-primary-500 focus:border-primary-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"></textarea>
+                    </div>
+                    <div class="col-span-3">
+                        <label for="edit_ai_group_chat_enabled" class="inline-flex items-center gap-2 text-sm font-medium text-gray-900 dark:text-white">
+                            <input type="checkbox" name="ai_group_chat_enabled" id="edit_ai_group_chat_enabled" class="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-700 dark:focus:ring-blue-600">
+                            <span>Enable real group chat AI answers</span>
+                        </label>
+                        <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">When off, AI answers are saved for review but not sent into the group chat.</p>
                     </div>
                     <div class="col-span-3">
                         <label for="edit_keywords" class="block mb-2 text-sm font-medium text-gray-900 dark:text-white">Keywords</label>
@@ -554,6 +568,7 @@ document.addEventListener('DOMContentLoaded', function() {
         document.getElementById('edit_owner').value = item.owner || '';
         document.getElementById('edit_notes').value = item.notes || '';
         document.getElementById('edit_knowledge_base').value = item.knowledge_base || '';
+        document.getElementById('edit_ai_group_chat_enabled').checked = Boolean(item.ai_group_chat_enabled);
         document.getElementById('edit_keywords').value = item.keywords || '';
         
         // Set manager checkboxes

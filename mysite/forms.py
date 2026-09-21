@@ -295,8 +295,22 @@ class BooleanFieldEx(CustomFieldMixin, forms.BooleanField):
     pass
 
 
+class NullableToggleWidget(forms.CheckboxInput):
+    """Parse toggle POST values (true/false/1/0) without the NullBooleanSelect mapping."""
+
+    def value_from_datadict(self, data, files, name):
+        if name not in data:
+            return None
+        value = data.get(name)
+        if value in (True, 'True', 'true', '1', 1, 'on'):
+            return True
+        if value in (False, 'False', 'false', '0', 0, 'off'):
+            return False
+        return None
+
+
 class NullBooleanFieldEx(CustomFieldMixin, forms.NullBooleanField):
-    pass
+    widget = NullableToggleWidget
 
 
 class URLFieldEx(CustomFieldMixin, forms.URLField):
@@ -360,7 +374,7 @@ class CustomUserForm(forms.ModelForm):
 class ApartmentForm(forms.ModelForm):
     class Meta:
         model = Apartment
-        fields = ['name', 'apartment_type', 'keywords', 'status', 'notes', 'knowledge_base', 'web_link', 'building_n', 'street', 'apartment_n',
+        fields = ['name', 'apartment_type', 'keywords', 'status', 'notes', 'knowledge_base', 'ai_group_chat_enabled', 'web_link', 'building_n', 'street', 'apartment_n',
                   'state', 'start_date', 'end_date', 'city', 'zip_index', 'bedrooms', 'bathrooms', 'managers', 'owner', 'raiting', 'default_price', 'current_price_display']
 
     def __init__(self, *args, **kwargs):
@@ -440,6 +454,9 @@ class ApartmentForm(forms.ModelForm):
                         required=False, isCreate=True, ui_element="textarea")
     knowledge_base = CharFieldEx(isColumn=False, isEdit=True, initial="",
                         required=False, isCreate=True, ui_element="textarea")
+    ai_group_chat_enabled = BooleanFieldEx(
+        label="Enable real group chat AI answers",
+        isColumn=True, isEdit=True, required=False, isCreate=True, initial=False, ui_element="checkbox")
     keywords = CharFieldEx(isColumn=False, isEdit=True, initial="",
                         required=False, isCreate=True, ui_element="textarea")
     managers = ModelMultipleChoiceFieldEx(

@@ -41,6 +41,28 @@ MANAGER_PHONE_NAMES = {
 RESERVED_PHONES = frozenset(MANAGER_PHONES + (TWILIO_ASSISTANT_PHONE,))
 
 
+def _is_ai_assistant_globally_enabled():
+    return os.environ.get('AI_ASSISTANT_ENABLED', 'true').lower() == 'true'
+
+
+def _should_send_ai_to_group(apartment):
+    return bool(apartment and apartment.ai_group_chat_enabled)
+
+
+def _conversation_ai_group_chat_enabled(conversation_sid):
+    try:
+        from mysite.models import TwilioConversation
+        conversation = (
+            TwilioConversation.objects
+            .select_related('apartment')
+            .filter(conversation_sid=conversation_sid)
+            .first()
+        )
+        return bool(conversation and conversation.apartment and conversation.apartment.ai_group_chat_enabled)
+    except Exception:
+        return False
+
+
 def is_reserved_phone(phone):
     """True if phone matches a manager or the Twilio assistant number."""
     if not phone:
@@ -2926,7 +2948,7 @@ def twilio_webhook(request):
                                     _ai_result = ai_answer_customer_detailed(conversation_sid, body_for_customer, _apartment, _booking)
                                     _ai_resp = _ai_result.get("answer")
                                     if _ai_resp:
-                                        if os.environ.get('AI_ASSISTANT_ENABLED', 'true').lower() == 'true':
+                                        if _should_send_ai_to_group(_apartment):
                                             try:
                                                 send_messsage_by_sid(conversation_sid, 'Virtual Assistant', _ai_resp, twilio_phone, None)
                                             except Exception:
@@ -2966,7 +2988,7 @@ def twilio_webhook(request):
                             except Exception as e:
                                 log_ai_error(conversation_sid or '', "AI message routing", str(e))
                                 log_error(e, "Error in AI message routing (ASSISTANT)", source='web')
-                elif os.environ.get('AI_ASSISTANT_ENABLED', 'true').lower() != 'true':
+                elif not _is_ai_assistant_globally_enabled() and not _conversation_ai_group_chat_enabled(conversation_sid):
                     # Test mode: run AI processing but do NOT send responses to chat
                     log_ai_disabled(conversation_sid or '', author or '', body or '')
                     try:
@@ -3028,18 +3050,23 @@ def twilio_webhook(request):
                                     _ai_result = ai_answer_customer_detailed(conversation_sid, body, _apartment, _booking)
                                     _ai_resp = _ai_result.get("answer")
                                     if _ai_resp:
-                                        try:
-                                            send_messsage_by_sid(conversation_sid, 'Virtual Assistant', _ai_resp, twilio_phone, None)
-                                        except Exception:
-                                            _notify_manager_chat_delivery_failed(
-                                                _booking.tenant.full_name or "N/A",
-                                                _booking.tenant.phone or "N/A",
-                                                _ai_resp,
-                                                conversation_sid,
-                                            )
-                                            raise
-                                        log_ai_customer_sent(conversation_sid, _ai_resp)
-                                        _persist_customer_ai_result(message_sid, _ai_result, sent_to_chat=True)
+                                        if _should_send_ai_to_group(_apartment):
+                                            try:
+                                                send_messsage_by_sid(conversation_sid, 'Virtual Assistant', _ai_resp, twilio_phone, None)
+                                            except Exception:
+                                                _notify_manager_chat_delivery_failed(
+                                                    _booking.tenant.full_name or "N/A",
+                                                    _booking.tenant.phone or "N/A",
+                                                    _ai_resp,
+                                                    conversation_sid,
+                                                )
+                                                raise
+                                            log_ai_customer_sent(conversation_sid, _ai_resp)
+                                            _persist_customer_ai_result(message_sid, _ai_result, sent_to_chat=True)
+                                        else:
+                                            log_ai_disabled(conversation_sid or '', author or '', body or '')
+                                            log_ai_customer_sent(conversation_sid, _ai_resp)
+                                            _persist_customer_ai_result(message_sid, _ai_result, sent_to_chat=False)
                                     elif _ai_result.get("why") or _ai_result.get("no_answer"):
                                         _persist_customer_ai_result(message_sid, _ai_result, sent_to_chat=False)
                             else:

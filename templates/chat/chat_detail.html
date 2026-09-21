@@ -239,9 +239,17 @@
                 AI test mode needs this conversation linked to both an <strong>apartment</strong> and a <strong>booking</strong>.
                 {% if not conversation.booking_id %}Link a booking to enable AI replies.{% endif %}
             </div>
+            {% elif ai_can_send_to_group %}
+            <div class="mx-4 mt-3 rounded-lg border border-green-300 bg-green-50 px-4 py-2 text-sm text-green-800 dark:border-green-700 dark:bg-green-900/30 dark:text-green-200">
+                Live AI group-chat answers are <strong>ON</strong> for this apartment — the next AI answer will be sent to the real group chat/SMS.
+            </div>
+            {% elif not apartment_ai_group_chat_enabled %}
+            <div class="mx-4 mt-3 rounded-lg border border-purple-300 bg-purple-50 px-4 py-2 text-sm text-purple-800 dark:border-purple-700 dark:bg-purple-900/30 dark:text-purple-200">
+                AI is in <strong>test mode</strong> for this apartment — replies appear below your message but are not sent to SMS. Enable real group chat AI answers on the apartment to send the next answer.
+            </div>
             {% elif not ai_assistant_enabled %}
             <div class="mx-4 mt-3 rounded-lg border border-purple-300 bg-purple-50 px-4 py-2 text-sm text-purple-800 dark:border-purple-700 dark:bg-purple-900/30 dark:text-purple-200">
-                AI is in <strong>test mode</strong> — replies appear below your message but are not sent to SMS. Use “Send as Client” to simulate a tenant message.
+                AI is in <strong>test mode</strong> globally — replies appear below your message but are not sent to SMS. Use “Send as Client” to simulate a tenant message.
             </div>
             {% endif %}
         </div>
@@ -414,10 +422,23 @@
                         <label for="send-to-group-chat" class="inline-flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
                             <input id="send-to-group-chat"
                                    type="checkbox"
-                                   {% if ai_assistant_enabled %}checked{% endif %}
+                                   {% if ai_can_send_to_group %}checked{% endif %}
                                    class="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-700 dark:focus:ring-blue-600">
                             <span>Send to group chat</span>
                         </label>
+                        {% if ai_can_send_to_group %}
+                        <span class="inline-flex items-center rounded-full bg-green-100 px-2.5 py-0.5 text-xs font-semibold text-green-800 dark:bg-green-900 dark:text-green-200">
+                            Real group chat SMS ON
+                        </span>
+                        {% elif ai_ready %}
+                        <span class="inline-flex items-center rounded-full bg-purple-100 px-2.5 py-0.5 text-xs font-semibold text-purple-800 dark:bg-purple-900 dark:text-purple-200">
+                            AI test only - not sending SMS
+                        </span>
+                        {% else %}
+                        <span class="inline-flex items-center rounded-full bg-yellow-100 px-2.5 py-0.5 text-xs font-semibold text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200">
+                            AI not ready
+                        </span>
+                        {% endif %}
                     </div>
 
                     <textarea id="message-input" 

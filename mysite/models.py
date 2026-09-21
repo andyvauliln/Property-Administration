@@ -309,6 +309,7 @@ class Apartment(models.Model):
     status = models.CharField(max_length=14, db_index=True, choices=STATUS)
     notes = models.TextField(blank=True, null=True)
     knowledge_base = models.TextField(blank=True, null=True)
+    ai_group_chat_enabled = models.BooleanField(default=False)
     start_date = models.DateTimeField(blank=True, null=True, db_index=True)
     end_date = models.DateTimeField(blank=True, null=True, db_index=True)
     keywords = models.TextField(blank=True, null=True)
