@@ -45,6 +45,20 @@ tenant: "yes, thanks"
 On every run Claude now receives the real `OPEN_ISSUES`, `OPEN_TICKETS`, `PENDING_FOLLOWUPS`, `CASE_NOTES`
 and the `STAFF` list, so it knows what is already being handled.
 
+## Before a reminder: look at the ClickUp task (decision 2026-09-21)
+
+When a reminder comes due for an issue that has a ClickUp task, the backend reads the task first
+(status + the last 5 comments):
+
+| Task in ClickUp | What happens |
+|---|---|
+| **closed / done** | The issue is resolved by the backend, all its reminders stop, **Claude is not run and the tenant gets no message** (no "is it working now?" yet). One short ✅ note goes to the Telegram group; a case note records why. |
+| open | Claude is woken as usual and additionally gets `CLICKUP_TASKS`: status, assignee, last change and the staff comments (marked internal - never quoted to the tenant). A comment that shows progress counts as staff handling it, so Claude normally does not remind again. |
+| cannot be read | The reminder runs anyway; Claude is told the task could not be read. |
+
+It reads through the API token when one is set, otherwise through the server's Claude Code ClickUp connection
+(~7 s, ~$0.02-0.07 per reminder). Code: `service.check_tickets_before_reminder`, `clickup.get_task_state`.
+
 ## Timers (file `mysite/ai_agent/policy.py` — change times there, not in the prompt)
 
 | Kind | Delay | Allowed hours |

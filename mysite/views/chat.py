@@ -9,6 +9,7 @@ from django.core.paginator import Paginator
 from mysite.models import Apartment, TwilioConversation, TwilioMessage, User, ChatMessageTemplate
 from mysite.views.messaging import (
     send_messsage_by_sid,
+    send_tenant_sms_gated,
     save_message_to_db,
     delete_conversation as twilio_delete_conversation,
     delete_message as twilio_delete_message,
@@ -454,7 +455,7 @@ def send_message(request, conversation_sid):
                             ai_sent_to_chat = bool(send_to_group_chat and _should_send_ai_to_group(apartment))
                             if ai_sent_to_chat:
                                 try:
-                                    send_messsage_by_sid(conversation_sid, 'ASSISTANT', ai_resp, manager_phone, None)
+                                    send_tenant_sms_gated(conversation_sid, 'ASSISTANT', ai_resp, manager_phone, None)
                                 except Exception:
                                     _notify_manager_chat_delivery_failed(
                                         booking.tenant.full_name or "N/A",
@@ -503,8 +504,9 @@ def send_message(request, conversation_sid):
                     'ai_skipped_reason': 'This conversation has no linked booking — AI test mode requires both apartment and booking.',
                 }
             elif sender_type == 'manager' and conversation.apartment_id:
-                if sent_message and conversation.booking_id and send_to_group_chat:
-                    # Claude agent: a manager's message updates issues / follow-ups (no-op on the legacy backend)
+                if sent_message and conversation.booking_id:
+                    # Claude agent: a manager's message updates issues / follow-ups (no-op on the legacy backend).
+                    # Also for CRM-only messages ("Send to group chat" unticked), so staff flows can be tested safely.
                     _enqueue_staff_for_ai_agent(conversation_sid, sent_message.message_sid, original_message, source='chat_ui')
                 try:
                     from mysite.models import Apartment, TwilioMessage

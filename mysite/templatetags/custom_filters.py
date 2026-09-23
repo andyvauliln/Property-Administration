@@ -158,3 +158,16 @@ def to_json(value):
         return json.dumps(value)
     except (TypeError, ValueError):
         return '{}'
+
+
+@register.filter(name='ai_local')
+def ai_local(value, fmt="%b %d, %H:%M"):
+    """Datetime in the AI agent's time zone (Florida, Eastern Time) with a short label."""
+    if not value:
+        return ''
+    from zoneinfo import ZoneInfo
+    from mysite.ai_agent import config
+    try:
+        return f"{value.astimezone(ZoneInfo(config.TEAM_TIMEZONE)).strftime(fmt)} ET"
+    except Exception:
+        return value

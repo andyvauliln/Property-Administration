@@ -30,7 +30,37 @@ ALLOWED_MCP_TOOLS = (
 
 ASSISTANT_NAME = os.environ.get('AI_AGENT_ASSISTANT_NAME', 'Virtual Assistant')
 COMPANY_NAME = os.environ.get('AI_AGENT_COMPANY_NAME', 'the property management company')
+# All properties are in Florida (West Palm Beach, Sarasota) = US Eastern Time, the same zone as the team.
+# America/New_York is the official name of that zone; it follows daylight saving automatically.
 TEAM_TIMEZONE = os.environ.get('AI_AGENT_TEAM_TIMEZONE', 'America/New_York')
+PROPERTY_TIMEZONE = os.environ.get('AI_AGENT_PROPERTY_TIMEZONE', TEAM_TIMEZONE)
+TIMEZONE_LABEL = os.environ.get('AI_AGENT_TIMEZONE_LABEL', 'ET, Florida')
+
+# Tenant-facing SMS (AI answers, welcome/contract messages, reminders) only actually go out in this window
+# of PROPERTY_TIMEZONE hours; outside it they are held and sent at the next window open (user request 2026-09-22).
+NOTIFICATION_WINDOW_START_HOUR = int(os.environ.get('AI_AGENT_NOTIFY_WINDOW_START', 8))
+NOTIFICATION_WINDOW_END_HOUR = int(os.environ.get('AI_AGENT_NOTIFY_WINDOW_END', 21))
+
+
+def is_within_notification_window(now=None):
+    from datetime import datetime
+    from zoneinfo import ZoneInfo
+    now = now or datetime.now(ZoneInfo(PROPERTY_TIMEZONE))
+    return NOTIFICATION_WINDOW_START_HOUR <= now.hour < NOTIFICATION_WINDOW_END_HOUR
+
+
+def next_notification_window_start(now=None):
+    """The next moment `is_within_notification_window` becomes true at or after `now`."""
+    from datetime import datetime, timedelta
+    from zoneinfo import ZoneInfo
+    now = now or datetime.now(ZoneInfo(PROPERTY_TIMEZONE))
+    today_start = now.replace(hour=NOTIFICATION_WINDOW_START_HOUR, minute=0, second=0, microsecond=0)
+    return today_start if now < today_start else today_start + timedelta(days=1)
+
+
+def site_url():
+    """Base address of the CRM for links in Telegram / ClickUp messages."""
+    return (os.environ.get('AI_AGENT_SITE_URL') or '').rstrip('/')
 
 
 def _env_float(name, default):

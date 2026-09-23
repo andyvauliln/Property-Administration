@@ -1,4 +1,5 @@
 {% extends "_base.html" %}
+{% load custom_filters %}
 {% block content %}
 <section class="bg-gray-50 dark:bg-gray-900 p-3 sm:p-5 antialiased">
     <div class="mx-auto max-w-screen-2xl px-4 lg:px-12">
@@ -48,7 +49,7 @@
                             {% if entry.reviewed_by %}<div class="text-xs text-gray-500">{{ entry.reviewed_by }}</div>{% endif %}
                         </td>
                         <td class="px-3 py-2 text-xs">
-                            {{ entry.source|default:"—" }}<br>{{ entry.created_at|date:"M d, H:i" }}
+                            {{ entry.source|default:"—" }}<br>{{ entry.created_at|ai_local }}
                             {% if entry.created_by_run_id %}<br><a href="/ai-runs/{{ entry.created_by_run_id }}/" class="underline" target="_blank">run #{{ entry.created_by_run_id }}</a>{% endif %}
                             {% if entry.conversation_sid %} · <a href="/chat/{{ entry.conversation_sid }}/" class="underline" target="_blank">chat</a>{% endif %}
                         </td>

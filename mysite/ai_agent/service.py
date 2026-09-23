@@ -15,6 +15,7 @@ from django.utils import timezone
 
 from mysite.ai_agent import actions as agent_actions
 from mysite.ai_agent import config, inputs, prompts, run_report, runner
+from mysite.ai_agent import team_notify
 from mysite.ai_agent.notify import report_error
 from mysite.unified_logger import log_info, log_warning
 
@@ -226,7 +227,7 @@ def deliver(parsed, mode, conversation_sid, booking, last_message, payload, apar
     """Sends the answer to the Twilio group chat in live mode. Returns {'sent_to_chat', 'note'}."""
     from mysite.group_chat_logger import log_ai_customer_no_answer, log_ai_customer_sent, log_ai_disabled
     from mysite.models import AIRun
-    from mysite.views.messaging import TWILIO_ASSISTANT_PHONE, send_messsage_by_sid
+    from mysite.views.messaging import TWILIO_ASSISTANT_PHONE, send_tenant_sms_gated
 
     answer = parsed.get('answer')
     if not answer:
@@ -246,7 +247,7 @@ def deliver(parsed, mode, conversation_sid, booking, last_message, payload, apar
         return {'sent_to_chat': False, 'note': 'suppressed - staff replied while the AI was working'}
 
     try:
-        send_messsage_by_sid(
+        sent = send_tenant_sms_gated(
             conversation_sid,
             payload.get('reply_author') or 'Virtual Assistant',
             answer,
@@ -260,6 +261,9 @@ def deliver(parsed, mode, conversation_sid, booking, last_message, payload, apar
             'conversation_sid': conversation_sid, 'answer': answer,
         })
         return {'sent_to_chat': False, 'note': f'Twilio send failed: {e}', 'error': str(e)}
+    if not sent:
+        return {'sent_to_chat': False,
+                'note': 'held - outside the 08:00-21:00 Florida notification window, will send at the next window open'}
     log_ai_customer_sent(conversation_sid, answer)
     return {'sent_to_chat': True, 'note': 'sent to Twilio group chat'}
 
@@ -302,6 +306,68 @@ def _followup_block(events):
     return "\n".join(lines)
 
 
+def check_tickets_before_reminder(events):
+    """
+    A reminder became due: look at the ClickUp task of its issue first (status + latest comments).
+    - task closed  -> the issue is resolved quietly: no reminder, no message to the tenant, timers stopped
+    - task open    -> its status and comments go to Claude, which decides whether a reminder is still needed
+    Returns (events_still_needing_claude, ticket_block_text_or_None).
+    """
+    from mysite.ai_agent import clickup
+    from mysite.ai_agent.notify import notify_ai_chat
+    from mysite.models import AICaseNote, AIEvent, AIFollowUp, AIIssue
+
+    lines, remaining, checked = [], [], {}
+    for event in events:
+        followup = None
+        if event.event_type == AIEvent.TYPE_FOLLOWUP_DUE:
+            followup = AIFollowUp.objects.filter(id=(event.payload or {}).get('followup_id')).select_related('issue').first()
+        issue = followup.issue if followup else None
+        if not (issue and issue.ticket_ref and clickup.delivery_mode() != 'off'):
+            remaining.append(event)
+            continue
+        if issue.id not in checked:
+            try:
+                checked[issue.id] = clickup.get_task_state(issue.ticket_ref)
+            except clickup.ClickUpError as e:
+                checked[issue.id] = {'error': str(e)}
+        state = checked[issue.id]
+        if state.get('closed'):
+            if issue.is_open:
+                issue.state, issue.resolved_at = AIIssue.STATE_RESOLVED, timezone.now()
+                issue.save()
+                issue.followups.filter(status=AIFollowUp.STATUS_PENDING).update(
+                    status=AIFollowUp.STATUS_CANCELLED, status_note='ClickUp task closed', updated_at=timezone.now(),
+                )
+                AICaseNote.objects.create(
+                    conversation_sid=issue.conversation_sid, booking=issue.booking, issue=issue,
+                    text=f"Issue closed by the backend: its ClickUp task is closed (status: {state['status']}). Tenant was not contacted.",
+                )
+                notify_ai_chat(
+                    f"✅ {issue.apartment.name if issue.apartment else ''} · {issue.public_id} closed: its ClickUp task is closed "
+                    f"(status: {state['status']}).\n{issue.summary}\nReminders stopped, the tenant was not contacted.\n{issue.ticket_ref}"
+                )
+            AIEvent.objects.filter(id=event.id).update(
+                status=AIEvent.STATUS_DONE, error='ClickUp task closed - reminder not needed', finished_at=timezone.now(),
+            )
+            continue
+        remaining.append(event)
+        if state.get('error'):
+            lines.append(f"- ticket_id: t-{issue.id} | issue_id: {issue.public_id} | ClickUp task could not be read ({state['error'][:120]})")
+        else:
+            lines.append(
+                f"- ticket_id: t-{issue.id} | issue_id: {issue.public_id} | ClickUp status: {state['status']} | "
+                f"assigned to: {', '.join(state['assignees']) or 'nobody'} | last change: {state['updated']}"
+            )
+            lines += [f"    comment [{c['when']}] {c['user']} (STAFF, internal): {c['text']}" for c in state['comments']]
+            if not state['comments']:
+                lines.append("    (no comments on the task)")
+    block = None
+    if lines:
+        block = ("CLICKUP_TASKS (read from ClickUp just now; internal - never quote this to the tenant):\n" + "\n".join(lines))
+    return remaining, block
+
+
 def process_events(events):
     """
     events: pending AIEvent rows of ONE conversation (oldest first), already marked running.
@@ -321,6 +387,10 @@ def process_events(events):
 
     apartment = Apartment.objects.prefetch_related('managers').select_related('owner').get(id=conversation.apartment_id)
     booking = Booking.objects.select_related('tenant').get(id=conversation.booking_id)
+    events, ticket_block = check_tickets_before_reminder(events)
+    if not events:
+        return None   # every due reminder belonged to a task that is already closed in ClickUp
+    last_event = events[-1]
     event_type = _batch_event_type(events)
     trigger_messages = sorted((e.message for e in events if e.message_id), key=lambda m: (m.message_timestamp, m.id))
     tenant_events = [e for e in events if e.event_type == AIEvent.TYPE_TENANT_MESSAGE]
@@ -333,7 +403,7 @@ def process_events(events):
     outcome = run_agent(
         event_type, conversation_sid, apartment, booking, trigger_messages, mode,
         body_override="\n".join(e.body or '' for e in tenant_events if not e.message_id) or None,
-        extra_block=_followup_block(events),
+        extra_block="\n\n".join(b for b in (_followup_block(events), ticket_block) if b) or None,
     )
     run, parsed, meta = outcome['run'], outcome['parsed'], outcome['meta']
 
@@ -348,11 +418,12 @@ def process_events(events):
     action_results, delivery = [], {'sent_to_chat': False, 'note': 'run failed - nothing sent'}
     if parsed:
         delivery = deliver(parsed, mode, conversation_sid, booking, last_message, reply_payload, apartment=apartment)
-        action_results = agent_actions.execute_actions(parsed, agent_actions.ActionContext(
+        action_ctx = agent_actions.ActionContext(
             mode, meta, outcome['new_messages_text'], conversation_sid,
             apartment=apartment, booking=booking, ai_run=ai_run,
             staff_in_trigger=any(e.event_type == AIEvent.TYPE_STAFF_MESSAGE for e in events),
-        ))
+        )
+        action_results = agent_actions.execute_actions(parsed, action_ctx)
         if parsed['review_answer']:
             delivery['note'] = 'NO_ANSWER - staff answered first; the review answer is stored for managers, never sent'
         if last_tenant_message:
@@ -392,6 +463,16 @@ def process_events(events):
 
     if parsed:
         _finish_events(events, AIEvent.STATUS_DONE)
+        try:
+            trigger_text = outcome['new_messages_text']
+            if not trigger_messages:
+                trigger_text = "⏰ Reminder became due: " + "; ".join(e.body or '' for e in events)
+            ai_run.refresh_from_db()
+            team_notify.deliver(action_ctx, ai_run, parsed, action_results, delivery, trigger_text)
+            AIRun.objects.filter(id=ai_run.id).update(actions=action_results)
+            run_report._write_json(outcome['run_dir'] / '07_actions.json', action_results)
+        except Exception as e:
+            report_error(e, "team notification failed", {'run': f"/ai-runs/{ai_run.id}/"})
         log_info(
             f"AI agent run #{ai_run.id} {event_type} {mode} {meta['apartment']}: "
             f"{'NO_ANSWER' if parsed['no_answer'] else 'ANSWER'}, {len(action_results)} actions, ${summary['cost_usd']:.4f}",

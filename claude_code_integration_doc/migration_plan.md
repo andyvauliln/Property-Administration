@@ -1,11 +1,13 @@
 # Claude Code integration for AI group chat — short migration plan
 
 **Files in this folder**
+- `testing_plan.md` — **current step**: system state, emergency brake, 4 test stages and the sandbox test cases
 - `how_ai_messages_work.md` — simple overview: how a tenant message is handled, step by step
 - `migration_plan.md` — this file: opinion on the vision + migration phases
 - `phase1_runbook.md` — what was built in Phase 1, how to turn it on, how to read run reports
 - `phase2_issues_followups.md` — issues, real actions, follow-up timers, staff, new pages
 - `phase3_knowledge_guards.md` — what the AI learns and from whom, access-code and payment guards, staff phones
+- `phase4_clickup_test_channel.md` — ClickUp test channel for the test apartment: what is built, how to finish with the API token
 - `clickup_apartment_map.md` (+ `.json`, `clickup_channels.json`) — which CRM apartment has which ClickUp channel, and what is missing
 - `testbed/` — `run_tests.sh`: 82 automatic checks on a throwaway database (no cost, no production data)
 - `farid_vision.md` — the customer's system prompt (source of the requirements)
@@ -139,7 +141,7 @@ Goal: swap the brain, keep everything else. No issues/ClickUp yet.
 - Retire the old OpenRouter KB-extract path once this matches it.
 
 ### Phase 4 — ClickUp
-**Decision 2026-09-21: postponed. For now everything goes to the one AI Telegram chat only.** The apartment ↔ channel map is ready for later (`clickup_apartment_map.md`).
+**Decision 2026-09-21: real apartments postponed (Telegram only). A ClickUp test channel for the test apartment is built and waits for an API token: `phase4_clickup_test_channel.md`.** The apartment ↔ channel map is ready for later (`clickup_apartment_map.md`).
 - `Apartment.clickup_channel_id` / `clickup_list_id`, auto-matched once by name (`630-429` ↔ `building_n-apartment_n`), editable in the apartment form.
 - Outbound first: alerts → apartment channel, `CREATE_TICKET` → task in the apartment list, Telegram kept for urgent/emergency.
 - Inbound second: task webhooks → `TICKET_UPDATE`; channel messages → `CLICKUP_MESSAGE` (webhook if available, else 1–2 min polling in the worker).

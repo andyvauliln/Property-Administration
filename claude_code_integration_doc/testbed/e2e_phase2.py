@@ -2,6 +2,7 @@
 import os, sys, django
 from datetime import date, timedelta
 os.environ["DJANGO_SETTINGS_MODULE"] = "testbed_settings"
+os.environ["AI_AGENT_TELEGRAM_ACTIVITY"] = "off"   # this file counts alert messages; the activity feed is tested in e2e_misc.py
 django.setup()
 from django.db import connection
 assert connection.vendor == "sqlite", "refusing to run outside the testbed"
@@ -11,12 +12,13 @@ from mysite.models import (User, Apartment, Booking, TwilioConversation, TwilioM
                            AIEvent, AIRun, AIIssue, AIFollowUp, AICaseNote, StaffMember)
 from mysite.ai_agent import service, runner, actions, notify, config
 import mysite.ai_agent.actions as actions_mod
+import mysite.ai_agent.team_notify as team_notify_mod
 import mysite.views.messaging as messaging
 
 # ---- capture every outward side effect -------------------------------------------------
 telegram, sms = [], []
 def fake_notify(text): telegram.append(text); return True, "captured"
-actions_mod.notify_ai_chat = fake_notify
+team_notify_mod.notify_ai_chat = fake_notify
 notify.notify_ai_chat = fake_notify
 service.report_error = lambda e, ctx, info=None, source='task': telegram.append(f"ERROR {ctx}: {e}")
 def fake_send(sid, author, message, sender, receiver): sms.append((sid, author, message))
@@ -95,7 +97,11 @@ check("unknown action rejected", st.get('DELETE_EVERYTHING') == 'rejected')
 check("foreign/unknown issue id rejected", st.get('UPDATE_ISSUE_STATE') == 'rejected')
 check("KB_UPDATE from a tenant-only run is stored as a candidate, never verified", st.get('KB_UPDATE') == 'executed'
       and __import__('mysite.models').models.AIKnowledge.objects.get(key='x').confidence == 'candidate')
-check("2 Telegram alerts, marked TEST, staff name resolved", len(telegram) == 2 and all('TEST MODE' in t for t in telegram) and 'Edy (Farouk Ahmed)' in telegram[0], telegram)
+check("ONE grouped Telegram message for the run: TEST mark, staff name, issue, ticket, tenant text once, full report link",
+      len(telegram) == 1 and 'TEST' in telegram[0] and 'Edy (Farouk Ahmed)' in telegram[0] and 'i-1' in telegram[0]
+      and '🎫 Kitchen sink dripping - 630-999' in telegram[0] and telegram[0].count('The kitchen sink is dripping') == 1
+      and 'http://crm.test/ai-runs/' in telegram[0], telegram)
+check("alert actions record how they were delivered", all('Telegram: sent' in a['detail'] for a in AIRun.objects.get(id=run1.id).actions if a['action'].get('type') in ('CREATE_TICKET', 'INTERNAL_ALERT')))
 m1.refresh_from_db()
 check("answer stored on message, NOT sent (test mode)", m1.ai_response and m1.ai_sent_to_chat is False and not sms)
 check("run report folder written", os.path.exists(os.path.join(run1.report_dir, 'report.md')) and os.path.exists(os.path.join(run1.report_dir, '07_actions.json')))
@@ -197,6 +203,42 @@ check("cannot touch another conversation's issue", res[0]['status'] == 'rejected
 res = actions.execute_actions({'answer': None, 'actions': [{'type': 'CREATE_ISSUE', 'summary': 'replay issue', 'state': 'WAITING_FOR_EDY'}]},
                               actions.ActionContext('test', {}, 'm', SID, persist=False, notify=False))
 check("replay saves nothing", res[0]['status'] == 'simulated' and not AIIssue.objects.filter(summary='replay issue').exists())
+print("\n=== 8. reminder due -> look at the ClickUp task first ===")
+from mysite.ai_agent import clickup
+clickup.delivery_mode = lambda: 'api'
+task_state = {}
+clickup.get_task_state = lambda ref: dict(task_state) if 'error' not in task_state else (_ for _ in ()).throw(clickup.ClickUpError(task_state['error']))
+Apartment.objects.filter(id=apt.id).update(ai_group_chat_enabled=True)
+def due_issue(summary):
+    issue = AIIssue.objects.create(conversation_sid=SID, apartment=apt, booking=booking, summary=summary, state='MAINTENANCE_OPEN', owner='Edy',
+                                   ticket_title=summary, ticket_ref='https://app.clickup.com/t/abc999')
+    AIFollowUp.objects.create(conversation_sid=SID, issue=issue, kind='staff_reminder', reason='recheck', due_at=timezone.now() - timedelta(minutes=1))
+    AIFollowUp.objects.create(conversation_sid=SID, issue=issue, kind='tenant_nudge', reason='photo', due_at=timezone.now() + timedelta(hours=5))
+    service.fire_due_followups(); return issue
+telegram.clear(); sms.clear(); runs_before = AIRun.objects.count(); script_before = len(script)
+task_state.update(status='complete', closed=True, assignees=['Farouk Ahmed'], updated='2026-09-21 10:00', comments=[])
+closed = due_issue('Dishwasher broken'); out = drain(); closed.refresh_from_db()
+check("task CLOSED in ClickUp: Claude is not run, issue resolved, all its timers stopped", AIRun.objects.count() == runs_before and out == [None]
+      and closed.state == 'RESOLVED' and not closed.followups.filter(status='pending').exists(), (out, closed.state))
+check("... the tenant gets nothing, the team gets one short note, a case note records why", not sms and len(telegram) == 1 and 'ClickUp task is closed' in telegram[0]
+      and 'not contacted' in telegram[0] and AICaseNote.objects.filter(issue=closed, text__contains='ClickUp task is closed').exists(), telegram)
+telegram.clear(); task_state.clear()
+task_state.update(status='in progress', closed=False, assignees=['Farouk Ahmed'], updated='2026-09-21 10:05',
+                  comments=[{'when': '2026-09-21 10:04', 'user': 'Farouk Ahmed', 'text': 'Plumber booked for 3 PM today'}])
+opened = due_issue('Toilet keeps running')
+script.append({'answer': 'NO_ANSWER', 'why': 'staff commented progress in ClickUp, no reminder needed', 'actions': [
+    {'type': 'SCHEDULE_FOLLOWUP', 'issue_id': opened.public_id, 'kind': 'staff_reminder', 'reason': 'recheck after the 3 PM visit'}]})
+run = drain()[0]; seen = inputs_seen[-1]
+check("task OPEN: Claude gets status, assignee and the staff comment, marked internal", 'CLICKUP_TASKS' in seen and 'ClickUp status: in progress' in seen
+      and 'Plumber booked for 3 PM today' in seen and 'never quote this to the tenant' in seen and run.event_type == 'FOLLOWUP_DUE', seen[:900])
+opened.refresh_from_db(); check("... and the issue stays open", opened.state == 'MAINTENANCE_OPEN')
+task_state.clear(); task_state['error'] = 'ClickUp not reachable'
+broken = due_issue('Window does not close')
+script.append({'answer': 'NO_ANSWER', 'why': 'x', 'actions': []})
+run = drain()[0]
+check("ClickUp unreachable: the reminder still runs, Claude is told the task could not be read", run is not None and 'could not be read' in inputs_seen[-1])
+Apartment.objects.filter(id=apt.id).update(ai_group_chat_enabled=False)
+
 AIManagement.objects.filter(prompt_key='ai_backend').update(content='openrouter')
 check("backend switched back -> enqueue returns False (legacy AI handles it)", service.enqueue_tenant_message(SID, m9.message_sid, 'x') is False
       and service.enqueue_staff_message(SID, m2.message_sid, 'some text') is False)

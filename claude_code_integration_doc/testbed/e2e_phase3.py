@@ -13,11 +13,12 @@ from mysite.models import (User, Apartment, Booking, TwilioConversation, TwilioM
                            AIEvent, AIKnowledge, StaffMember)
 from mysite.ai_agent import service, runner, notify, config, inputs, knowledge
 import mysite.ai_agent.actions as actions_mod
+import mysite.ai_agent.team_notify as team_notify_mod
 import mysite.views.messaging as messaging
 
 telegram, sms = [], []
 fake_notify = lambda text: (telegram.append(text), (True, "captured"))[1]
-actions_mod.notify_ai_chat = fake_notify; notify.notify_ai_chat = fake_notify
+team_notify_mod.notify_ai_chat = fake_notify; notify.notify_ai_chat = fake_notify
 service.report_error = lambda e, ctx, info=None, source='task': telegram.append(f"ERROR {ctx}: {e}")
 messaging.send_messsage_by_sid = lambda sid, author, message, s_, r_: sms.append(message)
 config.RUNS_DIR = _s.TESTBED_DIR / "ai_runs"; config.WORK_DIR = config.RUNS_DIR / "_cwd"

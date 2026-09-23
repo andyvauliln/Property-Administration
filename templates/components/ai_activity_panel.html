@@ -1,3 +1,4 @@
+{% load custom_filters %}
 {% if ai_activity %}
 <details class="mx-4 mt-3 rounded-lg border border-blue-200 bg-blue-50 text-sm text-gray-800 dark:border-blue-800 dark:bg-blue-900/20 dark:text-gray-200" {% if ai_activity.open_issues %}open{% endif %}>
     <summary class="cursor-pointer px-4 py-2 font-semibold">
@@ -32,7 +33,7 @@
             <div class="text-xs font-semibold uppercase text-gray-500 dark:text-gray-400">Pending follow-ups (the AI will be woken at this time)</div>
             {% for followup in ai_activity.followups %}
             <div class="mt-1 text-xs">
-                <span class="font-mono">{{ followup.public_id }}</span> · {{ followup.get_kind_display }} · due {{ followup.due_at|date:"M d, H:i" }} UTC
+                <span class="font-mono">{{ followup.public_id }}</span> · {{ followup.get_kind_display }} · due {{ followup.due_at|ai_local }}
                 {% if followup.issue %} · {{ followup.issue.public_id }}{% endif %} — {{ followup.reason|default:"" }}
             </div>
             {% endfor %}
@@ -43,7 +44,7 @@
         <div>
             <div class="text-xs font-semibold uppercase text-gray-500 dark:text-gray-400">Case notes (one-off arrangements, never added to the knowledge base)</div>
             {% for note in ai_activity.notes %}
-            <div class="mt-1 text-xs">{{ note.created_at|date:"M d, H:i" }} — {{ note.text }}</div>
+            <div class="mt-1 text-xs">{{ note.created_at|ai_local }} — {{ note.text }}</div>
             {% endfor %}
         </div>
         {% endif %}

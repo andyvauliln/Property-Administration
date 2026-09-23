@@ -2994,7 +2994,7 @@ def twilio_webhook(request):
                                     if _ai_resp:
                                         if _should_send_ai_to_group(_apartment):
                                             try:
-                                                send_messsage_by_sid(conversation_sid, 'Virtual Assistant', _ai_resp, twilio_phone, None)
+                                                send_tenant_sms_gated(conversation_sid, 'Virtual Assistant', _ai_resp, twilio_phone, None)
                                             except Exception:
                                                 _notify_manager_chat_delivery_failed(
                                                     _booking.tenant.full_name or "N/A",
@@ -3103,7 +3103,7 @@ def twilio_webhook(request):
                                     if _ai_resp:
                                         if _should_send_ai_to_group(_apartment):
                                             try:
-                                                send_messsage_by_sid(conversation_sid, 'Virtual Assistant', _ai_resp, twilio_phone, None)
+                                                send_tenant_sms_gated(conversation_sid, 'Virtual Assistant', _ai_resp, twilio_phone, None)
                                             except Exception:
                                                 _notify_manager_chat_delivery_failed(
                                                     _booking.tenant.full_name or "N/A",
@@ -3415,6 +3415,31 @@ def send_messsage_by_sid(conversation_sid, author, message, sender_phone, receiv
         raise Exception(f"Error sending message via Twilio: {e}")
 
 
+def send_tenant_sms_gated(conversation_sid, author, message, sender_phone, receiver_phone):
+    """
+    Same as send_messsage_by_sid, but only for tenant-facing sends (AI answers, welcome/contract-link
+    messages): outside the 08:00-21:00 Florida notification window it holds the message in
+    PendingOutboundMessage instead of sending, and flush_pending_sms delivers it once the window opens.
+    Staff-initiated sends (manual chat replies, ClickUp/Telegram alerts) should keep calling
+    send_messsage_by_sid directly - they are not gated. Returns True if sent now, False if held.
+    """
+    from mysite.ai_agent import config
+    if config.is_within_notification_window():
+        send_messsage_by_sid(conversation_sid, author, message, sender_phone, receiver_phone)
+        return True
+    from mysite.models import PendingOutboundMessage
+    PendingOutboundMessage.objects.create(
+        conversation_sid=conversation_sid, author=author, body=message,
+        sender_phone=sender_phone, receiver_phone=receiver_phone,
+        send_after=config.next_notification_window_start(),
+    )
+    log_info(
+        f"SMS held for the notification window (08:00-21:00 Florida time), will send at the next window open",
+        category='sms', details={'conversation_sid': conversation_sid},
+    )
+    return False
+
+
 def _notify_manager_chat_delivery_failed(tenant_name, tenant_phone, message, conversation_sid=None):
     """Send delivery failure alert to manager chat. Swallows errors to avoid masking the original failure."""
     if not MANAGER_CHAT_SID:
@@ -3438,6 +3463,11 @@ def _notify_manager_chat_delivery_failed(tenant_name, tenant_phone, message, con
         )
     except Exception:
         log_warning("Failed to notify manager chat of delivery failure", category='sms')
+
+
+def _group_chat_name(booking):
+    """Twilio conversation friendly_name for a booking's tenant group chat."""
+    return f"{booking.apartment.name} {booking.tenant.full_name or 'Tenant'} Rental"
 
 
 def sendContractToTwilio(booking, contract_url):
@@ -3466,7 +3496,7 @@ def sendContractToTwilio(booking, contract_url):
         log_info(f"Validated tenant phone: {validated_phone}", category='sms')
         
         conversation_sid = create_conversation_config(
-            f" {booking.tenant.full_name or 'Tenant'} Chat Apt: {booking.apartment.name}",
+            _group_chat_name(booking),
             validated_phone
         )
         
@@ -3491,9 +3521,9 @@ def sendContractToTwilio(booking, contract_url):
                     f"If I do not respond, our managers in this chat will contact you as soon as possible. "
                     f"To continue with a booking, please sign this contract: {contract_url}"
                 )
-            
+
             try:
-                send_messsage_by_sid(conversation_sid, "Virtual Assistant", message, twilio_phone_secondary, validated_phone)
+                send_tenant_sms_gated(conversation_sid, "Virtual Assistant", message, twilio_phone_secondary, validated_phone)
             except Exception:
                 _notify_manager_chat_delivery_failed(
                     booking.tenant.full_name or "N/A",
@@ -3542,7 +3572,7 @@ def sendWelcomeMessageToTwilio(booking):
         log_info(f"Validated tenant phone: {validated_phone}", category='sms')
         
         conversation_sid = create_conversation_config(
-            f" {booking.tenant.full_name or 'Tenant'} Chat Apt: {booking.apartment.name}",
+            _group_chat_name(booking),
             validated_phone
         )
         
@@ -3565,9 +3595,9 @@ def sendWelcomeMessageToTwilio(booking):
                     f"Hi {tenant_name}, I am Sophia, a virtual assistant helping managers and guests with a booking for apartment {booking.apartment.name} from {booking.start_date} to {booking.end_date}. "
                     f"If I do not respond, our managers in this chat will contact you as soon as possible."
                 )
-            
+
             try:
-                send_messsage_by_sid(conversation_sid, "Virtual Assistant", message, twilio_phone_secondary, validated_phone)
+                send_tenant_sms_gated(conversation_sid, "Virtual Assistant", message, twilio_phone_secondary, validated_phone)
             except Exception:
                 _notify_manager_chat_delivery_failed(
                     booking.tenant.full_name or "N/A",

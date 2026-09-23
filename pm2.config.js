@@ -17,6 +17,7 @@ module.exports = {
             script: '/home/superuser/site/venv/bin/python',
             args: '/home/superuser/site/manage.py run_ai_agent',
             cwd: '/home/superuser/site',
+            env: { PYTHONUNBUFFERED: '1' },  // so `pm2 logs ai-agent` shows lines immediately
             restart_delay: 5000,
         },
         {

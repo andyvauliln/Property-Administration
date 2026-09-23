@@ -211,6 +211,9 @@ def ai_knowledge_view(request):
             knowledge.approve(entry, reviewer)
         elif action == 'reject':
             knowledge.reject(entry, reviewer)
+        if action in ('approve', 'reject'):
+            from ..ai_agent.notify import notify_knowledge_review
+            notify_knowledge_review(entry, 'APPROVED' if action == 'approve' else 'REJECTED', reviewer)
         elif action == 'save':
             entry.save()
         return redirect(_safe_next(request, '/ai-knowledge/'))

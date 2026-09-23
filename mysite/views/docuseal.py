@@ -169,7 +169,7 @@ def docuseal_callback(request):
                         from mysite.models import TwilioConversation
                         conversation = TwilioConversation.objects.filter(booking=booking).first()
                         if conversation:
-                            from mysite.views.messaging import send_messsage_by_sid, _get_template, _notify_manager_chat_delivery_failed
+                            from mysite.views.messaging import send_tenant_sms_gated, _get_template, _notify_manager_chat_delivery_failed
                             import os
                             
                             # Get template from AI management (sms_template)
@@ -181,11 +181,11 @@ def docuseal_callback(request):
                             twilio_phone = os.environ.get('TWILIO_PHONE_SECONDARY', '+13153524379')
                             tenant_phone = booking.tenant.phone or "N/A"
                             try:
-                                send_messsage_by_sid(
-                                    conversation.conversation_sid, 
-                                    'Virtual Assistant', 
-                                    message_template, 
-                                    twilio_phone, 
+                                send_tenant_sms_gated(
+                                    conversation.conversation_sid,
+                                    'Virtual Assistant',
+                                    message_template,
+                                    twilio_phone,
                                     None
                                 )
                                 logger.info(f"Contract signed message sent to conversation {conversation.conversation_sid}")

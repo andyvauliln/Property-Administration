@@ -26,11 +26,14 @@ def _slug(value, fallback='na'):
 def apartment_label(apartment):
     if not apartment:
         return 'no-apartment'
+    # The CRM name is what staff know ("630-429", "Test_Apart2", "815 Flamingo"); the building/unit
+    # numbers are only a fallback ("555-111" told nobody that it was the test apartment).
+    name = (getattr(apartment, 'name', '') or '').strip()
+    if name:
+        return name
     building = (getattr(apartment, 'building_n', '') or '').strip()
     unit = (getattr(apartment, 'apartment_n', '') or '').strip()
-    if building and unit:
-        return f"{building}-{unit}"
-    return getattr(apartment, 'name', None) or f"apartment-{apartment.id}"
+    return f"{building}-{unit}" if building and unit else f"apartment-{apartment.id}"
 
 
 def new_run_dir(conversation_sid, apartment, event_type):

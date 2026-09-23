@@ -44,3 +44,25 @@ def report_error(error, context, info=None, source='task'):
         if value:
             lines.append(f"{key}: {str(value)[:1500]}")
     return notify_ai_chat("\n".join(lines))
+
+
+def activity_enabled():
+    """AI_AGENT_TELEGRAM_ACTIVITY: all (default for the test period) | off"""
+    return (os.environ.get('AI_AGENT_TELEGRAM_ACTIVITY') or 'all').strip().lower() != 'off'
+
+
+def _local_now():
+    from datetime import datetime
+    from zoneinfo import ZoneInfo
+
+    from mysite.ai_agent import config
+    return f"{datetime.now(ZoneInfo(config.TEAM_TIMEZONE)).strftime('%b %d %H:%M')} {config.TIMEZONE_LABEL}"
+
+
+def notify_knowledge_review(entry, decision, reviewer):
+    if not activity_enabled():
+        return
+    notify_ai_chat(
+        f"📚 Knowledge {decision} by {reviewer} · {_local_now()}\n"
+        f"[{entry.scope_label}] {entry.key} = {entry.value[:300]}"
+    )

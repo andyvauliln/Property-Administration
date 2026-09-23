@@ -10,7 +10,6 @@ import re
 from django.utils import timezone
 
 from mysite.ai_agent import policy
-from mysite.ai_agent.notify import notify_ai_chat
 
 ACTION_TYPES = frozenset([
     'CREATE_ISSUE', 'UPDATE_ISSUE_STATE', 'CREATE_TICKET', 'TICKET_COMMENT', 'UPDATE_TICKET',
@@ -45,6 +44,7 @@ class ActionContext:
         self.notify = notify        # False: replay, nobody is notified
         self.staff_in_trigger = staff_in_trigger  # an authorized STAFF message started this run
         self.temp_ids = {}          # "new-1" -> AIIssue
+        self.alerts = []            # [{'action', 'issue'}] collected for team_notify.deliver()
 
     @property
     def is_test(self):
@@ -203,26 +203,11 @@ def _case_note(ctx, action, prefix=''):
     return _ok("case note saved" + (f" on {issue.public_id}" if issue else ""))
 
 
-def _alert_text(ctx, action, issue):
-    priority = str(action.get('priority') or (issue.priority if issue else 'routine')).upper()
-    responsible = action.get('responsible') or action.get('owner') or (issue.owner if issue else '')
-    text = action.get('text') or action.get('description') or action.get('title') or ''
-    lines = [
-        f"{'🧪 TEST MODE (tenant was NOT answered) - ' if ctx.is_test else ''}🤖 AI {action.get('type')} [{priority}]",
-        f"Unit: {ctx.meta.get('apartment')} | Tenant: {ctx.meta.get('tenant')}",
-        f"For: {staff_label(responsible) or 'team'}",
-    ]
-    if issue:
-        lines.append(f"Issue {issue.public_id} [{issue.state}]: {issue.summary}")
-    if action.get('type') == 'CREATE_TICKET' and action.get('title'):
-        lines.append(f"Ticket: {action['title']}")
-    lines += ["", str(text), "", f"Latest message(s):\n{ctx.new_messages_text[:1500]}"]
-    if ctx.meta.get('run_id'):
-        lines.append(f"\nRun report: /ai-runs/{ctx.meta['run_id']}/")
-    return "\n".join(lines)
-
-
 def _notify_action(ctx, action):
+    """
+    INTERNAL_ALERT / QUEUE_FOR_REVIEW / CREATE_TICKET: nothing is sent here. The alert is collected and
+    team_notify.deliver() sends ONE grouped message per run (Telegram, and ClickUp for mapped apartments).
+    """
     issue = _issue(ctx, action.get('issue_id'), required=False)
     priority = action.get('priority')
     if issue and priority in ('routine', 'urgent', 'emergency'):
@@ -233,11 +218,8 @@ def _notify_action(ctx, action):
         issue.ticket_title = str(action.get('title') or '')[:255] or issue.ticket_title
     if issue:
         issue.save()
-
-    ok, note = notify_ai_chat(_alert_text(ctx, action, issue))
-    if not ok:
-        raise ActionError(note)
-    return _ok(note + (f", linked to {issue.public_id}" if issue else ""))
+    ctx.alerts.append({'action': action, 'issue': issue})
+    return _ok("included in this run's team notification" + (f", linked to {issue.public_id}" if issue else ""))
 
 
 def _kb_update(ctx, action):

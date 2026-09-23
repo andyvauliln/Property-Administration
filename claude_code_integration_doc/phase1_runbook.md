@@ -1,7 +1,8 @@
 # Phase 1 runbook — Claude agent for tenant group chats
 
-Status: **code is in place, switched OFF by default.** Nothing changes for tenants until the
-steps below are done. The old OpenRouter AI keeps working exactly as before.
+Status 2026-09-21 12:25 UTC: **turned ON in test mode** — migrations applied, worker `ai-agent` running,
+site restarted, `AI Backend = claude_cli`, 0 apartments live. What to test and how: `testing_plan.md`.
+The steps below are kept as the record of how it was turned on (and how to repeat it on another server).
 
 ## What was built
 

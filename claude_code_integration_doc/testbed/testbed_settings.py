@@ -10,3 +10,12 @@ DATABASES = {'default': {'ENGINE': 'django.db.backends.sqlite3', 'NAME': str(TES
 # Build tables straight from models.py (the historical data migrations need Postgres data)
 MIGRATION_MODULES = {'mysite': None}
 ALLOWED_HOSTS = ['*']
+
+# Safety net: tests can never reach the real Telegram bot or ClickUp, whatever a test forgets to fake.
+import os  # noqa: E402
+os.environ['TELEGRAM_TOKEN'] = ''
+os.environ.pop('CLICKUP_API_TOKEN', None)
+for _name in [n for n in os.environ if n.startswith('AI_AGENT_')]:   # production AI settings must not leak into tests
+    os.environ.pop(_name)
+os.environ['AI_AGENT_CLICKUP_VIA_CLAUDE'] = 'off'
+os.environ['AI_AGENT_SITE_URL'] = 'http://crm.test'

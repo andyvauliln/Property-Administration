@@ -76,21 +76,21 @@ cron.schedule('0 8 * * *', function () {
         '/usr/bin/python3 /home/superuser/site/manage.py telegram_notifications',
         '/home/superuser/site/'
     );
-});
+}, { timezone: 'America/New_York' });
 cron.schedule('0 8 * * *', function () {
     executeCronCommand(
         'Django telegram notification cron FOR MANAGERS',
         '/usr/bin/python3 /home/superuser/site/manage.py telegram_notifications_manager',
         '/home/superuser/site/'
     );
-});
+}, { timezone: 'America/New_York' });
 cron.schedule('0 8 * * *', function () {
     executeCronCommand(
         'Django telegram notification cron FOR CLEANERS',
         '/usr/bin/python3 /home/superuser/site/manage.py telegram_notifications_cleaning',
         '/home/superuser/site/'
     );
-});
+}, { timezone: 'America/New_York' });
 
 cron.schedule('0 8 * * *', function () {
     executeCronCommand(
@@ -98,35 +98,35 @@ cron.schedule('0 8 * * *', function () {
         '/usr/bin/python3 /home/superuser/site/manage.py telegram_group_cleaning',
         '/home/superuser/site/'
     );
-});
+}, { timezone: 'America/New_York' });
 cron.schedule('0 8 * * *', function () {
     executeCronCommand(
         'Telegram Group: Checkout',
         '/usr/bin/python3 /home/superuser/site/manage.py telegram_group_checkout',
         '/home/superuser/site/'
     );
-});
+}, { timezone: 'America/New_York' });
 cron.schedule('0 8 * * *', function () {
     executeCronCommand(
         'Telegram Group: Checkin',
         '/usr/bin/python3 /home/superuser/site/manage.py telegram_group_checkin',
         '/home/superuser/site/'
     );
-});
+}, { timezone: 'America/New_York' });
 cron.schedule('0 8 * * *', function () {
     executeCronCommand(
         'Telegram Group: Payment',
         '/usr/bin/python3 /home/superuser/site/manage.py telegram_group_payment',
         '/home/superuser/site/'
     );
-});
+}, { timezone: 'America/New_York' });
 cron.schedule('0 8 * * *', function () {
     executeCronCommand(
         'Telegram Group: Tenant Reviews',
         '/usr/bin/python3 /home/superuser/site/manage.py telegram_group_tenant_reviews',
         '/home/superuser/site/'
     );
-});
+}, { timezone: 'America/New_York' });
 
 cron.schedule('0 8 * * *', function () {
     executeCronCommand(
@@ -134,7 +134,19 @@ cron.schedule('0 8 * * *', function () {
         '/usr/bin/python3 /home/superuser/site/manage.py sms_notifications',
         '/home/superuser/site/'
     );
-});
+}, { timezone: 'America/New_York' });
+
+// Flushes tenant SMS held by send_tenant_sms_gated for the 08:00-21:00 Florida notification window
+// (AI answers, welcome/contract-link messages sent outside that window). No-op outside the window itself.
+// Not logged to cron_logs.json on success, same reasoning as the watchdog below.
+cron.schedule('*/5 * * * *', function () {
+    exec('/home/superuser/site/venv/bin/python /home/superuser/site/manage.py flush_pending_sms',
+        { cwd: '/home/superuser/site/' }, async (error, stdout, stderr) => {
+            if (error) {
+                await sendTelegramError('Flush Pending SMS', error, stderr);
+            }
+        });
+}, { timezone: 'America/New_York' });
 
 // Schedule data integrity check to run daily at 9 PM
 cron.schedule('0 21 * * *', function () {
@@ -143,7 +155,7 @@ cron.schedule('0 21 * * *', function () {
         '/usr/bin/python3 /home/superuser/site/manage.py check_data_integrity',
         '/home/superuser/site/'
     );
-});
+}, { timezone: 'America/New_York' });
 
 cron.schedule('0 9 * * *', function () {
     executeCronCommand(
@@ -151,7 +163,18 @@ cron.schedule('0 9 * * *', function () {
         '/usr/bin/python3 /home/superuser/site/manage.py check_twilio_balance',
         '/home/superuser/site/'
     );
-});
+}, { timezone: 'America/New_York' });
+
+// AI agent watchdog: every 5 minutes, alerts the AI Telegram chat when messages are stuck in the queue.
+// Not logged to cron_logs.json on success (it would add 288 entries a day).
+cron.schedule('*/5 * * * *', function () {
+    exec('/home/superuser/site/venv/bin/python /home/superuser/site/manage.py ai_agent_watchdog',
+        { cwd: '/home/superuser/site/' }, async (error, stdout, stderr) => {
+            if (error) {
+                await sendTelegramError('AI Agent Watchdog', error, stderr);
+            }
+        });
+}, { timezone: 'America/New_York' });
 
 // Schedule daily manager activity report at 9 PM
 cron.schedule('0 21 * * *', function () {
@@ -160,4 +183,4 @@ cron.schedule('0 21 * * *', function () {
         '/usr/bin/python3 /home/superuser/site/manage.py telegram_manager_activity',
         '/home/superuser/site/'
     );
-});
+}, { timezone: 'America/New_York' });

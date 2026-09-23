@@ -39,7 +39,7 @@ def _visible_messages():
 
     if not CONVERSATION_SID:
         return TwilioMessage.objects.none()
-    qs = TwilioMessage.objects.filter(conversation_sid=CONVERSATION_SID)
+    qs = TwilioMessage.objects.filter(conversation_sid=CONVERSATION_SID).exclude(message_sid__startswith='KB-UPDATE-')
     if UNTIL_MESSAGE_ID.isdigit():
         until = qs.filter(id=int(UNTIL_MESSAGE_ID)).first()
         if until:

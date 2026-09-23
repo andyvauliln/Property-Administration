@@ -310,6 +310,11 @@ class Apartment(models.Model):
     notes = models.TextField(blank=True, null=True)
     knowledge_base = models.TextField(blank=True, null=True)
     ai_group_chat_enabled = models.BooleanField(default=False)
+    # Where the AI agent's ClickUp alerts/tickets for this apartment go. Blank = not mapped (Telegram only).
+    ai_clickup_channel_id = models.CharField(max_length=100, blank=True, null=True)
+    ai_clickup_list_id = models.CharField(max_length=50, blank=True, null=True)
+    ai_clickup_name = models.CharField(max_length=255, blank=True, null=True)
+    ai_clickup_active = models.BooleanField(default=True)
     start_date = models.DateTimeField(blank=True, null=True, db_index=True)
     end_date = models.DateTimeField(blank=True, null=True, db_index=True)
     keywords = models.TextField(blank=True, null=True)
@@ -2978,6 +2983,34 @@ class AIKnowledge(models.Model):
     @property
     def links(self):
         return []
+
+
+
+class PendingOutboundMessage(models.Model):
+    """
+    A tenant SMS generated outside the 08:00-21:00 Florida notification window (AI answers,
+    welcome/contract-link messages) - held here and sent automatically once the window opens.
+    See mysite.views.messaging.send_tenant_sms_gated / mysite.management.commands.flush_pending_sms.
+    """
+
+    conversation_sid = models.CharField(max_length=100, db_index=True)
+    author = models.CharField(max_length=100)
+    body = models.TextField()
+    sender_phone = models.CharField(max_length=20, blank=True, null=True)
+    receiver_phone = models.CharField(max_length=20, blank=True, null=True)
+    send_after = models.DateTimeField(db_index=True)
+
+    sent_at = models.DateTimeField(null=True, blank=True)
+    failed = models.BooleanField(default=False)
+    error = models.TextField(blank=True, null=True)
+
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['created_at']
+
+    def __str__(self):
+        return f"{self.conversation_sid} @ {self.send_after}"
 
 
 def send_telegram_message(chat_id, token, message):

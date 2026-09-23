@@ -63,6 +63,20 @@ or stayed silent. What already existed in the system:
 `AI_AGENT_ALERT_CHAT_ID` in `.env`. Nothing is split between chats, and nothing goes to the
 Twilio manager chat by SMS.
 
+**One message per AI run** (since 2026-09-21 13:20 UTC; before that every alert was its own message): header with
+priority (🚨 emergency / 🔴 urgent / 🔔 routine / 💬 nothing for the team), the tenant text once, the AI answer and
+whether it was sent, the why, a "FOR THE TEAM" block grouped by issue (who, ticket, text), the other actions in one
+line, knowledge updates, and a clickable link to the run report (`AI_AGENT_SITE_URL`).
+
+**During the test period the group gets this for every run** (decision 2026-09-21): one 💬 message
+per AI run with the incoming message, the AI's answer (and whether it was sent), the "why", every action with
+its result, knowledge-base updates (📚), time and cost, plus 📚 messages when a manager approves or rejects
+knowledge. Switch it off later with `AI_AGENT_TELEGRAM_ACTIVITY=off` in `.env` — alerts and errors stay.
+
+**Watchdog:** every 5 minutes the cron process checks the AI queue. If a message waits longer than 5 minutes
+(worker stopped, Claude login expired) or the last runs all failed, the group gets a 🚨 message, at most every
+30 minutes, and a ✅ when it recovers.
+
 What arrives there:
 
 | Message | When |
@@ -99,6 +113,14 @@ Only the **per-apartment** switch is active now.
 - To go live for an apartment: tick "Enable real group chat AI answers" on it. Nothing else is needed.
 - There is no global "stop all sending" button right now. If you want one, it is a small change:
   make `AI_ASSISTANT_ENABLED=false` block sending everywhere, on top of the apartment switch.
+
+## Time zones
+
+All properties are in Florida (West Palm Beach, Sarasota) = **US Eastern Time**. The official name of that
+zone is `America/New_York` — it is the same clock as Florida, with daylight saving handled automatically.
+The AI's current time, staff hours (10:00–18:00), tenant quiet hours (9:00–20:00), reminder times and the
+access-code window all use it, the AI is told the tenant is in that zone, and the AI pages, Telegram
+messages and run reports show times as "ET". (The database stores UTC, as before.)
 
 ## Who decides what
 

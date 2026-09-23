@@ -200,10 +200,11 @@ def build_agent_input(event_type, conversation_sid, apartment, booking, trigger_
 
     parts = [
         f"EVENT: {event_type}",
-        f"CURRENT_TIME: {now.strftime('%A %Y-%m-%d %H:%M')} ({config.TEAM_TIMEZONE})",
+        f"CURRENT_TIME: {now.strftime('%A %Y-%m-%d %H:%M')} ({config.TEAM_TIMEZONE} = US Eastern Time, Florida)",
         f"TEAM_TIMEZONE: {config.TEAM_TIMEZONE}",
-        f"TENANT_TIMEZONE: not provided (assume {config.TEAM_TIMEZONE})",
+        f"TENANT_TIMEZONE: {config.PROPERTY_TIMEZONE} (the property is in Florida; all times in this input are in this zone)",
         "IS_HOLIDAY: not provided",
+        f"APARTMENT_NAME: {getattr(apartment, 'name', '')} (use this name for the unit in alerts, tickets and notes)",
         staff_block(),
         tracking_block(conversation_sid, booking, sources),
         "RECENT_CLICKUP_HISTORY: [] (ClickUp is not connected yet)",
@@ -213,7 +214,8 @@ def build_agent_input(event_type, conversation_sid, apartment, booking, trigger_
         kb_block,
     ]
 
-    all_messages = TwilioMessage.objects.filter(conversation_sid=conversation_sid)
+    # 'KB-UPDATE-...' rows are CRM-only notes of the old knowledge extractor (never sent to anyone): not chat
+    all_messages = TwilioMessage.objects.filter(conversation_sid=conversation_sid).exclude(message_sid__startswith='KB-UPDATE-')
     history_qs = _before(all_messages, first) if first else all_messages
     history = list(history_qs.order_by('-message_timestamp', '-id')[:HISTORY_LIMIT])
     history.reverse()
