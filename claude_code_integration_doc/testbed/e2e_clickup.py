@@ -9,6 +9,7 @@ from mysite.ai_agent import actions, clickup, team_notify
 
 telegram, calls = [], []
 team_notify.notify_ai_chat = lambda t: (telegram.append(t), (True, "sent"))[1]
+team_notify.send_ai_chat = lambda t, reply_to=None: (telegram.append(t), (True, "sent", None))[1]
 class FakeResponse:
     def __init__(self, status, data): self.status_code, self._d, self.text = status, data, str(data)
     def json(self): return self._d
@@ -69,7 +70,7 @@ check("live mode: task assigned to Edy's ClickUp user, no [TEST], still marked [
       and [c for c in calls if c[1].endswith('/task')][0][2]['name'].startswith('[AI]'))
 calls.clear()
 res = run(mapped, 'live', [{'type': 'CREATE_TICKET', 'issue_id': AIIssue.objects.get(conversation_sid='CHcu3').public_id, 'priority': 'urgent', 'title': 'again'}], 'CHcu3')
-check("an issue that already has a task does not get a second one", not [c for c in calls if c[1].endswith('/task')] and len(calls) == 1)
+check("an issue that already has a task does not get a second one", not [c for c in calls if c[0] == 'POST' and c[1].endswith('/task')])
 
 calls.clear(); telegram.clear()
 res = run(plain, 'live', ticket, 'CHcu4')
@@ -130,5 +131,56 @@ check("closed is recognised from date_closed and from the status type",
       and not clickup._task_state({'status': 'to do', 'date_closed': None}, [])['closed'])
 check("task id is read from both link forms", clickup.task_id_from_ref('https://app.clickup.com/t/86akmxt14') == '86akmxt14'
       and clickup.task_id_from_ref('https://app.clickup.com/t/9013651059/86akmxt14') == '86akmxt14' and clickup.task_id_from_ref('86akmxt14') == '86akmxt14')
+
+# ClickUp writes switch (user request 2026-09-24): off -> alerts say what would happen, nothing is written.
+# Apartments with "test" in the name (sandbox) ignore the switch and always write.
+from mysite.models import AIManagement
+from mysite.ai_agent import answer_review
+clickup.requests.request = fake_request
+Apartment.objects.create(name="Real_CU", building_n="559", apartment_n="1", street="T", state="FL", city="W", zip_index="1",
+    bedrooms=1, bathrooms=1, apartment_type="In Management", status="Available", ai_clickup_list_id="888", ai_clickup_name="real list")
+real = Apartment.objects.get(name="Real_CU")
+run(real, 'live', ticket, 'CHcu19')   # writes on: this issue gets a real task
+real_issue = AIIssue.objects.get(conversation_sid='CHcu19')
+os.environ['AI_AGENT_CLICKUP_WRITES'] = 'off'
+calls.clear(); telegram.clear()
+res = run(real, 'live', ticket, 'CHcu20')
+check("writes OFF (env), real apartment: no ClickUp call at all, Telegram says writes are OFF and names the task it would create, no ticket_ref stored",
+      not calls and len(telegram) == 1 and 'ClickUp writes OFF' in telegram[0] and 'Would CREATE ClickUp task' in telegram[0]
+      and 'NOT created' in telegram[0] and not AIIssue.objects.get(conversation_sid='CHcu20').ticket_ref
+      and 'ClickUp writes OFF' in res[1]['detail'] and all(r['status'] == 'executed' for r in res), (calls, telegram, res))
+calls.clear()
+res = run(real, 'live', [{'type': 'TICKET_COMMENT', 'ticket_id': real_issue.public_id, 'text': 'plumber booked'},
+                         {'type': 'UPDATE_ISSUE_STATE', 'issue_id': real_issue.public_id, 'state': 'RESOLVED'}], 'CHcu19')
+check("writes OFF, real apartment: comment and close of an existing task are only described, nothing sent",
+      not calls and 'comment NOT posted' in res[0]['detail'] and 'task NOT closed' in res[1]['detail'], (calls, res))
+try:
+    clickup.create_task('888', 'x', 'y'); blocked = False
+except clickup.ClickUpWritesOff:
+    blocked = True
+check("writes OFF: the clickup module itself refuses writes for a real List (safety net)", blocked and not calls)
+
+calls.clear(); telegram.clear()
+res = run(mapped, 'live', ticket, 'CHcu22')
+check("writes OFF: a TEST apartment still creates its task + channel message, no OFF line in its alert",
+      [c for c in calls if c[1] == '/v2/list/555/task'] and [c for c in calls if c[1].endswith('/messages')]
+      and 'ClickUp writes OFF' not in telegram[0] and AIIssue.objects.get(conversation_sid='CHcu22').ticket_ref, (calls, telegram))
+test_issue = AIIssue.objects.get(conversation_sid='CHcu22')
+test_issue.apartment = mapped; test_issue.save()
+calls.clear()
+res = run(mapped, 'live', [{'type': 'TICKET_COMMENT', 'ticket_id': test_issue.public_id, 'text': 'on it'}], 'CHcu22')
+check("writes OFF: a TEST apartment's existing task still gets the comment", [c for c in calls if c[1].endswith('/comment')], (calls, res))
+calls.clear()
+clickup.create_task('555', 'x', 'y')
+check("writes OFF: the safety net lets the test List through", [c for c in calls if c[1] == '/v2/list/555/task'])
+
+os.environ.pop('AI_AGENT_CLICKUP_WRITES')
+AIManagement.objects.create(prompt_key='ai_clickup_writes', content='off')
+check("writes switch from the AIManagement row; test apartments stay on", not clickup.writes_enabled(real) and clickup.writes_enabled(mapped))
+AIManagement.objects.filter(prompt_key='ai_clickup_writes').update(content='on')
+calls.clear()
+run(real, 'live', ticket, 'CHcu21')
+check("writes back ON -> real apartment task created again", [c for c in calls if c[1] == '/v2/list/888/task'])
+AIManagement.objects.filter(prompt_key='ai_clickup_writes').delete()
 del os.environ['CLICKUP_API_TOKEN']
 print(f"\n{sum(checks)}/{len(checks)} checks passed"); sys.exit(0 if all(checks) else 1)

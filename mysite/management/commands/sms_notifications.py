@@ -10,7 +10,7 @@ from twilio.twiml.messaging_response import MessagingResponse
 from django.db.models import F
 from django.db import models
 from mysite.unified_logger import log_error, log_info, log_warning, logger
-from mysite.views.messaging import _notify_manager_chat_delivery_failed, _fallback_author_for_50513
+from mysite.views.messaging import _notify_manager_chat_delivery_failed, _fallback_author_for_50513, _group_chat_name
 
 
 class Command(BaseCommand):
@@ -269,6 +269,9 @@ class Command(BaseCommand):
             tenant_phone = booking.tenant.phone
             if not tenant_phone:
                 return None
+            from mysite.views.messaging import is_reserved_phone
+            if is_reserved_phone(tenant_phone):
+                return None  # a staff phone on a tenant record would match every staff chat
 
             # First check if we have a conversation in our database for this booking
             conversation = TwilioConversation.objects.filter(booking=booking).first()
@@ -349,7 +352,7 @@ class Command(BaseCommand):
                 conversation_obj, created = TwilioConversation.objects.get_or_create(
                     conversation_sid=conversation_sid,
                     defaults={
-                        'friendly_name': f"{booking.tenant.full_name} - {booking.apartment.name}",
+                        'friendly_name': _group_chat_name(booking),
                         'booking': booking,
                         'apartment': booking.apartment,
                     }

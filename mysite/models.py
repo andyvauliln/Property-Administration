@@ -178,6 +178,10 @@ def validate_and_format_phone(phone):
 
 
 
+# Placeholder full_name values (incl. the create_user default typo) that must not be used to greet a user
+PLACEHOLDER_FULL_NAMES = {'not availabale', 'not available', 'n/a', 'na', 'unknown'}
+
+
 class CustomUserManager(BaseUserManager):
     def create_user(self, email=None, password=None, **extra_fields):
         if not email:
@@ -230,6 +234,12 @@ class User(AbstractBaseUser, PermissionsMixin):
     def __str__(self):
         return self.full_name
 
+    @property
+    def greeting_name(self):
+        """full_name for addressing the user in messages, or '' when it's a placeholder like the create_user default."""
+        name = (self.full_name or '').strip()
+        return '' if name.lower() in PLACEHOLDER_FULL_NAMES else name
+
     def save(self, *args, **kwargs):
         from mysite.request_context import apply_user_tracking
         
@@ -262,6 +272,8 @@ class User(AbstractBaseUser, PermissionsMixin):
         if self.role == "Tenant":
             links_list.append({"name": "Bookings: User Bookings",
                               "link": f"/bookings/?q=tenant.id={self.id}"})
+            links_list += [conversation.chat_link for conversation in
+                           TwilioConversation.objects.filter(booking__tenant=self).order_by('-id')]
 
         # For Cleaner
         if self.role == "Cleaner":
@@ -1202,7 +1214,13 @@ class Booking(models.Model):
         try:
             if not self.tenant or not self.tenant.phone:
                 return
-                
+
+            # A tenant record carrying a staff phone would match every chat that staff member wrote in
+            # (2026-04-29: five real tenants' chats got relinked to placeholder booking 1700 this way).
+            from mysite.views.messaging import is_reserved_phone
+            if is_reserved_phone(self.tenant.phone):
+                return
+
             # Find ALL conversations that involve this tenant (linked and unlinked)
             all_tenant_conversations = TwilioConversation.objects.filter(
                 messages__author=self.tenant.phone
@@ -1348,6 +1366,8 @@ class Booking(models.Model):
                 "name":
                 f"Payment: {payment.payment_type} - {payment.amount}$ on {formatted_date} [{payment.payment_status}]",
                 "link": f"/payments/?q=id={payment.id}"})
+
+        links_list += [conversation.chat_link for conversation in self.twilio_conversations.order_by('-id')]
 
         cleanings = self.cleanings.all()
         for cleaning in cleanings:
@@ -2188,6 +2208,12 @@ class TwilioConversation(models.Model):
     
     def __str__(self):
         return f"{self.friendly_name} ({self.conversation_sid})"
+
+    @property
+    def chat_link(self):
+        # Modals split link names on ':', so keep the label colon-free (old names were "X Chat Apt: 630-329")
+        label = (self.friendly_name or '').replace(':', '').strip() or self.conversation_sid
+        return {"name": f"Chat: {label}", "link": f"/chat/{self.conversation_sid}/"}
     
     conversation_sid = models.CharField(max_length=100, unique=True, db_index=True)
     friendly_name = models.CharField(max_length=255)
@@ -2652,6 +2678,29 @@ class AIRun(models.Model):
     sent_to_chat = models.BooleanField(default=False)
     delivery_note = models.CharField(max_length=255, blank=True, null=True)
 
+    # Staff review of the answer in the Telegram AI group (mysite/ai_agent/answer_review.py)
+    HOLD_HOLDING = 'holding'        # live answer waits hold_until for a correction, then goes out
+    HOLD_SENT = 'sent'              # sent as the AI wrote it (nobody corrected it, or 'ok')
+    HOLD_CORRECTED = 'corrected'    # staff's corrected text was sent instead
+    HOLD_CANCELLED = 'cancelled'    # staff said not to send
+    HOLD_SUPERSEDED = 'superseded'  # a newer AI answer in the same chat replaced it
+    HOLD_SUPPRESSED = 'suppressed'  # staff answered the tenant directly meanwhile
+    HOLD_FAILED = 'failed'          # Twilio send failed
+    HOLD_TEST = 'test'              # test mode: never sent, replies are recorded
+    HOLD_CHOICES = [
+        (HOLD_HOLDING, 'Waiting for staff review'), (HOLD_SENT, 'Sent as written'),
+        (HOLD_CORRECTED, 'Corrected by staff and sent'), (HOLD_CANCELLED, 'Cancelled by staff'),
+        (HOLD_SUPERSEDED, 'Replaced by a newer answer'), (HOLD_SUPPRESSED, 'Staff answered directly'),
+        (HOLD_FAILED, 'Send failed'), (HOLD_TEST, 'Test mode'),
+    ]
+    hold_status = models.CharField(max_length=12, choices=HOLD_CHOICES, blank=True, null=True, db_index=True)
+    hold_until = models.DateTimeField(null=True, blank=True)
+    telegram_message_id = models.BigIntegerField(null=True, blank=True, db_index=True)
+    # What was (or, in test mode, would have been) sent after the review
+    final_answer = models.TextField(blank=True, null=True)
+    # {'reply_author', 'sender_phone', 'replies': [{'by', 'at', 'text', 'decision', 'lesson', 'result'}]}
+    review = models.JSONField(default=dict, blank=True)
+
     input_tokens = models.PositiveIntegerField(default=0)
     output_tokens = models.PositiveIntegerField(default=0)
     cache_read_tokens = models.PositiveIntegerField(default=0)
@@ -2927,7 +2976,9 @@ class AIKnowledge(models.Model):
 
     TYPE_FACT = 'fact'
     TYPE_POLICY = 'policy'
-    TYPE_CHOICES = [(TYPE_FACT, 'Fact'), (TYPE_POLICY, 'Policy')]
+    # How to answer a kind of message, taught by staff replying to an AI answer in Telegram
+    TYPE_LESSON = 'lesson'
+    TYPE_CHOICES = [(TYPE_FACT, 'Fact'), (TYPE_POLICY, 'Policy'), (TYPE_LESSON, 'Answer lesson')]
 
     CONFIDENCE_VERIFIED = 'verified'
     CONFIDENCE_CANDIDATE = 'candidate'

@@ -40,6 +40,7 @@ call_command('ai_agent_watchdog'); check("old backend active -> watchdog does no
 sent.clear()
 from mysite.ai_agent import team_notify, actions
 team_notify.notify_ai_chat = fake
+team_notify.send_ai_chat = lambda t, reply_to=None: (*fake(t), None)
 run = AIRun.objects.create(conversation_sid="CHa", duration_ms=6200, cost_usd="0.0172")
 meta = {'apartment': '630-429', 'tenant': 'John Smith', 'event_type': 'STAFF_MESSAGE', 'mode': 'test'}
 parsed = {'answer': None, 'why': 'Staff stated a reusable fact.', 'review_answer': None}

@@ -9,7 +9,7 @@ import re
 
 from django.utils import timezone
 
-from mysite.ai_agent import policy
+from mysite.ai_agent import config, policy
 
 ACTION_TYPES = frozenset([
     'CREATE_ISSUE', 'UPDATE_ISSUE_STATE', 'CREATE_TICKET', 'TICKET_COMMENT', 'UPDATE_TICKET',
@@ -18,7 +18,8 @@ ACTION_TYPES = frozenset([
 # Actions staff must actually see
 NOTIFY_ACTION_TYPES = frozenset(['INTERNAL_ALERT', 'QUEUE_FOR_REVIEW', 'CREATE_TICKET'])
 # Actions that make "I've logged it / passed it to the team" true
-LOGGING_ACTION_TYPES = NOTIFY_ACTION_TYPES | {'CREATE_ISSUE'}
+# A comment on an existing ticket also counts: the team already tracks the matter there
+LOGGING_ACTION_TYPES = NOTIFY_ACTION_TYPES | {'CREATE_ISSUE', 'TICKET_COMMENT', 'UPDATE_TICKET'}
 _PROMISE = re.compile(r"\b(logged|passed (it|this|that|your message) (on )?to|reported this|let the team know)\b", re.I)
 
 STATUS_EXECUTED = 'executed'
@@ -45,6 +46,7 @@ class ActionContext:
         self.staff_in_trigger = staff_in_trigger  # an authorized STAFF message started this run
         self.temp_ids = {}          # "new-1" -> AIIssue
         self.alerts = []            # [{'action', 'issue'}] collected for team_notify.deliver()
+        self.ticket_updates = []    # [{'issue', 'text', 'clickup'}] comments / closes on existing tickets
 
     @property
     def is_test(self):
@@ -69,6 +71,14 @@ def _issue(ctx, issue_id, required=True):
         return None
     if issue_id in ctx.temp_ids:
         return ctx.temp_ids[issue_id]
+    pending = re.fullmatch(r"r(\d+):(new-\d+)", issue_id)
+    if pending:
+        # An issue that an earlier staff-review plan of this chat creates (plan.py); applied first when still waiting
+        from mysite.ai_agent import answer_review
+        issue = answer_review.issue_from_earlier_plan(int(pending.group(1)), pending.group(2), ctx.conversation_sid)
+        if issue is None:
+            raise ActionError(f"{issue_id}: that earlier plan was cancelled or did not create this issue")
+        return issue
     # "t-41" is the ticket of issue i-41 (tickets become ClickUp tasks in Phase 4)
     match = re.fullmatch(r"[it]-(\d+)", issue_id)
     issue = AIIssue.objects.filter(id=int(match.group(1)), conversation_sid=ctx.conversation_sid).first() if match else None
@@ -86,8 +96,9 @@ def staff_label(names):
     labels = []
     for name in names or []:
         member = StaffMember.objects.filter(ai_name__iexact=str(name).strip(), is_active=True).first()
+        also = ", also " + ", ".join(config.STAFF_ALSO.get(member.ai_name, ())) if member and config.STAFF_ALSO.get(member.ai_name) else ""
         if member and member.full_name:
-            labels.append(f"{member.ai_name} ({member.full_name})")
+            labels.append(f"{member.ai_name} ({member.full_name}{also})")
         elif member:
             labels.append(f"{member.ai_name} (role not assigned to a person yet)")
         else:
@@ -142,7 +153,27 @@ def _update_issue_state(ctx, action):
         )
         if cancelled:
             detail += f", {cancelled} pending follow-up(s) cancelled"
+        if old_state != AIIssue.STATE_RESOLVED and issue.ticket_ref:
+            detail += "; " + _close_ticket(ctx, issue)
     return _ok(detail)
+
+
+def _close_ticket(ctx, issue):
+    """The AI resolved an issue that has a ClickUp task: close the task too (planned during the staff review)."""
+    from mysite.ai_agent import clickup
+
+    if not (ctx.notify and ctx.persist and clickup.delivery_mode() == 'api'):
+        return "ClickUp task left as it is (no API token / replay)"
+    if not clickup.writes_enabled(issue.apartment or ctx.apartment):
+        result = 'ClickUp writes OFF - task NOT closed in ClickUp (would close it)'
+        ctx.ticket_updates.append({'issue': issue, 'text': '', 'clickup': result})
+        return result
+    try:
+        status = clickup.set_task_closed(issue.ticket_ref)
+        ctx.ticket_updates.append({'issue': issue, 'text': '', 'clickup': f'task CLOSED (status: {status})'})
+        return f"ClickUp task closed (status: {status})"
+    except clickup.ClickUpError as e:
+        return f"ClickUp task close FAILED ({str(e)[:150]})"
 
 
 def _schedule_followup(ctx, action):
@@ -223,14 +254,38 @@ def _notify_action(ctx, action):
 
 
 def _kb_update(ctx, action):
-    from mysite.ai_agent.knowledge import apply_kb_update
-    return _ok(apply_kb_update(ctx, action, ctx.staff_in_trigger))
+    from mysite.ai_agent import knowledge
+    # A staff member approved or corrected this entry in the Telegram review: it counts as said by staff
+    return _ok(knowledge.apply_kb_update(ctx, action, ctx.staff_in_trigger or bool(action.get('approved_by'))))
 
 
 def _ticket_note(ctx, action):
+    """Case note + (API token, not a replay) a real comment on the issue's ClickUp task."""
+    from mysite.ai_agent import clickup
+
     text = action.get('text') or f"ticket status -> {action.get('status')}"
-    return _case_note(ctx, {'issue_id': None, 'ticket_id': action.get('ticket_id'), 'text': text},
-                      prefix=f"[{action['type']} {action.get('ticket_id') or ''}] ")
+    status, detail = _case_note(ctx, {'issue_id': None, 'ticket_id': action.get('ticket_id'), 'text': text},
+                                prefix=f"[{action['type']} {action.get('ticket_id') or ''}] ")
+    try:
+        issue = _issue(ctx, action.get('ticket_id'), required=False)
+    except ActionError:
+        issue = None
+    if not issue:
+        return status, detail
+    result = ''
+    if ctx.notify and ctx.persist and issue.ticket_ref and clickup.delivery_mode() == 'api' \
+            and not clickup.writes_enabled(issue.apartment or ctx.apartment):
+        result = 'ClickUp writes OFF - comment NOT posted in ClickUp (would add it)'
+        detail += f"; {result}"
+    elif ctx.notify and ctx.persist and issue.ticket_ref and clickup.delivery_mode() == 'api':
+        try:
+            clickup.add_task_comment(issue.ticket_ref, f"🤖 AI{' [TEST]' if ctx.is_test else ''}: {text}")
+            result = 'comment added in ClickUp'
+        except clickup.ClickUpError as e:
+            result = f'ClickUp comment FAILED ({str(e)[:150]})'
+        detail += f"; {result}"
+    ctx.ticket_updates.append({'issue': issue, 'text': str(text), 'clickup': result})
+    return status, detail
 
 
 HANDLERS = {
@@ -248,18 +303,35 @@ HANDLERS = {
 }
 
 
-def execute_actions(parsed, ctx):
-    """Returns [{'action', 'status', 'detail'}] in the order the AI gave them."""
+def with_safety_net(parsed, ctx):
+    """
+    The AI's actions, plus one INTERNAL_ALERT when the answer tells the tenant the team knows but the AI gave
+    no action for it. Returns (actions, backend_added_or_None).
+    """
     actions = list(parsed.get('actions') or [])
     answer = parsed.get('answer') or ''
     emitted = {a.get('type') for a in actions if isinstance(a, dict)}
     backend_added = None
     if answer and _PROMISE.search(answer) and not (emitted & LOGGING_ACTION_TYPES):
+        # Attach it to the chat's newest open issue when there is one, so the alert shows that issue and its ticket.
+        from mysite.models import AIIssue
+        open_issue = AIIssue.objects.filter(conversation_sid=ctx.conversation_sid).exclude(
+            state=AIIssue.STATE_RESOLVED).order_by('-id').first() if ctx.persist else None
         backend_added = {
-            'type': 'INTERNAL_ALERT', 'priority': 'routine', 'responsible': ['Edy'],
-            'text': f"AI told the tenant the matter was passed to the team: \"{answer}\"",
+            'type': 'INTERNAL_ALERT', 'priority': getattr(open_issue, 'priority', None) or 'routine',
+            'responsible': [getattr(open_issue, 'owner', None) or 'Edy'],
+            'text': "The AI told the tenant the team is aware, but gave no alert itself - please check.",
+            'backend_added': True,
         }
+        if open_issue:
+            backend_added['issue_id'] = open_issue.public_id
         actions.append(backend_added)
+    return actions, backend_added
+
+
+def execute_actions(parsed, ctx):
+    """Returns [{'action', 'status', 'detail'}] in the order the AI gave them."""
+    actions, backend_added = with_safety_net(parsed, ctx)
 
     # Issues first so "new-1" exists, then alerts/tickets so the issue priority is known before
     # follow-up times are calculated - whatever order the AI used
@@ -270,7 +342,8 @@ def execute_actions(parsed, ctx):
     ordered = sorted(actions, key=_rank)
     results = {}
     for action in ordered:
-        note = 'added by backend: the answer promised escalation but no matching action was emitted. ' if action is backend_added else ''
+        note = ('added by backend: the answer promised escalation but no matching action was emitted. '
+                if action is backend_added or (isinstance(action, dict) and action.get('backend_added')) else '')
         if not isinstance(action, dict) or action.get('type') not in ACTION_TYPES:
             status, detail = STATUS_REJECTED, 'unknown action type'
         elif not ctx.persist or (action['type'] in NOTIFY_ACTION_TYPES and not ctx.notify):

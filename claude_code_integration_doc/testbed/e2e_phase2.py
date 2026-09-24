@@ -19,6 +19,7 @@ import mysite.views.messaging as messaging
 telegram, sms = [], []
 def fake_notify(text): telegram.append(text); return True, "captured"
 team_notify_mod.notify_ai_chat = fake_notify
+team_notify_mod.send_ai_chat = lambda t, reply_to=None: (*fake_notify(t), None)
 notify.notify_ai_chat = fake_notify
 service.report_error = lambda e, ctx, info=None, source='task': telegram.append(f"ERROR {ctx}: {e}")
 def fake_send(sid, author, message, sender, receiver): sms.append((sid, author, message))

@@ -44,6 +44,13 @@ class Command(BaseCommand):
                 f"(chat {oldest.conversation_sid}). Nobody is answering them - is the worker running? "
                 f"Check: pm2 status, pm2 logs ai-agent"
             )
+        from mysite.ai_agent import answer_review
+        overdue = answer_review._due_runs(now - timedelta(minutes=options['max_wait_minutes']))
+        if overdue.exists():
+            problems.append(
+                f"{overdue.count()} AI answer(s) / plan(s) passed their review window but were not done "
+                f"(run #{overdue.first().id}). Is the worker running? Check: pm2 logs ai-agent"
+            )
         if all_failing:
             problems.append(f"The last {len(recent)} AI runs all failed: {str(recent[0].error)[:200]}")
 

@@ -15,7 +15,8 @@ from django.utils import timezone
 
 from mysite.ai_agent import actions as agent_actions
 from mysite.ai_agent import config, inputs, prompts, run_report, runner
-from mysite.ai_agent import team_notify
+from mysite.ai_agent import answer_review, team_notify
+from mysite.ai_agent import plan as agent_plan
 from mysite.ai_agent.notify import report_error
 from mysite.unified_logger import log_info, log_warning
 
@@ -223,36 +224,21 @@ def _leaked_access_code(answer, apartment, booking):
     return any(value in answer for value in knowledge.hidden_code_values(apartment))
 
 
-def deliver(parsed, mode, conversation_sid, booking, last_message, payload, apartment=None):
-    """Sends the answer to the Twilio group chat in live mode. Returns {'sent_to_chat', 'note'}."""
-    from mysite.group_chat_logger import log_ai_customer_no_answer, log_ai_customer_sent, log_ai_disabled
-    from mysite.models import AIRun
-    from mysite.views.messaging import TWILIO_ASSISTANT_PHONE, send_tenant_sms_gated
+def _is_emergency(parsed, last_message):
+    """Emergency answers are never held for review."""
+    if any(isinstance(a, dict) and a.get('priority') == 'emergency' for a in parsed.get('actions') or []):
+        return True
+    return bool(_EMERGENCY.search(getattr(last_message, 'body', '') or ''))
 
-    answer = parsed.get('answer')
-    if not answer:
-        log_ai_customer_no_answer(conversation_sid, getattr(last_message, 'body', '') or '', parsed.get('why') or '')
-        return {'sent_to_chat': False, 'note': 'NO_ANSWER - nothing to send'}
-    if _leaked_access_code(answer, apartment, booking):
-        report_error(
-            Exception("answer contained an access code outside the allowed window"),
-            "AI answer BLOCKED - not sent to the tenant", {'conversation_sid': conversation_sid, 'mode': mode},
-        )
-        return {'sent_to_chat': False, 'note': 'BLOCKED - answer contained an access code outside the allowed window',
-                'error': 'answer blocked: access code outside the allowed window'}
-    if mode != AIRun.MODE_LIVE:
-        log_ai_disabled(conversation_sid, payload.get('reply_author') or '', answer)
-        return {'sent_to_chat': False, 'note': 'test mode - stored in DB, not sent to Twilio'}
-    if _staff_replied_after(conversation_sid, last_message):
-        return {'sent_to_chat': False, 'note': 'suppressed - staff replied while the AI was working'}
+
+def send_answer(conversation_sid, answer, reply_author, sender_phone, booking=None):
+    """Sends one answer to the tenant group chat (notification-window gated). Returns {'sent_to_chat', 'note'}."""
+    from mysite.group_chat_logger import log_ai_customer_sent
+    from mysite.views.messaging import TWILIO_ASSISTANT_PHONE, send_tenant_sms_gated
 
     try:
         sent = send_tenant_sms_gated(
-            conversation_sid,
-            payload.get('reply_author') or 'Virtual Assistant',
-            answer,
-            payload.get('sender_phone') or TWILIO_ASSISTANT_PHONE,
-            None,
+            conversation_sid, reply_author or 'Virtual Assistant', answer, sender_phone or TWILIO_ASSISTANT_PHONE, None,
         )
     except Exception as e:
         tenant = getattr(booking, 'tenant', None)
@@ -266,6 +252,42 @@ def deliver(parsed, mode, conversation_sid, booking, last_message, payload, apar
                 'note': 'held - outside the 08:00-21:00 Florida notification window, will send at the next window open'}
     log_ai_customer_sent(conversation_sid, answer)
     return {'sent_to_chat': True, 'note': 'sent to Twilio group chat'}
+
+
+def deliver(parsed, mode, conversation_sid, booking, last_message, payload, apartment=None):
+    """
+    Sends the answer to the Twilio group chat in live mode, or holds it for the staff review window
+    (answer_review.py). Returns {'sent_to_chat', 'note'} (+ 'held': True when held).
+    """
+    from mysite.group_chat_logger import log_ai_customer_no_answer, log_ai_disabled
+    from mysite.models import AIRun
+
+    answer = parsed.get('answer')
+    if not answer:
+        log_ai_customer_no_answer(conversation_sid, getattr(last_message, 'body', '') or '', parsed.get('why') or '')
+        return {'sent_to_chat': False, 'note': 'NO_ANSWER - nothing to send'}
+    if _leaked_access_code(answer, apartment, booking):
+        report_error(
+            Exception("answer contained an access code outside the allowed window"),
+            "AI answer BLOCKED - not sent to the tenant", {'conversation_sid': conversation_sid, 'mode': mode},
+        )
+        return {'sent_to_chat': False, 'note': 'BLOCKED - answer contained an access code outside the allowed window',
+                'error': 'answer blocked: access code outside the allowed window'}
+    live = mode == AIRun.MODE_LIVE
+    if not live:
+        log_ai_disabled(conversation_sid, payload.get('reply_author') or '', answer)
+    if _staff_replied_after(conversation_sid, last_message):
+        return {'sent_to_chat': False, 'note': 'suppressed - staff replied while the AI was working'}
+    # Test mode goes through the same 15-minute review as live (user request 2026-09-23); only the
+    # final Twilio send is skipped
+    minutes = config.review_hold_minutes()
+    if minutes > 0 and not _is_emergency(parsed, last_message):
+        return {'sent_to_chat': False, 'held': True, 'hold_until': timezone.now() + timedelta(minutes=minutes),
+                'note': f"held {minutes:g} min for staff review in Telegram, then "
+                        + ('sent unless corrected' if live else 'final unless corrected (test mode - never sent to Twilio)')}
+    if not live:
+        return {'sent_to_chat': False, 'note': 'test mode - stored in DB, not sent to Twilio'}
+    return send_answer(conversation_sid, answer, payload.get('reply_author'), payload.get('sender_phone'), booking)
 
 
 # ---------------------------------------------------------------------------
@@ -400,10 +422,12 @@ def process_events(events):
     mode = AIRun.MODE_LIVE if live else AIRun.MODE_TEST
     reply_payload = (tenant_events[-1].payload if tenant_events else None) or {}
 
+    # Answers / plans of this chat that still wait for staff review: the AI sees them and does not repeat them
+    pending_block = answer_review.pending_block(conversation_sid)
     outcome = run_agent(
         event_type, conversation_sid, apartment, booking, trigger_messages, mode,
         body_override="\n".join(e.body or '' for e in tenant_events if not e.message_id) or None,
-        extra_block="\n\n".join(b for b in (_followup_block(events), ticket_block) if b) or None,
+        extra_block="\n\n".join(b for b in (_followup_block(events), ticket_block, pending_block) if b) or None,
     )
     run, parsed, meta = outcome['run'], outcome['parsed'], outcome['meta']
 
@@ -423,7 +447,15 @@ def process_events(events):
             apartment=apartment, booking=booking, ai_run=ai_run,
             staff_in_trigger=any(e.event_type == AIEvent.TYPE_STAFF_MESSAGE for e in events),
         )
-        action_results = agent_actions.execute_actions(parsed, action_ctx)
+        plan_items = plan_actions = None
+        if answer_review.review_applies(parsed, last_message, action_ctx):
+            # Staff review: nothing is executed now - the actions become a plan in the Telegram alert and are
+            # executed when the review window ends (answer_review.apply_plan)
+            plan_items, plan_actions = agent_plan.describe(parsed, action_ctx)
+            action_results = agent_plan.as_results(plan_items, plan_actions)
+            delivery.setdefault('plan_until', delivery.get('hold_until') or answer_review.window_end())
+        else:
+            action_results = agent_actions.execute_actions(parsed, action_ctx)
         if parsed['review_answer']:
             delivery['note'] = 'NO_ANSWER - staff answered first; the review answer is stored for managers, never sent'
         if last_tenant_message:
@@ -435,6 +467,8 @@ def process_events(events):
             elif parsed['answer'] and (delivery.get('note') or '').startswith('suppressed'):
                 # Live mode, but a manager replied while the AI was working: keep the answer for review only
                 shown_why = f"{REVIEW_ONLY_PREFIX} {parsed['why'] or ''}".strip()
+            elif delivery.get('held'):
+                shown_why = f"{answer_review.pending_prefix(delivery['hold_until'], mode)} {parsed['why'] or ''}".strip()
             _persist_customer_ai_result(
                 last_tenant_message.message_sid,
                 {'answer': shown_answer, 'why': shown_why},
@@ -463,16 +497,20 @@ def process_events(events):
 
     if parsed:
         _finish_events(events, AIEvent.STATUS_DONE)
+        trigger_text = outcome['new_messages_text']
+        if not trigger_messages:
+            trigger_text = "⏰ Reminder became due: " + "; ".join(e.body or '' for e in events)
         try:
-            trigger_text = outcome['new_messages_text']
-            if not trigger_messages:
-                trigger_text = "⏰ Reminder became due: " + "; ".join(e.body or '' for e in events)
             ai_run.refresh_from_db()
-            team_notify.deliver(action_ctx, ai_run, parsed, action_results, delivery, trigger_text)
+            team_notify.deliver(action_ctx, ai_run, parsed, action_results, delivery, trigger_text,
+                                plan_items=plan_items, plan_actions=plan_actions)
             AIRun.objects.filter(id=ai_run.id).update(actions=action_results)
             run_report._write_json(outcome['run_dir'] / '07_actions.json', action_results)
         except Exception as e:
             report_error(e, "team notification failed", {'run': f"/ai-runs/{ai_run.id}/"})
+        answer_review.start(ai_run, parsed, delivery, reply_payload, booking, has_tenant_message=bool(tenant_events),
+                            plan_items=plan_items, plan_actions=plan_actions, action_ctx=action_ctx,
+                            trigger_text=trigger_text)
         log_info(
             f"AI agent run #{ai_run.id} {event_type} {mode} {meta['apartment']}: "
             f"{'NO_ANSWER' if parsed['no_answer'] else 'ANSWER'}, {len(action_results)} actions, ${summary['cost_usd']:.4f}",

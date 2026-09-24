@@ -10,6 +10,7 @@ BACKEND_CLAUDE_CLI = 'claude_cli'
 AI_BACKEND_KEY = 'ai_backend'
 AI_AGENT_MODEL_KEY = 'ai_agent_model'
 AI_AGENT_SYSTEM_KEY = 'ai_agent_system'
+AI_CLICKUP_WRITES_KEY = 'ai_clickup_writes'
 
 DEFAULT_AGENT_MODEL = 'claude-sonnet-5'
 
@@ -34,6 +35,10 @@ COMPANY_NAME = os.environ.get('AI_AGENT_COMPANY_NAME', 'the property management 
 # America/New_York is the official name of that zone; it follows daylight saving automatically.
 TEAM_TIMEZONE = os.environ.get('AI_AGENT_TEAM_TIMEZONE', 'America/New_York')
 PROPERTY_TIMEZONE = os.environ.get('AI_AGENT_PROPERTY_TIMEZONE', TEAM_TIMEZONE)
+
+# StaffMember.ai_name -> other ai_names that are the same person / also act in that role (user, 2026-09-24:
+# "Kevin is also Farid"). Whoever is Kevin (ClickUp "Imie Malaay") keeps the role; Farid is Kevin too.
+STAFF_ALSO = {'Kevin': ('Farid',)}
 TIMEZONE_LABEL = os.environ.get('AI_AGENT_TIMEZONE_LABEL', 'ET, Florida')
 
 # Tenant-facing SMS (AI answers, welcome/contract messages, reminders) only actually go out in this window
@@ -88,6 +93,21 @@ def chat_ui_debounce_seconds():
     return int(_env_float('AI_AGENT_CHAT_UI_DEBOUNCE_SECONDS', 5))
 
 
+def review_hold_minutes():
+    """Live AI answers wait this long for a staff correction in the Telegram AI group (0 = send at once)."""
+    return _env_float('AI_AGENT_REVIEW_HOLD_MINUTES', 15)
+
+
+def review_poll_seconds():
+    """How often the worker reads staff replies from Telegram (it also reads right before releasing an answer)."""
+    return _env_float('AI_AGENT_REVIEW_POLL_SECONDS', 60)
+
+
+def review_model():
+    """Model that reads a staff reply to an AI answer (correction / lesson / stop)."""
+    return os.environ.get('AI_AGENT_REVIEW_MODEL') or get_agent_model()
+
+
 def claude_binary():
     return os.environ.get('AI_AGENT_CLAUDE_BIN', 'claude')
 
@@ -120,3 +140,19 @@ def get_agent_model():
     except Exception:
         value = None
     return value or os.environ.get('AI_AGENT_MODEL') or DEFAULT_AGENT_MODEL
+
+
+def clickup_writes_enabled():
+    """
+    Master switch for changing anything in ClickUp (create / close / delete / update / comment tasks, channel
+    messages). Off: the agent still plans the ClickUp changes and the Telegram alerts describe them, but nothing
+    is written to ClickUp. Reading tasks keeps working. Apartments with "test" in the name ignore the switch
+    and always write (clickup.writes_enabled(apartment)). AIManagement row 'ai_clickup_writes' (on/off) wins,
+    then env AI_AGENT_CLICKUP_WRITES, default on.
+    """
+    try:
+        value = _management_value(AI_CLICKUP_WRITES_KEY)
+    except Exception:
+        value = None
+    value = (value or os.environ.get('AI_AGENT_CLICKUP_WRITES') or 'on').strip().lower()
+    return value not in ('off', '0', 'false', 'no', 'disabled')

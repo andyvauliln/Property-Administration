@@ -60,6 +60,7 @@ def ai_runs_view(request):
         'pending_events': AIEvent.objects.filter(status__in=[AIEvent.STATUS_PENDING, AIEvent.STATUS_RUNNING]).count(),
         'ai_backend': agent_config.get_ai_backend(),
         'agent_model': agent_config.get_agent_model(),
+        'clickup_writes': agent_config.clickup_writes_enabled(),
     })
 
 

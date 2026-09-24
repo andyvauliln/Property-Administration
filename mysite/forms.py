@@ -190,6 +190,7 @@ def get_dropdown_options(identifier, isData=False, request=None):
             {"value": "ai_backend", "label": "AI Backend (openrouter / claude_cli)"},
             {"value": "ai_agent_model", "label": "AI Agent Model (Claude)"},
             {"value": "ai_agent_system", "label": "AI Agent System Prompt (Claude)"},
+            {"value": "ai_clickup_writes", "label": "AI ClickUp Writes (on / off)"},
         ]
 
     else:

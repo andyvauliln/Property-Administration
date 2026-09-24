@@ -105,9 +105,11 @@ def staff_block():
     members = StaffMember.objects.filter(is_active=True)
     if not members.exists():
         return "STAFF: not configured (use Edy / Kevin / Janna as in your instructions)"
-    return "STAFF (authorized, role from metadata):\n" + "\n".join(
-        f"- {m.ai_name}: {m.get_role_display()}" for m in members
-    )
+    lines = []
+    for m in members:
+        also = ", ".join(config.STAFF_ALSO.get(m.ai_name, ()))
+        lines.append(f"- {m.ai_name}: {m.get_role_display()}" + (f" (also {also}: same person / same authority)" if also else ""))
+    return "STAFF (authorized, role from metadata):\n" + "\n".join(lines)
 
 
 def tracking_block(conversation_sid, booking, sources=None):
@@ -212,6 +214,7 @@ def build_agent_input(event_type, conversation_sid, apartment, booking, trigger_
         access_line,
         context,
         kb_block,
+        knowledge.lessons_block(apartment, sources),
     ]
 
     # 'KB-UPDATE-...' rows are CRM-only notes of the old knowledge extractor (never sent to anyone): not chat

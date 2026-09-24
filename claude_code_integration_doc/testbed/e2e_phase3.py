@@ -18,7 +18,7 @@ import mysite.views.messaging as messaging
 
 telegram, sms = [], []
 fake_notify = lambda text: (telegram.append(text), (True, "captured"))[1]
-team_notify_mod.notify_ai_chat = fake_notify; notify.notify_ai_chat = fake_notify
+team_notify_mod.send_ai_chat = lambda t, reply_to=None: (*fake_notify(t), None); team_notify_mod.notify_ai_chat = fake_notify; notify.notify_ai_chat = fake_notify
 service.report_error = lambda e, ctx, info=None, source='task': telegram.append(f"ERROR {ctx}: {e}")
 messaging.send_messsage_by_sid = lambda sid, author, message, s_, r_: sms.append(message)
 config.RUNS_DIR = _s.TESTBED_DIR / "ai_runs"; config.WORK_DIR = config.RUNS_DIR / "_cwd"

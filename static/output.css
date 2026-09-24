@@ -4540,6 +4540,11 @@ label[textContent="Problem Booking"] {
   border-color: rgb(180 83 9 / var(--tw-border-opacity));
 }
 
+:is(.dark .dark\:border-amber-800) {
+  --tw-border-opacity: 1;
+  border-color: rgb(146 64 14 / var(--tw-border-opacity));
+}
+
 :is(.dark .dark\:border-blue-500) {
   --tw-border-opacity: 1;
   border-color: rgb(63 131 248 / var(--tw-border-opacity));

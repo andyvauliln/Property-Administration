@@ -20,6 +20,41 @@ class ClickUpError(Exception):
     pass
 
 
+class ClickUpWritesOff(ClickUpError):
+    pass
+
+
+def is_test_apartment(apartment):
+    """Apartment (or its name) with "test" in the name: the sandbox / test apartments (same rule as channel_for)."""
+    name = apartment if isinstance(apartment, str) else getattr(apartment, 'name', '')
+    return 'test' in (name or '').lower()
+
+
+def writes_enabled(apartment=None):
+    """The ai_clickup_writes switch. Test apartments always write, whatever the switch says (user request 2026-09-24)."""
+    from mysite.ai_agent import config
+    return config.clickup_writes_enabled() or is_test_apartment(apartment)
+
+
+def _is_test_list(list_id):
+    from mysite.models import Apartment
+    if test_list_id() and str(list_id) == test_list_id():
+        return True
+    return Apartment.objects.filter(name__icontains='test', ai_clickup_list_id=str(list_id)).exists()
+
+
+def _is_test_ticket(ticket_ref):
+    from mysite.models import AIIssue
+    return AIIssue.objects.filter(ticket_ref=ticket_ref, apartment__name__icontains='test').exists()
+
+
+def _require_writes(list_id=None, ticket_ref=None):
+    """Safety net: every AI write to ClickUp passes here. Callers normally check writes_enabled() first."""
+    if writes_enabled() or (list_id and _is_test_list(list_id)) or (ticket_ref and _is_test_ticket(ticket_ref)):
+        return
+    raise ClickUpWritesOff("ClickUp writes are OFF (AIManagement 'ai_clickup_writes')")
+
+
 def token():
     return (os.environ.get('CLICKUP_API_TOKEN') or '').strip()
 
@@ -140,6 +175,7 @@ def default_due_at(priority):
 
 def create_task(list_id, name, description, priority='routine', assignee_ids=None, due_at=None, tags=None):
     """Returns (task_id, task_url). Tags that don't exist yet in the space are created automatically."""
+    _require_writes(list_id=list_id)
     payload = {'name': name[:250], 'description': description[:9000], 'priority': PRIORITY.get(priority, 3)}
     if assignee_ids:
         payload['assignees'] = [int(a) for a in assignee_ids if str(a).isdigit()]
@@ -149,6 +185,58 @@ def create_task(list_id, name, description, priority='routine', assignee_ids=Non
     payload['due_date_time'] = True
     data = _call('POST', f"/v2/list/{list_id}/task", payload)
     return data.get('id'), data.get('url')
+
+
+# ---------------------------------------------------------------------------
+# Changing existing tasks (staff replies in Telegram, answer_review.py) - API token only
+# ---------------------------------------------------------------------------
+
+def _task_id_or_fail(ticket_ref):
+    _require_writes(ticket_ref=ticket_ref)
+    if delivery_mode() != 'api':
+        raise ClickUpError("changing ClickUp tasks needs CLICKUP_API_TOKEN")
+    task_id = task_id_from_ref(ticket_ref)
+    if not task_id:
+        raise ClickUpError(f"no ClickUp task id in '{ticket_ref}'")
+    return task_id
+
+
+def _status_of_type(list_id, types):
+    """Name of the List's first status whose type is in types ('closed' / 'open')."""
+    for status in _call('GET', f"/v2/list/{list_id}").get('statuses') or []:
+        if status.get('type') in types:
+            return status.get('status')
+    raise ClickUpError(f"List {list_id} has no status of type {'/'.join(types)}")
+
+
+def set_task_closed(ticket_ref, closed=True):
+    """Moves the task to its List's closed status (or back to the open one). Returns the status name."""
+    task_id = _task_id_or_fail(ticket_ref)
+    list_id = ((_call('GET', f"/v2/task/{task_id}").get('list')) or {}).get('id')
+    status = _status_of_type(list_id, ('closed', 'done') if closed else ('open',))
+    _call('PUT', f"/v2/task/{task_id}", {'status': status})
+    return status
+
+
+def delete_task(ticket_ref):
+    _call('DELETE', f"/v2/task/{_task_id_or_fail(ticket_ref)}")
+
+
+def update_task(ticket_ref, name=None, description=None, priority=None):
+    payload = {}
+    if name:
+        payload['name'] = name[:250]
+    if description:
+        payload['description'] = description[:9000]
+    if priority in PRIORITY:
+        payload['priority'] = PRIORITY[priority]
+    if payload:
+        _call('PUT', f"/v2/task/{_task_id_or_fail(ticket_ref)}", payload)
+    return payload
+
+
+def add_task_comment(ticket_ref, text):
+    _call('POST', f"/v2/task/{_task_id_or_fail(ticket_ref)}/comment", {'comment_text': text[:9000], 'notify_all': True})
 
 
 # ---------------------------------------------------------------------------
@@ -176,6 +264,7 @@ def deliver_via_claude(mapping, tasks, compose_message):
     first so the message can link them. compose_message: called after the tasks exist. Returns a human
     note. Raises ClickUpError.
     """
+    _require_writes(list_id=mapping.list_id)
     import json
     import subprocess
     import tempfile
@@ -313,6 +402,8 @@ def _task_state(task, comments):
         'closed': bool(task.get('date_closed')) or status_type in ('closed', 'done'),
         'assignees': [a.get('username') or a.get('email') or str(a.get('id')) for a in task.get('assignees') or []],
         'updated': _when(task.get('date_updated')),
+        'due': _when(task.get('due_date')) if task.get('due_date') else '',
+        'url': task.get('url') or '',
         'comments': items[-5:],
     }
 

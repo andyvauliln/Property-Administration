@@ -1005,6 +1005,11 @@ def is_assistant_system_notification(message):
     return any(marker in lower for marker in markers)
 
 
+def _drop_empty_greeting_name(message):
+    """Tidy a greeting whose name placeholder rendered empty: 'Hi , ...' -> 'Hi, ...'."""
+    return re.sub(r'\b(Hi|Hello|Hey|Dear)\s+([,!.])', r'\1\2', message)
+
+
 def _get_template(template_key, **placeholders):
     """Load SMS/chat template from AIManagement (entry_type=sms_template), format with placeholders, or return None."""
     from mysite.models import AIManagement
@@ -2360,8 +2365,14 @@ def ai_extract_knowledge(conversation_sid, message_body, apartment, conversation
     """
     Live manager-message KB extraction (apartment + global).
     Delegates to extract_knowledge_from_manager_message with save=True.
+    Off while the Claude agent backend is on (user decision 2026-09-23): the agent proposes knowledge from the
+    same manager message and it goes through the 15-minute staff review in Telegram instead of a silent rewrite.
+    The manual "generate KB" tools in the chat page are not affected.
     """
     try:
+        from mysite.ai_agent import config as ai_agent_config
+        if ai_agent_config.is_agent_backend_enabled():
+            return False, None
         result = extract_knowledge_from_manager_message(
             conversation_sid,
             message_body,
@@ -3261,18 +3272,74 @@ def twilio_webhook(request):
 
 
 
-def create_conversation_config(friendly_name, tenant_phone):
+def find_reusable_group_conversation(booking, tenant_phone):
+    """
+    Return the conversation_sid of this tenant's existing group chat for the same booking or apartment,
+    or None. Without this every contract re-send / welcome message opened a new chat: Twilio's 409 dedupe
+    only fires for an identical participant set, and the staff list changes over time (see
+    data/tenant_multiple_conversations_report.md). A candidate is reused only if Twilio confirms it is not
+    closed, the tenant is still a participant, and the assistant identity is in it (so our sends are accepted;
+    Twilio-made regroups/1:1 threads have no identity and are skipped). Any error -> None (caller creates).
+    """
+    try:
+        from django.db.models import F, Max, Q
+        from mysite.models import TwilioConversation
+        validated = validate_phone_number(tenant_phone)
+        if not validated or not booking:
+            return None
+        scope = Q(booking_id=booking.id)
+        if booking.apartment_id:
+            scope |= Q(apartment_id=booking.apartment_id)
+        tenant_in = (Q(messages__author=validated) | Q(messages__messaging_binding_address=validated)
+                     | Q(booking__tenant__phone=validated))
+        candidates = (TwilioConversation.objects.filter(scope).filter(tenant_in).distinct()
+                      .annotate(last_msg=Max('messages__message_timestamp'))
+                      .order_by(F('last_msg').desc(nulls_last=True), '-created_at')[:5])
+        global client
+        if client is None:
+            client = get_twilio_client()
+        for conv in candidates:
+            try:
+                resource = client.conversations.v1.conversations(conv.conversation_sid)
+                if resource.fetch().state == 'closed':
+                    continue
+                participants = resource.participants.list()
+                addresses = {(p.messaging_binding or {}).get('address') for p in participants}
+                identities = {p.identity for p in participants}
+                if validated in addresses and identities & {'Virtual Assistant', 'ASSISTANT'}:
+                    return conv.conversation_sid
+            except Exception:
+                continue  # deleted in Twilio or API hiccup: try the next one
+        return None
+    except Exception as e:
+        log_error(e, "Find reusable group conversation", source='twilio')
+        return None
+
+
+def create_conversation_config(friendly_name, tenant_phone, booking=None):
     """
     Create a conversation with all participants in a single API call
-    
+
     Args:
         friendly_name (str): Name for the conversation
         tenant_phone (str): Tenant's phone number
-    
+        booking (Booking): Optional; when given, the tenant's existing group chat for this booking or
+            apartment is reused instead of creating a new one
+
     Returns:
         str: conversation_sid of the created conversation
     """
     try:
+        if booking is not None:
+            existing_sid = find_reusable_group_conversation(booking, tenant_phone)
+            if existing_sid:
+                log_info(
+                    f'Reusing existing group chat for "{friendly_name}"',
+                    category='sms',
+                    details={'conversation_sid': existing_sid, 'booking_id': booking.id}
+                )
+                return existing_sid
+
          # Create new group conversation with all participants
         participants_config = []
         twilio_phone = "+13153524379"
@@ -3467,7 +3534,7 @@ def _notify_manager_chat_delivery_failed(tenant_name, tenant_phone, message, con
 
 def _group_chat_name(booking):
     """Twilio conversation friendly_name for a booking's tenant group chat."""
-    return f"{booking.apartment.name} {booking.tenant.full_name or 'Tenant'} Rental"
+    return f"{booking.apartment.name} {booking.tenant.greeting_name or 'N/A'} Rental"
 
 
 def sendContractToTwilio(booking, contract_url):
@@ -3497,12 +3564,13 @@ def sendContractToTwilio(booking, contract_url):
         
         conversation_sid = create_conversation_config(
             _group_chat_name(booking),
-            validated_phone
+            validated_phone,
+            booking=booking,
         )
         
         if conversation_sid:
             log_info(f"Conversation created: {conversation_sid}", category='sms')
-            tenant_name = booking.tenant.full_name or 'Dear guest'
+            tenant_name = booking.tenant.greeting_name
             
             # Try to get template from AIManagement (sms_template)
             message = _get_template(
@@ -3521,6 +3589,9 @@ def sendContractToTwilio(booking, contract_url):
                     f"If I do not respond, our managers in this chat will contact you as soon as possible. "
                     f"To continue with a booking, please sign this contract: {contract_url}"
                 )
+
+            if not tenant_name:
+                message = _drop_empty_greeting_name(message)
 
             try:
                 send_tenant_sms_gated(conversation_sid, "Virtual Assistant", message, twilio_phone_secondary, validated_phone)
@@ -3573,12 +3644,13 @@ def sendWelcomeMessageToTwilio(booking):
         
         conversation_sid = create_conversation_config(
             _group_chat_name(booking),
-            validated_phone
+            validated_phone,
+            booking=booking,
         )
         
         if conversation_sid:
             log_info(f"Conversation created: {conversation_sid}", category='sms')
-            tenant_name = booking.tenant.full_name or 'Dear guest'
+            tenant_name = booking.tenant.greeting_name
             
             # Try to get template from AIManagement (sms_template)
             message = _get_template(
@@ -3595,6 +3667,9 @@ def sendWelcomeMessageToTwilio(booking):
                     f"Hi {tenant_name}, I am Sophia, a virtual assistant helping managers and guests with a booking for apartment {booking.apartment.name} from {booking.start_date} to {booking.end_date}. "
                     f"If I do not respond, our managers in this chat will contact you as soon as possible."
                 )
+
+            if not tenant_name:
+                message = _drop_empty_greeting_name(message)
 
             try:
                 send_tenant_sms_gated(conversation_sid, "Virtual Assistant", message, twilio_phone_secondary, validated_phone)
