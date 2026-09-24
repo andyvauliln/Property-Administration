@@ -134,7 +134,7 @@ def docuseal_callback(request):
                         # Check if a user with this email already exists
                         from mysite.models import User
                         try:
-                            existing_user = User.objects.get(email=new_email)
+                            existing_user = User.objects.get(email__iexact=new_email)
                             # Email exists for a different user - switch the booking to that user
                             logger.info(f"info: Email {new_email} already exists for user {existing_user}. Switching booking tenant.")
                             booking.tenant = existing_user
@@ -147,7 +147,7 @@ def docuseal_callback(request):
                     if tenant_name:
                         tenant.full_name = tenant_name.strip()
                         logger.info(f"tenant: {tenant_name}")
-                    if new_email and new_email != tenant.email:
+                    if new_email and new_email.lower() != (tenant.email or '').lower():
                         tenant.email = new_email
                         logger.info(f"email: {new_email}")
                     if tenant_phone:
@@ -155,9 +155,17 @@ def docuseal_callback(request):
                         raw_phone = tenant_phone.strip()
                         # Split by common separators and take the first phone number
                         phone_cleaned = raw_phone.split('//')[0].split(',')[0].strip()
-                        # Set phone - validation happens in User.save()
-                        tenant.phone = phone_cleaned
-                        logger.info(f"phone: {raw_phone} -> {tenant.phone}")
+                        # One user per phone: never take a phone another user already has (or a staff phone)
+                        from mysite.models import User, validate_and_format_phone
+                        from mysite.views.messaging import is_reserved_phone
+                        normalized = validate_and_format_phone(phone_cleaned)
+                        owner = User.objects.filter(phone=normalized).exclude(pk=tenant.pk).first() if normalized else None
+                        if not normalized or owner or is_reserved_phone(normalized):
+                            logger.warning(f"phone from signed contract not applied: {raw_phone} "
+                                           f"(invalid, staff, or belongs to user {owner.pk if owner else '-'})")
+                        else:
+                            tenant.phone = normalized
+                            logger.info(f"phone: {raw_phone} -> {tenant.phone}")
                     tenant.save()
                     logger.info("TENANT Saved")
                     # Save booking in case tenant was changed

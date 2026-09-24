@@ -350,12 +350,31 @@ class CustomUserForm(forms.ModelForm):
                   'password', 'phone', 'role', "notes"]
 
     def clean(self):
-        
+
         cleaned_data = super().clean()
         email = cleaned_data.get("email")
         if not email or email == "None":
             cleaned_data["email"] = f"tenant_{uuid.uuid4()}@example.com"
+        phone = cleaned_data.get("phone")
+        if phone and cleaned_data.get("role") == "Tenant":
+            from mysite.views.messaging import is_reserved_phone
+            if is_reserved_phone(phone):
+                self.add_error("phone", "This phone belongs to a manager or the system number, not a tenant.")
         return cleaned_data
+
+    def clean_phone(self):
+        # One user per phone: normalize like User.save() does, then check nobody else has it.
+        from mysite.models import validate_and_format_phone
+        raw = (self.cleaned_data.get("phone") or "").strip()
+        if not raw:
+            return None
+        phone = validate_and_format_phone(raw)
+        if not phone:
+            raise forms.ValidationError(f"Invalid phone number: '{raw}'. Use +1XXXXXXXXXX or +[country code][number].")
+        owner = User.objects.filter(phone=phone).exclude(pk=self.instance.pk).first()
+        if owner:
+            raise forms.ValidationError(f"{phone} already belongs to {owner.full_name} ({owner.email}), user #{owner.pk}.")
+        return phone
 
     email = EmailFieldEx(isColumn=True,required=False, initial=f"tenant_{uuid.uuid4()}@example.com", isEdit=True,
                          isCreate=True, ui_element="input")

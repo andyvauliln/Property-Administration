@@ -65,7 +65,7 @@ def check(name, cond, extra=''):
 
 # ---- fixtures -------------------------------------------------------------------------------
 if not User.objects.filter(email="r@example.com").exists():
-    User.objects.bulk_create([User(email="r@example.com", full_name="Rita Tenant", role="Tenant", phone="+15550002222")])
+    User.objects.bulk_create([User(email="r@example.com", full_name="Rita Tenant", role="Tenant", phone="+15550002233")])
 tenant = User.objects.get(email="r@example.com")
 def make_apartment(name, live):
     Apartment.objects.bulk_create([Apartment(name=name, building_n="720", apartment_n=name[-3:], street="S", state="FL", city="WPB",
@@ -85,12 +85,12 @@ if not StaffMember.objects.filter(ai_name="Edy").exists():
 StaffMember.objects.filter(ai_name="Edy", phone__isnull=True).update(phone="+15612205252")
 EDY_PHONE = StaffMember.objects.get(ai_name="Edy").phone
 n = [0]
-def say(sid, body, author="+15550002222"):
+def say(sid, body, author="+15550002233"):
     n[0] += 1
     conv = TwilioConversation.objects.get(conversation_sid=sid)
     TwilioMessage.objects.bulk_create([TwilioMessage(message_sid=f"RV{n[0]:04d}", conversation=conv, conversation_sid=sid,
                                                      author=author, body=body, direction='inbound')])
-    if author == "+15550002222":
+    if author == "+15550002233":
         service.enqueue_tenant_message(sid, f"RV{n[0]:04d}", body)
     return TwilioMessage.objects.get(message_sid=f"RV{n[0]:04d}")
 def drain():

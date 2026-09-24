@@ -182,6 +182,12 @@ def validate_and_format_phone(phone):
 PLACEHOLDER_FULL_NAMES = {'not availabale', 'not available', 'n/a', 'na', 'unknown'}
 
 
+def is_placeholder_email(email):
+    """True for the random tenant_<uuid>@example.com the forms fill in, and other no-real-email markers."""
+    email = (email or '').strip().lower()
+    return not email or email.endswith('@example.com') or email == 'not_availabale@gmail.com'
+
+
 class CustomUserManager(BaseUserManager):
     def create_user(self, email=None, password=None, **extra_fields):
         if not email:
@@ -212,7 +218,8 @@ class User(AbstractBaseUser, PermissionsMixin):
     email = models.EmailField(unique=True)
     password = models.CharField(max_length=128, null=True, blank=True)
     full_name = models.CharField(max_length=255, db_index=True)
-    phone = models.CharField(max_length=20, blank=True, null=True)
+    # One user per phone (data/user_phone_dedup_plan.md); stored as E.164 by save(), empty -> NULL.
+    phone = models.CharField(max_length=20, blank=True, null=True, unique=True)
     role = models.CharField(max_length=14, choices=ROLES)
     notes = models.TextField(blank=True, null=True)
     telegram_chat_id = models.CharField(max_length=255, blank=True, null=True)
@@ -1058,8 +1065,19 @@ class Booking(models.Model):
                     )
 
             if tenant_email:
-                # Try to retrieve an existing user with the given email
-                user = User.objects.filter(email=tenant_email).first()
+                from django.core.exceptions import ValidationError
+                # One user per phone: match by phone first, then by email ignoring case. The form fills in a
+                # random tenant_<uuid>@example.com when no email is typed, so matching by email alone created a
+                # new user on every such booking (data/user_phone_dedup_plan.md).
+                phone = validate_and_format_phone(tenant_phone) if tenant_phone else None
+                by_phone = User.objects.filter(phone=phone).first() if phone else None
+                by_email = User.objects.filter(email__iexact=tenant_email.strip()).first()
+                if by_phone and by_email and by_phone.pk != by_email.pk:
+                    raise ValidationError(
+                        f"Phone {phone} belongs to {by_phone.full_name} ({by_phone.email}) but email "
+                        f"{tenant_email} belongs to {by_email.full_name}. Please use one tenant's details."
+                    )
+                user = by_phone or by_email
 
                 if not user:
                     # If the user doesn't exist, create a new instance
@@ -1074,6 +1092,11 @@ class Booking(models.Model):
                     # If the user exists, update the fields
                     user.full_name = tenant_full_name
                     user.phone = tenant_phone
+                    if (by_phone and not by_email and not is_placeholder_email(tenant_email)
+                            and is_placeholder_email(user.email)):
+                        user.email = tenant_email.strip()  # a real email replaces the placeholder
+                    elif by_phone and not by_email and not is_placeholder_email(tenant_email):
+                        user.notes = '\n'.join(filter(None, [user.notes, f"Other email: {tenant_email.strip()}"]))
 
                 # Save the user (both new and existing go through same path)
                 # This triggers phone validation in User.save()
