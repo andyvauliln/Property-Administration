@@ -151,6 +151,9 @@ def compose_telegram(meta, parsed, action_results, delivery, trigger_text, group
         header,
         f"{'🟢 LIVE' if live else '🧪 TEST - nothing is sent to the tenant'} · {meta.get('event_type')} · {_now_label()}",
     ]
+    if meta.get('tenant_chats'):
+        # The tenant writes in more than one chat: say which one this is and where they wrote last
+        lines.append(f"🔗 {meta['tenant_chats']}")
     if not clickup.writes_enabled(meta.get('apartment')):
         lines.append("🚫 ClickUp writes OFF - ClickUp tasks/comments/closes below are only what the AI WOULD do")
     lines += [
@@ -159,14 +162,25 @@ def compose_telegram(meta, parsed, action_results, delivery, trigger_text, group
         "",
     ]
     held = bool((delivery or {}).get('held'))
+    # Legal / contract question: the answer is a suggestion that is sent ONLY after a manager confirms it
+    confirm = held and bool((delivery or {}).get('confirm'))
     changes = plan_mod.render(plan_items) if plan_items is not None else []
     automatic = plan_items is not None and (held or changes)
+    if confirm:
+        lines.insert(2, "⚖️ LEGAL QUESTION - NEEDS MANAGER CONFIRMATION. Nothing is sent to the tenant until a manager "
+                        "replies \"ok\" or a corrected answer - NOT even after the "
+                        f"{config.review_hold_minutes():g}-min review window.")
     if automatic:
         # First thing people see (also in the Telegram preview): it will happen by itself
-        lines.insert(2, f"⏰ AUTOMATIC at {_eta(delivery)} ({_minutes_left(delivery)}): if nobody replies to this message, "
-                        f"the AI does everything in the PLAN below by itself.")
+        lines.insert(3 if confirm else 2,
+                     f"⏰ AUTOMATIC at {_eta(delivery)} ({_minutes_left(delivery)}): if nobody replies to this message, "
+                     f"the AI does everything in the PLAN below by itself" + (" - except the legal answer." if confirm else "."))
         lines.append(f"📋 PLAN - NOTHING IS DONE YET. At {_eta(delivery)} ({_minutes_left(delivery)}), unless someone replies to this message:")
-        if held:
+        if confirm:
+            lines.append("• ⚖️ SUGGESTED answer based on the contract - NOT sent automatically, only after a manager replies "
+                         "\"ok\" (send as written) or a corrected answer:")
+            lines.append(f"   \"{parsed['answer'][:900]}\"")
+        elif held:
             lines.append("• 💬 " + ("Send this answer to the tenant:" if live else
                                     "This answer becomes final (TEST: shown in the CRM chat, never sent to Twilio):"))
             lines.append(f"   \"{parsed['answer'][:900]}\"")
@@ -175,11 +189,16 @@ def compose_telegram(meta, parsed, action_results, delivery, trigger_text, group
         else:
             lines.append("• 💬 No answer to the tenant")
         lines += changes
+    elif confirm:
+        lines.append("⚖️ SUGGESTED answer based on the contract - NOT sent, waits for a manager to reply \"ok\" or a "
+                     f"corrected answer:\n{parsed['answer'][:900]}")
     elif parsed.get('answer'):
         how = 'sent to the tenant' if sent else 'NOT sent: ' + ((delivery or {}).get('note') or '')
         lines.append(f"🤖 AI answer ({how}):\n{parsed['answer'][:900]}")
     else:
         lines.append("🤖 AI: no answer to the tenant" + (" - and nothing else to change" if plan_items is not None else ""))
+    if confirm:
+        lines.append(f"📄 Contract basis: {(parsed.get('contract_basis') or 'not given by the AI - check the contract')[:900]}")
     if parsed.get('review_answer'):
         lines.append(f"📝 Would have said (staff answered first, never sent):\n{parsed['review_answer'][:600]}")
     if parsed.get('why'):
@@ -208,12 +227,18 @@ def compose_telegram(meta, parsed, action_results, delivery, trigger_text, group
             lines += ["", "⚙ Done now: " + " · ".join(parts)]
         lines += kb + problems
     lines += ["", f"🔗 {report_url(ai_run.id)}"]   # cost and tokens stay in the report and on /ai-runs/
+    if confirm:
+        lines += ["", "⚖️ The legal answer is NEVER sent automatically - it waits for your \"ok\" or corrected answer, "
+                      "even after the review window."]
     if automatic:
-        lines += ["", f"⏰ No reply by {_eta(delivery)} ({_minutes_left(delivery)}) → the whole plan above runs AUTOMATICALLY. \"stop\" prevents it, "
-                      f"\"ok\" runs it now."]
+        lines += ["", f"⏰ No reply by {_eta(delivery)} ({_minutes_left(delivery)}) → the whole plan above runs AUTOMATICALLY"
+                      + (" (except the legal answer)" if confirm else "") + ". \"stop\" prevents it, \"ok\" runs it now."]
         lines += ["↩ REPLY to this message to change it: \"ok\" = do it all now · \"stop\" = do nothing · "
                       "\"remove 3\" · \"3 urgent\" / any change in words · a corrected answer · \"done\" / \"no task needed\" "
                       "for a ClickUp task · \"next time ...\" to teach the AI · start with \"test\" to only see what would happen."]
+    elif confirm:
+        lines += ["↩ REPLY to this message: \"ok\" = send the suggested answer now · a corrected answer = send that instead · "
+                  "\"don't send\" = the tenant gets nothing · \"next time ...\" to teach the AI."]
     elif parsed.get('answer') or plan_items is not None:
         lines += ["", "↩ Reply to manage ClickUp tasks (\"done\", \"no task needed\"), add knowledge, or \"next time ...\" "
                       "to teach the AI. Start with \"test\" to only see what would happen."]

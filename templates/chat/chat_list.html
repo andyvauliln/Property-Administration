@@ -95,6 +95,10 @@
                                         <div class="ml-4 flex-1 min-w-0">
                                             <div class="text-sm font-medium text-gray-900 dark:text-white truncate flex items-center gap-2">
                                                 {{ conv_data.display_info.name }}
+                                                {% if conv_data.merged %}
+                                                <span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-indigo-100 text-indigo-800 dark:bg-indigo-900 dark:text-indigo-200"
+                                                      title="This tenant has {{ conv_data.merged.conversations|length }} chats, shown merged: {% for c in conv_data.merged.conversations %}#{{ c.id }}{% if c.apartment %} {{ c.apartment }}{% endif %}{% if c.is_main %} (main - tenant wrote here last){% endif %}{% if not forloop.last %}, {% endif %}{% endfor %}">🔗 {{ conv_data.merged.conversations|length }} chats</span>
+                                                {% endif %}
                                                 <span class="conversation-notes-badge {% if not conv_data.conversation.notes %}hidden{% endif %} inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200 cursor-pointer" title="Show or hide notes" role="button">📝</span>
                                             </div>
 

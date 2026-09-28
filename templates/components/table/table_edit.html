@@ -282,9 +282,7 @@
                 });
             }
 
-            if (item.contract_url){
-                createDocusealForm(item.contract_url)
-            }
+            createDocusealForm(item.contract_url)
             {% if model == "bookings" %}
             if(item.payments){
                 console.log("items.payments", item.payments)

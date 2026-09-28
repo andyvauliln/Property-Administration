@@ -3292,9 +3292,12 @@ def find_reusable_group_conversation(booking, tenant_phone):
             scope |= Q(apartment_id=booking.apartment_id)
         tenant_in = (Q(messages__author=validated) | Q(messages__messaging_binding_address=validated)
                      | Q(booking__tenant__phone=validated))
+        # The chat the tenant wrote in last comes first (same "main chat" rule as conversation_groups)
         candidates = (TwilioConversation.objects.filter(scope).filter(tenant_in).distinct()
-                      .annotate(last_msg=Max('messages__message_timestamp'))
-                      .order_by(F('last_msg').desc(nulls_last=True), '-created_at')[:5])
+                      .annotate(last_msg=Max('messages__message_timestamp'),
+                                tenant_last=Max('messages__message_timestamp', filter=Q(messages__author=validated)))
+                      .order_by(F('tenant_last').desc(nulls_last=True), F('last_msg').desc(nulls_last=True),
+                                '-created_at')[:5])
         global client
         if client is None:
             client = get_twilio_client()

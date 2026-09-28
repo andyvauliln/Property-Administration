@@ -49,6 +49,9 @@
                     <div class="flex-1 min-w-0">
                         <div class="text-sm font-medium text-gray-900 dark:text-white truncate flex items-center gap-1">
                             {{ conv_data.display_info.name }}
+                            {% if conv_data.merged %}
+                            <span class="inline-flex items-center px-1 py-0.5 rounded text-[10px] font-medium bg-indigo-100 text-indigo-800 dark:bg-indigo-900 dark:text-indigo-200" title="{{ conv_data.merged.conversations|length }} chats merged">🔗 {{ conv_data.merged.conversations|length }}</span>
+                            {% endif %}
                             {% if conv_data.conversation.notes %}
                             <span class="inline-flex items-center px-1 py-0.5 rounded text-[10px] font-medium bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200" title="Has notes">📝</span>
                             {% endif %}
@@ -234,6 +237,19 @@
                 </div>
             </div>
             
+            {% if merged %}
+            <div class="mx-4 mt-3 rounded-lg border border-indigo-300 bg-indigo-50 px-4 py-2 text-sm text-indigo-900 dark:border-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-100">
+                <div>🔗 <strong>{{ merged.tenant_name|default:"This tenant" }}</strong> has <strong>{{ merged.conversations|length }} chats</strong> - shown here as one timeline in time order. Messages from other chats are marked <span class="px-1 rounded bg-indigo-200 text-indigo-900 dark:bg-indigo-800 dark:text-indigo-100 text-xs">↪ chat #</span>. Nothing is moved in the database.</div>
+                <div class="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-xs">
+                    {% for c in merged.conversations %}
+                    <a href="{% url 'chat_detail' c.sid %}" class="hover:underline {% if c.id == conversation.id %}font-semibold{% endif %}">
+                        #{{ c.id }}{% if c.apartment %} · {{ c.apartment }}{% endif %} · {{ c.messages }} msg{% if c.last %} · last {{ c.last|date:"M d" }}{% endif %}{% if c.is_main %} · <span class="px-1 rounded bg-green-200 text-green-900 dark:bg-green-800 dark:text-green-100">main: tenant wrote here last</span>{% endif %}{% if c.id == conversation.id %} (this page){% endif %}
+                    </a>
+                    {% endfor %}
+                </div>
+                <div class="mt-1 text-xs">AI answers go to the chat the tenant's message came from. Reminders and notifications go to the main chat. Messages you send from this page go to chat #{{ conversation.id }}.</div>
+            </div>
+            {% endif %}
             {% if not ai_ready %}
             <div class="mx-4 mt-3 rounded-lg border border-yellow-300 bg-yellow-50 px-4 py-2 text-sm text-yellow-800 dark:border-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-200">
                 AI test mode needs this conversation linked to both an <strong>apartment</strong> and a <strong>booking</strong>.
@@ -261,7 +277,11 @@
             <!-- Regular message bubble -->
             <div class="flex {% if message.direction == 'outbound' %}justify-end{% else %}justify-start{% endif %} message-row notes-row{% if message.is_customer_message %} customer-message-row{% endif %}" data-message-id="{{ message.id }}" data-notes-kind="message"{% if message.is_customer_message %} data-is-customer="1"{% endif %}>
                 <div class="max-w-xs lg:max-w-md xl:max-w-lg message-bubble-wrap">
-                    <div class="message-bubble {% if message.direction == 'outbound' %}bg-blue-500 text-white{% else %}bg-white dark:bg-gray-700 text-gray-900 dark:text-white{% endif %} rounded-lg px-4 py-2 shadow{% if message.is_kb_eligible and message.ai_kb_updated %} border-2 border-green-400 dark:border-green-500{% elif message.is_kb_eligible and message.ai_kb_updated == False %} border-2 border-gray-300 dark:border-gray-600{% endif %}">
+                    <div class="message-bubble {% if message.direction == 'outbound' %}bg-blue-500 text-white{% else %}bg-white dark:bg-gray-700 text-gray-900 dark:text-white{% endif %} rounded-lg px-4 py-2 shadow{% if message.other_chat %} ring-2 ring-indigo-400 dark:ring-indigo-500{% elif message.is_kb_eligible and message.ai_kb_updated %} border-2 border-green-400 dark:border-green-500{% elif message.is_kb_eligible and message.ai_kb_updated == False %} border-2 border-gray-300 dark:border-gray-600{% endif %}">
+                        {% if message.other_chat %}
+                        <a href="{% url 'chat_detail' message.other_chat.sid %}" class="mb-1 inline-flex items-center px-1.5 py-0.5 rounded text-[11px] font-medium bg-indigo-100 text-indigo-800 dark:bg-indigo-800 dark:text-indigo-100 hover:underline"
+                           title="This message was sent in another chat of this tenant: {{ message.other_chat.name }}">↪ chat #{{ message.other_chat.id }}{% if message.other_chat.apartment %} · {{ message.other_chat.apartment }}{% endif %}</a>
+                        {% endif %}
                         <div class="text-sm">{{ message.body }}</div>
                         <div class="text-xs {% if message.direction == 'outbound' %}text-blue-100{% else %}text-gray-500 dark:text-gray-400{% endif %} mt-1 flex items-center justify-between gap-2">
                             <span>

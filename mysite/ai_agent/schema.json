@@ -37,6 +37,14 @@
       "type": "string",
       "description": "1-2 concise internal sentences explaining the decision. Never shown to the tenant."
     },
+    "needs_manager_confirmation": {
+      "type": "boolean",
+      "description": "true for a legal / contract question from the tenant: the answer is only a suggestion for the managers and is NEVER sent until a manager confirms it. false otherwise."
+    },
+    "contract_basis": {
+      "type": "string",
+      "description": "Only with needs_manager_confirmation: for the managers, the contract clauses / terms the suggested answer relies on (quote them briefly), or what the contract does not cover. Never shown to the tenant. Empty string otherwise."
+    },
     "review_answer": {
       "type": "string",
       "description": "Only when answer is NO_ANSWER because staff already answered or are handling the topic: the reply you would have given if staff had not replied. Never sent to the tenant - managers read it to review the AI. Empty string otherwise."

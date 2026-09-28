@@ -158,7 +158,18 @@ def _parse_output(output):
         'no_answer': no_answer,
         'review_answer': (str(output.get('review_answer') or '').strip() or None) if no_answer else None,
         'actions': actions if isinstance(actions, list) else [],
+        # Legal / contract question: the answer is a suggestion that waits for a manager, never sent by the timer
+        'needs_confirmation': bool(output.get('needs_manager_confirmation')) and not no_answer,
+        'contract_basis': str(output.get('contract_basis') or '').strip() or None,
     }
+
+
+def _tenant_chats_line(conversation_sid):
+    from mysite import conversation_groups
+    try:
+        return conversation_groups.summary_line(conversation_sid)
+    except Exception:
+        return None
 
 
 def run_agent(event_type, conversation_sid, apartment, booking, trigger_messages, mode,
@@ -185,6 +196,7 @@ def run_agent(event_type, conversation_sid, apartment, booking, trigger_messages
         'apartment_id': getattr(apartment, 'id', None),
         'booking_id': getattr(booking, 'id', None),
         'tenant': getattr(tenant, 'full_name', None),
+        'tenant_chats': _tenant_chats_line(conversation_sid),
         'trigger_message_ids': [m.id for m in trigger_messages],
         'system_prompt_source': system_source,
         'context_sources': sources,
@@ -254,11 +266,22 @@ def send_answer(conversation_sid, answer, reply_author, sender_phone, booking=No
     return {'sent_to_chat': True, 'note': 'sent to Twilio group chat'}
 
 
-def deliver(parsed, mode, conversation_sid, booking, last_message, payload, apartment=None):
+def deliver(parsed, mode, conversation_sid, booking, last_message, payload, apartment=None, send_to=None):
     """
     Sends the answer to the Twilio group chat in live mode, or holds it for the staff review window
     (answer_review.py). Returns {'sent_to_chat', 'note'} (+ 'held': True when held).
+    send_to: another chat of the same tenant to send to (a reminder goes to the chat the tenant wrote in last);
+    it is returned as delivery['send_to'] so a held answer is released to the same chat.
     """
+    result = _deliver(parsed, mode, conversation_sid, booking, last_message, payload, apartment,
+                      send_to or conversation_sid)
+    if send_to and send_to != conversation_sid:
+        result['send_to'] = send_to
+        result['note'] = f"{result.get('note') or ''} (to the tenant's main chat, where they wrote last)".strip()
+    return result
+
+
+def _deliver(parsed, mode, conversation_sid, booking, last_message, payload, apartment, send_to):
     from mysite.group_chat_logger import log_ai_customer_no_answer, log_ai_disabled
     from mysite.models import AIRun
 
@@ -281,13 +304,20 @@ def deliver(parsed, mode, conversation_sid, booking, last_message, payload, apar
     # Test mode goes through the same 15-minute review as live (user request 2026-09-23); only the
     # final Twilio send is skipped
     minutes = config.review_hold_minutes()
+    if parsed.get('needs_confirmation') and not _is_emergency(parsed, last_message):
+        # Legal question: held until a manager replies "ok" / a corrected answer in Telegram - the review timer
+        # never sends it (answer_review.release_due skips it). hold_until only times the rest of the plan.
+        return {'sent_to_chat': False, 'held': True, 'confirm': True,
+                'hold_until': timezone.now() + timedelta(minutes=max(minutes, 0)),
+                'note': 'LEGAL question - held until a manager confirms in Telegram, never sent automatically'
+                        + ('' if live else ' (test mode - never sent to Twilio)')}
     if minutes > 0 and not _is_emergency(parsed, last_message):
         return {'sent_to_chat': False, 'held': True, 'hold_until': timezone.now() + timedelta(minutes=minutes),
                 'note': f"held {minutes:g} min for staff review in Telegram, then "
                         + ('sent unless corrected' if live else 'final unless corrected (test mode - never sent to Twilio)')}
     if not live:
         return {'sent_to_chat': False, 'note': 'test mode - stored in DB, not sent to Twilio'}
-    return send_answer(conversation_sid, answer, payload.get('reply_author'), payload.get('sender_phone'), booking)
+    return send_answer(send_to, answer, payload.get('reply_author'), payload.get('sender_phone'), booking)
 
 
 # ---------------------------------------------------------------------------
@@ -430,6 +460,10 @@ def process_events(events):
         extra_block="\n\n".join(b for b in (_followup_block(events), ticket_block, pending_block) if b) or None,
     )
     run, parsed, meta = outcome['run'], outcome['parsed'], outcome['meta']
+    if parsed and parsed['answer'] and tenant_events and answer_review.confirmation_pending(conversation_sid):
+        # The new answer replaces a legal draft that waits for a manager: it waits for a manager too, so the legal
+        # answer can not slip out through the next message's 15-minute timer
+        parsed['needs_confirmation'] = True
 
     ai_run = AIRun.objects.create(
         event=last_event, conversation_sid=conversation_sid, message=last_tenant_message or last_message,
@@ -441,7 +475,14 @@ def process_events(events):
 
     action_results, delivery = [], {'sent_to_chat': False, 'note': 'run failed - nothing sent'}
     if parsed:
-        delivery = deliver(parsed, mode, conversation_sid, booking, last_message, reply_payload, apartment=apartment)
+        # A reply goes to the chat the message came from; a reminder / ticket update (no tenant or staff
+        # message in the batch) goes to the tenant's main chat - the one they wrote in last
+        send_to = None
+        if not any(e.event_type in (AIEvent.TYPE_TENANT_MESSAGE, AIEvent.TYPE_STAFF_MESSAGE) for e in events):
+            from mysite import conversation_groups
+            send_to = conversation_groups.main_sid(conversation_sid)
+        delivery = deliver(parsed, mode, conversation_sid, booking, last_message, reply_payload, apartment=apartment,
+                           send_to=send_to)
         action_ctx = agent_actions.ActionContext(
             mode, meta, outcome['new_messages_text'], conversation_sid,
             apartment=apartment, booking=booking, ai_run=ai_run,
@@ -468,7 +509,8 @@ def process_events(events):
                 # Live mode, but a manager replied while the AI was working: keep the answer for review only
                 shown_why = f"{REVIEW_ONLY_PREFIX} {parsed['why'] or ''}".strip()
             elif delivery.get('held'):
-                shown_why = f"{answer_review.pending_prefix(delivery['hold_until'], mode)} {parsed['why'] or ''}".strip()
+                shown_why = (f"{answer_review.pending_prefix(delivery['hold_until'], mode, delivery.get('confirm'))} "
+                             f"{parsed['why'] or ''}").strip()
             _persist_customer_ai_result(
                 last_tenant_message.message_sid,
                 {'answer': shown_answer, 'why': shown_why},

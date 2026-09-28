@@ -177,6 +177,11 @@ def docuseal_callback(request):
                         from mysite.models import TwilioConversation
                         conversation = TwilioConversation.objects.filter(booking=booking).first()
                         if conversation:
+                            # A tenant with several chats gets it in the chat they wrote in last
+                            from mysite import conversation_groups
+                            conversation = TwilioConversation.objects.filter(
+                                conversation_sid=conversation_groups.main_sid(conversation.conversation_sid)
+                            ).first() or conversation
                             from mysite.views.messaging import send_tenant_sms_gated, _get_template, _notify_manager_chat_delivery_failed
                             import os
                             

@@ -55,6 +55,7 @@ from mysite.unified_logger import log_error, log_info, logger
 from mysite.ai_agent.config import get_ai_backend
 from mysite.views.ai_agent_views import get_ai_activity
 from mysite.error_logger import log_exception
+from mysite import conversation_groups
 import json
 from uuid import uuid4
 
@@ -205,6 +206,37 @@ def _build_author_display_map(participants):
     return author_map
 
 
+def _merged_rows(conversations):
+    """
+    One row per tenant: when a tenant has several chats (conversation_groups), the first one met (the list is
+    newest first) is replaced by the group's main chat and the others are skipped. Returns
+    [(conversation, group or None)].
+    """
+    rows, seen = [], set()
+    for conv in conversations:
+        group = conversation_groups.group_for(conv)
+        if not group:
+            rows.append((conv, None))
+        elif group['tenant_id'] not in seen:
+            seen.add(group['tenant_id'])
+            rows.append((group['main_id'], group))
+    main_ids = [c for c, g in rows if g]
+    mains = TwilioConversation.objects.in_bulk(main_ids)
+    return [(mains.get(c) if g else c, g) for c, g in rows if not g or mains.get(c)]
+
+
+def _row_messages(conversation, group):
+    """(latest message, message count) over the whole tenant group."""
+    qs = TwilioMessage.objects.filter(conversation_id__in=group['ids']) if group else conversation.messages
+    return qs.order_by('-message_timestamp').first(), qs.count()
+
+
+def _page_message(conversation, message_id):
+    """A message shown on this conversation's page: its own, or one of the tenant's other (merged) chats."""
+    return get_object_or_404(TwilioMessage, id=message_id,
+                             conversation_id__in=conversation_groups.group_ids(conversation))
+
+
 @login_required
 def chat_list(request):
     """
@@ -247,18 +279,19 @@ def chat_list(request):
     
     # Prepare conversation data with display information
     conversation_data = []
-    for conv in conversations:
+    for conv, group in _merged_rows(conversations):
         # Get tenant info from conversation messages
         display_info = get_conversation_display_info(conv)
         
-        # Get latest message preview
-        latest_message = conv.messages.order_by('-message_timestamp').first()
+        # Latest message preview and count over all of the tenant's chats
+        latest_message, message_count = _row_messages(conv, group)
         
         conversation_data.append({
             'conversation': conv,
             'display_info': display_info,
             'latest_message': latest_message,
-            'message_count': conv.messages.count(),
+            'message_count': message_count,
+            'merged': group,
         })
     
     return render(request, 'chat/chat_list.html', {
@@ -293,13 +326,26 @@ def chat_detail(request, conversation_sid):
     """
     conversation = get_object_or_404(TwilioConversation, conversation_sid=conversation_sid)
 
-    chat_messages = list(conversation.messages.order_by('message_timestamp'))
+    # A tenant with several chats sees one timeline: messages of all their chats in time order, the ones
+    # from other chats marked (nothing is moved in the database)
+    merged = conversation_groups.group_for(conversation)
+    if merged:
+        chat_messages = list(TwilioMessage.objects.filter(conversation_id__in=merged['ids'])
+                             .select_related('conversation').order_by('message_timestamp', 'id'))
+    else:
+        chat_messages = list(conversation.messages.order_by('message_timestamp'))
     
     # Get conversation display info
     display_info = get_conversation_display_info(conversation)
-    author_display_map = _build_author_display_map(display_info.get("participants") or [])
+    author_display_map = {}
+    if merged:
+        for other in TwilioConversation.objects.filter(id__in=merged['ids']).exclude(id=conversation.id):
+            author_display_map.update(_build_author_display_map(get_conversation_display_info(other).get("participants") or []))
+    author_display_map.update(_build_author_display_map(display_info.get("participants") or []))
+    merged_chats = {r['id']: r for r in merged['conversations']} if merged else {}
 
     for m in chat_messages:
+        m.other_chat = merged_chats.get(m.conversation_id) if m.conversation_id != conversation.id else None
         raw_author = (m.author or "").strip()
         m.author_display = author_display_map.get(raw_author, _format_number_name(raw_author, "Unknown"))
         m.is_customer_message = is_customer_message(m)
@@ -322,14 +368,15 @@ def chat_detail(request, conversation_sid):
     ).order_by('-last_message_time')
     
     sidebar_conversations = []
-    for conv in all_conversations:
+    for conv, group in _merged_rows(all_conversations):
         sidebar_info = get_conversation_display_info(conv)
-        latest_message = conv.messages.order_by('-message_timestamp').first()
+        latest_message, _count = _row_messages(conv, group)
         sidebar_conversations.append({
             'conversation': conv,
             'display_info': sidebar_info,
             'latest_message': latest_message,
-            'is_active': conv.conversation_sid == conversation_sid,
+            'is_active': conv.conversation_sid == conversation_sid or bool(group and conversation.id in group['ids']),
+            'merged': group,
         })
     
     return render(request, 'chat/chat_detail.html', {
@@ -341,6 +388,7 @@ def chat_detail(request, conversation_sid):
         'outbound_author_display': author_display_map.get(ASSISTANT_IDENTITY, _format_number_name(ASSISTANT_PROJECTED_PHONE, "Assistant")),
         'chat_templates': chat_templates,
         'message_count': len(chat_messages),
+        'merged': merged,
         'ai_ready': bool(conversation.apartment_id and conversation.booking_id),
         'ai_assistant_enabled': ai_assistant_enabled,
         'apartment_ai_group_chat_enabled': apartment_ai_group_chat_enabled,
@@ -736,7 +784,7 @@ def answer_rule_context(request, conversation_sid, message_id):
     """Load Add Rule modal context for a customer message (tenant AI answers)."""
     try:
         conversation = get_object_or_404(TwilioConversation, conversation_sid=conversation_sid)
-        message = get_object_or_404(TwilioMessage, id=message_id, conversation=conversation)
+        message = _page_message(conversation, message_id)
         context = get_answer_rule_modal_context(message)
         if not context:
             return JsonResponse({'error': 'Not a customer message.'}, status=400)
@@ -757,7 +805,7 @@ def generate_answer_rule(request, conversation_sid, message_id):
     """Generate a system-prompt rule from client message + correct answer."""
     try:
         conversation = get_object_or_404(TwilioConversation, conversation_sid=conversation_sid)
-        message = get_object_or_404(TwilioMessage, id=message_id, conversation=conversation)
+        message = _page_message(conversation, message_id)
         if not is_answer_rule_eligible_message(message):
             return JsonResponse({'success': False, 'error': 'Not a customer message.'}, status=400)
 
@@ -792,7 +840,7 @@ def save_answer_rule(request, conversation_sid, message_id):
     """Append rule text to ai_answer_system prompt in DB."""
     try:
         conversation = get_object_or_404(TwilioConversation, conversation_sid=conversation_sid)
-        message = get_object_or_404(TwilioMessage, id=message_id, conversation=conversation)
+        message = _page_message(conversation, message_id)
         if not is_answer_rule_eligible_message(message):
             return JsonResponse({'success': False, 'error': 'Not a customer message.'}, status=400)
 
@@ -822,7 +870,7 @@ def kb_rule_context(request, conversation_sid, message_id):
     """Load Add KB Rule modal context for a manager KB source message."""
     try:
         conversation = get_object_or_404(TwilioConversation, conversation_sid=conversation_sid)
-        message = get_object_or_404(TwilioMessage, id=message_id, conversation=conversation)
+        message = _page_message(conversation, message_id)
         context = get_kb_rule_modal_context(message)
         if not context:
             return JsonResponse({'error': 'Not a KB-eligible manager message.'}, status=400)
@@ -843,7 +891,7 @@ def generate_kb_rule(request, conversation_sid, message_id):
     """Generate a KB extract check rule from manager message + guidance."""
     try:
         conversation = get_object_or_404(TwilioConversation, conversation_sid=conversation_sid)
-        message = get_object_or_404(TwilioMessage, id=message_id, conversation=conversation)
+        message = _page_message(conversation, message_id)
         if not is_kb_rule_eligible_message(message):
             return JsonResponse({'success': False, 'error': 'Not a KB-eligible manager message.'}, status=400)
 
@@ -882,7 +930,7 @@ def save_kb_rule(request, conversation_sid, message_id):
     """Append rule text to apartment or global KB check prompt in DB."""
     try:
         conversation = get_object_or_404(TwilioConversation, conversation_sid=conversation_sid)
-        message = get_object_or_404(TwilioMessage, id=message_id, conversation=conversation)
+        message = _page_message(conversation, message_id)
         if not is_kb_rule_eligible_message(message):
             return JsonResponse({'success': False, 'error': 'Not a KB-eligible manager message.'}, status=400)
 
@@ -916,8 +964,8 @@ def generate_message_ai_answer(request, conversation_sid, message_id):
     """Generate or regenerate AI tenant answer for one customer message (DB only)."""
     try:
         conversation = get_object_or_404(TwilioConversation, conversation_sid=conversation_sid)
-        message = get_object_or_404(TwilioMessage, id=message_id, conversation=conversation)
-        result = generate_customer_ai_answer_for_message(message, conversation=conversation, save=True)
+        message = _page_message(conversation, message_id)
+        result = generate_customer_ai_answer_for_message(message, conversation=message.conversation, save=True)
         status = 200 if result.get('success') else 400
         return JsonResponse(result, status=status)
     except Exception as e:
@@ -1040,7 +1088,7 @@ def update_message_notes(request, conversation_sid, message_id):
     """
     try:
         conversation = get_object_or_404(TwilioConversation, conversation_sid=conversation_sid)
-        message = get_object_or_404(TwilioMessage, id=message_id, conversation=conversation)
+        message = _page_message(conversation, message_id)
         notes, kind = _parse_notes_payload(request)
         if kind == 'ai':
             message.ai_notes = notes
@@ -1074,10 +1122,10 @@ def delete_chat_message(request, conversation_sid, message_id):
     """
     try:
         conversation = get_object_or_404(TwilioConversation, conversation_sid=conversation_sid)
-        message = get_object_or_404(TwilioMessage, id=message_id, conversation=conversation)
+        message = _page_message(conversation, message_id)
         msg_sid = message.message_sid
         try:
-            twilio_delete_message(conversation.conversation_sid, msg_sid)
+            twilio_delete_message(message.conversation.conversation_sid, msg_sid)
         except Exception as e:
             log_info(f"Twilio delete message failed: {e}", category='sms')
         message.delete()
@@ -1103,7 +1151,9 @@ def load_more_messages(request, conversation_sid):
         page = int(request.GET.get('page', 1))
         
         # Get messages
-        chat_messages = conversation.messages.order_by('message_timestamp')
+        chat_messages = TwilioMessage.objects.filter(
+            conversation_id__in=conversation_groups.group_ids(conversation)
+        ).order_by('message_timestamp', 'id')
         paginator = Paginator(chat_messages, 50)
         page_messages = paginator.get_page(page)
         
@@ -1129,6 +1179,7 @@ def load_more_messages(request, conversation_sid):
                 'ai_kb_updated': message.ai_kb_updated,
                 'ai_kb_changes': message.ai_kb_changes,
                 'forwarded_to_group_sid': message.forwarded_to_group_sid,
+                'other_chat_id': message.conversation_id if message.conversation_id != conversation.id else None,
             })
         
         return JsonResponse({

@@ -1,6 +1,6 @@
 {% load custom_filters %}
 {% if ai_activity %}
-<details class="mx-4 mt-3 rounded-lg border border-blue-200 bg-blue-50 text-sm text-gray-800 dark:border-blue-800 dark:bg-blue-900/20 dark:text-gray-200" {% if ai_activity.open_issues %}open{% endif %}>
+<details class="mx-4 mt-3 rounded-lg border border-blue-200 bg-blue-50 text-sm text-gray-800 dark:border-blue-800 dark:bg-blue-900/20 dark:text-gray-200">
     <summary class="cursor-pointer px-4 py-2 font-semibold">
         AI agent activity —
         {{ ai_activity.open_issues|length }} open issue{{ ai_activity.open_issues|length|pluralize }},

@@ -213,8 +213,19 @@ class Command(BaseCommand):
             conversation = self.get_existing_conversation(booking)
             
             if conversation:
-                # Send via conversation only if one exists
-                sent_message = self.send_via_conversation(client, conversation, message, booking)
+                # Send via conversation only if one exists. A tenant with several chats gets it in the chat they
+                # wrote in last (conversation_groups); if that send fails, in the booking's chat
+                targets = self.chats_main_first(conversation)
+                for i, target in enumerate(targets):
+                    try:
+                        sent_message = self.send_via_conversation(client, target, message, booking)
+                        conversation = target
+                        break
+                    except Exception:
+                        if i == len(targets) - 1:
+                            raise
+                        log_warning(f"Reminder not delivered to main chat {target.conversation_sid}, trying the booking chat",
+                                    category='sms')
                 log_info(
                     f'SMS sent successfully',
                     category='sms',
@@ -259,6 +270,15 @@ class Command(BaseCommand):
                 f"[{event_type}] {message}",
                 conversation.conversation_sid if conversation else None,
             )
+
+    def chats_main_first(self, conversation):
+        """[tenant's main chat, this chat] - just [this chat] when the tenant has only one."""
+        from mysite import conversation_groups
+        main_sid = conversation_groups.main_sid(conversation.conversation_sid)
+        if main_sid == conversation.conversation_sid:
+            return [conversation]
+        main = TwilioConversation.objects.filter(conversation_sid=main_sid).first()
+        return [main, conversation] if main else [conversation]
 
     def get_existing_conversation(self, booking):
         """

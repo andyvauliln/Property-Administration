@@ -80,23 +80,55 @@ def classify_sender(message, ai_answers=frozenset()):
     return ROLE_TENANT, 'Tenant'
 
 
-def _ai_answers(conversation_sid):
+def _ai_answers(conversation_sids):
     from mysite.models import TwilioMessage
+    if isinstance(conversation_sids, str):
+        conversation_sids = [conversation_sids]
     return frozenset(
         (a or '').strip()
         for a in TwilioMessage.objects
-        .filter(conversation_sid=conversation_sid, ai_sent_to_chat=True)
+        .filter(conversation_sid__in=conversation_sids, ai_sent_to_chat=True)
         .exclude(ai_response__isnull=True)
         .values_list('ai_response', flat=True)
     )
 
 
-def format_message_line(message, ai_answers=frozenset(), tenant_name=None):
+def format_message_line(message, ai_answers=frozenset(), tenant_name=None, other_chats=None):
+    """other_chats: {conversation_sid: chat id} of the tenant's OTHER chats - their lines get an [other chat #N] mark."""
     role, sender = classify_sender(message, ai_answers)
     if role == ROLE_TENANT and tenant_name and sender == 'Tenant':
         sender = tenant_name
     ts = message.message_timestamp.astimezone(_team_tz()).strftime('%Y-%m-%d %H:%M')
-    return f"[{ts}] {sender} ({role}): {_strip_ui_markers(message.body)}"
+    where = (other_chats or {}).get(message.conversation_sid)
+    mark = f"[other chat #{where}] " if where else ''
+    return f"[{ts}] {mark}{sender} ({role}): {_strip_ui_markers(message.body)}"
+
+
+def tenant_chats_block(conversation_sid, sources=None):
+    """
+    When the tenant has several chats (conversation_groups): explains the merged history. Returns
+    (block or None, {sid: id} of the other chats, list of all sids to read history from).
+    """
+    from mysite import conversation_groups
+    group = conversation_groups.group_for(conversation_sid, fresh=True)
+    if not group:
+        return None, {}, [conversation_sid]
+    here = next(r for r in group['conversations'] if r['sid'] == conversation_sid)
+    others = {r['sid']: r['id'] for r in group['conversations'] if r['sid'] != conversation_sid}
+    lines = [f"- chat #{r['id']}" + (f" ({r['apartment']})" if r['apartment'] else '')
+             + (" = THIS chat" if r['sid'] == conversation_sid else '')
+             + (" = MAIN chat (the tenant wrote there last)" if r['is_main'] else '')
+             for r in group['conversations']]
+    if sources is not None:
+        sources['tenant_chats'] = [r['id'] for r in group['conversations']]
+    block = (
+        f"TENANT_CHATS: this tenant has {len(group['conversations'])} separate group chats with us (separate SMS "
+        f"threads on their phone). The chat history below is MERGED from all of them in time order; lines marked "
+        f"[other chat #N] were written in another chat, so people in this chat may not have seen them. You are "
+        f"answering in chat #{here['id']} (where the new message arrived) - your answer is sent to this chat only.\n"
+        + "\n".join(lines)
+    )
+    return block, others, group['sids']
 
 
 def staff_block():
@@ -176,13 +208,16 @@ def build_agent_input(event_type, conversation_sid, apartment, booking, trigger_
     first = trigger_messages[0] if trigger_messages else None
     last = trigger_messages[-1] if trigger_messages else None
     tenant_name = getattr(getattr(booking, 'tenant', None), 'full_name', None)
-    ai_answers = _ai_answers(conversation_sid)
+    chats_block, other_chats, chat_sids = tenant_chats_block(conversation_sid)
+    ai_answers = _ai_answers(chat_sids)
 
     now = now.astimezone(_team_tz()) if now else datetime.now(_team_tz())
     context, sources = build_full_context(
         conversation_sid, apartment, booking, history_before=first, include_history=False,
         now=now.replace(tzinfo=None),
     )
+    if other_chats:
+        sources['tenant_chats'] = chat_sids
     context = context.replace("(as given by caller)", f"({config.TEAM_TIMEZONE})")
     context = context.replace("=== BOOKING PAYMENTS ===", "=== PAYMENT_RECORDS (every payment row the CRM has for this booking) ===")
     if not sources.get('payments'):
@@ -209,6 +244,7 @@ def build_agent_input(event_type, conversation_sid, apartment, booking, trigger_
         f"APARTMENT_NAME: {getattr(apartment, 'name', '')} (use this name for the unit in alerts, tickets and notes)",
         staff_block(),
         tracking_block(conversation_sid, booking, sources),
+        chats_block,
         "RECENT_CLICKUP_HISTORY: [] (ClickUp is not connected yet)",
         extra_block,
         access_line,
@@ -218,7 +254,8 @@ def build_agent_input(event_type, conversation_sid, apartment, booking, trigger_
     ]
 
     # 'KB-UPDATE-...' rows are CRM-only notes of the old knowledge extractor (never sent to anyone): not chat
-    all_messages = TwilioMessage.objects.filter(conversation_sid=conversation_sid).exclude(message_sid__startswith='KB-UPDATE-')
+    # A tenant with several chats: the history is merged from all of them (tenant_chats_block)
+    all_messages = TwilioMessage.objects.filter(conversation_sid__in=chat_sids).exclude(message_sid__startswith='KB-UPDATE-')
     history_qs = _before(all_messages, first) if first else all_messages
     history = list(history_qs.order_by('-message_timestamp', '-id')[:HISTORY_LIMIT])
     history.reverse()
@@ -226,7 +263,7 @@ def build_agent_input(event_type, conversation_sid, apartment, booking, trigger_
     if history:
         parts.append(
             "=== RECENT_CHAT_HISTORY (oldest first; role comes from metadata) ===\n"
-            + "\n".join(format_message_line(m, ai_answers, tenant_name) for m in history)
+            + "\n".join(format_message_line(m, ai_answers, tenant_name, other_chats) for m in history)
         )
     else:
         parts.append("=== RECENT_CHAT_HISTORY ===\n(no earlier messages)")
@@ -235,7 +272,7 @@ def build_agent_input(event_type, conversation_sid, apartment, booking, trigger_
         new_qs = _until(all_messages, last).exclude(id__in=[m.id for m in history])
         new_qs = new_qs.exclude(id__in=_before(all_messages, first).values('id'))
         new_lines = [
-            format_message_line(m, ai_answers, tenant_name)
+            format_message_line(m, ai_answers, tenant_name, other_chats)
             for m in new_qs.order_by('message_timestamp', 'id')
         ]
     elif body_override:

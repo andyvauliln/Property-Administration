@@ -27,6 +27,7 @@ MCP_SERVER_NAME = 'crm'
 ALLOWED_MCP_TOOLS = (
     'mcp__crm__get_chat_history',
     'mcp__crm__search_chat_history',
+    'mcp__crm__get_contract',
 )
 
 ASSISTANT_NAME = os.environ.get('AI_AGENT_ASSISTANT_NAME', 'Virtual Assistant')

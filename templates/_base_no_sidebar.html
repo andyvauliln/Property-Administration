@@ -336,8 +336,11 @@
   }
 }
 function createDocusealForm(url){
+  var container = document.getElementById("contract-form");
+  if(!container) return;
+  // Clear any contract left over from a previously opened booking
+  container.innerHTML = "";
   if(url){
-      var container = document.getElementById("contract-form");
       var docusealForm = document.createElement("docuseal-form");
       docusealForm.setAttribute("data-src", url);
       container.appendChild(docusealForm);
