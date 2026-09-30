@@ -2353,6 +2353,46 @@ class TwilioMessage(models.Model):
         })
         return links_list
 
+    @property
+    def has_media(self):
+        return self.media.exists()
+
+
+class TwilioMessageMedia(models.Model):
+    """A file (photo) attached to a Twilio Conversations message, downloaded to TWILIO_MEDIA_DIR."""
+
+    message = models.ForeignKey(TwilioMessage, on_delete=models.CASCADE, related_name='media')
+    media_sid = models.CharField(max_length=100, unique=True, db_index=True)
+    content_type = models.CharField(max_length=100, blank=True, default='')
+    filename = models.CharField(max_length=255, blank=True, default='')
+    size = models.PositiveIntegerField(null=True, blank=True)
+    # Relative to settings.TWILIO_MEDIA_DIR; blank until the file is downloaded
+    file_path = models.CharField(max_length=255, blank=True, default='')
+    download_error = models.TextField(blank=True, default='')
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['id']
+
+    def __str__(self):
+        return f"{self.media_sid} ({self.content_type})"
+
+    @property
+    def is_image(self):
+        # SVG can carry script: never treated (or served inline) as an image
+        ct = (self.content_type or '').lower()
+        return ct.startswith('image/') and 'svg' not in ct
+
+    @property
+    def is_downloaded(self):
+        return bool(self.file_path)
+
+    @property
+    def url(self):
+        from django.urls import reverse
+        return reverse('twilio_media_file', args=[self.id])
+
 
 class ChatMessageTemplate(models.Model):
     """
@@ -2979,80 +3019,6 @@ class AICaseNote(models.Model):
         updated_by = kwargs.pop('updated_by', None)
         apply_user_tracking(self, updated_by)
         super().save(*args, **kwargs)
-
-    @property
-    def links(self):
-        return []
-
-
-
-class AIKnowledge(models.Model):
-    """
-    One reusable fact or policy the AI agent learned from authorized staff (Farid's prompt, step 9).
-    Only status=active + confidence=verified entries are given to the AI. Candidates wait for a manager.
-    """
-
-    SCOPE_APARTMENT = 'apartment'
-    SCOPE_BUILDING = 'building'
-    SCOPE_COMPANY = 'company'
-    SCOPE_CHOICES = [(SCOPE_APARTMENT, 'Apartment'), (SCOPE_BUILDING, 'Building'), (SCOPE_COMPANY, 'Company')]
-
-    TYPE_FACT = 'fact'
-    TYPE_POLICY = 'policy'
-    # How to answer a kind of message, taught by staff replying to an AI answer in Telegram
-    TYPE_LESSON = 'lesson'
-    TYPE_CHOICES = [(TYPE_FACT, 'Fact'), (TYPE_POLICY, 'Policy'), (TYPE_LESSON, 'Answer lesson')]
-
-    CONFIDENCE_VERIFIED = 'verified'
-    CONFIDENCE_CANDIDATE = 'candidate'
-    CONFIDENCE_CHOICES = [(CONFIDENCE_VERIFIED, 'Verified'), (CONFIDENCE_CANDIDATE, 'Candidate (needs a manager)')]
-
-    STATUS_ACTIVE = 'active'
-    STATUS_SUPERSEDED = 'superseded'
-    STATUS_REJECTED = 'rejected'
-    STATUS_CHOICES = [(STATUS_ACTIVE, 'Active'), (STATUS_SUPERSEDED, 'Replaced by a newer entry'), (STATUS_REJECTED, 'Rejected')]
-
-    scope = models.CharField(max_length=10, choices=SCOPE_CHOICES, default=SCOPE_APARTMENT, db_index=True)
-    apartment = models.ForeignKey(Apartment, on_delete=models.CASCADE, null=True, blank=True, related_name='ai_knowledge')
-    building = models.CharField(max_length=10, blank=True, null=True, db_index=True)  # Apartment.building_n
-    knowledge_type = models.CharField(max_length=10, choices=TYPE_CHOICES, default=TYPE_FACT)
-    key = models.CharField(max_length=100, db_index=True)
-    value = models.TextField()
-    confidence = models.CharField(max_length=10, choices=CONFIDENCE_CHOICES, default=CONFIDENCE_CANDIDATE, db_index=True)
-    status = models.CharField(max_length=10, choices=STATUS_CHOICES, default=STATUS_ACTIVE, db_index=True)
-    # Door / gate / lockbox / alarm codes: only given to the AI inside the booking's access window
-    is_access_code = models.BooleanField(default=False)
-    source = models.CharField(max_length=255, blank=True, null=True)
-    note = models.CharField(max_length=255, blank=True, null=True)
-    conversation_sid = models.CharField(max_length=100, blank=True, null=True)
-    created_by_run = models.ForeignKey(AIRun, on_delete=models.SET_NULL, null=True, blank=True, related_name='created_knowledge')
-    reviewed_by = models.CharField(max_length=255, blank=True, null=True)
-    reviewed_at = models.DateTimeField(null=True, blank=True)
-
-    created_by = models.CharField(max_length=255, blank=True, null=True, editable=False)
-    last_updated_by = models.CharField(max_length=255, blank=True, null=True, editable=False)
-    created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
-
-    class Meta:
-        ordering = ['-id']
-
-    def __str__(self):
-        return f"[{self.scope}/{self.confidence}] {self.key}: {self.value[:60]}"
-
-    def save(self, *args, **kwargs):
-        from mysite.request_context import apply_user_tracking
-        updated_by = kwargs.pop('updated_by', None)
-        apply_user_tracking(self, updated_by)
-        super().save(*args, **kwargs)
-
-    @property
-    def scope_label(self):
-        if self.scope == self.SCOPE_APARTMENT:
-            return self.apartment.name if self.apartment else 'apartment ?'
-        if self.scope == self.SCOPE_BUILDING:
-            return f"building {self.building}"
-        return 'company'
 
     @property
     def links(self):

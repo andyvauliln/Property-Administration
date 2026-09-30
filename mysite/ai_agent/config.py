@@ -3,14 +3,15 @@ from pathlib import Path
 
 from django.conf import settings
 
-BACKEND_OPENROUTER = 'openrouter'
+# The only AI backend (the OpenRouter backend and its switch were removed 2026-09-28)
 BACKEND_CLAUDE_CLI = 'claude_cli'
 
 # AIManagement.prompt_key values
-AI_BACKEND_KEY = 'ai_backend'
 AI_AGENT_MODEL_KEY = 'ai_agent_model'
 AI_AGENT_SYSTEM_KEY = 'ai_agent_system'
 AI_CLICKUP_WRITES_KEY = 'ai_clickup_writes'
+# "Add KB rule" from the chat page: bullets appended to the agent's system prompt
+AI_AGENT_KB_RULES_KEY = 'ai_agent_kb_rules'
 
 DEFAULT_AGENT_MODEL = 'claude-sonnet-5'
 
@@ -77,7 +78,7 @@ def _env_float(name, default):
 
 
 def run_timeout_seconds():
-    return int(_env_float('AI_AGENT_TIMEOUT_SECONDS', 180))
+    return int(_env_float('AI_AGENT_TIMEOUT_SECONDS', 360))
 
 
 def max_budget_usd():
@@ -104,6 +105,19 @@ def review_poll_seconds():
     return _env_float('AI_AGENT_REVIEW_POLL_SECONDS', 60)
 
 
+def oneshot_model():
+    """Model for the chat-page helpers (rules, KB drafts, explanations) - oneshot.py."""
+    return os.environ.get('AI_AGENT_ONESHOT_MODEL') or get_agent_model()
+
+
+def oneshot_timeout_seconds():
+    return int(_env_float('AI_AGENT_ONESHOT_TIMEOUT_SECONDS', 120))
+
+
+def oneshot_max_budget_usd():
+    return _env_float('AI_AGENT_ONESHOT_MAX_BUDGET_USD', 0.30)
+
+
 def review_model():
     """Model that reads a staff reply to an AI answer (correction / lesson / stop)."""
     return os.environ.get('AI_AGENT_REVIEW_MODEL') or get_agent_model()
@@ -122,17 +136,11 @@ def _management_value(prompt_key):
 
 
 def get_ai_backend():
-    """AIManagement row 'ai_backend' wins, then env AI_BACKEND, default openrouter."""
-    try:
-        value = _management_value(AI_BACKEND_KEY)
-    except Exception:
-        value = None
-    value = (value or os.environ.get('AI_BACKEND') or BACKEND_OPENROUTER).strip().lower()
-    return BACKEND_CLAUDE_CLI if value == BACKEND_CLAUDE_CLI else BACKEND_OPENROUTER
+    return BACKEND_CLAUDE_CLI
 
 
 def is_agent_backend_enabled():
-    return get_ai_backend() == BACKEND_CLAUDE_CLI
+    return True
 
 
 def get_agent_model():

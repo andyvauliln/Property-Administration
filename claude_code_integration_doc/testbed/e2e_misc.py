@@ -35,7 +35,8 @@ for i in range(3): AIRun.objects.create(conversation_sid="CHw", error="claude CL
 call_command('ai_agent_watchdog'); check("three failed runs in a row -> alert", len(sent) == 3 and 'all failed' in sent[2])
 AIManagement.objects.filter(prompt_key="ai_backend").update(content='openrouter'); sent.clear()
 (config.RUNS_DIR / '.watchdog.json').unlink()
-call_command('ai_agent_watchdog'); check("old backend active -> watchdog does nothing", not sent)
+call_command('ai_agent_watchdog'); check("an old 'openrouter' backend row no longer silences the watchdog (Claude is the only backend)",
+                                        len(sent) == 1 and 'OpenRouter' not in sent[0] and 'openrouter' not in sent[0], sent)
 
 sent.clear()
 from mysite.ai_agent import team_notify, actions
@@ -44,7 +45,7 @@ team_notify.send_ai_chat = lambda t, reply_to=None: (*fake(t), None)
 run = AIRun.objects.create(conversation_sid="CHa", duration_ms=6200, cost_usd="0.0172")
 meta = {'apartment': '630-429', 'tenant': 'John Smith', 'event_type': 'STAFF_MESSAGE', 'mode': 'test'}
 parsed = {'answer': None, 'why': 'Staff stated a reusable fact.', 'review_answer': None}
-acts = [{'action': {'type': 'KB_UPDATE', 'key': 'wifi_password', 'value': 'blue7788'}, 'status': 'executed', 'detail': "saved verified apartment entry #3 'wifi_password'"},
+acts = [{'action': {'type': 'KB_UPDATE', 'scope': 'apartment', 'text': 'WiFi password: blue7788'}, 'status': 'executed', 'detail': "the 630-429 knowledge base updated - merged: WiFi password changed\n-old\n+new"},
         {'action': {'type': 'SCHEDULE_FOLLOWUP'}, 'status': 'executed', 'detail': 'created f-1'}, {'action': {'type': 'SCHEDULE_FOLLOWUP'}, 'status': 'executed', 'detail': 'created f-2'},
         {'action': {'type': 'NOPE'}, 'status': 'rejected', 'detail': 'unknown action type'}]
 ctx = actions.ActionContext('test', meta, 'x', 'CHa')
@@ -52,7 +53,7 @@ team_notify.deliver(ctx, run, parsed, acts, {'sent_to_chat': False, 'note': 'NO_
 m = sent[0] if sent else ''
 check("no alerts -> one quiet 💬 message: unit, tenant, event, TEST mark, Florida time", len(sent) == 1 and m.startswith('💬 630-429 · John Smith') and all(x in m for x in ('STAFF_MESSAGE', '🧪 TEST', 'ET, Florida')), m)
 check("it shows the incoming text, no-answer, why, KB update, compact action line, rejected action, full link, and NO cost",
-      all(x in m for x in ('Janna (STAFF)', 'no answer to the tenant', 'Staff stated', '📚 wifi_password = blue7788', '2× reminder set', '✗ NOPE', 'http://crm.test/ai-runs/')) and '$' not in m, m)
+      all(x in m for x in ('Janna (STAFF)', 'no answer to the tenant', 'Staff stated', '📚 WiFi password: blue7788 - the 630-429 knowledge base updated', '2× reminder set', '✗ NOPE', 'http://crm.test/ai-runs/')) and '$' not in m, m)
 sent.clear()
 team_notify.deliver(actions.ActionContext('live', dict(meta, mode='live'), 'x', 'CHa'), run, {'answer': 'The password is blue7788.', 'why': 'kb'}, [], {'sent_to_chat': True, 'note': 'sent'}, "[09:15] John (TENANT): wifi?")
 check("live answer is shown as sent", '🟢 LIVE' in sent[0] and 'sent to the tenant' in sent[0])

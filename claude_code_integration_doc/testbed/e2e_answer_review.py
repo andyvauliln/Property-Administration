@@ -14,7 +14,7 @@ assert connection.vendor == "sqlite", "refusing to run outside the testbed"
 from django.core.management import call_command
 from django.utils import timezone
 from mysite.models import (User, Apartment, Booking, TwilioConversation, TwilioMessage, AIManagement, AIEvent, AIRun,
-                           AIKnowledge as K, AIIssue, AIFollowUp, StaffMember)
+                           AIIssue, AIFollowUp, StaffMember)
 from mysite.ai_agent import service, runner, config, answer_review, clickup
 import mysite.ai_agent.team_notify as team_notify
 import mysite.views.messaging as messaging
@@ -52,9 +52,9 @@ clickup.add_task_comment = lambda ref, text: cu.append(('comment', ref, text))
 clickup.get_task_state = lambda ref: {'status': 'to do', 'closed': False, 'assignees': ['Andrei'], 'updated': '2026-09-23 09:40',
                                       'due': '2026-09-26 10:00', 'url': ref, 'comments': [{'when': 'x', 'user': 'Andrei', 'text': 'router restarted', 'ms': 1}]}
 
-script, inputs_seen = [], []
+script, inputs_seen, systems_seen = [], [], []
 def fake_run_claude(system_prompt, user_input, conversation_sid, run_dir, until_message_id=None, model=None):
-    inputs_seen.append(user_input)
+    inputs_seen.append(user_input); systems_seen.append(system_prompt)
     return {'ok': True, 'error': None, 'output': script.pop(0), 'events': [], 'result_event': {}, 'stdout': '', 'stderr': '',
             'command': 'fake', 'mcp_config': {}, 'model': 'fake', 'exit_code': 0, 'duration_ms': 5, 'timed_out': False}
 runner.run_claude = fake_run_claude
@@ -142,15 +142,15 @@ a1 = alert_of("kitchen sink is dripping")
 if os.environ.get('SHOW_ALERT'): print(a1 + "\n=====")
 check("nothing was done: no SMS, no issue, no reminder, no knowledge, nothing in ClickUp",
       not sms and not AIIssue.objects.filter(conversation_sid=SID).exists() and not AIFollowUp.objects.filter(conversation_sid=SID).exists()
-      and not K.objects.filter(key='sink_brand').exists() and not cu)
+      and 'Moen' not in (Apartment.objects.get(id=apt.id).knowledge_base or '') and not cu)
 check("alert says right under the header that it all happens AUTOMATICALLY at HH:MM unless someone replies, and again at the end",
       a1.splitlines()[2].startswith("⏰ AUTOMATIC at") and "(in 15 min)" in a1.splitlines()[2]
       and "the whole plan above runs AUTOMATICALLY" in a1, a1)
 check("alert: NOTHING IS DONE YET + time, the answer, every change numbered with details",
       "📋 PLAN - NOTHING IS DONE YET. At" in a1 and "Send this answer to the tenant" in a1 and '1. 🆕 Open issue "Kitchen sink dripping"' in a1
       and '2. 🎫 Create ClickUp task "[AI] 720-101 · Kitchen sink dripping"' in a1 and "List: list 720-101" in a1
-      and "3. ⏰ Reminder (staff_reminder)" in a1 and "4. 📚 Save to the knowledge base for 720-101 (this apartment): sink_brand = Moen" in a1
-      and "CANDIDATE" in a1, a1)
+      and "3. ⏰ Reminder (staff_reminder)" in a1 and "4. 📚 Update the 720-101 knowledge base: Sink brand: Moen" in a1
+      and "from the tenant" in a1, a1)
 check("the team alert is shown as the notification itself, not as a planned change",
       "👤 FOR THE TEAM (this message is the notification):" in a1 and "sink dripping" in a1)
 check("reply instructions list ok / stop / remove / change / test", '"ok" = do it all now' in a1 and '"remove 3"' in a1 and '"test"' in a1)
@@ -168,9 +168,9 @@ check("plan edits are reported and the plan is shown as it stands now",
 check("still nothing done after the edits", not cu and not AIIssue.objects.filter(conversation_sid=SID).exists())
 expire(r1)
 issue1 = AIIssue.objects.filter(created_by_run_id=r1.id).first()
-check("window over: answer sent, issue opened, task created URGENT, no reminder, knowledge saved as candidate",
+check("window over: answer sent, issue opened, task created URGENT, no reminder, tenant's apartment fact in the document",
       sms == [(SID, SINK['answer'])] and issue1 and issue1.ticket_ref and cu == [('create', cu[0][1], 'urgent')]
-      and not AIFollowUp.objects.filter(issue=issue1).exists() and K.objects.get(key='sink_brand').confidence == 'candidate', (sms, cu))
+      and not AIFollowUp.objects.filter(issue=issue1).exists() and 'Sink brand: Moen' in (Apartment.objects.get(id=apt.id).knowledge_base or ''), (sms, cu))
 done1 = telegram[-1][0]
 if os.environ.get('SHOW_ALERT'): print(t + "\n=====\n" + done1 + "\n=====")
 check("thread gets what was done", done1.startswith("⏰ Review window over") and "✅ Answer: sent" in done1
@@ -204,20 +204,22 @@ r5 = run_with(SID, "what's the wifi password?", {'answer': 'It is sunny2026.', '
 check("an answer without actions: held, no plan", r5.hold_status == 'holding' and not r5.review.get('plan'))
 t = reply(r5, "say check password B123H4689", decision='replace', corrected_answer='The WiFi password is B123H4689.',
           new_facts=[{'key': 'wifi password', 'value': 'B123H4689', 'scope': 'apartment'}])
-w = K.objects.get(key='wifi_password', status='active', apartment=apt)
-check("correction sent at once + fact saved as VERIFIED for the apartment, report says both",
-      sms == [(SID, 'The WiFi password is B123H4689.')] and w.value == 'B123H4689' and w.confidence == 'verified'
-      and "Sent your corrected answer" in t and "Knowledge ADDED for 720-101" in t, t)
+kb_now = Apartment.objects.get(id=apt.id).knowledge_base or ''
+check("correction sent at once + the fact written into the apartment document at once, report says both",
+      sms == [(SID, 'The WiFi password is B123H4689.')] and 'Wifi password: B123H4689' in kb_now
+      and "Sent your corrected answer" in t and "The 720-101 knowledge base: added Wifi password: B123H4689" in t, (t, kb_now))
 check("the interpreter saw the tenant text and the AI answer",
       "what's the wifi password?" in interpreter_calls[-1] and "It is sunny2026." in interpreter_calls[-1])
 t = reply(r5, "next time always add the router location", decision='lesson_only',
           lesson="When a tenant asks for the WiFi password, also say the router is in the hallway closet.",
           lesson_key='wifi password answer', lesson_scope='apartment')
-check("lesson saved and reported", K.objects.filter(knowledge_type='lesson', key='wifi_password_answer', status='active').exists()
-      and "AI instructions updated" in t)
+from mysite.ai_agent import prompt_library
+check("lesson saved into the answer lessons prompt and reported",
+      any(l.startswith(f"- [apartment #{apt.id}") and 'wifi_password_answer: When a tenant asks for the WiFi password' in l
+          for l in prompt_library.rule_lines('ai_agent_answer_lessons')) and "AI instructions updated" in t)
 r6 = run_with(SID, "wifi again?", {'answer': 'Password is B123H4689, router in the hallway closet.', 'why': 'lesson', 'actions': []})
-check("the next run gets ANSWER_LESSONS and the verified fact", "=== ANSWER_LESSONS" in inputs_seen[-1]
-      and "hallway closet" in inputs_seen[-1] and "wifi_password = B123H4689" in inputs_seen[-1])
+check("the next run gets ANSWER_LESSONS (system prompt) and the fact in the apartment document (input)", "ANSWER_LESSONS" in systems_seen[-1]
+      and "hallway closet" in systems_seen[-1] and "Wifi password: B123H4689" in inputs_seen[-1])
 reply(r6, "ok")
 
 # ---- 5. existing task: tenant says it's fixed -> close planned; keep it open ----------------------
@@ -254,17 +256,17 @@ expire(r9)
 check("window over: no issue, no task, no reminder",
       not cu and AIIssue.objects.filter(created_by_run_id=r9.id).count() == 0)
 
-# ---- 7. knowledge approved / corrected in the plan -> VERIFIED ---------------------------------------
+# ---- 7. knowledge corrected / approved in the plan -----------------------------------------------------
 r10 = run_with(SID, "the gym is open 6-22", {'answer': 'Thanks!', 'why': 'info', 'actions': [
     {'type': 'KB_UPDATE', 'key': 'gym hours', 'value': 'Gym 6am-10pm', 'scope': 'apartment'},
     {'type': 'KB_UPDATE', 'key': 'pool rule', 'value': 'No glass', 'scope': 'company'}]})
 t = reply(r10, "gym is 5-23, and the pool rule is right", decision='changes_only',
           plan_ops=[op('change', 1, value='Gym 5am-11pm'), op('approve', 2)])
-check("plan shows the approved / corrected knowledge as VERIFIED", "approved by Kevin" in t, t)
+check("plan shows the corrected / approved knowledge", "approved by Kevin" in t, t)
 expire(r10)
-gym, pool = K.objects.get(key='gym_hours'), K.objects.get(key='pool_rule')
-check("saved at the end: corrected value VERIFIED; approved company-wide entry VERIFIED",
-      gym.value == 'Gym 5am-11pm' and gym.confidence == 'verified' and pool.confidence == 'verified' and 'Kevin' in (pool.reviewed_by or ''))
+apt_kb, global_kb = Apartment.objects.get(id=apt.id).knowledge_base or '', messaging.get_global_knowledge_base_text()
+check("written at the end: the corrected text in the apartment document; the approved company-wide rule in the global one",
+      'Gym 5am-11pm' in apt_kb and 'Gym 6am-10pm' not in apt_kb and 'Pool rule: No glass' in global_kb, (apt_kb, global_kb))
 
 # ---- 8. existing ClickUp tasks from a reply: done at once -------------------------------------------
 cu.clear()

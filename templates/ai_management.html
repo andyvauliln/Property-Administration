@@ -7,34 +7,22 @@
     const items_json = {{ items_json|safe }};
 </script>
 <section class="bg-gray-50 dark:bg-gray-900 p-3 sm:p-5 antialiased">
-    <div class="mx-auto max-w-screen-xl px-4 lg:px-12">
-        <!-- AI Model Selector -->
-        <div class="mb-4 p-4 bg-white dark:bg-gray-800 shadow-md sm:rounded-lg">
-            <h2 class="text-lg font-semibold mb-4 dark:text-white">AI Conversation Model</h2>
-            <form method="POST" class="space-y-4">
-                {% csrf_token %}
-                <input type="hidden" name="update_ai_model" value="1">
-                <div class="flex flex-col md:flex-row md:items-end space-y-4 md:space-y-0 md:space-x-4">
-                    <div class="flex-grow max-w-2xl">
-                        <label for="ai_model" class="block mb-2 text-sm font-medium text-gray-900 dark:text-white">Select Model (Prices per 1M tokens, context)</label>
-                        <select id="ai_model" name="ai_model" class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-primary-500 focus:border-primary-500 block w-full p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white dark:focus:ring-primary-500 dark:focus:border-primary-500">
-                            {% for model in ai_models %}
-                            <option value="{{ model.value }}" {% if model.value == current_ai_model %}selected{% endif %}>
-                                {{ model.label }}{% if model.context_length_display %} · {{ model.context_length_display }}{% endif %}{% if model.prompt_price %} (${{ model.prompt_price }} / ${{ model.completion_price }}){% endif %}
-                            </option>
-                            {% endfor %}
-                        </select>
-                    </div>
-                    <button type="submit" class="text-white bg-primary-700 hover:bg-primary-800 focus:ring-4 focus:ring-primary-300 font-medium rounded-lg text-sm px-5 py-2.5 dark:bg-primary-600 dark:hover:bg-primary-700 focus:outline-none dark:focus:ring-primary-800 h-10">
-                        Update Model
-                    </button>
-                </div>
-                {% if ai_models %}
-                <div id="model-info" class="mt-2 text-xs text-gray-500 dark:text-gray-400">
-                    <!-- Dynamic info could go here -->
-                </div>
-                {% endif %}
-            </form>
+    <div class="mx-auto max-w-screen-xl px-4 lg:px-12 space-y-4">
+        <details id="section-settings" class="ai-section group bg-white dark:bg-gray-800 shadow-md sm:rounded-lg">
+            <summary class="cursor-pointer select-none p-4 flex items-center justify-between">
+                <span>
+                    <span class="text-lg font-semibold dark:text-white">Settings &amp; notifications</span>
+                    <span class="block text-sm text-gray-500 dark:text-gray-400">AI backend and models, the ClickUp writes switch, and the SMS / chat message templates.</span>
+                </span>
+                <span class="text-gray-400 group-open:rotate-180 transition-transform">▼</span>
+            </summary>
+            <div class="px-4 pb-4">
+        <!-- Claude models in use (read-only) -->
+        <div class="mb-4 p-3 rounded-lg bg-gray-50 dark:bg-gray-700/40 text-sm text-gray-700 dark:text-gray-300">
+            <div class="font-semibold text-gray-900 dark:text-white mb-1">Claude models in use</div>
+            <ul class="space-y-0.5">
+                {% for m in ai_models_in_use %}<li><span class="font-medium">{{ m.label }}:</span> <code>{{ m.value }}</code> <span class="text-xs text-gray-500 dark:text-gray-400">({{ m.how }})</span></li>{% endfor %}
+            </ul>
         </div>
 
         <div class="bg-white dark:bg-gray-800 relative shadow-md sm:rounded-lg overflow-hidden">
@@ -103,6 +91,34 @@
             </div>
             {% include "components/table/table_nav.html" with model="aimanagement" %}
         </div>
+            </div>
+        </details>
+
+        <details id="section-kb" class="ai-section group bg-white dark:bg-gray-800 shadow-md sm:rounded-lg">
+            <summary class="cursor-pointer select-none p-4 flex items-center justify-between">
+                <span>
+                    <span class="text-lg font-semibold dark:text-white">Knowledge bases</span>
+                    <span class="block text-sm text-gray-500 dark:text-gray-400">The global knowledge base (all apartments) and each apartment's own knowledge base. Both are given to the AI with every message of that apartment's chats.</span>
+                </span>
+                <span class="text-gray-400 group-open:rotate-180 transition-transform">▼</span>
+            </summary>
+            <div class="px-4 pb-4">
+                {% include "components/ai_knowledge_bases_panel.html" %}
+            </div>
+        </details>
+
+        <details id="section-prompts" class="ai-section group bg-white dark:bg-gray-800 shadow-md sm:rounded-lg">
+            <summary class="cursor-pointer select-none p-4 flex items-center justify-between">
+                <span>
+                    <span class="text-lg font-semibold dark:text-white">Claude agent prompts</span>
+                    <span class="block text-sm text-gray-500 dark:text-gray-400">Every prompt the AI uses: what it does, how it is combined, when it runs. Chat-page rules and Telegram lessons are written here.</span>
+                </span>
+                <span class="text-gray-400 group-open:rotate-180 transition-transform">▼</span>
+            </summary>
+            <div class="px-4 pb-4">
+                {% include "components/ai_prompts_panel.html" %}
+            </div>
+        </details>
     </div>
 </section>
 
@@ -111,6 +127,22 @@
 
 <script>
 document.addEventListener('DOMContentLoaded', function() {
+    const sections = document.querySelectorAll('details.ai-section');
+    let openIds = [];
+    try { openIds = JSON.parse(localStorage.getItem('aiManagementOpenSections') || '[]'); } catch (e) {}
+    sections.forEach(d => { if (openIds.includes(d.id)) d.open = true; });
+    function openHash() {
+        const target = window.location.hash && document.querySelector(window.location.hash);
+        if (target) { const d = target.closest('details.ai-section'); if (d) { d.open = true; target.scrollIntoView(); } }
+    }
+    openHash();
+    window.addEventListener('hashchange', openHash);
+    // A table search (?q=...) or a row link (?q=id=N) belongs to the settings table
+    if (new URLSearchParams(window.location.search).get('q')) document.getElementById('section-settings').open = true;
+    if (!document.querySelector('details.ai-section[open]') && sections.length) sections[sections.length - 1].open = true;
+    sections.forEach(d => d.addEventListener('toggle', () => {
+        try { localStorage.setItem('aiManagementOpenSections', JSON.stringify([...sections].filter(x => x.open).map(x => x.id))); } catch (e) {}
+    }));
     const rows = document.querySelectorAll('.aimanagement-row');
     const createBtn = document.getElementById('createNewItem');
     const editModal = document.getElementById('aiManagementEditModal');

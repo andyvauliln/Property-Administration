@@ -101,7 +101,23 @@ def format_message_line(message, ai_answers=frozenset(), tenant_name=None, other
     ts = message.message_timestamp.astimezone(_team_tz()).strftime('%Y-%m-%d %H:%M')
     where = (other_chats or {}).get(message.conversation_sid)
     mark = f"[other chat #{where}] " if where else ''
-    return f"[{ts}] {mark}{sender} ({role}): {_strip_ui_markers(message.body)}"
+    photos = ''.join(f" [photo #{m.id}]" for m in message.media.all())
+    return f"[{ts}] {mark}{sender} ({role}): {_strip_ui_markers(message.body)}{photos}".rstrip()
+
+
+def collect_agent_images(new_messages, history, limit=None):
+    """
+    Photo media the model gets to see: the new messages' photos first, then the newest photos of the
+    recent history. Returns a list of TwilioMessageMedia (downloaded images only).
+    """
+    from mysite.twilio_media import MODEL_MAX_IMAGES
+    limit = MODEL_MAX_IMAGES if limit is None else limit
+    picked = []
+    for message in [*new_messages, *reversed(history)]:
+        for media in message.media.all():
+            if media.is_image and media.is_downloaded and len(picked) < limit:
+                picked.append(media)
+    return picked
 
 
 def tenant_chats_block(conversation_sid, sources=None):
@@ -207,6 +223,7 @@ def build_agent_input(event_type, conversation_sid, apartment, booking, trigger_
 
     first = trigger_messages[0] if trigger_messages else None
     last = trigger_messages[-1] if trigger_messages else None
+    new_messages = []
     tenant_name = getattr(getattr(booking, 'tenant', None), 'full_name', None)
     chats_block, other_chats, chat_sids = tenant_chats_block(conversation_sid)
     ai_answers = _ai_answers(chat_sids)
@@ -228,7 +245,7 @@ def build_agent_input(event_type, conversation_sid, apartment, booking, trigger_
     if not codes_allowed:
         context, hidden_lines = knowledge.redact_access_codes(context)
         sources['kb_text_code_lines_hidden'] = hidden_lines
-    kb_block = knowledge.knowledge_block(apartment, booking, now, sources)
+    sources['access_codes_allowed'] = codes_allowed
     access_line = (
         "ACCESS_CODES: allowed now (inside the window: 24h before check-in until checkout)" if codes_allowed else
         "ACCESS_CODES: NOT allowed now (outside the window) - codes are hidden from you; if asked, say they are "
@@ -249,15 +266,13 @@ def build_agent_input(event_type, conversation_sid, apartment, booking, trigger_
         extra_block,
         access_line,
         context,
-        kb_block,
-        knowledge.lessons_block(apartment, sources),
     ]
 
     # 'KB-UPDATE-...' rows are CRM-only notes of the old knowledge extractor (never sent to anyone): not chat
     # A tenant with several chats: the history is merged from all of them (tenant_chats_block)
     all_messages = TwilioMessage.objects.filter(conversation_sid__in=chat_sids).exclude(message_sid__startswith='KB-UPDATE-')
     history_qs = _before(all_messages, first) if first else all_messages
-    history = list(history_qs.order_by('-message_timestamp', '-id')[:HISTORY_LIMIT])
+    history = list(history_qs.prefetch_related('media').order_by('-message_timestamp', '-id')[:HISTORY_LIMIT])
     history.reverse()
     sources['agent_history_messages'] = len(history)
     if history:
@@ -271,15 +286,21 @@ def build_agent_input(event_type, conversation_sid, apartment, booking, trigger_
     if first and last:
         new_qs = _until(all_messages, last).exclude(id__in=[m.id for m in history])
         new_qs = new_qs.exclude(id__in=_before(all_messages, first).values('id'))
-        new_lines = [
-            format_message_line(m, ai_answers, tenant_name, other_chats)
-            for m in new_qs.order_by('message_timestamp', 'id')
-        ]
+        new_messages = list(new_qs.prefetch_related('media').order_by('message_timestamp', 'id'))
+        new_lines = [format_message_line(m, ai_answers, tenant_name, other_chats) for m in new_messages]
     elif body_override:
         new_lines = [f"[now] {tenant_name or 'Tenant'} ({ROLE_TENANT}): {body_override}"]
     else:
         new_lines = ["(no new chat message - this run was started by the event above)"]
     sources['agent_new_messages'] = len(new_lines)
+    images = collect_agent_images(new_messages, history)
+    sources['agent_images'] = [m.id for m in images]
+    if images:
+        parts.append(
+            "=== PHOTOS ===\nThe images attached to this input, in this order: "
+            + ", ".join(f"photo #{m.id}" for m in images)
+            + ". Each [photo #N] in the chat lines above is one of them (older photos may not be attached)."
+        )
     parts.append("=== NEW MESSAGE(S) TO HANDLE NOW ===\n" + "\n".join(new_lines))
 
     return "\n\n".join(p for p in parts if p), sources

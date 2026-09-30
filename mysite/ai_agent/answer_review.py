@@ -85,6 +85,7 @@ INTERPRETER_SCHEMA = {
     'required': ['decision', 'corrected_answer', 'plan_ops', 'task_actions', 'new_facts', 'lesson', 'lesson_key', 'lesson_scope'],
 }
 
+# Seed default of the 'ai_agent_review_interpreter' prompt (the live text is in AIManagement).
 INTERPRETER_PROMPT = """You process a property manager's Telegram reply to an alert of our AI assistant. The alert shows the
 answer the AI drafted for a tenant and a numbered PLAN of changes that will happen automatically unless staff change
 them. Return only the structured output.
@@ -106,15 +107,15 @@ plan_ops - changes to the numbered PLAN (use the item numbers n):
   AND the items that only exist for it (the new issue, its reminders, its notes). "keep it open" / "not fixed" ->
   remove the item that resolves the issue / closes the task.
 - change: fill only the fields that change: priority (tickets / alerts), title (task title or issue summary), text
-  (comment / note / reminder reason / task description), value (knowledge value), state (issue state), owner.
-- approve: a knowledge item is approved as correct ("approve 4", "yes save that") - it is then saved as verified.
+  (comment / note / reminder reason / task description / the knowledge text), value (the new knowledge text), state (issue state), owner.
+- approve: a knowledge item is approved as correct ("approve 4", "yes save that") - it is then saved.
 task_actions - ONLY for EXISTING TASKS (already in ClickUp), done at once:
 - "done", "fixed", "close it" -> close; "reopen" -> reopen; "delete that task" -> delete; rename / priority / description
   -> update; a note ("part ordered") -> comment; "create a task for ..." -> create (ticket_id '', title, description,
   priority). When the plan already handles a task (e.g. an item creates it), use plan_ops instead.
 new_facts - a NEW or CHANGED lasting fact in the reply that the AI should know next time (a password, code, schedule,
-  location, contact, house rule), also inside a correction ("say the password is B123" -> wifi_password = B123). Reuse
-  a key from KNOWN FACTS when it is the same thing. scope apartment = about this unit, company = true for all units.
+  location, contact, house rule), also inside a correction ("say the password is B123" -> wifi_password = B123). Use a
+  short topic as key (wifi password, parking spot) - KNOWN FACTS shows what the knowledge base already says. scope apartment = about this unit, company = true for all units.
   One-off statements about this tenant's situation ("the plumber comes at 10") are NOT facts. When the fact corrects a
   knowledge item that is in the PLAN, use plan_ops change on that item instead (not new_facts). Otherwise [].
 lesson: '' UNLESS the manager explicitly speaks about the future ("next time", "always", "from now on", "in such
@@ -132,7 +133,7 @@ PLAN (happens automatically at the end of the review window unless changed):
 EXISTING TASKS (already in ClickUp, newest first):
 {tasks}
 
-KNOWN FACTS (knowledge base, key = value):
+KNOWN FACTS (the knowledge-base documents of this chat):
 {known}
 
 TENANT MESSAGE(S):
@@ -449,12 +450,13 @@ def apply_plan_ops(run, ops, author, dry):
             lines.append(f"❌ Removed {label}" + (f" and {len(doomed) - 1} item(s) that depend on it" if len(doomed) > 1 else ""))
             continue
         changes = _changes_for(action, op)
-        if op.get('op') == 'approve' or (action.get('type') == 'KB_UPDATE' and 'value' in changes):
+        if op.get('op') == 'approve' or (action.get('type') == 'KB_UPDATE' and 'text' in changes):
+            # A manager approved or rewrote the knowledge: it now counts as said by staff
             changes['approved_by'] = author
         if not changes:
             lines.append(f"✗ {label}: nothing to change was given")
             continue
-        shown = ", ".join(f"{k} → {v}" for k, v in changes.items() if k != 'approved_by') or 'approved (saved as VERIFIED)'
+        shown = ", ".join(f"{k} → {v}" for k, v in changes.items() if k != 'approved_by') or 'approved'
         if dry:
             lines.append(f"Would CHANGE {label}: {shown}")
             continue
@@ -477,7 +479,7 @@ def _changes_for(action, op):
     if value['text']:
         out[{'CREATE_TICKET': 'description', 'SCHEDULE_FOLLOWUP': 'reason'}.get(kind, 'text')] = value['text']
     if value['value'] and kind == 'KB_UPDATE':
-        out['value'] = value['value']
+        out['text'] = value['value']   # the knowledge text (older plans called it value)
     if value['state'] and kind in ('UPDATE_ISSUE_STATE', 'CREATE_ISSUE'):
         out['state'] = value['state']
     if value['owner']:
@@ -710,11 +712,12 @@ def interpret(run, text, author, can_change):
     plan_lines = plan_mod.render(plan['items']) if plan.get('status') == 'pending' else []
     tasks = [f"- t-{i.id} | {'this alert | ' if mine else ''}{i.ticket_title or i.summary} | issue {i.public_id}: "
              f"{i.summary} | {'RESOLVED' if not i.is_open else i.state} | {i.ticket_ref}" for i, mine in chat_tasks(run)]
-    prompt = INTERPRETER_PROMPT.format(
+    from mysite.ai_agent import prompt_library
+    prompt = prompt_library.get(
+        'ai_agent_review_interpreter',
         change_note=change_note, apartment=run_report.apartment_label(_apartment(run)) or '-',
         plan="\n".join(plan_lines) or "(no pending plan)", tasks="\n".join(tasks) or "(none)",
-        known="\n".join(f"- [{e.scope}] {e.key} = {e.value[:120]}" for e in knowledge._entries_for(_apartment(run))
-                        .filter(confidence='verified').exclude(knowledge_type='lesson').order_by('key')[:60]) or "(none)",
+        known=_known_text(run),
         tenant=_tenant_text(run)[:2000], answer=run.answer or '(no answer - the AI did not reply to the tenant)',
         author=author, reply=text[:3000],
     )
@@ -866,12 +869,10 @@ def handle_reply(run, text, author, at, reply_to=None):
         if dry:
             instructions = f"Would add a lesson for {where} (not saved) - the AI would get it on every similar message:\n{lesson}"
         else:
-            entry, detail = knowledge.save_lesson(
-                apartment, decision.get('lesson_key') or 'answer_lesson', lesson,
-                source=f"Telegram reply by {author} to AI run #{run.id}", conversation_sid=run.conversation_sid, run=run,
-            )
+            from mysite.ai_agent import prompt_library
+            detail = prompt_library.upsert_lesson(apartment, decision.get('lesson_key') or 'answer_lesson', lesson)
             instructions = (f"📚 AI instructions updated - lesson {detail} for {where}. From now on the AI gets it on "
-                            f"every similar message (see /ai-knowledge/):\n{lesson}")
+                            f"every similar message (AI Management -> Prompts -> Agent - answer lessons):\n{lesson}")
     else:
         instructions = "AI instructions: no change (to teach the AI, start a reply with \"next time ...\")."
 
@@ -1030,17 +1031,26 @@ def apply_task_actions(run, task_actions, author, dry):
     return lines
 
 
+def _known_text(run):
+    """The knowledge-base documents of this chat, for the interpreter (trimmed)."""
+    from mysite.ai_agent import kb_documents
+    apartment = _apartment(run)
+    parts = [f"APARTMENT ({getattr(apartment, 'name', '-')}):\n{kb_documents.document('apartment', apartment)[:3000] or '(empty)'}",
+             f"GLOBAL:\n{kb_documents.document('company')[:2000] or '(empty)'}"]
+    return "\n\n".join(parts)
+
+
 def _add_fact(run, item, author, dry):
-    """A fact stated in a staff reply: saved at once as VERIFIED (it comes from staff)."""
-    key, value = knowledge.normalize_key(item.get('key')), (item.get('value') or '').strip()
-    if not key or not value:
-        return "✗ add knowledge: key or value missing"
+    """A fact stated in a staff reply: merged into the knowledge-base document at once (it comes from staff)."""
+    from mysite.ai_agent import kb_documents
+    key, value = (item.get('key') or '').replace('_', ' ').strip(), (item.get('value') or '').strip()
+    if not value:
+        return "✗ add knowledge: the fact is missing"
+    text = f"{key[:1].upper()}{key[1:]}: {value}" if key else value
     apartment = _apartment(run) if item.get('scope') != 'company' else None
     scope = 'apartment' if apartment else 'company'
-    where = knowledge.plan_where(scope, apartment, None)
+    where = kb_documents.label(scope, apartment)
     if dry:
-        return f"Would ADD to the knowledge base for {where} as VERIFIED: {key} = {value[:150]}"
-    plan = {'scope': scope, 'apartment_id': getattr(apartment, 'id', None), 'building': None, 'knowledge_type': 'fact',
-            'key': key, 'value': value, 'confidence': 'verified', 'notes': [], 'source': f"Telegram reply by {author} to run #{run.id}"}
-    detail = knowledge.save_kb_plan(plan, run.conversation_sid, run, reviewer=f"{author} (Telegram)")
-    return f"📚 Knowledge ADDED for {where}: {key} = {value[:150]} → VERIFIED, the AI uses it now ({detail})"
+        return f"Would ADD to {where}: {text[:200]}"
+    detail, _diff = kb_documents.merge(scope, apartment, text, source=f"{author} (Telegram)")
+    return f"📚 {where[:1].upper()}{where[1:]}: added {text[:200]} ({detail})"

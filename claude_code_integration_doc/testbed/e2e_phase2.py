@@ -96,8 +96,8 @@ check("ticket title stored on issue", issue.ticket_title == 'Kitchen sink drippi
 check("follow-up created although it came before CREATE_ISSUE", AIFollowUp.objects.filter(issue=issue, kind='staff_reminder', status='pending').count() == 1)
 check("unknown action rejected", st.get('DELETE_EVERYTHING') == 'rejected')
 check("foreign/unknown issue id rejected", st.get('UPDATE_ISSUE_STATE') == 'rejected')
-check("KB_UPDATE from a tenant-only run is stored as a candidate, never verified", st.get('KB_UPDATE') == 'executed'
-      and __import__('mysite.models').models.AIKnowledge.objects.get(key='x').confidence == 'candidate')
+check("KB_UPDATE from a tenant about the apartment is written into the apartment document", st.get('KB_UPDATE') == 'executed'
+      and 'X: y' in (Apartment.objects.get(id=apt.id).knowledge_base or ''))
 check("ONE grouped Telegram message for the run: TEST mark, staff name, issue, ticket, tenant text once, full report link",
       len(telegram) == 1 and 'TEST' in telegram[0] and 'Edy (Farouk Ahmed)' in telegram[0] and 'i-1' in telegram[0]
       and '🎫 Kitchen sink dripping - 630-999' in telegram[0] and telegram[0].count('The kitchen sink is dripping') == 1
@@ -241,8 +241,8 @@ check("ClickUp unreachable: the reminder still runs, Claude is told the task cou
 Apartment.objects.filter(id=apt.id).update(ai_group_chat_enabled=False)
 
 AIManagement.objects.filter(prompt_key='ai_backend').update(content='openrouter')
-check("backend switched back -> enqueue returns False (legacy AI handles it)", service.enqueue_tenant_message(SID, m9.message_sid, 'x') is False
-      and service.enqueue_staff_message(SID, m2.message_sid, 'some text') is False)
+check("no backend switch any more: an old 'openrouter' row changes nothing, messages still go to the agent",
+      service.enqueue_tenant_message(SID, m9.message_sid, 'what time is checkout?') is True)
 
 print(f"\n{sum(checks)}/{len(checks)} checks passed")
 sys.exit(0 if all(checks) else 1)

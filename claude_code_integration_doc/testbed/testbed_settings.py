@@ -18,5 +18,6 @@ os.environ.pop('CLICKUP_API_TOKEN', None)
 for _name in [n for n in os.environ if n.startswith('AI_AGENT_')]:   # production AI settings must not leak into tests
     os.environ.pop(_name)
 os.environ['AI_AGENT_CLICKUP_VIA_CLAUDE'] = 'off'
+os.environ['AI_AGENT_CLAUDE_BIN'] = '/nonexistent/claude-testbed'   # a Claude call a test forgot to fake fails, never runs
 os.environ['AI_AGENT_SITE_URL'] = 'http://crm.test'
 os.environ['AI_AGENT_REVIEW_HOLD_MINUTES'] = '0'   # older test files expect live answers at once; e2e_answer_review.py turns it on

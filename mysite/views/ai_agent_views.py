@@ -9,7 +9,7 @@ from django.views.decorators.http import require_http_methods
 
 from ..ai_agent import config as agent_config
 from ..decorators import user_has_role
-from ..models import AICaseNote, AIEvent, AIFollowUp, AIIssue, AIKnowledge, AIRun, StaffMember, TwilioMessage
+from ..models import AICaseNote, AIEvent, AIFollowUp, AIIssue, AIRun, StaffMember, TwilioMessage
 
 # Files of a run folder that may be shown in the browser, in display order
 REPORT_FILES = (
@@ -117,6 +117,15 @@ def ai_agent_message_status(request, conversation_sid, message_id):
     })
 
 
+@user_has_role('Admin', 'Manager')
+def ai_regenerate_status(request, conversation_sid):
+    """Polled by the chat page after "Generate AI" / "Generate all" queued Claude runs (?runs=1,2,3)."""
+    from ..ai_agent import regenerate
+
+    run_ids = [int(x) for x in (request.GET.get('runs') or '').split(',') if x.strip().isdigit()][:100]
+    return JsonResponse({'runs': regenerate.status(conversation_sid, run_ids)})
+
+
 def get_ai_activity(conversation_sid):
     """What the AI agent is tracking in one chat (issues, timers, notes). None when there is nothing."""
     try:
@@ -128,15 +137,12 @@ def get_ai_activity(conversation_sid):
         ).select_related('issue').order_by('due_at'))
         notes = list(AICaseNote.objects.filter(conversation_sid=conversation_sid).order_by('-id')[:8])
         runs = list(AIRun.objects.filter(conversation_sid=conversation_sid).order_by('-id')[:5])
-        kb_candidates = AIKnowledge.objects.filter(
-            conversation_sid=conversation_sid, status=AIKnowledge.STATUS_ACTIVE, confidence=AIKnowledge.CONFIDENCE_CANDIDATE,
-        ).count()
     except Exception:
         return None  # tables not migrated yet
-    if not (open_issues or resolved or followups or notes or runs or kb_candidates):
+    if not (open_issues or resolved or followups or notes or runs):
         return None
     return {'open_issues': open_issues, 'resolved_issues': resolved, 'followups': followups, 'notes': notes,
-            'runs': runs, 'kb_candidates': kb_candidates}
+            'runs': runs}
 
 
 @user_has_role('Admin', 'Manager')
@@ -197,41 +203,5 @@ def ai_staff_view(request):
 
 @user_has_role('Admin', 'Manager')
 def ai_knowledge_view(request):
-    """What the AI agent learned. Candidates wait here until a manager approves or rejects them."""
-    from ..ai_agent import knowledge
-
-    if request.method == 'POST':
-        entry = get_object_or_404(AIKnowledge, id=request.POST.get('id'))
-        reviewer = getattr(request.user, 'full_name', None) or str(request.user)
-        action = request.POST.get('action')
-        new_value = (request.POST.get('value') or '').strip()
-        if action in ('approve', 'save') and new_value and new_value != entry.value:
-            entry.value = new_value
-            entry.is_access_code = knowledge.looks_like_access_code(entry.key, new_value)
-        if action == 'approve':
-            knowledge.approve(entry, reviewer)
-        elif action == 'reject':
-            knowledge.reject(entry, reviewer)
-        if action in ('approve', 'reject'):
-            from ..ai_agent.notify import notify_knowledge_review
-            notify_knowledge_review(entry, 'APPROVED' if action == 'approve' else 'REJECTED', reviewer)
-        elif action == 'save':
-            entry.save()
-        return redirect(_safe_next(request, '/ai-knowledge/'))
-
-    show = request.GET.get('show', 'candidates')
-    entries = AIKnowledge.objects.select_related('apartment')
-    if show == 'candidates':
-        entries = entries.filter(status=AIKnowledge.STATUS_ACTIVE, confidence=AIKnowledge.CONFIDENCE_CANDIDATE)
-    elif show == 'verified':
-        entries = entries.filter(status=AIKnowledge.STATUS_ACTIVE, confidence=AIKnowledge.CONFIDENCE_VERIFIED)
-    if request.GET.get('apartment'):
-        entries = entries.filter(apartment_id=request.GET['apartment'])
-    page = Paginator(entries.order_by('-id'), 50).get_page(request.GET.get('page', 1))
-    return render(request, 'ai_knowledge.html', {
-        'page': page, 'show': show,
-        'candidates_count': AIKnowledge.objects.filter(
-            status=AIKnowledge.STATUS_ACTIVE, confidence=AIKnowledge.CONFIDENCE_CANDIDATE).count(),
-        'verified_count': AIKnowledge.objects.filter(
-            status=AIKnowledge.STATUS_ACTIVE, confidence=AIKnowledge.CONFIDENCE_VERIFIED).count(),
-    })
+    """The knowledge base is the apartment / global documents now (AI Management -> Knowledge bases)."""
+    return redirect('/ai-management/#section-kb')

@@ -142,16 +142,22 @@ def describe(parsed, ctx):
                 plan, error = None, str(e)
             if plan and plan['already']:
                 items.append({'idx': idx, 'n': None, 'kind': 'info', 'error': None,
-                              'lines': [f"📚 {plan['key']} = {plan['value'][:120]}: already known - nothing to save"]})
+                              'lines': [f"📚 Already in {plan['where']}: {plan['text'][:160]} - nothing to change"]})
                 continue
             if plan:
-                used = ("VERIFIED - the AI uses it from then on" if plan['confidence'] == 'verified' else
-                        "CANDIDATE - NOT used by the AI until a manager approves it (reply \"approve N\")")
-                lines = [f"📚 Save to the knowledge base for {plan['where']}: {plan['key']} = {plan['value'][:200]}", f"   → {used}"]
-                if action.get('approved_by'):
-                    lines[1] = f"   → VERIFIED (approved by {action['approved_by']}) - the AI uses it from then on"
+                who = f" · {plan['source']}" if plan.get('source') else ''
+                lines = [f"📚 Update {plan['where']}: {plan['text'][:400]}{who}"]
+                if plan['replaces']:
+                    lines.append(f"   replacing: {plan['replaces'][:200]}")
+                if plan['approved_by']:
+                    lines.append(f"   → approved by {plan['approved_by']}")
+                elif plan['needs_approval']:
+                    lines.append("   → FROM A TENANT and about a code / password / wifi: NOT saved unless a manager "
+                                 "replies \"approve N\"")
+                elif plan['from_tenant']:
+                    lines.append("   → from the tenant (about this apartment) - saved unless you remove it")
             else:
-                lines = [f"📚 Save knowledge {action.get('key')} = {str(action.get('value'))[:120]}"]
+                lines = [f"📚 Update the knowledge base: {str(action.get('text') or action.get('value') or '')[:200]}"]
         number += 1
         if error:
             lines.append(f"   ✗ will be SKIPPED: {error}")

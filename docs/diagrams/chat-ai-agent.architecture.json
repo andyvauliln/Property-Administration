@@ -1,0 +1,313 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "Chats + Claude AI Agent",
+    "locale": "en",
+    "quality_profile": "showcase",
+    "viewBox": [
+      1230,
+      780
+    ]
+  },
+  "components": [
+    {
+      "id": "tenant",
+      "type": "external",
+      "label": "Tenant chat",
+      "sublabel": "Twilio Conversations",
+      "pos": [
+        40,
+        320
+      ],
+      "size": [
+        150,
+        64
+      ]
+    },
+    {
+      "id": "webhook",
+      "type": "frontend",
+      "label": "Webhook + Chat UI",
+      "sublabel": "messaging.py / chat.py",
+      "pos": [
+        290,
+        320
+      ],
+      "size": [
+        150,
+        64
+      ]
+    },
+    {
+      "id": "queue",
+      "type": "messagebus",
+      "label": "AIEvent queue",
+      "sublabel": "tenant / staff / followup",
+      "pos": [
+        540,
+        320
+      ],
+      "size": [
+        150,
+        64
+      ]
+    },
+    {
+      "id": "worker",
+      "type": "backend",
+      "label": "ai-agent worker",
+      "sublabel": "builds prompt + INPUTS",
+      "tag": "PM2: run_ai_agent",
+      "pos": [
+        790,
+        320
+      ],
+      "size": [
+        150,
+        64
+      ]
+    },
+    {
+      "id": "review",
+      "type": "security",
+      "label": "Staff review gate",
+      "sublabel": "answer_review + plan",
+      "tag": "15 min hold",
+      "pos": [
+        1040,
+        320
+      ],
+      "size": [
+        150,
+        64
+      ]
+    },
+    {
+      "id": "telegram",
+      "type": "external",
+      "label": "Telegram AI group",
+      "sublabel": "alerts + replies",
+      "pos": [
+        1040,
+        100
+      ],
+      "size": [
+        150,
+        64
+      ]
+    },
+    {
+      "id": "claude",
+      "type": "cloud",
+      "label": "Claude Code CLI",
+      "sublabel": "claude -p (runner.py)",
+      "tag": "claude-sonnet-5",
+      "pos": [
+        790,
+        100
+      ],
+      "size": [
+        150,
+        64
+      ]
+    },
+    {
+      "id": "mcp",
+      "type": "security",
+      "label": "MCP read-only tools",
+      "sublabel": "history / contract",
+      "pos": [
+        540,
+        100
+      ],
+      "size": [
+        150,
+        64
+      ]
+    },
+    {
+      "id": "reports",
+      "type": "database",
+      "label": "Run reports",
+      "sublabel": "logs/ai_runs/<date>/",
+      "pos": [
+        290,
+        540
+      ],
+      "size": [
+        150,
+        64
+      ]
+    },
+    {
+      "id": "db",
+      "type": "database",
+      "label": "Postgres (prod)",
+      "sublabel": "AIRun / AIIssue / KB",
+      "pos": [
+        540,
+        540
+      ],
+      "size": [
+        150,
+        64
+      ]
+    },
+    {
+      "id": "clickup",
+      "type": "external",
+      "label": "ClickUp",
+      "sublabel": "per-apartment List",
+      "pos": [
+        790,
+        540
+      ],
+      "size": [
+        150,
+        64
+      ]
+    }
+  ],
+  "boundaries": [
+    {
+      "kind": "region",
+      "label": "Django site (production server)",
+      "wraps": [
+        "webhook",
+        "queue",
+        "worker",
+        "review",
+        "reports",
+        "db"
+      ]
+    }
+  ],
+  "connections": [
+    {
+      "id": "inbound",
+      "from": "tenant",
+      "to": "webhook",
+      "label": "message",
+      "variant": "emphasis"
+    },
+    {
+      "id": "enqueue",
+      "from": "webhook",
+      "to": "queue",
+      "label": "enqueue",
+      "variant": "emphasis"
+    },
+    {
+      "id": "claim",
+      "from": "queue",
+      "to": "worker",
+      "label": "claim batch",
+      "variant": "emphasis"
+    },
+    {
+      "id": "run-claude",
+      "from": "worker",
+      "to": "claude",
+      "label": "claude -p → JSON",
+      "fromSide": "top",
+      "toSide": "bottom"
+    },
+    {
+      "id": "tools",
+      "from": "claude",
+      "to": "mcp",
+      "label": "stdio MCP",
+      "variant": "security"
+    },
+    {
+      "id": "hold",
+      "from": "worker",
+      "to": "review",
+      "label": "answer + plan",
+      "variant": "emphasis"
+    },
+    {
+      "id": "alert",
+      "from": "review",
+      "to": "telegram",
+      "label": "alert ⇄ replies",
+      "fromSide": "top",
+      "toSide": "bottom"
+    },
+    {
+      "id": "tasks",
+      "from": "worker",
+      "to": "clickup",
+      "label": "tasks + comments",
+      "variant": "dashed",
+      "fromSide": "bottom",
+      "toSide": "top",
+      "labelDy": 60,
+      "labelDx": 48
+    },
+    {
+      "id": "persist",
+      "from": "worker",
+      "to": "db",
+      "label": "AIRun, issues",
+      "fromSide": "bottom",
+      "toSide": "top"
+    },
+    {
+      "id": "report",
+      "from": "db",
+      "to": "reports",
+      "label": "report dir",
+      "variant": "dashed"
+    },
+    {
+      "id": "send",
+      "from": "review",
+      "to": "tenant",
+      "label": "send (live only)",
+      "variant": "dashed",
+      "fromSide": "bottom",
+      "toSide": "bottom",
+      "via": [
+        [
+          1115,
+          720
+        ],
+        [
+          115,
+          720
+        ]
+      ]
+    }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "Backend switch",
+      "items": [
+        "AIManagement ai_backend = claude_cli → queue + worker",
+        "Otherwise legacy inline OpenRouter answer",
+        "Chat-page helpers use oneshot ClaudeTextClient"
+      ]
+    },
+    {
+      "dot": "emerald",
+      "title": "Test vs live",
+      "items": [
+        "Live = send_allowed AND Apartment.ai_group_chat_enabled",
+        "Test runs the same review, never sends to Twilio",
+        "Regenerate AI: background test run, page polls status"
+      ]
+    },
+    {
+      "dot": "rose",
+      "title": "Review gate",
+      "items": [
+        "Answer + actions held 15 min; ok / stop / edits in Telegram",
+        "Emergencies skip the hold",
+        "Legal answers wait for a manager's ok"
+      ]
+    }
+  ]
+}

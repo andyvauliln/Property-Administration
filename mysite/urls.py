@@ -50,6 +50,7 @@ urlpatterns = [
     path('api/payments/<int:pk>/', views.RentalGuruUpdatePaymentAPI.as_view(), name='api_rental_guru_update_payment'),
     # Chat interface URLs
     path('chat/', views.chat_list, name='chat_list'),
+    path('chat-media/<int:media_id>/', views.twilio_media_file, name='twilio_media_file'),
     path('chat/export.md/', views.export_group_chats_md, name='export_group_chats_md'),
     path('chat/<str:conversation_sid>/', views.chat_detail, name='chat_detail'),
     path('chat/<str:conversation_sid>/send/', views.send_message, name='send_message'),
@@ -75,6 +76,11 @@ urlpatterns = [
     path('chat/templates/create/', views.chat_template_create, name='chat_template_create'),
     # AI Management
     path('ai-management/', views.ai_management_view, name='ai_management'),
+    path('ai-management/knowledge-base/', views.ai_knowledge_base_save, name='ai_global_kb_save'),
+    path('ai-management/knowledge-base/<int:apartment_id>/', views.ai_knowledge_base_save, name='ai_apartment_kb_save'),
+    path('ai-management/prompts/preview/', views.ai_prompt_preview, name='ai_prompt_preview'),
+    path('ai-management/prompts/<str:prompt_key>/', views.ai_prompt_detail, name='ai_prompt_detail'),
+    path('ai-management/prompts/<str:prompt_key>/reset/', views.ai_prompt_reset, name='ai_prompt_reset'),
     path('globalknowledgebase/', RedirectView.as_view(url='/ai-management/', permanent=True)),
     # AI agent (Claude) runs and reports
     path('ai-runs/', views.ai_runs_view, name='ai_runs'),
@@ -84,6 +90,7 @@ urlpatterns = [
     path('ai-staff/', views.ai_staff_view, name='ai_staff'),
     path('ai-knowledge/', views.ai_knowledge_view, name='ai_knowledge'),
     path('chat/<str:conversation_sid>/messages/<int:message_id>/ai-agent-status/', views.ai_agent_message_status, name='ai_agent_message_status'),
+    path('chat/<str:conversation_sid>/ai-regenerate-status/', views.ai_regenerate_status, name='ai_regenerate_status'),
     # Database Activity Monitoring
     path('database-activity/', views.database_activity, name='database_activity'),
 

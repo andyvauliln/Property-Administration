@@ -133,7 +133,7 @@
                                                 <span class="{% if conv_data.latest_message.direction == 'outbound' %}text-blue-600{% else %}text-gray-600{% endif %}">
                                                     {% if conv_data.latest_message.direction == 'outbound' %}→{% else %}←{% endif %}
                                                 </span>
-                                                {{ conv_data.latest_message.body|truncatechars:50 }}
+                                                {% if conv_data.latest_message.body %}{{ conv_data.latest_message.body|truncatechars:50 }}{% elif conv_data.latest_message.has_media %}📷 Photo{% endif %}
                                             </div>
                                             {% endif %}
 

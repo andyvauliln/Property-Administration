@@ -1,0 +1,85 @@
+<div id="knowledge-bases">
+    {% csrf_token %}
+    <div class="mb-3 p-3 rounded-lg bg-gray-50 dark:bg-gray-700/40 text-sm text-gray-700 dark:text-gray-300 space-y-1">
+        <div><b>The only place knowledge is kept:</b> one document per apartment and one global document. The AI gets the
+            chat's apartment document and the global document with every message. Door / gate / lockbox codes in them are
+            hidden from the AI outside the access window (24h before check-in until checkout).</div>
+        <div><b>How they change:</b> you edit them here or in the chat page "Knowledge Base" window (its "Generate" drafts
+            both from the whole chat). The Claude agent adds what staff say in chats - and clear facts about the apartment
+            from tenants - with KB_UPDATE: it is announced in the Telegram review and written here when the review window
+            ends, unless staff remove or change it. Company-wide knowledge is only taken from staff.</div>
+        <div><b>Rules:</b> "Add KB rule" on the chat page writes the prompt "Agent - KB rules"; the merge and generate
+            prompts are in <a href="#prompts" class="text-primary-700 dark:text-primary-400 underline">Claude agent prompts</a>.</div>
+    </div>
+
+    <!-- Global -->
+    <div class="mb-4">
+        <div class="flex items-center justify-between mb-1">
+            <label for="kb-global" class="text-sm font-semibold text-gray-900 dark:text-white">Global knowledge base (all apartments)</label>
+            <span class="kb-status text-xs text-gray-500 dark:text-gray-400" data-for="kb-global">{{ global_kb|length }} chars</span>
+        </div>
+        <textarea id="kb-global" rows="12" class="kb-text block w-full p-2.5 text-sm font-mono text-gray-900 bg-gray-50 rounded-lg border border-gray-300 dark:bg-gray-700 dark:border-gray-600 dark:text-white">{{ global_kb }}</textarea>
+        <div class="mt-2 text-right">
+            <button type="button" class="kb-save px-4 py-2 text-sm font-medium text-white bg-blue-700 rounded-lg hover:bg-blue-800"
+                    data-textarea="kb-global" data-url="{% url 'ai_global_kb_save' %}">Save global knowledge base</button>
+        </div>
+    </div>
+
+    <!-- Apartments -->
+    <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-2 mb-2">
+        <div class="text-sm font-semibold text-gray-900 dark:text-white">Apartment knowledge bases
+            <span class="font-normal text-gray-500 dark:text-gray-400">({{ apartment_kbs|length }} apartments; the ones with a knowledge base first)</span>
+        </div>
+        <input type="search" id="kb-apartment-filter" placeholder="Filter apartments..."
+               class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg p-2 w-full md:w-64 dark:bg-gray-700 dark:border-gray-600 dark:text-white">
+    </div>
+    <div class="space-y-2">
+        {% for apt in apartment_kbs %}
+        <details class="kb-apartment rounded-lg border border-gray-200 dark:border-gray-700" data-name="{{ apt.name|lower }}">
+            <summary class="cursor-pointer select-none px-3 py-2 flex flex-wrap items-center gap-2 text-sm">
+                <span class="font-medium text-gray-900 dark:text-white">{{ apt.name }}</span>
+                {% if apt.kb %}
+                <span class="px-1.5 py-0.5 rounded text-xs bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200">{{ apt.kb|length }} chars</span>
+                {% else %}
+                <span class="px-1.5 py-0.5 rounded text-xs bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300">no knowledge base</span>
+                {% endif %}
+            </summary>
+            <div class="px-3 pb-3">
+                <textarea id="kb-apt-{{ apt.id }}" rows="10" class="kb-text block w-full p-2.5 text-sm font-mono text-gray-900 bg-gray-50 rounded-lg border border-gray-300 dark:bg-gray-700 dark:border-gray-600 dark:text-white">{{ apt.kb }}</textarea>
+                <div class="mt-2 flex items-center justify-between">
+                    <span class="kb-status text-xs text-gray-500 dark:text-gray-400" data-for="kb-apt-{{ apt.id }}"></span>
+                    <button type="button" class="kb-save px-4 py-2 text-sm font-medium text-white bg-blue-700 rounded-lg hover:bg-blue-800"
+                            data-textarea="kb-apt-{{ apt.id }}" data-url="{% url 'ai_apartment_kb_save' apt.id %}">Save {{ apt.name }}</button>
+                </div>
+            </div>
+        </details>
+        {% endfor %}
+    </div>
+</div>
+
+<script>
+(function() {
+    const csrf = () => document.querySelector('#knowledge-bases input[name=csrfmiddlewaretoken]').value;
+    const status = id => document.querySelector(`.kb-status[data-for="${id}"]`);
+    document.querySelectorAll('#knowledge-bases .kb-save').forEach(btn => btn.addEventListener('click', async () => {
+        const id = btn.dataset.textarea;
+        const el = status(id);
+        el.textContent = 'Saving...';
+        try {
+            const resp = await fetch(btn.dataset.url, {
+                method: 'POST', headers: {'Content-Type': 'application/json', 'X-CSRFToken': csrf()},
+                body: JSON.stringify({content: document.getElementById(id).value}),
+            });
+            const data = await resp.json();
+            el.textContent = resp.ok ? `Saved (${data.length} chars) - used from the next AI message.` : (data.error || 'Save failed');
+        } catch (e) { el.textContent = 'Save failed: ' + e; }
+    }));
+    document.querySelectorAll('#knowledge-bases .kb-text').forEach(t => t.addEventListener('input', () => {
+        const el = status(t.id); if (el) el.textContent = `${t.value.trim().length} chars - not saved yet`;
+    }));
+    document.getElementById('kb-apartment-filter').addEventListener('input', e => {
+        const q = e.target.value.trim().toLowerCase();
+        document.querySelectorAll('#knowledge-bases .kb-apartment').forEach(d => d.classList.toggle('hidden', !!q && !d.dataset.name.includes(q)));
+    });
+})();
+</script>

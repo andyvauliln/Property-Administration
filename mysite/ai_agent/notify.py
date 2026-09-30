@@ -88,12 +88,3 @@ def _local_now():
 
     from mysite.ai_agent import config
     return f"{datetime.now(ZoneInfo(config.TEAM_TIMEZONE)).strftime('%b %d %H:%M')} {config.TIMEZONE_LABEL}"
-
-
-def notify_knowledge_review(entry, decision, reviewer):
-    if not activity_enabled():
-        return
-    notify_ai_chat(
-        f"📚 Knowledge {decision} by {reviewer} · {_local_now()}\n"
-        f"[{entry.scope_label}] {entry.key} = {entry.value[:300]}"
-    )

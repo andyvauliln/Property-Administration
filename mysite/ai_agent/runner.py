@@ -20,6 +20,8 @@ from mysite.ai_agent import config
 
 def _claude_binary():
     configured = config.claude_binary()
+    if os.path.isabs(configured):
+        return configured   # an explicit path always wins (the testbed points it at a binary that does not exist)
     found = shutil.which(configured)
     if found:
         return found
@@ -42,7 +44,23 @@ def build_mcp_config(conversation_sid, until_message_id=None):
     }
 
 
-def build_command(model, system_prompt_file, mcp_config_file):
+def build_stdin(user_input, images=None):
+    """
+    Plain text input, or - when the run has photos - one stream-json user message: the text block
+    followed by the images (base64), so the model sees them without any file tool.
+    images: [{'media_type': ..., 'data': <base64>}]
+    """
+    if not images:
+        return user_input
+    content = [{'type': 'text', 'text': user_input}]
+    content += [
+        {'type': 'image', 'source': {'type': 'base64', 'media_type': img['media_type'], 'data': img['data']}}
+        for img in images
+    ]
+    return json.dumps({'type': 'user', 'message': {'role': 'user', 'content': content}}) + '\n'
+
+
+def build_command(model, system_prompt_file, mcp_config_file, with_images=False):
     schema = json.dumps(json.loads(config.SCHEMA_PATH.read_text(encoding='utf-8')), separators=(',', ':'))
     command = [
         _claude_binary(), '-p',
@@ -60,6 +78,8 @@ def build_command(model, system_prompt_file, mcp_config_file):
         '--output-format', 'stream-json',
         '--verbose',
     ]
+    if with_images:
+        command += ['--input-format', 'stream-json']
     if os.environ.get('AI_AGENT_CLI_BARE', '').lower() == 'true':
         # Requires ANTHROPIC_API_KEY (bare mode never reads the OAuth login)
         command.insert(2, '--bare')
@@ -102,9 +122,11 @@ def _structured_output(result_event):
     return None
 
 
-def run_claude(system_prompt, user_input, conversation_sid, run_dir, until_message_id=None, model=None):
+def run_claude(system_prompt, user_input, conversation_sid, run_dir, until_message_id=None, model=None,
+               images=None):
     """
     run_dir: folder of this run; the exact files given to the CLI are written there.
+    images: photos the model should see ([{'media_type', 'data'}], see build_stdin).
     Returns dict: ok, error, output, events, result_event, stdout, stderr, command, mcp_config,
                   model, exit_code, duration_ms, timed_out.
     """
@@ -119,7 +141,8 @@ def run_claude(system_prompt, user_input, conversation_sid, run_dir, until_messa
     mcp_config_file = run_dir / 'mcp_config.json'
     mcp_config_file.write_text(json.dumps(mcp_config, indent=2), encoding='utf-8')
 
-    command = build_command(model, system_prompt_file, mcp_config_file)
+    command = build_command(model, system_prompt_file, mcp_config_file, with_images=bool(images))
+    stdin_text = build_stdin(user_input, images)
     env = os.environ.copy()
     if os.environ.get('AI_AGENT_CLAUDE_CONFIG_DIR'):
         env['CLAUDE_CONFIG_DIR'] = os.path.expanduser(os.environ['AI_AGENT_CLAUDE_CONFIG_DIR'])
@@ -133,7 +156,7 @@ def run_claude(system_prompt, user_input, conversation_sid, run_dir, until_messa
             stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
         )
         try:
-            stdout_text, stderr_text = process.communicate(user_input, timeout=config.run_timeout_seconds())
+            stdout_text, stderr_text = process.communicate(stdin_text, timeout=config.run_timeout_seconds())
         except subprocess.TimeoutExpired:
             timed_out = True
             process.kill()

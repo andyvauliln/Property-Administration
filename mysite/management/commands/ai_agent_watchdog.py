@@ -25,8 +25,6 @@ class Command(BaseCommand):
     def handle(self, *args, **options):
         from mysite.models import AIEvent, AIRun
 
-        if not config.is_agent_backend_enabled():
-            return
         now = timezone.now()
         waiting = AIEvent.objects.filter(
             status__in=[AIEvent.STATUS_PENDING, AIEvent.STATUS_RUNNING],
@@ -69,7 +67,7 @@ class Command(BaseCommand):
         if state.get('alerting') and time.time() - state.get('last_alert', 0) < options['repeat_minutes'] * 60:
             return
         notify_ai_chat("🚨 AI agent watchdog\n\n" + "\n\n".join(problems) + "\n\nTenants are NOT getting AI answers right now. "
-                       "Quick fallback: AI Management → AI Backend → openrouter.")
+                       "Please answer tenants yourself until it is fixed (pm2 logs ai-agent).")
         config.RUNS_DIR.mkdir(parents=True, exist_ok=True)
         state_file.write_text(json.dumps({'alerting': True, 'last_alert': time.time()}))
         self.stdout.write("alert sent")

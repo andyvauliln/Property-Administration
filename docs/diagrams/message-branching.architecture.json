@@ -1,0 +1,283 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "Message Types & Branching",
+    "locale": "en",
+    "quality_profile": "showcase",
+    "viewBox": [
+      1020,
+      680
+    ]
+  },
+  "components": [
+    {
+      "id": "tenant",
+      "type": "external",
+      "label": "Tenant SMS",
+      "sublabel": "customer phone",
+      "pos": [
+        40,
+        150
+      ],
+      "size": [
+        160,
+        64
+      ]
+    },
+    {
+      "id": "crm",
+      "type": "frontend",
+      "label": "CRM: Send as client",
+      "sublabel": "marked (+++)",
+      "pos": [
+        40,
+        290
+      ],
+      "size": [
+        160,
+        64
+      ]
+    },
+    {
+      "id": "manager",
+      "type": "frontend",
+      "label": "Manager / staff",
+      "sublabel": "manager phone or CRM",
+      "pos": [
+        40,
+        430
+      ],
+      "size": [
+        160,
+        64
+      ]
+    },
+    {
+      "id": "skipped",
+      "type": "database",
+      "label": "Skipped",
+      "sublabel": "≤3 chars, no '?'",
+      "pos": [
+        300,
+        40
+      ],
+      "size": [
+        160,
+        64
+      ]
+    },
+    {
+      "id": "tenant_ev",
+      "type": "messagebus",
+      "label": "TENANT_MESSAGE",
+      "sublabel": "AI may answer",
+      "pos": [
+        300,
+        220
+      ],
+      "size": [
+        160,
+        64
+      ],
+      "tag": "AIEvent"
+    },
+    {
+      "id": "staff_ev",
+      "type": "messagebus",
+      "label": "STAFF_MESSAGE",
+      "sublabel": "updates issues",
+      "pos": [
+        300,
+        430
+      ],
+      "size": [
+        160,
+        64
+      ],
+      "tag": "AIEvent"
+    },
+    {
+      "id": "followup_ev",
+      "type": "messagebus",
+      "label": "FOLLOWUP_DUE",
+      "sublabel": "reminder timer",
+      "pos": [
+        300,
+        570
+      ],
+      "size": [
+        160,
+        64
+      ],
+      "tag": "AIEvent"
+    },
+    {
+      "id": "worker",
+      "type": "backend",
+      "label": "Batch + Claude run",
+      "sublabel": "one run per chat",
+      "pos": [
+        560,
+        300
+      ],
+      "size": [
+        160,
+        64
+      ],
+      "tag": "wait: 0 s / debounce"
+    },
+    {
+      "id": "hold",
+      "type": "security",
+      "label": "Normal answer",
+      "sublabel": "15 min review, then send",
+      "pos": [
+        820,
+        100
+      ],
+      "size": [
+        160,
+        64
+      ]
+    },
+    {
+      "id": "emergency",
+      "type": "security",
+      "label": "Emergency",
+      "sublabel": "sent + executed at once",
+      "pos": [
+        820,
+        240
+      ],
+      "size": [
+        160,
+        64
+      ]
+    },
+    {
+      "id": "legal",
+      "type": "security",
+      "label": "Legal question",
+      "sublabel": "waits for manager 'ok'",
+      "pos": [
+        820,
+        380
+      ],
+      "size": [
+        160,
+        64
+      ]
+    },
+    {
+      "id": "noanswer",
+      "type": "database",
+      "label": "NO_ANSWER",
+      "sublabel": "or review-only answer",
+      "pos": [
+        820,
+        520
+      ],
+      "size": [
+        160,
+        64
+      ]
+    }
+  ],
+  "connections": [
+    {
+      "id": "t-ev",
+      "from": "tenant",
+      "to": "tenant_ev",
+      "label": "question",
+      "variant": "emphasis"
+    },
+    {
+      "id": "t-skip",
+      "from": "tenant",
+      "to": "skipped",
+      "label": "ok / 👍",
+      "variant": "dashed"
+    },
+    {
+      "id": "crm-ev",
+      "from": "crm",
+      "to": "tenant_ev",
+      "label": "as tenant"
+    },
+    {
+      "id": "m-ev",
+      "from": "manager",
+      "to": "staff_ev",
+      "label": "staff msg"
+    },
+    {
+      "id": "ev-w",
+      "from": "tenant_ev",
+      "to": "worker",
+      "label": "debounce",
+      "variant": "emphasis"
+    },
+    {
+      "id": "st-w",
+      "from": "staff_ev",
+      "to": "worker"
+    },
+    {
+      "id": "fu-w",
+      "from": "followup_ev",
+      "to": "worker"
+    },
+    {
+      "id": "w-hold",
+      "from": "worker",
+      "to": "hold",
+      "variant": "emphasis"
+    },
+    {
+      "id": "w-em",
+      "from": "worker",
+      "to": "emergency"
+    },
+    {
+      "id": "w-legal",
+      "from": "worker",
+      "to": "legal"
+    },
+    {
+      "id": "w-no",
+      "from": "worker",
+      "to": "noanswer",
+      "variant": "dashed"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "Who wrote it (webhook)",
+      "items": [
+        "Not Twilio / ASSISTANT / manager phone → tenant",
+        "(+++) from CRM → tenant test message",
+        "'Virtual Assistant' = the AI's own reply, never queued"
+      ]
+    },
+    {
+      "dot": "emerald",
+      "title": "Batch wait",
+      "items": [
+        "Emergency words or only reminders → 0 s",
+        "Chat UI only → chat UI debounce, else debounce",
+        "Priority for the run's type: tenant > staff > followup"
+      ]
+    },
+    {
+      "dot": "rose",
+      "title": "Answer rules",
+      "items": [
+        "Staff replied while AI worked → suppressed",
+        "Staff already answered → review_answer, never sent",
+        "Emergency = action priority or keyword"
+      ]
+    }
+  ]
+}

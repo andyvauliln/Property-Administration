@@ -32,10 +32,6 @@
                         <label for="create_prompt_key" class="block mb-2 text-sm font-medium text-gray-900 dark:text-white">Prompt Key</label>
                         <select name="prompt_key" id="create_prompt_key" class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-primary-500 focus:border-primary-500 block w-full p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:text-white dark:focus:ring-primary-500 dark:focus:border-primary-500">
                             <option value="">None</option>
-                            <option value="ai_answer_system">AI Answer System</option>
-                            <option value="ai_answer_user">AI Answer User</option>
-                            <option value="ai_extract_check">AI Extract Check</option>
-                            <option value="ai_extract_merge">AI Extract Merge</option>
                             <option value="contract_signed_message">Contract Signed Message</option>
                             <option value="contract_message_template">Contract Message Template</option>
                             <option value="welcome_message_template">Welcome Message Template</option>
@@ -49,7 +45,8 @@
                             <option value="extension">Extension</option>
                             <option value="move_out">Move Out</option>
                             <option value="safe_travel">Safe Travel</option>
-                            <option value="ai_conversation_model">AI Conversation Model</option>
+                            <option value="ai_agent_model">AI Agent Model (Claude)</option>
+                            <option value="ai_clickup_writes">AI ClickUp Writes (on / off)</option>
                         </select>
                         <p id="create_placeholder_hint" class="mt-1 text-xs text-gray-500 dark:text-gray-400 hidden"></p>
                     </div>
@@ -117,10 +114,6 @@
                         <label for="edit_prompt_key" class="block mb-2 text-sm font-medium text-gray-900 dark:text-white">Prompt Key</label>
                         <select name="prompt_key" id="edit_prompt_key" class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-primary-500 focus:border-primary-500 block w-full p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:text-white dark:focus:ring-primary-500 dark:focus:border-primary-500">
                             <option value="">None</option>
-                            <option value="ai_answer_system">AI Answer System</option>
-                            <option value="ai_answer_user">AI Answer User</option>
-                            <option value="ai_extract_check">AI Extract Check</option>
-                            <option value="ai_extract_merge">AI Extract Merge</option>
                             <option value="contract_signed_message">Contract Signed Message</option>
                             <option value="contract_message_template">Contract Message Template</option>
                             <option value="welcome_message_template">Welcome Message Template</option>
@@ -134,7 +127,8 @@
                             <option value="extension">Extension</option>
                             <option value="move_out">Move Out</option>
                             <option value="safe_travel">Safe Travel</option>
-                            <option value="ai_conversation_model">AI Conversation Model</option>
+                            <option value="ai_agent_model">AI Agent Model (Claude)</option>
+                            <option value="ai_clickup_writes">AI ClickUp Writes (on / off)</option>
                         </select>
                         <p id="edit_placeholder_hint" class="mt-1 text-xs text-gray-500 dark:text-gray-400 hidden"></p>
                     </div>
@@ -166,16 +160,9 @@
 <script>
 (function() {
     const PROMPT_PLACEHOLDERS = {
-        'ai_answer_system': 'No placeholders',
-        'ai_answer_user': 'Supports: {context}, {message_body}',
-        'ai_extract_check': 'Supports: {fields_ctx}, {chat_history}, {message_body}',
-        'ai_extract_merge': 'Supports: {knowledge_base}, {message_body}, {suggested_knowledge}',
-        'ai_extract_global_check': 'Supports: {chat_history}, {message_body}',
-        'ai_extract_global_merge': 'Supports: {knowledge_base}, {message_body}, {suggested_knowledge}',
         'contract_signed_message': 'Supports: {booking_id}',
         'contract_message_template': 'Supports: {tenant_name}, {apartment_name}, {start_date}, {end_date}, {contract_url}',
-        'welcome_message_template': 'Supports: {tenant_name}, {apartment_name}, {start_date}, {end_date}',
-        'ai_conversation_model': 'No placeholders'
+        'welcome_message_template': 'Supports: {tenant_name}, {apartment_name}, {start_date}, {end_date}'
     };
 
     function togglePromptKeyGroup(prefix) {
@@ -256,7 +243,12 @@
         document.getElementById('editId').value = item.id;
         document.getElementById('edit_name').value = item.name || '';
         document.getElementById('edit_entry_type').value = item.entry_type || 'knowledge';
-        document.getElementById('edit_prompt_key').value = item.prompt_key || '';
+        // Keep keys the list does not offer: a blank select would wipe the key on save
+        const editKey = document.getElementById('edit_prompt_key');
+        if (item.prompt_key && ![...editKey.options].some(o => o.value === item.prompt_key)) {
+            editKey.add(new Option(item.prompt_key, item.prompt_key));
+        }
+        editKey.value = item.prompt_key || '';
         document.getElementById('edit_description').value = item.description || '';
         document.getElementById('edit_content').value = item.content || '';
         const smsEnabledCheckbox = document.getElementById('edit_sms_enabled');

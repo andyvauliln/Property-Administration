@@ -54,14 +54,8 @@ def _enqueue_message(event_type, conversation_sid, message_sid, body, send_allow
 
 def enqueue_tenant_message(conversation_sid, message_sid, body, send_allowed=True,
                            reply_author='Virtual Assistant', sender_phone=None, source='webhook'):
-    """
-    Returns True when the agent backend took the message (caller must NOT run the legacy AI),
-    False when the legacy OpenRouter path should handle it.
-    """
+    """Returns True when the message was queued (or skipped as a short acknowledgment), False when queueing failed."""
     try:
-        if not config.is_agent_backend_enabled():
-            return False
-
         from mysite.group_chat_logger import log_ai_customer_skipped, log_ai_customer_start
         from mysite.models import AIEvent
         from mysite.views.messaging import _is_skippable_message
@@ -80,20 +74,18 @@ def enqueue_tenant_message(conversation_sid, message_sid, body, send_allowed=Tru
             )
         return True
     except Exception as e:
-        # Never lose a tenant message because of the queue: fall back to the legacy path
-        report_error(e, "could not queue a tenant message, the old AI handled it instead", source='webhook')
+        # The caller alerts the team (there is no fallback AI)
+        report_error(e, "could not queue a tenant message for the AI agent", source='webhook')
         return False
 
 
 def enqueue_staff_message(conversation_sid, message_sid, body, source='webhook'):
     """
     A manager wrote in a tenant chat: the AI updates issues / follow-ups (normally without replying).
-    Runs next to the legacy knowledge-base extraction, never instead of it. Returns True when queued.
+    It is also how the agent learns knowledge from staff (KB_UPDATE). Returns True when queued.
     AI_AGENT_STAFF_EVENTS: all (default) | open_issues (only chats with open issues or follow-ups) | off
     """
     try:
-        if not config.is_agent_backend_enabled():
-            return False
         from mysite.models import AIEvent, AIFollowUp, AIIssue
         from mysite.views.messaging import _is_skippable_message
 
@@ -172,18 +164,46 @@ def _tenant_chats_line(conversation_sid):
         return None
 
 
+def _prompt_versions(system_source):
+    """{prompt_key: last edit time} of the AIManagement prompts this run used (for the run report)."""
+    from mysite.models import AIManagement
+    keys = [part[3:] for part in system_source.split(' + ') if part.startswith('DB:')]
+    return {key: f"{updated:%Y-%m-%d %H:%M:%S}" for key, updated in
+            AIManagement.objects.filter(prompt_key__in=keys).values_list('prompt_key', 'updated_at')}
+
+
+def _agent_images(media_ids):
+    """The photos (by TwilioMessageMedia id) prepared for the model; ones that can't be decoded are dropped."""
+    from mysite.models import TwilioMessageMedia
+    from mysite.twilio_media import image_for_model
+
+    if not media_ids:
+        return []
+    by_id = TwilioMessageMedia.objects.in_bulk(media_ids)
+    images = []
+    for media_id in media_ids:
+        media = by_id.get(media_id)
+        prepared = image_for_model(media) if media else None
+        if prepared:
+            images.append({'media_id': media_id, **prepared})
+    return images
+
+
 def run_agent(event_type, conversation_sid, apartment, booking, trigger_messages, mode,
               body_override=None, now=None, extra_block=None):
     """Runs Claude once. Returns a dict with everything needed for delivery and for the report."""
     started_at = timezone.now()
     run_dir = run_report.new_run_dir(conversation_sid, apartment, event_type)
-    system_prompt, system_source = prompts.get_system_prompt()
+    system_prompt, system_source = prompts.get_system_prompt(apartment)
     user_input, sources = inputs.build_agent_input(
         event_type, conversation_sid, apartment, booking, trigger_messages,
         body_override=body_override, now=now, extra_block=extra_block,
     )
     until_id = trigger_messages[-1].id if trigger_messages else None
-    run = runner.run_claude(system_prompt, user_input, conversation_sid, run_dir, until_message_id=until_id)
+    images = _agent_images(sources.get('agent_images'))
+    sources['agent_images'] = [img['media_id'] for img in images]
+    extra = {'images': images} if images else {}
+    run = runner.run_claude(system_prompt, user_input, conversation_sid, run_dir, until_message_id=until_id, **extra)
 
     tenant = getattr(booking, 'tenant', None)
     meta = {
@@ -199,6 +219,7 @@ def run_agent(event_type, conversation_sid, apartment, booking, trigger_messages
         'tenant_chats': _tenant_chats_line(conversation_sid),
         'trigger_message_ids': [m.id for m in trigger_messages],
         'system_prompt_source': system_source,
+        'prompt_versions': _prompt_versions(system_source),
         'context_sources': sources,
         'model': run.get('model'),
         'timed_out': run.get('timed_out'),

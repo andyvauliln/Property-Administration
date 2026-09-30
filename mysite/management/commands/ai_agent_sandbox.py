@@ -38,14 +38,13 @@ class Command(BaseCommand):
         parser.add_argument('--apartment', default='Test_Apart2', help='Name of the TEST apartment to use')
 
     def _wipe(self, keep_runs=True):
-        from mysite.models import AICaseNote, AIEvent, AIFollowUp, AIIssue, AIKnowledge, AIRun, TwilioMessage
+        from mysite.models import AICaseNote, AIEvent, AIFollowUp, AIIssue, AIRun, TwilioMessage
         counts = {
             'messages': TwilioMessage.objects.filter(conversation_sid=SANDBOX_SID).delete()[0],
             'events': AIEvent.objects.filter(conversation_sid=SANDBOX_SID).delete()[0],
             'followups': AIFollowUp.objects.filter(conversation_sid=SANDBOX_SID).delete()[0],
             'notes': AICaseNote.objects.filter(conversation_sid=SANDBOX_SID).delete()[0],
             'issues': AIIssue.objects.filter(conversation_sid=SANDBOX_SID).delete()[0],
-            'knowledge': AIKnowledge.objects.filter(conversation_sid=SANDBOX_SID).delete()[0],
         }
         if not keep_runs:
             counts['runs'] = AIRun.objects.filter(conversation_sid=SANDBOX_SID).delete()[0]

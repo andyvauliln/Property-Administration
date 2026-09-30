@@ -1,0 +1,217 @@
+{
+  "schema_version": 2,
+  "diagram_type": "workflow",
+  "meta": {
+    "title": "AI Agent: Test vs Live",
+    "locale": "en",
+    "quality_profile": "showcase"
+  },
+  "lanes": [
+    {
+      "id": "entry",
+      "label": "Incoming message"
+    },
+    {
+      "id": "gate",
+      "label": "Mode decision (process_events)"
+    },
+    {
+      "id": "live",
+      "label": "LIVE path (normal)"
+    },
+    {
+      "id": "test",
+      "label": "TEST path"
+    },
+    {
+      "id": "offline",
+      "label": "Test-only tools (never reach a tenant)",
+      "variant": "exception"
+    }
+  ],
+  "mainPath": [
+    "msg",
+    "flag",
+    "gate",
+    "live_review",
+    "live_actions",
+    "live_send"
+  ],
+  "nodes": [
+    {
+      "id": "msg",
+      "lane": "entry",
+      "col": 0,
+      "type": "external",
+      "label": "Tenant message",
+      "sublabel": "real or sandbox chat"
+    },
+    {
+      "id": "flag",
+      "lane": "entry",
+      "col": 1,
+      "type": "frontend",
+      "label": "send_allowed",
+      "sublabel": "chat UI checkbox"
+    },
+    {
+      "id": "gate",
+      "lane": "gate",
+      "col": 2,
+      "type": "security",
+      "label": "Mode gate",
+      "sublabel": "ai_group_chat_enabled",
+      "tag": "both must be true"
+    },
+    {
+      "id": "live_review",
+      "lane": "live",
+      "col": 3,
+      "type": "security",
+      "label": "15 min review",
+      "sublabel": "Telegram 🟢 LIVE"
+    },
+    {
+      "id": "live_actions",
+      "lane": "live",
+      "col": 4,
+      "type": "backend",
+      "label": "Apply plan",
+      "sublabel": "apartment ClickUp List"
+    },
+    {
+      "id": "live_send",
+      "lane": "live",
+      "col": 5,
+      "type": "external",
+      "label": "Twilio send",
+      "sublabel": "tenant gets answer"
+    },
+    {
+      "id": "test_review",
+      "lane": "test",
+      "col": 3,
+      "type": "security",
+      "label": "Same review",
+      "sublabel": "Telegram 🧪 TEST"
+    },
+    {
+      "id": "test_actions",
+      "lane": "test",
+      "col": 4,
+      "type": "backend",
+      "label": "Apply plan",
+      "sublabel": "tasks marked TEST"
+    },
+    {
+      "id": "test_store",
+      "lane": "test",
+      "col": 5,
+      "type": "database",
+      "label": "Stored only",
+      "sublabel": "HOLD_TEST, no Twilio"
+    },
+    {
+      "id": "regen",
+      "lane": "offline",
+      "col": 3,
+      "type": "backend",
+      "label": "Regenerate / replay",
+      "sublabel": "no actions, no alerts",
+      "tag": "run_agent(MODE_TEST)",
+      "width": 140
+    }
+  ],
+  "edges": [
+    {
+      "id": "e-msg-flag",
+      "from": "msg",
+      "to": "flag",
+      "variant": "emphasis"
+    },
+    {
+      "id": "e-flag-gate",
+      "from": "flag",
+      "to": "gate",
+      "variant": "emphasis"
+    },
+    {
+      "id": "e-gate-live",
+      "from": "gate",
+      "to": "live_review",
+      "label": "live",
+      "variant": "emphasis"
+    },
+    {
+      "id": "e-gate-test",
+      "from": "gate",
+      "to": "test_review",
+      "label": "test",
+      "variant": "dashed",
+      "role": "branch"
+    },
+    {
+      "id": "e-live-1",
+      "from": "live_review",
+      "to": "live_actions",
+      "variant": "emphasis"
+    },
+    {
+      "id": "e-live-2",
+      "from": "live_actions",
+      "to": "live_send",
+      "variant": "emphasis"
+    },
+    {
+      "id": "e-test-1",
+      "from": "test_review",
+      "to": "test_actions",
+      "variant": "dashed",
+      "role": "branch"
+    },
+    {
+      "id": "e-test-2",
+      "from": "test_actions",
+      "to": "test_store",
+      "variant": "dashed",
+      "role": "branch"
+    },
+    {
+      "id": "e-regen",
+      "from": "regen",
+      "to": "test_store",
+      "label": "answer on message",
+      "variant": "dashed",
+      "role": "branch"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "emerald",
+      "title": "Live (normal)",
+      "items": [
+        "Answer sent to Twilio after 15 min, or at once for emergencies",
+        "ClickUp: apartment List; owner + Farid, Janna, Edy",
+        "Legal answers only after a manager's ok"
+      ]
+    },
+    {
+      "dot": "amber",
+      "title": "Test mode",
+      "items": [
+        "Same Claude run, review, issues, follow-ups, KB",
+        "ClickUp tasks still created: engineering + Farid",
+        "Final answer stored and shown in the chat page, never sent"
+      ]
+    },
+    {
+      "dot": "rose",
+      "title": "Other test switches",
+      "items": [
+        "ai_clickup_writes off: ClickUp only planned; 'test' apartments always write",
+        "Sandbox chat (Test_Apart2, DB only) runs the normal pipeline in test mode",
+        "Telegram reply 'test …' = dry run; run_tests.sh = SQLite + fake Claude"
+      ]
+    }
+  ]
+}

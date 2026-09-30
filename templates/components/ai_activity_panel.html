@@ -6,7 +6,8 @@
         {{ ai_activity.open_issues|length }} open issue{{ ai_activity.open_issues|length|pluralize }},
         {{ ai_activity.followups|length }} pending follow-up{{ ai_activity.followups|length|pluralize }}
     </summary>
-    <div class="px-4 pb-3 space-y-3">
+    {# Own scroll: the panel sits in the chat header, which does not scroll #}
+    <div class="px-4 pb-3 space-y-3 overflow-y-auto" style="max-height: 50vh; overscroll-behavior: contain;">
         {% if ai_activity.open_issues %}
         <div>
             <div class="text-xs font-semibold uppercase text-gray-500 dark:text-gray-400">Open issues</div>
@@ -49,13 +50,7 @@
         </div>
         {% endif %}
 
-        {% if ai_activity.kb_candidates %}
-        <div class="text-xs">
-            <a href="/ai-knowledge/" target="_blank" class="rounded bg-yellow-100 px-2 py-0.5 text-yellow-800 underline">
-                {{ ai_activity.kb_candidates }} knowledge candidate{{ ai_activity.kb_candidates|pluralize }} from this chat wait{{ ai_activity.kb_candidates|pluralize:"s," }} for approval
-            </a>
-        </div>
-        {% endif %}
+
 
         {% if ai_activity.resolved_issues %}
         <div class="text-xs text-gray-500 dark:text-gray-400">

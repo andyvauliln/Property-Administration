@@ -1,0 +1,169 @@
+<!-- Every AI prompt (mysite/ai_agent/prompt_library.py): the live text is the AIManagement row -->
+<div id="prompts">
+    {% csrf_token %}
+    <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-2 mb-2">
+        <div>
+            <p class="text-sm text-gray-500 dark:text-gray-400">
+                Every prompt the AI uses (all run on Claude) is stored here and read from here.
+                Rules added on the chat page ("Teach AI answer", "Add KB rule") and lessons from Telegram replies are written into these prompts.
+            </p>
+        </div>
+    </div>
+
+    <!-- Agent prompt preview -->
+    <div class="mb-4 p-3 rounded-lg border border-purple-200 bg-purple-50 dark:border-purple-800 dark:bg-purple-900/20">
+        <div class="flex flex-col md:flex-row md:items-end gap-2">
+            <div class="flex-grow">
+                <label for="prompt-preview-apartment" class="block mb-1 text-sm font-medium text-gray-900 dark:text-white">Agent prompt preview: the exact system prompt the Claude agent gets for a chat of</label>
+                <select id="prompt-preview-apartment" class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg block w-full p-2 dark:bg-gray-700 dark:border-gray-600 dark:text-white">
+                    <option value="">(no apartment - company lessons only)</option>
+                    {% for apt in preview_apartments %}<option value="{{ apt.id }}">{{ apt.name }}</option>{% endfor %}
+                </select>
+            </div>
+            <button type="button" id="prompt-preview-btn" class="text-white bg-purple-700 hover:bg-purple-800 font-medium rounded-lg text-sm px-4 py-2 h-10">Show</button>
+        </div>
+        <div id="prompt-preview-output" class="hidden mt-3 space-y-2"></div>
+    </div>
+
+    {% for group, cards in prompt_groups %}
+    <h3 class="mt-4 mb-2 text-sm font-semibold uppercase tracking-wide text-gray-600 dark:text-gray-300">{{ group }}</h3>
+    <div class="grid gap-3 grid-cols-1 lg:grid-cols-2">
+        {% for p in cards %}
+        <div class="prompt-card rounded-lg border border-gray-200 dark:border-gray-700 p-3" data-key="{{ p.key }}" id="prompt-{{ p.key }}">
+            <div class="flex items-start justify-between gap-2">
+                <div>
+                    <div class="font-medium text-gray-900 dark:text-white">{{ p.name }}</div>
+                    <code class="text-xs text-gray-500 dark:text-gray-400">{{ p.key }}</code>
+                </div>
+                <div class="flex flex-wrap gap-1 justify-end">
+                    {% if not p.in_db %}
+                    <span class="px-1.5 py-0.5 rounded text-xs bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200" title="Created from the built-in default the first time it is used">Not in DB yet</span>
+                    {% elif p.kind == 'rules' %}
+                    <span class="px-1.5 py-0.5 rounded text-xs bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200">{{ p.rule_count }} line{{ p.rule_count|pluralize }}</span>
+                    {% elif p.edited %}
+                    <span class="px-1.5 py-0.5 rounded text-xs bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200" title="Differs from the built-in default">Edited</span>
+                    {% else %}
+                    <span class="px-1.5 py-0.5 rounded text-xs bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300">Default</span>
+                    {% endif %}
+                </div>
+            </div>
+            <dl class="mt-2 text-sm text-gray-700 dark:text-gray-300 space-y-1">
+                <div><dt class="inline font-semibold">What: </dt><dd class="inline">{{ p.what }}</dd></div>
+                <div><dt class="inline font-semibold">How: </dt><dd class="inline">{{ p.how }}</dd></div>
+                <div><dt class="inline font-semibold">When: </dt><dd class="inline">{{ p.when }}</dd></div>
+                {% if p.placeholders %}
+                <div><dt class="inline font-semibold">Placeholders: </dt><dd class="inline">
+                    {% for name, meaning in p.placeholders %}<code class="text-xs px-1 rounded bg-gray-100 dark:bg-gray-700" title="{{ meaning }}">{{ name }}</code> {{ meaning }}{% if not forloop.last %} · {% endif %}{% endfor %}
+                </dd></div>
+                {% endif %}
+                <div class="text-xs text-gray-500 dark:text-gray-400">
+                    Model: {{ p.model|default:"-" }}
+                    {% if p.in_db %} · {{ p.length }} chars · updated {{ p.updated_at|date:"M d, Y H:i" }}{% if p.updated_by %} by {{ p.updated_by }}{% endif %}{% endif %}
+                </div>
+            </dl>
+            <div class="mt-2 flex gap-2">
+                <button type="button" class="prompt-edit-btn px-2.5 py-1 text-xs font-medium rounded-lg bg-primary-700 text-white hover:bg-primary-800" data-key="{{ p.key }}">{% if p.kind == 'rules' %}View / edit lines{% else %}View / edit{% endif %}</button>
+                {% if p.kind == 'text' %}
+                <button type="button" class="prompt-diff-btn px-2.5 py-1 text-xs font-medium rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-100 dark:text-gray-200 dark:border-gray-600 dark:hover:bg-gray-700" data-key="{{ p.key }}">Diff vs default</button>
+                <button type="button" class="prompt-reset-btn px-2.5 py-1 text-xs font-medium rounded-lg border border-red-300 text-red-700 hover:bg-red-50 dark:text-red-300 dark:border-red-700 dark:hover:bg-red-900/30" data-key="{{ p.key }}">Reset to default</button>
+                {% endif %}
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% endfor %}
+</div>
+
+<!-- Prompt editor -->
+<div id="promptEditModal" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+    <div class="relative w-full max-w-5xl max-h-full overflow-y-auto bg-white rounded-lg shadow dark:bg-gray-800 p-4">
+        <div class="flex justify-between items-center pb-3 mb-3 border-b dark:border-gray-600">
+            <div>
+                <h3 id="promptEditTitle" class="text-lg font-semibold text-gray-900 dark:text-white"></h3>
+                <code id="promptEditKey" class="text-xs text-gray-500"></code>
+            </div>
+            <button type="button" id="promptEditClose" class="text-gray-400 hover:text-gray-900 dark:hover:text-white text-xl leading-none px-2">&times;</button>
+        </div>
+        <div id="promptEditWarning" class="hidden mb-2 p-2 rounded text-sm bg-amber-50 text-amber-800 dark:bg-amber-900/30 dark:text-amber-200"></div>
+        <textarea id="promptEditContent" rows="24" class="block w-full p-2.5 text-sm font-mono text-gray-900 bg-gray-50 rounded-lg border border-gray-300 dark:bg-gray-700 dark:border-gray-600 dark:text-white"></textarea>
+        <pre id="promptEditDiff" class="hidden mt-3 max-h-96 overflow-auto p-2 text-xs rounded bg-gray-900 text-gray-100 whitespace-pre-wrap"></pre>
+        <div class="mt-3 flex items-center justify-between gap-2">
+            <span id="promptEditStatus" class="text-sm text-gray-600 dark:text-gray-300"></span>
+            <div class="flex gap-2">
+                <button type="button" id="promptEditCancel" class="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-100 dark:bg-gray-700 dark:text-gray-300 dark:border-gray-600">Close</button>
+                <button type="button" id="promptEditSave" class="px-4 py-2 text-sm font-medium text-white bg-blue-700 rounded-lg hover:bg-blue-800">Save</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+(function() {
+    const detailUrl = key => `/ai-management/prompts/${encodeURIComponent(key)}/`;
+    const csrf = () => document.querySelector('#prompts input[name=csrfmiddlewaretoken]').value;
+    const modal = document.getElementById('promptEditModal');
+    const els = {
+        title: document.getElementById('promptEditTitle'), key: document.getElementById('promptEditKey'),
+        content: document.getElementById('promptEditContent'), diff: document.getElementById('promptEditDiff'),
+        warning: document.getElementById('promptEditWarning'), status: document.getElementById('promptEditStatus'),
+    };
+    let currentKey = null;
+    const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'}[c]));
+
+    function showWarning(missing) {
+        els.warning.classList.toggle('hidden', !missing || !missing.length);
+        els.warning.textContent = missing && missing.length
+            ? `Placeholder(s) missing from the text: ${missing.map(m => '{' + m + '}').join(', ')} - that data will not reach the AI.` : '';
+    }
+
+    async function open(key, withDiff) {
+        const resp = await fetch(detailUrl(key));
+        const data = await resp.json();
+        if (!resp.ok) { alert(data.error || 'Could not load the prompt'); return; }
+        currentKey = key;
+        els.title.textContent = data.name; els.key.textContent = data.key;
+        els.content.value = data.content;
+        els.diff.textContent = data.diff || '(same as the built-in default)';
+        els.diff.classList.toggle('hidden', !withDiff);
+        els.status.textContent = data.kind === 'rules' ? 'One line per rule / lesson (lines start with "- ").' : (data.edited ? 'Edited (differs from the built-in default).' : 'Same as the built-in default.');
+        showWarning(data.missing_placeholders);
+        modal.classList.remove('hidden');
+    }
+    function close() { modal.classList.add('hidden'); currentKey = null; }
+
+    document.querySelectorAll('.prompt-edit-btn').forEach(b => b.addEventListener('click', () => open(b.dataset.key, false)));
+    document.querySelectorAll('.prompt-diff-btn').forEach(b => b.addEventListener('click', () => open(b.dataset.key, true)));
+    document.querySelectorAll('.prompt-reset-btn').forEach(b => b.addEventListener('click', async () => {
+        if (!confirm(`Reset "${b.dataset.key}" to the built-in default? The current text is overwritten.`)) return;
+        const resp = await fetch(detailUrl(b.dataset.key) + 'reset/', {method: 'POST', headers: {'X-CSRFToken': csrf()}});
+        if (resp.ok) window.location.reload(); else alert((await resp.json()).error || 'Reset failed');
+    }));
+    document.getElementById('promptEditClose').addEventListener('click', close);
+    document.getElementById('promptEditCancel').addEventListener('click', close);
+    document.getElementById('promptEditSave').addEventListener('click', async () => {
+        if (!currentKey) return;
+        els.status.textContent = 'Saving...';
+        const resp = await fetch(detailUrl(currentKey), {
+            method: 'POST', headers: {'Content-Type': 'application/json', 'X-CSRFToken': csrf()},
+            body: JSON.stringify({content: els.content.value}),
+        });
+        const data = await resp.json();
+        if (!resp.ok) { els.status.textContent = data.error || 'Save failed'; return; }
+        showWarning(data.missing_placeholders);
+        els.status.textContent = 'Saved - the AI uses it from the next run.';
+        setTimeout(() => window.location.reload(), (data.missing_placeholders || []).length ? 2500 : 700);
+    });
+
+    document.getElementById('prompt-preview-btn').addEventListener('click', async () => {
+        const apt = document.getElementById('prompt-preview-apartment').value;
+        const out = document.getElementById('prompt-preview-output');
+        const resp = await fetch(`/ai-management/prompts/preview/${apt ? '?apartment=' + encodeURIComponent(apt) : ''}`);
+        const data = await resp.json();
+        out.innerHTML = `<div class="text-xs text-gray-600 dark:text-gray-300">${data.parts.length} parts, ${data.length} chars total, joined in this order:</div>`
+            + data.parts.map((p, i) => `<details class="rounded border border-purple-200 dark:border-purple-800 bg-white dark:bg-gray-800">
+                <summary class="cursor-pointer px-2 py-1 text-sm"><b>${i + 1}. ${esc(p.name)}</b> <code class="text-xs">${esc(p.key)}</code> · ${p.length} chars</summary>
+                <pre class="max-h-96 overflow-auto p-2 text-xs whitespace-pre-wrap text-gray-800 dark:text-gray-100">${esc(p.text)}</pre></details>`).join('');
+        out.classList.remove('hidden');
+    });
+})();
+</script>

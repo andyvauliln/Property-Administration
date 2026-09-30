@@ -1,10 +1,9 @@
 from django.db import migrations
 
 
-def resync_kb_extract_prompts(apps, schema_editor):
-    from mysite.views.messaging import sync_kb_extract_prompts_to_db
-
-    sync_kb_extract_prompts_to_db()
+# Originally re-synced the old KB extract prompts from code. The extraction pipeline and its prompts were removed
+# on 2026-09-28 (the Claude agent updates the knowledge-base documents); this migration is kept as a no-op so the
+# migration history stays intact.
 
 
 class Migration(migrations.Migration):
@@ -14,5 +13,5 @@ class Migration(migrations.Migration):
     ]
 
     operations = [
-        migrations.RunPython(resync_kb_extract_prompts, migrations.RunPython.noop),
+        migrations.RunPython(migrations.RunPython.noop, migrations.RunPython.noop),
     ]

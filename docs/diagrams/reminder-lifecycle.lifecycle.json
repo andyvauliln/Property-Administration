@@ -1,0 +1,183 @@
+{
+  "schema_version": 1,
+  "diagram_type": "lifecycle",
+  "meta": {
+    "title": "AI Reminder Lifecycle",
+    "locale": "en",
+    "quality_profile": "showcase",
+    "viewBox": [
+      1000,
+      680
+    ]
+  },
+  "lanes": [
+    {
+      "id": "main",
+      "label": "One AIFollowUp, start to finish"
+    },
+    {
+      "id": "exits",
+      "label": "When it fires"
+    },
+    {
+      "id": "terminal",
+      "label": "Before it fires"
+    }
+  ],
+  "states": [
+    {
+      "id": "planned",
+      "type": "start",
+      "label": "Planned",
+      "sublabel": "SCHEDULE_FOLLOWUP",
+      "lane": "main",
+      "col": 0,
+      "step": "01",
+      "tag": "15 min review"
+    },
+    {
+      "id": "pending",
+      "type": "waiting",
+      "label": "Pending",
+      "sublabel": "due_at from policy",
+      "lane": "main",
+      "col": 1,
+      "step": "02",
+      "tag": "pending"
+    },
+    {
+      "id": "check",
+      "type": "decision",
+      "label": "Fired",
+      "sublabel": "ClickUp task check",
+      "lane": "main",
+      "col": 2,
+      "step": "03",
+      "tag": "worker 30 s tick"
+    },
+    {
+      "id": "claude",
+      "type": "active",
+      "label": "Claude re-checks",
+      "sublabel": "FOLLOWUP_DUE run",
+      "lane": "main",
+      "col": 3,
+      "step": "04",
+      "tag": "still needed?"
+    },
+    {
+      "id": "sent",
+      "type": "success",
+      "label": "Reminder out",
+      "sublabel": "nudge or staff alert",
+      "lane": "main",
+      "col": 4,
+      "step": "05",
+      "tag": "via review"
+    },
+    {
+      "id": "closed",
+      "type": "success",
+      "label": "Closed quietly",
+      "sublabel": "task closed / resolved",
+      "lane": "exits",
+      "col": 0,
+      "tag": "tenant not contacted"
+    },
+    {
+      "id": "cancel_ai",
+      "type": "failure",
+      "label": "Cancelled by AI",
+      "sublabel": "no longer needed",
+      "lane": "exits",
+      "col": 1,
+      "tag": "NO_ANSWER"
+    },
+    {
+      "id": "next",
+      "type": "neutral",
+      "label": "Next reminder",
+      "sublabel": "e.g. second nudge",
+      "lane": "exits",
+      "col": 2,
+      "tag": "max 8 per issue"
+    },
+    {
+      "id": "cancel_early",
+      "type": "failure",
+      "label": "Cancelled early",
+      "sublabel": "resolved / stop / cancel",
+      "lane": "terminal",
+      "col": 0,
+      "tag": "terminal"
+    }
+  ],
+  "transitions": [
+    {
+      "from": "check",
+      "to": "closed",
+      "label": "task closed",
+      "variant": "emphasis",
+      "route": "straight",
+      "fromSide": "bottom",
+      "toSide": "top",
+      "labelDy": 24
+    },
+    {
+      "from": "claude",
+      "to": "cancel_ai",
+      "label": "not needed",
+      "variant": "security",
+      "route": "straight",
+      "fromSide": "bottom",
+      "toSide": "top",
+      "labelDy": 24
+    },
+    {
+      "from": "sent",
+      "to": "next",
+      "label": "still waiting",
+      "variant": "dashed",
+      "route": "straight",
+      "fromSide": "bottom",
+      "toSide": "top",
+      "labelDy": 24
+    },
+    {
+      "from": "pending",
+      "to": "cancel_early",
+      "label": "cancel",
+      "variant": "security",
+      "labelDy": -34
+    }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "When it is due (policy.py)",
+      "items": [
+        "escalation_check +30 min; tenant_nudge +3 h; second nudge +24 h",
+        "staff_reminder: routine +24 h, urgent +1 h, emergency +30 min",
+        "Tenant nudges 09–20 else next day 10:00; routine staff 10–18"
+      ]
+    },
+    {
+      "dot": "amber",
+      "title": "When it fires",
+      "items": [
+        "Worker checks every 30 s; issue already resolved → cancelled",
+        "Open ClickUp task: status + comments go to Claude",
+        "The reminder answer uses the normal 15 min review + 08–21 SMS window"
+      ]
+    },
+    {
+      "dot": "rose",
+      "title": "What cancels it",
+      "items": [
+        "Issue set RESOLVED (AI or manager on /ai-issues)",
+        "CANCEL_FOLLOWUP from a later run; Telegram 'stop' / 'remove N'",
+        "Closing or deleting its ClickUp task from Telegram"
+      ]
+    }
+  ]
+}

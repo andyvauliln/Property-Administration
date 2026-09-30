@@ -167,12 +167,6 @@ def get_dropdown_options(identifier, isData=False, request=None):
 
     elif identifier == 'ai_prompt_keys':
         return [
-            {"value": "ai_answer_system", "label": "AI Answer System"},
-            {"value": "ai_answer_user", "label": "AI Answer User"},
-            {"value": "ai_extract_check", "label": "AI Extract Check"},
-            {"value": "ai_extract_merge", "label": "AI Extract Merge"},
-            {"value": "ai_extract_global_check", "label": "AI Extract Global Check"},
-            {"value": "ai_extract_global_merge", "label": "AI Extract Global Merge"},
             {"value": "contract_signed_message", "label": "Contract Signed Message"},
             {"value": "contract_message_template", "label": "Contract Message Template"},
             {"value": "welcome_message_template", "label": "Welcome Message Template"},
@@ -186,10 +180,7 @@ def get_dropdown_options(identifier, isData=False, request=None):
             {"value": "extension", "label": "Extension"},
             {"value": "move_out", "label": "Move Out"},
             {"value": "safe_travel", "label": "Safe Travel"},
-            {"value": "ai_conversation_model", "label": "AI Conversation Model"},
-            {"value": "ai_backend", "label": "AI Backend (openrouter / claude_cli)"},
             {"value": "ai_agent_model", "label": "AI Agent Model (Claude)"},
-            {"value": "ai_agent_system", "label": "AI Agent System Prompt (Claude)"},
             {"value": "ai_clickup_writes", "label": "AI ClickUp Writes (on / off)"},
         ]
 

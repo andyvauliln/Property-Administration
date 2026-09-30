@@ -298,6 +298,11 @@ def _append_index(row):
         writer.writerow(row)
 
 
+def _photos_note(meta):
+    ids = ((meta or {}).get('context_sources') or {}).get('agent_images') or []
+    return f" + {len(ids)} photo(s) as stream-json image blocks (media ids {ids})" if ids else ''
+
+
 def write_report(run_dir, meta, user_input, run, parsed, actions, delivery, new_messages_text=''):
     """
     run: dict returned by runner.run_claude (01_system_prompt.md and mcp_config.json already exist).
@@ -309,7 +314,7 @@ def write_report(run_dir, meta, user_input, run, parsed, actions, delivery, new_
     _write_json(run_dir / '00_meta.json', meta)
     (run_dir / '02_input.md').write_text(user_input or '', encoding='utf-8')
     (run_dir / '03_command.txt').write_text(
-        f"cwd: {config.WORK_DIR}\nstdin: 02_input.md\n\n{run.get('command') or ''}\n\n"
+        f"cwd: {config.WORK_DIR}\nstdin: 02_input.md{_photos_note(meta)}\n\n{run.get('command') or ''}\n\n"
         f"MCP config (mcp_config.json):\n{json.dumps(run.get('mcp_config'), indent=2)}\n",
         encoding='utf-8',
     )

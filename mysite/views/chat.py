@@ -1,5 +1,5 @@
 from django.shortcuts import render, get_object_or_404, redirect
-from django.http import HttpResponse, JsonResponse
+from django.http import FileResponse, Http404, HttpResponse, JsonResponse
 from django.contrib.auth.decorators import login_required
 from django.views.decorators.http import require_http_methods
 from django.views.decorators.csrf import csrf_exempt
@@ -17,16 +17,14 @@ from mysite.views.messaging import (
     _notify_manager_chat_delivery_failed,
     get_global_knowledge_base_text,
     save_global_knowledge_base_text,
-    list_conversation_kb_eligible,
-    generate_conversation_kb_step,
-    generate_customer_ai_answer_for_message,
-    generate_all_customer_ai_answers,
     get_ai_prompt_template,
     save_ai_prompt_template,
     is_customer_message,
     get_customer_message_body,
     generate_answer_rule_text,
-    append_rule_to_ai_answer_system,
+    append_rule_to_agent_kb_rules,
+    start_agent_regenerate,
+    save_answer_rule_as_lesson,
     get_answer_rule_modal_context,
     is_answer_rule_eligible_message,
     get_answer_rule_message_body,
@@ -34,22 +32,13 @@ from mysite.views.messaging import (
     is_kb_rule_eligible_message,
     get_kb_manager_message_body,
     generate_kb_rule_text,
-    append_rule_to_kb_extract_check,
     should_run_kb_extraction_for_message,
     _is_ai_assistant_globally_enabled,
     _should_send_ai_to_group,
     _enqueue_for_ai_agent,
     _enqueue_staff_for_ai_agent,
-    KB_EXTRACT_APARTMENT_CHECK_KEY,
-    KB_EXTRACT_APARTMENT_MERGE_KEY,
-    KB_EXTRACT_GLOBAL_CHECK_KEY,
-    KB_EXTRACT_GLOBAL_MERGE_KEY,
-    KB_EXTRACT_PROMPT_KEYS,
-    AI_ANSWER_SYSTEM_KEY,
-    AI_ANSWER_USER_KEY,
     AI_ANSWER_RULE_GENERATE_KEY,
     AI_KB_RULE_GENERATE_KEY,
-    CHAT_EDITABLE_PROMPT_KEYS,
 )
 from mysite.unified_logger import log_error, log_info, logger
 from mysite.ai_agent.config import get_ai_backend
@@ -331,9 +320,10 @@ def chat_detail(request, conversation_sid):
     merged = conversation_groups.group_for(conversation)
     if merged:
         chat_messages = list(TwilioMessage.objects.filter(conversation_id__in=merged['ids'])
-                             .select_related('conversation').order_by('message_timestamp', 'id'))
+                             .select_related('conversation').prefetch_related('media')
+                             .order_by('message_timestamp', 'id'))
     else:
-        chat_messages = list(conversation.messages.order_by('message_timestamp'))
+        chat_messages = list(conversation.messages.prefetch_related('media').order_by('message_timestamp'))
     
     # Get conversation display info
     display_info = get_conversation_display_info(conversation)
@@ -476,7 +466,7 @@ def send_message(request, conversation_sid):
             except Exception:
                 pass
             
-            # When sent as client: process AI synchronously (webhook may not fire for API-created messages)
+            # Sent as client: queue it for the agent here (the webhook may not fire for API-created messages)
             ai_result = None
             if (
                 sender_type == 'client' and conversation.apartment_id and conversation.booking_id and sent_message
@@ -486,99 +476,19 @@ def send_message(request, conversation_sid):
                     sender_phone=manager_phone, source='chat_ui',
                 )
             ):
-                # Claude agent backend: the ai-agent worker answers, the page polls ai-agent-status
+                # The ai-agent worker answers, the page polls ai-agent-status
                 ai_result = {'ai_queued': True, 'message_id': sent_message.id}
             elif sender_type == 'client' and conversation.apartment_id and conversation.booking_id:
-                try:
-                    from mysite.models import Booking, TwilioMessage
-                    from mysite.views.messaging import ai_answer_customer_detailed, _persist_customer_ai_result
-                    from mysite.group_chat_logger import log_ai_customer_start, log_ai_customer_sent
-                    apartment = Apartment.objects.prefetch_related('managers').select_related('owner').get(id=conversation.apartment_id)
-                    booking = Booking.objects.select_related('tenant').get(id=conversation.booking_id)
-                    if len(original_message.strip()) > 3:
-                        log_ai_customer_start(conversation_sid, 'ASSISTANT', original_message, conversation.apartment_id, conversation.booking_id)
-                        ai_detail = ai_answer_customer_detailed(conversation_sid, original_message, apartment, booking)
-                        ai_resp = ai_detail.get("answer")
-                        if ai_resp:
-                            ai_sent_to_chat = bool(send_to_group_chat and _should_send_ai_to_group(apartment))
-                            if ai_sent_to_chat:
-                                try:
-                                    send_tenant_sms_gated(conversation_sid, 'ASSISTANT', ai_resp, manager_phone, None)
-                                except Exception:
-                                    _notify_manager_chat_delivery_failed(
-                                        booking.tenant.full_name or "N/A",
-                                        booking.tenant.phone or "N/A",
-                                        ai_resp,
-                                        conversation_sid,
-                                    )
-                                    raise
-
-                            target_message = sent_message
-                            if not target_message:
-                                target_message = TwilioMessage.objects.filter(
-                                    conversation_sid=conversation_sid,
-                                    body=message_content,
-                                ).order_by('-message_timestamp').first()
-
-                            if target_message:
-                                target_message.ai_response = ai_resp
-                                target_message.ai_response_why = ai_detail.get("why")
-                                target_message.ai_sent_to_chat = ai_sent_to_chat
-                                target_message.save(update_fields=['ai_response', 'ai_response_why', 'ai_sent_to_chat', 'updated_at'])
-                            elif sent_message:
-                                _persist_customer_ai_result(sent_message.message_sid, ai_detail, sent_to_chat=ai_sent_to_chat)
-
-                            ai_result = {
-                                'ai_response': ai_resp,
-                                'ai_response_why': ai_detail.get("why"),
-                                'ai_sent_to_chat': ai_sent_to_chat,
-                                'message_id': target_message.id if target_message else None,
-                            }
-                            log_ai_customer_sent(conversation_sid, ai_resp)
-                        elif ai_detail.get("why") or ai_detail.get("no_answer"):
-                            target_message = sent_message
-                            if target_message:
-                                _persist_customer_ai_result(target_message.message_sid, ai_detail, sent_to_chat=False)
-                            ai_result = {
-                                'ai_response': None,
-                                'ai_response_why': ai_detail.get("why"),
-                                'ai_sent_to_chat': False,
-                                'message_id': target_message.id if target_message else None,
-                            }
-                except Exception as e:
-                    log_exception(error=e, context="Chat - AI answer (client)", additional_info={'conversation_sid': conversation_sid})
+                ai_result = {'ai_skipped_reason': 'The message could not be queued for the AI agent - the team was alerted.'}
             elif sender_type == 'client' and not conversation.booking_id:
                 ai_result = {
                     'ai_skipped_reason': 'This conversation has no linked booking — AI test mode requires both apartment and booking.',
                 }
             elif sender_type == 'manager' and conversation.apartment_id:
                 if sent_message and conversation.booking_id:
-                    # Claude agent: a manager's message updates issues / follow-ups (no-op on the legacy backend).
+                    # A manager's message: the agent updates issues / follow-ups and the knowledge base (KB_UPDATE).
                     # Also for CRM-only messages ("Send to group chat" unticked), so staff flows can be tested safely.
                     _enqueue_staff_for_ai_agent(conversation_sid, sent_message.message_sid, original_message, source='chat_ui')
-                try:
-                    from mysite.models import Apartment, TwilioMessage
-                    from mysite.views.messaging import ai_extract_knowledge, KB_SUFFIX, _extract_marked_body, _is_skippable_message
-                    from mysite.group_chat_logger import log_ai_manager_start
-
-                    # UI manager messages should behave like manager-originated messages in webhook:
-                    # extract from full body, while still accepting explicit (+) marker.
-                    body_for_extract = _extract_marked_body(original_message, KB_SUFFIX) or original_message
-                    if body_for_extract and not _is_skippable_message(body_for_extract):
-                        apartment = Apartment.objects.get(id=conversation.apartment_id)
-                        log_ai_manager_start(conversation_sid, 'ASSISTANT', body_for_extract, conversation.apartment_id)
-                        history_msg = sent_message
-                        if not history_msg:
-                            history_msg = TwilioMessage.objects.filter(
-                                conversation_sid=conversation_sid,
-                                body=message_content,
-                            ).order_by('-message_timestamp', '-id').first()
-                        ai_extract_knowledge(
-                            conversation_sid, body_for_extract, apartment,
-                            conversation=conversation, history_before=history_msg,
-                        )
-                except Exception as e:
-                    log_exception(error=e, context="Chat - AI extract (manager)", additional_info={'conversation_sid': conversation_sid})
             
             response_payload = {
                 'success': True,
@@ -717,27 +627,18 @@ def knowledge_base_prompt(request, prompt_key):
     """
     Load or save bulk KB generation prompts used by the chat modal.
     """
-    if prompt_key not in CHAT_EDITABLE_PROMPT_KEYS:
+    from mysite.ai_agent import prompt_library
+    if prompt_key not in prompt_library.BY_KEY:
         return JsonResponse({'error': 'Unknown prompt key.'}, status=404)
     try:
         if request.method == 'GET':
             content, from_db, description = get_ai_prompt_template(prompt_key)
             if content is None:
                 return JsonResponse({'error': 'Prompt not found.'}, status=404)
-            labels = {
-                KB_EXTRACT_APARTMENT_CHECK_KEY: 'Apartment: when to save (prompt)',
-                KB_EXTRACT_APARTMENT_MERGE_KEY: 'Apartment: how to update (prompt)',
-                KB_EXTRACT_GLOBAL_CHECK_KEY: 'Global: when to save (prompt)',
-                KB_EXTRACT_GLOBAL_MERGE_KEY: 'Global: how to update (prompt)',
-                AI_ANSWER_SYSTEM_KEY: 'Answer instructions prompt',
-                AI_ANSWER_USER_KEY: 'Answer request prompt',
-                AI_ANSWER_RULE_GENERATE_KEY: 'Teach-answer-rule prompt',
-                AI_KB_RULE_GENERATE_KEY: 'Teach-KB-rule prompt',
-            }
             return JsonResponse({
                 'success': True,
                 'prompt_key': prompt_key,
-                'label': labels.get(prompt_key, prompt_key),
+                'label': prompt_library.spec(prompt_key).name,
                 'content': content,
                 'description': description,
                 'from_db': from_db,
@@ -837,7 +738,7 @@ def generate_answer_rule(request, conversation_sid, message_id):
 @require_http_methods(["POST"])
 @csrf_exempt
 def save_answer_rule(request, conversation_sid, message_id):
-    """Append rule text to ai_answer_system prompt in DB."""
+    """Adds the rule as a line of the ai_agent_answer_lessons prompt (DB)."""
     try:
         conversation = get_object_or_404(TwilioConversation, conversation_sid=conversation_sid)
         message = _page_message(conversation, message_id)
@@ -849,11 +750,20 @@ def save_answer_rule(request, conversation_sid, message_id):
         if not rule:
             return JsonResponse({'success': False, 'error': 'Rule is required.'}, status=400)
 
-        updated_prompt = append_rule_to_ai_answer_system(rule)
+        # One place: a line of the 'ai_agent_answer_lessons' prompt, which the agent system prompt includes
+        lesson_scope = payload.get('scope') or 'company'
+        apartment = conversation.apartment if lesson_scope == 'apartment' else None
+        detail = save_answer_rule_as_lesson(
+            rule, apartment=apartment, author=getattr(request.user, 'username', None),
+            conversation_sid=conversation_sid,
+        )
+        where = f"apartment {apartment.name}" if apartment else "all apartments"
         return JsonResponse({
             'success': True,
             'rule': rule if rule.startswith('-') else f'- {rule}',
-            'system_prompt_length': len(updated_prompt or ''),
+            'saved_as': 'lesson',
+            'prompt_key': 'ai_agent_answer_lessons',
+            'message': f"Saved to the AI prompt 'Agent - answer lessons': lesson {detail} for {where}.",
         })
     except Exception as e:
         log_exception(
@@ -940,13 +850,17 @@ def save_kb_rule(request, conversation_sid, message_id):
         if not rule:
             return JsonResponse({'success': False, 'error': 'Rule is required.'}, status=400)
 
-        updated_prompt, prompt_key = append_rule_to_kb_extract_check(rule, scope=scope)
+        # One place: the agent's KB rules (read by the agent, the KB merge and the chat "Generate" prompts)
+        from mysite.ai_agent import config as ai_agent_config
+        agent_rules = append_rule_to_agent_kb_rules(rule, scope=scope)
+        scope_label = 'company KB' if scope == 'global' else 'apartment KB'
         return JsonResponse({
             'success': True,
             'rule': rule if rule.startswith('-') else f'- {rule}',
             'scope': scope,
-            'prompt_key': prompt_key,
-            'check_prompt_length': len(updated_prompt or ''),
+            'prompt_key': ai_agent_config.AI_AGENT_KB_RULES_KEY,
+            'agent_rules_length': len(agent_rules),
+            'message': f"Saved ({scope_label}) to the AI prompt 'Agent - KB rules'.",
         })
     except Exception as e:
         log_exception(
@@ -965,7 +879,8 @@ def generate_message_ai_answer(request, conversation_sid, message_id):
     try:
         conversation = get_object_or_404(TwilioConversation, conversation_sid=conversation_sid)
         message = _page_message(conversation, message_id)
-        result = generate_customer_ai_answer_for_message(message, conversation=message.conversation, save=True)
+        # Claude agent in a background thread; the page polls ai_regenerate_status
+        result = start_agent_regenerate(message.conversation_sid, message=message)
         status = 200 if result.get('success') else 400
         return JsonResponse(result, status=status)
     except Exception as e:
@@ -983,7 +898,7 @@ def generate_message_ai_answer(request, conversation_sid, message_id):
 def generate_all_customer_ai_answers_view(request, conversation_sid):
     """Generate or regenerate AI answers for all customer messages (DB only)."""
     try:
-        result = generate_all_customer_ai_answers(conversation_sid)
+        result = start_agent_regenerate(conversation_sid)
         status = 200 if result.get('success') else 400
         return JsonResponse(result, status=status)
     except Exception as e:
@@ -1000,22 +915,15 @@ def generate_all_customer_ai_answers_view(request, conversation_sid):
 @csrf_exempt
 def generate_chat_knowledge_base(request, conversation_sid):
     """
-    KB modal generate API.
-    POST {} — list eligible manager message ids (fast, no AI).
-    POST {message_id, apartment_kb, global_kb} — analyze one message and return updated drafts.
+    KB window "Generate": drafts of the apartment + global knowledge-base documents from the whole chat
+    (one Claude call, prompt 'ai_kb_from_history'). Nothing is saved - the person reviews and clicks Save.
     """
     try:
-        payload = _parse_json_body(request)
-        message_id = payload.get('message_id')
-        if message_id:
-            result = generate_conversation_kb_step(
-                conversation_sid,
-                message_id,
-                apartment_kb_draft=payload.get('apartment_kb'),
-                global_kb_draft=payload.get('global_kb'),
-            )
-        else:
-            result = list_conversation_kb_eligible(conversation_sid)
+        from mysite.ai_agent import kb_documents
+        conversation = get_object_or_404(TwilioConversation, conversation_sid=conversation_sid)
+        if not conversation.apartment_id:
+            return JsonResponse({'success': False, 'error': 'This chat is not linked to an apartment.'}, status=400)
+        result = kb_documents.generate_from_history(conversation)
         status = 200 if result.get('success') else 400
         return JsonResponse(result, status=status)
     except Exception as e:
@@ -1139,6 +1047,31 @@ def delete_chat_message(request, conversation_sid, message_id):
         return redirect('chat_detail', conversation_sid=conversation_sid)
 
 
+def _media_json(message):
+    return [
+        {'id': m.id, 'url': m.url, 'content_type': m.content_type, 'filename': m.filename, 'is_image': m.is_image}
+        for m in message.media.all() if m.is_downloaded
+    ]
+
+
+@login_required
+def twilio_media_file(request, media_id):
+    """A photo/file received in a Twilio chat. Staff only (login), never a public URL."""
+    from mysite.models import TwilioMessageMedia
+    from mysite.twilio_media import file_path_of
+
+    media = get_object_or_404(TwilioMessageMedia, id=media_id)
+    path = file_path_of(media)
+    if not path:
+        raise Http404("Media file is not available")
+    response = FileResponse(open(path, 'rb'), content_type=media.content_type or 'application/octet-stream')
+    response['Cache-Control'] = 'private, max-age=86400'
+    response['X-Content-Type-Options'] = 'nosniff'
+    if not media.is_image:
+        response['Content-Disposition'] = 'attachment'
+    return response
+
+
 @login_required
 def load_more_messages(request, conversation_sid):
     """
@@ -1153,7 +1086,7 @@ def load_more_messages(request, conversation_sid):
         # Get messages
         chat_messages = TwilioMessage.objects.filter(
             conversation_id__in=conversation_groups.group_ids(conversation)
-        ).order_by('message_timestamp', 'id')
+        ).prefetch_related('media').order_by('message_timestamp', 'id')
         paginator = Paginator(chat_messages, 50)
         page_messages = paginator.get_page(page)
         
@@ -1180,6 +1113,7 @@ def load_more_messages(request, conversation_sid):
                 'ai_kb_changes': message.ai_kb_changes,
                 'forwarded_to_group_sid': message.forwarded_to_group_sid,
                 'other_chat_id': message.conversation_id if message.conversation_id != conversation.id else None,
+                'media': _media_json(message),
             })
         
         return JsonResponse({

@@ -5,11 +5,13 @@ Telegram: the whole run (incoming text once, answer, why, what the team has to d
 other actions in one line, link to the report). ClickUp (mapped apartments only): tasks for tickets +
 one channel message with the team part.
 """
+import os
 from datetime import datetime
 from zoneinfo import ZoneInfo
 
 from mysite.ai_agent import clickup, config
 from mysite.ai_agent.notify import activity_enabled, send_ai_chat
+from mysite.unified_logger import log_warning
 
 RANK = {'routine': 0, 'urgent': 1, 'emergency': 2}
 HEADER_ICON = {'emergency': '🚨 EMERGENCY', 'urgent': '🔴 URGENT', 'routine': '🔔'}
@@ -220,7 +222,7 @@ def compose_telegram(meta, parsed, action_results, delivery, trigger_text, group
                 lines.append(f"• t-{issue.id} 🎫 {issue.ticket_title or issue.summary}" + (f" → {issue.ticket_ref}" if issue.ticket_ref else ""))
                 lines.append(f"  {('💬 ' + update['text'][:400]) if update.get('text') else ''} {update.get('clickup') or ''}".rstrip())
         parts, problems = _other_actions_line(action_results)
-        kb = [f"📚 {i['action'].get('key')} = {str(i['action'].get('value'))[:120]} ({str(i.get('detail'))[:90]})"
+        kb = [f"📚 {str(i['action'].get('text') or i['action'].get('value') or '')[:160]} - {str(i.get('detail') or '').splitlines()[0][:120]}"
               for i in action_results if isinstance(i.get('action'), dict) and i['action'].get('type') == 'KB_UPDATE'
               and i.get('status') != 'rejected']
         if parts:
@@ -302,6 +304,34 @@ def task_name(title, unit, is_test):
     return '[AI] ' + ('[TEST] ' if is_test else '') + _with_unit(title, unit)
 
 
+def _trigger_photos(meta):
+    """Downloaded photos of the messages that started the run (they go to the ClickUp task)."""
+    from mysite.models import TwilioMessageMedia
+    ids = (meta or {}).get('trigger_message_ids') or []
+    if not ids:
+        return []
+    return [m for m in TwilioMessageMedia.objects.filter(message_id__in=ids).order_by('id') if m.is_downloaded]
+
+
+def _attach_photos(task_id, photos, list_id):
+    """Uploads the photos to the task. Returns a short note; a failed upload never fails the task."""
+    from mysite.twilio_media import file_path_of
+    if not (task_id and photos):
+        return ''
+    done, failed = 0, 0
+    for media in photos:
+        path = file_path_of(media)
+        try:
+            if not path:
+                raise clickup.ClickUpError("file missing on disk")
+            clickup.attach_file(task_id, path, media.filename or os.path.basename(path), media.content_type, list_id=list_id)
+            done += 1
+        except clickup.ClickUpError as e:
+            failed += 1
+            log_warning(f"ClickUp: could not attach photo #{media.id} to task {task_id}: {e}", category='sms')
+    return f"{done} photo(s) attached" + (f", {failed} failed" if failed else '')
+
+
 def _deliver_clickup(ctx, groups, trigger_text, ai_run):
     """Tasks for tickets + one channel message. Returns a note; never raises."""
     mapping = clickup.channel_for(ctx.apartment)
@@ -314,6 +344,8 @@ def _deliver_clickup(ctx, groups, trigger_text, ai_run):
     if mode == 'off':
         return 'ClickUp: skipped (no CLICKUP_API_TOKEN and AI_AGENT_CLICKUP_VIA_CLAUDE=off)'
 
+    photos = _trigger_photos(ctx.meta)
+    photo_lines = ''.join(f"\nPhoto #{m.id}: {config.site_url()}{m.url}" for m in photos)
     tasks = []
     for group in groups:
         issue = group['issue']
@@ -329,7 +361,7 @@ def _deliver_clickup(ctx, groups, trigger_text, ai_run):
         tasks.append({
             'group': group,
             'name': task_name(group['ticket_title'], ctx.meta.get('apartment'), ctx.is_test),
-            'description': f"{group['text']}\n\nTenant: {ctx.meta.get('tenant')}\n{(trigger_text or '')[:1500]}\n\nReport: {report_url(ai_run.id)}",
+            'description': f"{group['text']}\n\nTenant: {ctx.meta.get('tenant')}\n{(trigger_text or '')[:1500]}{photo_lines}\n\nReport: {report_url(ai_run.id)}",
             'priority': group['priority'], 'assignees': assignees, 'due_at': clickup.default_due_at(group['priority']),
             'tags': AI_TASK_TAGS,
         })
@@ -347,9 +379,12 @@ def _deliver_clickup(ctx, groups, trigger_text, ai_run):
                 )
                 task['group']['task_url'] = task_url or task_id
                 task['group']['task_created'] = True
+                photo_note = _attach_photos(task_id, photos, mapping.list_id)
             if mapping.channel_id:
                 clickup.post_message(mapping.channel_id, compose_clickup(ctx.meta, groups, trigger_text, ai_run))
             note = f"ClickUp (API): {len(tasks)} task(s)" + (", channel message" if mapping.channel_id else ", no channel id")
+            if tasks and photos:
+                note += f", {photo_note}"
         else:
             result = clickup.deliver_via_claude(
                 mapping, tasks, lambda: compose_clickup(ctx.meta, groups, trigger_text, ai_run),

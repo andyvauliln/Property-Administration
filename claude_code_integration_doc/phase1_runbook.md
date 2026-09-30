@@ -47,7 +47,7 @@ else is stored in the DB and visible in the chat page and `/ai-runs/`.
 | System prompt | AIManagement entry type **AI Prompt**, key `ai_agent_system` | `mysite/ai_agent/default_system_prompt.md` |
 | The one AI Telegram chat (alerts live + test, failed runs, failed deliveries, worker crashes) | env `AI_AGENT_ALERT_CHAT_ID`; code: `mysite/ai_agent/notify.py` | **set 2026-09-21: group "[PM] AI GROUP" (`-5026850825`), bot `@PropertyManagmentBot` is a member, test message delivered** |
 | Names in the prompt | env `AI_AGENT_ASSISTANT_NAME`, `AI_AGENT_COMPANY_NAME`, `AI_AGENT_TEAM_TIMEZONE` | Virtual Assistant / — / America/New_York |
-| Limits | env `AI_AGENT_TIMEOUT_SECONDS` 180, `AI_AGENT_MAX_BUDGET_USD` 0.50, `AI_AGENT_DEBOUNCE_SECONDS` 60 (emergency-looking messages 0, chat-page tests `AI_AGENT_CHAT_UI_DEBOUNCE_SECONDS` 5) | |
+| Limits | env `AI_AGENT_TIMEOUT_SECONDS` 360, `AI_AGENT_MAX_BUDGET_USD` 0.50, `AI_AGENT_DEBOUNCE_SECONDS` 60 (emergency-looking messages 0, chat-page tests `AI_AGENT_CHAT_UI_DEBOUNCE_SECONDS` 5) | |
 
 ## Investigating a run
 

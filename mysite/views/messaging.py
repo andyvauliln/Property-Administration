@@ -8,16 +8,6 @@ import re
 from mysite.unified_logger import log_error, log_info, log_warning, logger
 from mysite.group_chat_logger import (
     log_message_received,
-    log_ai_customer_start,
-    log_ai_customer_skipped,
-    log_ai_customer_full,
-    log_ai_customer_no_answer,
-    log_ai_customer_sent,
-    log_ai_manager_start,
-    log_ai_manager_check,
-    log_ai_manager_merge,
-    log_ai_manager_no_extract,
-    log_ai_disabled,
     log_no_conv_link,
     log_new_group_created,
     log_message_forwarded,
@@ -29,7 +19,7 @@ import time
 import twilio
 from django.utils import timezone
 
-KB_SUFFIX = "(+)"  # Virtual Assistant messages marked with (+) are processed for knowledge extraction
+KB_SUFFIX = "(+)"  # older Virtual Assistant messages marked with (+) as manager knowledge (still recognised)
 CLIENT_SUFFIX = "(+++)"  # Virtual Assistant messages marked with (+++) are treated as client (AI answers)
 MANAGER_CHAT_SID = os.environ.get("MANAGER_CHAT_SID", "CH10c59b85e2ec4aad98e982916c495ea8")
 
@@ -706,6 +696,54 @@ def delete_all_messages(conversation_sid):
 
 
 
+PHOTO_PLACEHOLDER = '[photo]'
+
+
+def _store_webhook_media(message, post):
+    """Downloads the photos of a webhook message. Never raises: a media failure must not lose the message."""
+    if message is None or not post.get('Media'):
+        return []
+    try:
+        from mysite.twilio_media import parse_webhook_media, store_message_media
+        chat_service_sid, items = parse_webhook_media(post)
+        return store_message_media(message, chat_service_sid, items) if items else []
+    except Exception as e:
+        log_error(e, "Error storing webhook media", source='twilio')
+        return []
+
+
+def _route_to_ai_agent(conversation_sid, message_sid, author, body):
+    """
+    Queues a stored chat message for the Claude agent: tenant messages (to answer) and manager messages (to
+    update issues, follow-ups and the knowledge base). The agent decides per apartment whether it may send.
+    """
+    from mysite.models import TwilioConversation
+
+    if author in ('ASSISTANT', 'Virtual Assistant'):
+        # The assistant's own messages; "(+++)" marks a chat-page test message sent as the tenant
+        body = _extract_marked_body((body or '').strip(), CLIENT_SUFFIX)
+        if not body:
+            return
+        is_tenant = True
+    elif author == TWILIO_ASSISTANT_PHONE:
+        return
+    else:
+        is_tenant = author not in get_manager_phones()
+    conv = TwilioConversation.objects.filter(conversation_sid=conversation_sid).first()
+    if not (conv and conv.apartment_id and conv.booking_id):
+        log_no_conv_link(conversation_sid or '', author or '', body or '')
+        return
+    if not is_tenant:
+        _enqueue_staff_for_ai_agent(conversation_sid, message_sid, body)
+        return
+    if not _enqueue_for_ai_agent(conversation_sid, message_sid, body):
+        # There is no fallback AI any more: tell the team so a person answers
+        from mysite.ai_agent.notify import notify_ai_chat
+        log_ai_error(conversation_sid or '', "AI agent queue", "tenant message could not be queued")
+        notify_ai_chat(f"⚠️ A tenant message could not be queued for the AI agent - please answer it yourself.\n"
+                       f"Chat {conversation_sid}: {body[:300]}")
+
+
 def _is_skippable_message(text):
     """Returns True for short acknowledgment messages that don't need AI processing."""
     if not text:
@@ -732,76 +770,15 @@ def _extract_marked_body(text, marker):
 
 
 def _get_ai_client():
-    """Initialize OpenRouter client. Returns (client, error_reason)."""
-    try:
-        from openai import OpenAI
-        api_key = os.environ.get('OPENROUTER_API_KEY', '')
-        if not api_key:
-            return None, 'OPENROUTER_API_KEY is not set'
-        return OpenAI(base_url="https://openrouter.ai/api/v1", api_key=api_key), None
-    except Exception as e:
-        log_error(e, "Failed to initialize AI client", source='web')
-        return None, str(e)
-
-
-DEFAULT_CHAT_MODEL = "openai/gpt-5.6-terra"
-LEGACY_CHAT_MODEL = "openai/gpt-4o-mini"
-RECOMMENDED_CHAT_MODELS = (
-    ("openai/gpt-5.6-terra", "GPT-5.6 Terra (recommended for chat + KB)"),
-    ("openai/gpt-5.6-luna", "GPT-5.6 Luna (fast, lower cost)"),
-    ("openai/gpt-5.6-sol", "GPT-5.6 Sol (flagship)"),
-    ("openai/gpt-5.5", "GPT-5.5"),
-    ("openai/gpt-5.5-pro", "GPT-5.5 Pro (deep reasoning)"),
-    ("openai/gpt-4o-mini", "GPT-4o Mini (legacy fallback)"),
-)
-DEPRECATED_CHAT_MODELS = frozenset({
-    "openai/gpt-5.2-chat",
-    "openai/gpt-5.2",
-    "gpt-5.2-chat",
-    "gpt-5.2",
-})
-
-
-def normalize_chat_model(model_slug, fallback=None):
-    """Map deprecated/empty model slugs to the current default chat model."""
-    fallback = fallback or DEFAULT_CHAT_MODEL
-    slug = (model_slug or "").strip()
-    if not slug or slug in DEPRECATED_CHAT_MODELS:
-        return fallback
-    return slug
-
-
-def _get_db_model_raw():
-    try:
-        from mysite.models import AIManagement
-        entry = AIManagement.objects.filter(prompt_key='ai_conversation_model').first()
-        if entry and entry.content:
-            return entry.content.strip()
-    except Exception:
-        pass
-    return None
-
-
-def resolve_chat_model(model_slug=None, fallback=None):
-    """
-    Resolve the chat model slug from AIManagement with deprecated slug auto-fix.
-    Returns (resolved_model, replaced_from_or_none).
-    """
-    fallback = fallback or DEFAULT_CHAT_MODEL
-    raw = model_slug if model_slug is not None else _get_db_model_raw()
-    if not raw:
-        return fallback, None
-    resolved = normalize_chat_model(raw, fallback=fallback)
-    if resolved != raw:
-        return resolved, raw
-    return resolved, None
+    """Client for the chat-page AI helpers (the Claude one-shot client). Returns (client, error_reason)."""
+    from mysite.ai_agent.oneshot import ClaudeTextClient
+    return ClaudeTextClient(), None
 
 
 def _get_db_model(fallback=None):
-    """Return the AI model name set in AIManagement DB, or fallback."""
-    fallback = fallback or DEFAULT_CHAT_MODEL
-    resolved, _replaced = resolve_chat_model(fallback=fallback)
-    return resolved
+    """Model of the chat-page AI helpers: the Claude one-shot model."""
+    from mysite.ai_agent import config as ai_agent_config
+    return ai_agent_config.oneshot_model()
 
 
 def _apartment_fields_context(apartment):
@@ -849,10 +826,8 @@ def build_full_context(conversation_sid, apartment, booking, history_before=None
     parts.append(f"=== CURRENT DATE & TIME ===\n{now.strftime('%A, %B %d, %Y %H:%M')} ({now_label})")
 
     # Global knowledge base (only knowledge entries, not prompts)
-    global_kb_entries = AIManagement.objects.filter(
-        entry_type=AIManagement.ENTRY_TYPE_KNOWLEDGE
-    )
-    global_kb_texts = [entry.content for entry in global_kb_entries if entry.content and entry.content.strip()]
+    global_kb_text = get_global_knowledge_base_text()
+    global_kb_texts = [global_kb_text] if global_kb_text else []
     context_sources["global_kb"] = bool(global_kb_texts)
     if global_kb_texts:
         parts.append(f"=== GLOBAL KNOWLEDGE BASE ===\n" + "\n\n".join(global_kb_texts))
@@ -950,12 +925,6 @@ def build_full_context(conversation_sid, apartment, booking, history_before=None
     return "\n\n".join(parts), context_sources
 
 
-def _get_prompt(prompt_key, **placeholders):
-    """Load prompt from AIManagement, format with placeholders, or return None for fallback."""
-    content, _from_db = _get_prompt_with_source(prompt_key, **placeholders)
-    return content
-
-
 def _normalize_message_text(value):
     return " ".join(str(value or "").split()).strip().lower()
 
@@ -1032,100 +1001,20 @@ def _get_prompt_with_source(prompt_key, **placeholders):
     content: formatted prompt string or None for fallback.
     from_db: True if loaded from DB, False if fallback.
     """
+    from mysite.ai_agent import prompt_library
     from mysite.models import AIManagement
-    entry = AIManagement.objects.filter(
-        entry_type=AIManagement.ENTRY_TYPE_PROMPT,
-        prompt_key=prompt_key
-    ).first()
-    if entry and entry.content and entry.content.strip():
+    if prompt_key in prompt_library.BY_KEY:
+        content = prompt_library.raw(prompt_key)
+    else:
+        entry = AIManagement.objects.filter(entry_type=AIManagement.ENTRY_TYPE_PROMPT, prompt_key=prompt_key).first()
+        content = (entry.content or '').strip() if entry else ''
+    if content:
         try:
-            return entry.content.format(**placeholders), True
-        except KeyError:
+            return content.format(**placeholders), True
+        except (KeyError, IndexError, ValueError):
             log_warning(f"Prompt {prompt_key} has missing placeholders", category='sms')
             return None, False
     return None, False
-
-
-def _update_message_ai_result(message_sid, **kwargs):
-    """Update TwilioMessage AI metadata fields after processing."""
-    if not message_sid:
-        return
-    if not kwargs:
-        return
-    try:
-        from mysite.audit_bulk import audit_queryset_update
-        from mysite.models import TwilioMessage
-        from mysite.signals import get_current_user_info
-
-        audit_queryset_update(
-            TwilioMessage.objects.filter(message_sid=message_sid),
-            changed_by=get_current_user_info(),
-            **kwargs,
-        )
-    except Exception as e:
-        log_error(e, "Error updating message AI metadata", source='web')
-
-
-AI_ANSWER_RESPONSE_FORMAT = (
-    "Always respond using EXACTLY this format (keep the markers on their own lines):\n"
-    "[ANSWER]\n"
-    "<concise answer, one clarifying question, or NO_ANSWER only>\n"
-    "[WHY]\n"
-    "<1-2 sentences explaining why you chose this answer or NO_ANSWER, "
-    "what context you used, or what information is missing>"
-)
-
-
-AI_ANSWER_SYSTEM_PROMPT = (
-    "You are an AI assistant for a property management company in a group chat with the tenant and managers.\n\n"
-    "Your job is to answer ONLY when you can give a factual, low-risk answer from context.\n"
-    "You are NOT the property manager. You do NOT schedule meetings, confirm appointments, negotiate payments, "
-    "or speak for managers.\n\n"
-    "For each tenant message, choose ONE of:\n\n"
-    "1. ANSWER - You have enough verified info in context for a short factual reply (max 3 sentences).\n"
-    "   Examples: WiFi/password from KB, check-in/out dates from booking, apartment address, documented house rules.\n\n"
-    "2. CLARIFY - ONLY for missing factual apartment details (NOT scheduling or payments).\n"
-    "   Ask ONE short question. Never use CLARIFY for meeting time, place, or who will meet the tenant.\n\n"
-    "3. NO_ANSWER - Use when ANY of these apply:\n"
-    "   - Scheduling or logistics: meetups, times, places, hour-away updates, tomorrow works, availability, ETAs\n"
-    "   - Payments handled in person: checks, deposits, down payment drop-off, who to pay, where to meet to pay\n"
-    "   - Tenant is talking TO a manager by name (e.g. Hey Kevin) or updating managers on arrival\n"
-    "   - Recent chat shows managers are actively handling this thread (manager message in last 5 messages)\n"
-    "   - Tenant message is only acknowledgment: ok, thanks, Liked ..., great, emoji reactions\n"
-    "   - Tenant asks manager to decide something (you tell me a time and where)\n"
-    "   - You would need to invent time, place, person, phone, or agreement not explicitly in context\n"
-    "   - Coordination between tenant and staff unless fully documented in KB\n\n"
-    "RULES:\n"
-    "- Never fabricate - only use facts from the context.\n"
-    "- Never propose a meeting location or time unless a manager ALREADY stated it in RECENT CHAT HISTORY "
-    "and the tenant only needs a brief confirmation repeat.\n"
-    "- Do not say we will coordinate, someone will meet you, or I will let the team know - "
-    "that implies a commitment managers must make.\n"
-    "- Do not greet with Hello on every message if the conversation is already ongoing.\n"
-    "- Be friendly and professional.\n"
-    "- Answer in the same language as the tenant's message.\n"
-    "- Put ONLY tenant-facing text in [ANSWER]. Put NO_ANSWER in [ANSWER] when staying silent.\n\n"
-    f"{AI_ANSWER_RESPONSE_FORMAT}"
-)
-
-
-def _fallback_ai_answer_system_prompt():
-    return AI_ANSWER_SYSTEM_PROMPT
-
-
-def _fallback_ai_answer_user_prompt(context, message_body):
-    return (
-        f"Context:\n{context}\n\n"
-        f"Tenant message: {message_body}\n\n"
-        "Respond using the required [ANSWER] / [WHY] format from the system prompt."
-    )
-
-
-AI_ANSWER_USER_TEMPLATE = (
-    "Context:\n{context}\n\n"
-    "Tenant message: {message_body}\n\n"
-    "Respond using the required [ANSWER] / [WHY] format from the system prompt."
-)
 
 
 def is_customer_message(message):
@@ -1149,296 +1038,48 @@ def get_customer_message_body(message):
     return extracted or body
 
 
-def generate_customer_ai_answer_for_message(
-    message,
-    conversation=None,
-    apartment=None,
-    booking=None,
-    save=True,
-):
+REGENERATE_ALL_MAX = int(os.environ.get('AI_AGENT_REGENERATE_ALL_MAX', 30))
+
+
+def start_agent_regenerate(conversation_sid, message=None):
     """
-    Generate (or regenerate) AI tenant answer for one customer message.
-    Uses production ai_answer_customer_detailed with point-in-time history.
-    Saves to message.ai_response fields only — never sends to SMS.
+    Claude backend: queue "Generate AI" (one message) or "Generate all" (every tenant message, newest
+    REGENERATE_ALL_MAX) for the agent in a background thread (mysite.ai_agent.regenerate). Never sends anything.
     """
-    from mysite.models import Apartment, Booking
+    from mysite.ai_agent import regenerate
+    from mysite.models import TwilioConversation
 
-    conversation = conversation or message.conversation
-    if not conversation.apartment_id or not conversation.booking_id:
-        return {'success': False, 'error': 'Conversation must be linked to an apartment and booking.'}
-    if not is_customer_message(message):
-        return {'success': False, 'error': 'Not a customer message.'}
-
-    body = get_customer_message_body(message)
-    if _is_skippable_message(body):
-        return {
-            'success': False,
-            'error': 'Message too short for AI processing.',
-            'skipped': True,
-            'message_id': message.id,
-        }
-
-    if apartment is None:
-        apartment = Apartment.objects.prefetch_related('managers').select_related('owner').get(
-            id=conversation.apartment_id,
-        )
-    if booking is None:
-        booking = Booking.objects.select_related('tenant').get(id=conversation.booking_id)
-
-    result = ai_answer_customer_detailed(
-        conversation.conversation_sid,
-        body,
-        apartment,
-        booking,
-        history_before=message,
-    )
-    if result.get('error'):
-        return {
-            'success': False,
-            'error': result['error'],
-            'message_id': message.id,
-        }
-
-    answer = result.get('answer')
-    why = result.get('why')
-    no_answer = bool(result.get('no_answer'))
-
-    if save:
-        message.ai_response = answer
-        message.ai_response_why = why
-        message.ai_sent_to_chat = False
-        message.save(update_fields=['ai_response', 'ai_response_why', 'ai_sent_to_chat', 'updated_at'])
-
-    return {
-        'success': True,
-        'message_id': message.id,
-        'ai_response': answer,
-        'ai_response_why': why,
-        'ai_sent_to_chat': False,
-        'no_answer': no_answer,
-        'message_timestamp': message.message_timestamp.isoformat() if message.message_timestamp else None,
-    }
-
-
-def generate_all_customer_ai_answers(conversation_sid):
-    from mysite.models import TwilioConversation, Apartment, Booking
-
-    conversation = TwilioConversation.objects.select_related(
-        'apartment', 'booking', 'booking__tenant',
-    ).filter(conversation_sid=conversation_sid).first()
+    conversation = TwilioConversation.objects.filter(conversation_sid=conversation_sid).first()
     if not conversation:
         return {'success': False, 'error': 'Conversation not found.'}
     if not conversation.apartment_id or not conversation.booking_id:
         return {'success': False, 'error': 'Conversation must be linked to an apartment and booking.'}
+    if message is not None and not is_customer_message(message):
+        return {'success': False, 'error': 'Not a customer message.'}
 
-    apartment = Apartment.objects.prefetch_related('managers').select_related('owner').get(
-        id=conversation.apartment_id,
-    )
-    booking = Booking.objects.select_related('tenant').get(id=conversation.booking_id)
-    messages = list(conversation.messages.order_by('message_timestamp', 'id'))
-
-    results = []
-    processed = 0
-    skipped = 0
-    errors = []
-    for msg in messages:
-        if not is_customer_message(msg):
-            continue
-        item = generate_customer_ai_answer_for_message(
-            msg, conversation=conversation, apartment=apartment, booking=booking, save=True,
-        )
-        results.append(item)
-        if item.get('skipped'):
-            skipped += 1
-        elif item.get('success'):
-            processed += 1
-        elif item.get('error'):
-            errors.append(f"#{msg.id}: {item['error']}")
-
+    candidates = [message] if message is not None else [
+        m for m in conversation.messages.order_by('message_timestamp', 'id') if is_customer_message(m)
+    ]
+    eligible = [m for m in candidates if not _is_skippable_message(get_customer_message_body(m))]
+    if not eligible:
+        return {'success': False, 'error': 'Message too short for AI processing.', 'skipped': True,
+                'message_id': getattr(message, 'id', None)}
+    limited = eligible[-REGENERATE_ALL_MAX:]
+    run_ids = regenerate.start(limited)
     return {
         'success': True,
-        'processed': processed,
-        'skipped': skipped,
-        'total_customer_messages': len([m for m in messages if is_customer_message(m)]),
-        'results': results,
-        'errors': errors[:20],
+        'queued': True,
+        'run_ids': run_ids,
+        'message_id': getattr(message, 'id', None),
+        'total_customer_messages': len(candidates),
+        'skipped': len(candidates) - len(eligible),
+        'not_queued_over_limit': len(eligible) - len(limited),
     }
 
 
-AI_EXTRACT_CHECK_TEMPLATE = (
-    "You evaluate whether a manager's message contains REUSABLE OPERATIONAL knowledge "
-    "about an apartment that should be saved in free-text notes for FUTURE tenants.\n\n"
-    "The following information is ALREADY stored in structured database fields "
-    "and must NOT be flagged as new — do not save it to notes:\n"
-    "{fields_ctx}\n\n"
-    "Recent chat history before this message (read-only context to understand the manager message — "
-    "do NOT extract knowledge from history, only from the manager message below):\n"
-    "{chat_history}\n\n"
-    "IMPORTANT: Extract knowledge ONLY from the manager message at the end. "
-    "Ignore chat history, tenant messages, and any automated system notifications.\n\n"
-    "RULES:\n"
-    "- YES if the message states a standing procedure or fact that would still be true for the next tenant "
-    "(how to access the property, how parking works, house rules, WiFi/credentials, how something operates, "
-    "stable local tips). Save it even when it was said while handling a current request.\n"
-    "- WiFi names/passwords and access codes MUST be saved; do not skip them as too sensitive.\n"
-    "- NO only if the message is solely this-stay coordination: a specific time/ETA, meetup, payment drop-off, "
-    "offering to bring or deliver an item now, a personal contact for one meeting, or an acknowledgment "
-    "with no lasting procedure.\n"
-    "- A current request can still contain a standing rule. If the manager explains how the property works, "
-    "that is YES. If they only arrange a one-off action, that is NO.\n\n"
-    "Manager message to evaluate: {message_body}\n\n"
-    "Reply using EXACTLY this format (keep the markers on their own lines):\n"
-    "[DECISION]\n"
-    "YES or NO\n"
-    "[SUGGESTED]\n"
-    "<concise standing facts to save for future tenants — only if YES; otherwise \"none\">"
-)
-
-AI_EXTRACT_MERGE_TEMPLATE = (
-    "Current apartment knowledge base:\n{knowledge_base}\n\n"
-    "Manager message (ONLY source for new facts — do not use anything else):\n{message_body}\n\n"
-    "Our system detected the following possible reusable knowledge from this manager message:\n"
-    "{suggested_knowledge}\n\n"
-    "Merge ONLY facts from the manager message / suggested knowledge above. "
-    "Do not add facts from chat history or automated notifications. "
-    "Merge into the knowledge base only if not already covered. "
-    "Do not duplicate existing facts. Keep the result clear and organized.\n\n"
-    "If nothing new to add, return the current knowledge base unchanged in [UPDATED KB] "
-    "and put 'No reusable knowledge to add.' in [CHANGES].\n\n"
-    "Respond using EXACTLY this format (keep the markers on their own lines):\n"
-    "[UPDATED KB]\n"
-    "<full updated knowledge base text>\n"
-    "[CHANGES]\n"
-    "<one or two sentences describing only what was added or changed, or 'No reusable knowledge to add.'>"
-)
-
-AI_EXTRACT_GLOBAL_CHECK_TEMPLATE = (
-    "You evaluate whether a manager's message contains REUSABLE GLOBAL guidance for how the "
-    "Virtual Assistant should communicate across all properties and bookings.\n\n"
-    "Recent chat history before this message (read-only context to understand the manager message — "
-    "do NOT extract knowledge from history, only from the manager message below):\n"
-    "{chat_history}\n\n"
-    "IMPORTANT: Extract knowledge ONLY from the manager message at the end. "
-    "Ignore chat history, tenant messages, and any automated system notifications.\n\n"
-    "Global KB is NOT for apartment or booking facts. Reply YES only for guidance that applies everywhere:\n"
-    "- How to answer certain question types (patterns: what to say, what not to say, when to use NO_ANSWER)\n"
-    "- Communication style (tone, greetings policy, language, professionalism)\n"
-    "- Company-wide policies not tied to one unit (accepted payment methods, deposit/hold rules, company procedures)\n"
-    "- Reusable response patterns for common tenant situations across properties\n\n"
-    "Reply NO — these belong in apartment KB or nowhere:\n"
-    "- This apartment's WiFi, door/gate codes, parking for one unit, appliances, address, unit house rules\n"
-    "- This booking's dates, tenant name, prices, meetup times, ETAs, one-off coordination\n"
-    "- Greetings, acknowledgments, or content with no reusable assistant guidance\n\n"
-    "If a message mixes apartment-specific facts with global guidance, reply YES only when there is "
-    "clear global assistant guidance — put only that in [SUGGESTED], not apartment details.\n\n"
-    "Manager message to evaluate: {message_body}\n\n"
-    "Reply using EXACTLY this format (keep the markers on their own lines):\n"
-    "[DECISION]\n"
-    "YES or NO\n"
-    "[SUGGESTED]\n"
-    "<concise global assistant guidance (how to answer/style/policy) — only if YES; otherwise \"none\">"
-)
-
-AI_EXTRACT_GLOBAL_MERGE_TEMPLATE = (
-    "Current global knowledge base:\n{knowledge_base}\n\n"
-    "Manager message (ONLY source for new facts — do not use anything else):\n{message_body}\n\n"
-    "Our system detected the following possible global assistant guidance from this manager message:\n"
-    "{suggested_knowledge}\n\n"
-    "Global KB stores ONLY company-wide guidance: how to answer question types, communication style, "
-    "and policies that are NOT tied to one apartment or booking.\n\n"
-    "Merge ONLY that global guidance from the manager message / suggested knowledge above. "
-    "Do NOT add apartment-specific facts (WiFi, codes, unit details, parking for one property) "
-    "or booking-specific facts (dates, tenant names, meetups, ETAs). "
-    "Do not add facts from chat history or automated notifications. "
-    "Merge only if not already covered. Do not duplicate. Keep clear and organized.\n\n"
-    "If nothing new to add, return the current knowledge base unchanged in [UPDATED KB] "
-    "and put 'No reusable knowledge to add.' in [CHANGES].\n\n"
-    "Respond using EXACTLY this format (keep the markers on their own lines):\n"
-    "[UPDATED KB]\n"
-    "<full updated global knowledge base text>\n"
-    "[CHANGES]\n"
-    "<one or two sentences describing only what was added or changed, or 'No reusable knowledge to add.'>"
-)
-
-
-def manager_message_has_operational_kb_hints(message_body):
-    """Detect obvious operational KB content the extract check should not skip."""
-    text = (message_body or "").lower()
-    if not text:
-        return False
-    patterns = (
-        r"wi-?fi",
-        r"\bssid\b",
-        r"network\s*name",
-        r"door\s*code",
-        r"gate\s*code",
-        r"lock\s*code",
-        r"access\s*code",
-        r"entry\s*code",
-        r"\bparking\b",
-        r"\bgarage\b",
-        r"house\s*rule",
-    )
-    return any(re.search(pattern, text) for pattern in patterns)
-
-
-def build_ai_extract_check_prompt(fields_ctx, message_body, chat_history='(none)'):
-    return AI_EXTRACT_CHECK_TEMPLATE.format(
-        fields_ctx=fields_ctx,
-        message_body=message_body,
-        chat_history=chat_history,
-    )
-
-
-def build_ai_extract_merge_prompt(knowledge_base, message_body, suggested_knowledge=''):
-    return AI_EXTRACT_MERGE_TEMPLATE.format(
-        knowledge_base=knowledge_base,
-        message_body=message_body,
-        suggested_knowledge=suggested_knowledge or message_body,
-    )
-
-
-def build_ai_extract_global_check_prompt(message_body, chat_history='(none)'):
-    return AI_EXTRACT_GLOBAL_CHECK_TEMPLATE.format(
-        message_body=message_body,
-        chat_history=chat_history,
-    )
-
-
-def build_ai_extract_global_merge_prompt(knowledge_base, message_body, suggested_knowledge=''):
-    return AI_EXTRACT_GLOBAL_MERGE_TEMPLATE.format(
-        knowledge_base=knowledge_base,
-        message_body=message_body,
-        suggested_knowledge=suggested_knowledge or message_body,
-    )
-
-
-KB_EXTRACT_APARTMENT_CHECK_KEY = 'ai_extract_check'
-KB_EXTRACT_APARTMENT_MERGE_KEY = 'ai_extract_merge'
-KB_EXTRACT_GLOBAL_CHECK_KEY = 'ai_extract_global_check'
-KB_EXTRACT_GLOBAL_MERGE_KEY = 'ai_extract_global_merge'
-KB_EXTRACT_PROMPT_KEYS = (
-    KB_EXTRACT_APARTMENT_CHECK_KEY,
-    KB_EXTRACT_APARTMENT_MERGE_KEY,
-    KB_EXTRACT_GLOBAL_CHECK_KEY,
-    KB_EXTRACT_GLOBAL_MERGE_KEY,
-)
 # Backward-compatible aliases used by chat modal prompt editor URLs
-KB_GENERATE_APARTMENT_PROMPT_KEY = KB_EXTRACT_APARTMENT_MERGE_KEY
-KB_GENERATE_GLOBAL_PROMPT_KEY = KB_EXTRACT_GLOBAL_MERGE_KEY
-KB_GENERATE_PROMPT_KEYS = KB_EXTRACT_PROMPT_KEYS
-
-AI_ANSWER_SYSTEM_KEY = 'ai_answer_system'
-AI_ANSWER_USER_KEY = 'ai_answer_user'
 AI_ANSWER_RULE_GENERATE_KEY = 'ai_answer_rule_generate'
 AI_KB_RULE_GENERATE_KEY = 'ai_kb_rule_generate'
-AI_ANSWER_PROMPT_KEYS = (AI_ANSWER_SYSTEM_KEY, AI_ANSWER_USER_KEY)
-AI_ANSWER_RULE_PROMPT_KEYS = (AI_ANSWER_RULE_GENERATE_KEY,)
-AI_KB_RULE_PROMPT_KEYS = (AI_KB_RULE_GENERATE_KEY,)
-CHAT_EDITABLE_PROMPT_KEYS = (
-    KB_EXTRACT_PROMPT_KEYS + AI_ANSWER_PROMPT_KEYS + AI_ANSWER_RULE_PROMPT_KEYS + AI_KB_RULE_PROMPT_KEYS
-)
-
 AI_ANSWER_RULE_GENERATE_TEMPLATE = (
     "You write one concise standing rule for a property-management AI assistant system prompt.\n"
     "The rule should help the assistant handle similar tenant messages correctly in the future.\n\n"
@@ -1451,17 +1092,17 @@ AI_ANSWER_RULE_GENERATE_TEMPLATE = (
 )
 
 AI_KB_RULE_GENERATE_TEMPLATE = (
-    "You write one concise standing rule for a property-management KNOWLEDGE BASE extraction check prompt.\n"
-    "The rule teaches when to reply YES (save to KB) or NO (skip) during automated KB analysis.\n"
+    "You write one concise standing rule for the knowledge-base rules of a property-management AI assistant.\n"
+    "The rule tells the assistant what it must (or must never) write into the knowledge base when staff or tenants "
+    "say something like this.\n"
     "Target: {scope_label}\n\n"
     "Manager message:\n{manager_message}\n\n"
     "User guidance — what should be added to or excluded from the knowledge base:\n{guidance}\n\n"
     "{kb_context_section}"
     "Rule intent: {rule_intent_label}\n\n"
-    "Write ONE bullet rule (starting with '- ') for the CHECK prompt RULES section.\n"
-    "For exclude rules, phrase when to reply NO or what must never be saved.\n"
-    "For include rules, phrase when to reply YES or what must always be saved.\n"
-    "Do not paste the full manager message — encode a reusable extraction policy.\n"
+    "Write ONE bullet rule (starting with '- ').\n"
+    "For exclude rules, phrase what must never be saved; for include rules, what must always be saved.\n"
+    "Do not paste the full manager message — encode a reusable policy.\n"
     "Return only the rule line, nothing else."
 )
 
@@ -1475,92 +1116,26 @@ KB_RULE_INTENT_LABELS = {
     'exclude': 'EXCLUDE — manager messages like this must NOT be saved to the knowledge base',
 }
 
-_PROMPT_FALLBACKS = {
-    KB_EXTRACT_APARTMENT_CHECK_KEY: AI_EXTRACT_CHECK_TEMPLATE,
-    KB_EXTRACT_APARTMENT_MERGE_KEY: AI_EXTRACT_MERGE_TEMPLATE,
-    KB_EXTRACT_GLOBAL_CHECK_KEY: AI_EXTRACT_GLOBAL_CHECK_TEMPLATE,
-    KB_EXTRACT_GLOBAL_MERGE_KEY: AI_EXTRACT_GLOBAL_MERGE_TEMPLATE,
-    AI_ANSWER_SYSTEM_KEY: AI_ANSWER_SYSTEM_PROMPT,
-    AI_ANSWER_USER_KEY: AI_ANSWER_USER_TEMPLATE,
-    AI_ANSWER_RULE_GENERATE_KEY: AI_ANSWER_RULE_GENERATE_TEMPLATE,
-    AI_KB_RULE_GENERATE_KEY: AI_KB_RULE_GENERATE_TEMPLATE,
-}
-
-_PROMPT_DEFAULT_NAMES = {
-    KB_EXTRACT_APARTMENT_CHECK_KEY: 'AI Extract Check',
-    KB_EXTRACT_APARTMENT_MERGE_KEY: 'AI Extract Merge',
-    KB_EXTRACT_GLOBAL_CHECK_KEY: 'AI Extract Global Check',
-    KB_EXTRACT_GLOBAL_MERGE_KEY: 'AI Extract Global Merge',
-    AI_ANSWER_SYSTEM_KEY: 'AI Answer System',
-    AI_ANSWER_USER_KEY: 'AI Answer User',
-    AI_ANSWER_RULE_GENERATE_KEY: 'AI Answer Rule Generate',
-    AI_KB_RULE_GENERATE_KEY: 'AI KB Rule Generate',
-}
-
-_PROMPT_DEFAULT_DESCRIPTIONS = {
-    KB_EXTRACT_APARTMENT_CHECK_KEY: 'Apartment KB check. Placeholders: {fields_ctx}, {chat_history}, {message_body}',
-    KB_EXTRACT_APARTMENT_MERGE_KEY: 'Apartment KB merge. Placeholders: {knowledge_base}, {message_body}, {suggested_knowledge}',
-    KB_EXTRACT_GLOBAL_CHECK_KEY: 'Global KB check. Placeholders: {chat_history}, {message_body}. YES only for global answer/style guidance, not apartment or booking facts.',
-    KB_EXTRACT_GLOBAL_MERGE_KEY: 'Global KB merge. Placeholders: {knowledge_base}, {message_body}, {suggested_knowledge}. Merge only global assistant guidance.',
-    AI_ANSWER_SYSTEM_KEY: 'System prompt for tenant AI answers. No placeholders.',
-    AI_ANSWER_USER_KEY: 'User prompt for tenant AI answers. Placeholders: {context}, {message_body}',
-    AI_ANSWER_RULE_GENERATE_KEY: (
-        'Generate one rule for ai_answer_system. Placeholders: {client_message}, {correct_answer}, {ai_response_section}'
-    ),
-    AI_KB_RULE_GENERATE_KEY: (
-        'Generate KB extract check rule. Placeholders: {scope_label}, {manager_message}, {guidance}, '
-        '{kb_context_section}, {rule_intent_label}'
-    ),
-}
+# Names, defaults and descriptions of every prompt: mysite/ai_agent/prompt_library.py (the live text is in AIManagement)
 
 
 def get_ai_prompt_template(prompt_key):
-    """Return raw prompt template from DB, or built-in fallback for known KB extract keys."""
-    from mysite.models import AIManagement
+    """Returns (raw template, from_db, description) of a registry prompt; a missing row is created from its default."""
+    from mysite.ai_agent import prompt_library
 
-    entry = AIManagement.objects.filter(
-        entry_type=AIManagement.ENTRY_TYPE_PROMPT,
-        prompt_key=prompt_key,
-    ).first()
-    if entry and entry.content and entry.content.strip():
-        return entry.content.strip(), True, entry.description or ''
-    if prompt_key in _PROMPT_FALLBACKS:
-        return _PROMPT_FALLBACKS[prompt_key], False, _PROMPT_DEFAULT_DESCRIPTIONS.get(prompt_key, '')
-    return None, False, ''
+    if prompt_key not in prompt_library.BY_KEY:
+        return None, False, ''
+    spec = prompt_library.spec(prompt_key)
+    return prompt_library.raw(prompt_key), True, prompt_library.description_of(spec)
 
 
 def save_ai_prompt_template(prompt_key, content, description=None):
-    from mysite.models import AIManagement
+    """Saves a chat-editable prompt. The description always comes from the prompt registry."""
+    from mysite.ai_agent import prompt_library
 
-    if prompt_key not in CHAT_EDITABLE_PROMPT_KEYS:
+    if prompt_key not in prompt_library.BY_KEY:
         raise ValueError(f'Unsupported prompt key: {prompt_key}')
-    entry, _created = AIManagement.objects.update_or_create(
-        prompt_key=prompt_key,
-        defaults={
-            'name': _PROMPT_DEFAULT_NAMES[prompt_key],
-            'content': (content or '').strip(),
-            'entry_type': AIManagement.ENTRY_TYPE_PROMPT,
-            'description': description if description is not None else _PROMPT_DEFAULT_DESCRIPTIONS[prompt_key],
-        },
-    )
-    return entry
-
-
-def sync_kb_extract_prompts_to_db():
-    """Force-sync all four KB extract prompts from built-in templates into AIManagement."""
-    from mysite.models import AIManagement
-
-    for prompt_key in KB_EXTRACT_PROMPT_KEYS:
-        content = _PROMPT_FALLBACKS[prompt_key]
-        AIManagement.objects.update_or_create(
-            prompt_key=prompt_key,
-            defaults={
-                'name': _PROMPT_DEFAULT_NAMES[prompt_key],
-                'content': content,
-                'entry_type': AIManagement.ENTRY_TYPE_PROMPT,
-                'description': _PROMPT_DEFAULT_DESCRIPTIONS[prompt_key],
-            },
-        )
+    return prompt_library.save(prompt_key, content)
 
 
 def _format_ai_response_section(ai_response):
@@ -1626,29 +1201,6 @@ def generate_answer_rule_text(client_message, correct_answer, ai_response=None, 
     except Exception as exc:
         log_error(exc, 'generate_answer_rule_text failed', source='web')
         return {'success': False, 'error': str(exc)}
-
-
-def append_rule_to_ai_answer_system(rule_text):
-    """Append one bullet rule to ai_answer_system prompt in DB."""
-    rule_text = (rule_text or '').strip()
-    if not rule_text:
-        raise ValueError('Rule is empty.')
-    if not rule_text.startswith('-'):
-        rule_text = f'- {rule_text}'
-
-    content, _, _ = get_ai_prompt_template(AI_ANSWER_SYSTEM_KEY)
-    if not content:
-        content = AI_ANSWER_SYSTEM_PROMPT
-
-    marker = 'Always respond using EXACTLY this format'
-    if marker in content:
-        head, tail = content.split(marker, 1)
-        updated = head.rstrip() + f'\n{rule_text}\n\n' + marker + tail
-    else:
-        updated = content.rstrip() + f'\n{rule_text}\n'
-
-    entry = save_ai_prompt_template(AI_ANSWER_SYSTEM_KEY, updated)
-    return entry.content or updated
 
 
 def get_answer_rule_message_body(message):
@@ -1800,421 +1352,56 @@ def generate_kb_rule_text(
         return {'success': False, 'error': str(exc)}
 
 
-def append_rule_to_kb_extract_check(rule_text, scope='apartment'):
-    """Append one bullet rule to apartment or global KB check prompt in DB."""
+def _bullet(rule_text):
     rule_text = (rule_text or '').strip()
     if not rule_text:
         raise ValueError('Rule is empty.')
-    if not rule_text.startswith('-'):
-        rule_text = f'- {rule_text}'
+    return rule_text if rule_text.startswith('-') else f'- {rule_text}'
+
+
+def save_answer_rule_as_lesson(rule_text, apartment=None, author=None, conversation_sid=None):
+    """
+    A "Teach AI answer" rule becomes a line of the 'ai_agent_answer_lessons' prompt, which the agent's system
+    prompt includes as ANSWER_LESSONS. apartment=None -> company-wide. Returns a short detail.
+    """
+    from mysite.ai_agent import knowledge, prompt_library
+
+    rule = _bullet(rule_text).lstrip('- ').strip()
+    key = knowledge.normalize_key(' '.join(rule.split()[:6])) or 'answer_lesson'
+    return prompt_library.upsert_lesson(apartment, key, rule)
+
+
+def append_rule_to_agent_kb_rules(rule_text, scope='apartment'):
+    """
+    Claude backend: an "Add KB rule" bullet goes to AIManagement 'ai_agent_kb_rules', which the agent's system
+    prompt includes as KB RULES (the legacy KB extract prompts are not used by the agent). Returns the new content.
+    """
+    from mysite.ai_agent import config as ai_agent_config, prompt_library
 
     scope = _normalize_kb_rule_scope(scope)
-    if scope == 'global':
-        prompt_key = KB_EXTRACT_GLOBAL_CHECK_KEY
-        fallback = AI_EXTRACT_GLOBAL_CHECK_TEMPLATE
-    else:
-        prompt_key = KB_EXTRACT_APARTMENT_CHECK_KEY
-        fallback = AI_EXTRACT_CHECK_TEMPLATE
-
-    content, _, _ = get_ai_prompt_template(prompt_key)
-    if not content:
-        content = fallback
-
-    marker = 'Manager message to evaluate:'
-    if marker in content:
-        head, tail = content.split(marker, 1)
-        updated = head.rstrip() + f'\n{rule_text}\n\n' + marker + tail
-    else:
-        updated = content.rstrip() + f'\n{rule_text}\n'
-
-    entry = save_ai_prompt_template(prompt_key, updated)
-    return entry.content or updated, prompt_key
+    label = 'apartment KB' if scope == 'apartment' else 'company-wide KB'
+    rule = _bullet(rule_text)
+    return prompt_library.append_rule(ai_agent_config.AI_AGENT_KB_RULES_KEY, f"- [{label}] {rule.lstrip('- ').strip()}")
 
 
-def _build_kb_author_labels(conversation):
-    from mysite.models import User
-
-    labels = {}
-    tenant_phone = None
-    tenant_name = None
-    if conversation.booking and conversation.booking.tenant:
-        tenant_phone = (conversation.booking.tenant.phone or '').strip()
-        tenant_name = (conversation.booking.tenant.full_name or '').strip()
-
-    phones = set(get_manager_phones())
-    if tenant_phone:
-        phones.add(tenant_phone)
-    for author in conversation.messages.values_list('author', flat=True).distinct():
-        author = (author or '').strip()
-        if author.startswith('+'):
-            phones.add(author)
-
-    users_by_phone = {}
-    if phones:
-        for user in User.objects.filter(phone__in=phones).only('phone', 'full_name'):
-            users_by_phone[(user.phone or '').strip()] = user
-
-    def label_for(author):
-        author = (author or '').strip()
-        if author in ('ASSISTANT', 'Virtual Assistant'):
-            return f'{TWILIO_ASSISTANT_PHONE} (Assistant)'
-        if author in get_manager_phones():
-            user = users_by_phone.get(author)
-            name = (user.full_name or '').strip() if user and user.full_name else MANAGER_PHONE_NAMES.get(author, 'Manager')
-            return f'{author} ({name})'
-        if tenant_phone and author == tenant_phone:
-            name = tenant_name or 'Customer'
-            return f'{author} ({name})'
-        if author.startswith('+'):
-            user = users_by_phone.get(author)
-            name = (user.full_name or '').strip() if user and user.full_name else 'Unknown'
-            return f'{author} ({name})'
-        return author or 'Unknown'
-
-    for author in conversation.messages.values_list('author', flat=True).distinct():
-        author = (author or '').strip()
-        if author:
-            labels[author] = label_for(author)
-    for key in tuple(get_manager_phones()) + ('ASSISTANT', 'Virtual Assistant'):
-        labels[key] = label_for(key)
-    return labels
-
-
-def _format_chat_history_for_kb(conversation, history_before=None):
-    """Author-labeled chat lines strictly before history_before; excludes notifications."""
-    from django.db.models import Q
-    from mysite.models import TwilioMessage
-
-    qs = TwilioMessage.objects.filter(conversation=conversation)
-    if history_before is not None:
-        qs = qs.filter(
-            Q(message_timestamp__lt=history_before.message_timestamp)
-            | Q(message_timestamp=history_before.message_timestamp, id__lt=history_before.id)
-        )
-    messages = qs.order_by('message_timestamp', 'id')
-    author_labels = _build_kb_author_labels(conversation)
-    lines = []
-    for msg in messages:
-        if is_assistant_system_notification(msg):
-            continue
-        if (getattr(msg, 'message_sid', None) or '').startswith('KB-UPDATE-'):
-            continue
-        author_raw = (msg.author or '').strip()
-        if author_raw in ('ASSISTANT', 'Virtual Assistant', TWILIO_ASSISTANT_PHONE):
-            continue
-        body = (msg.body or '').strip()
-        if not body:
-            continue
-        author = author_labels.get((msg.author or '').strip(), (msg.author or '').strip() or 'Unknown')
-        timestamp = msg.message_timestamp.strftime('%Y-%m-%d %H:%M') if msg.message_timestamp else ''
-        lines.append(f'[{timestamp}] {author}: {body}')
-    return '\n'.join(lines) if lines else '(none)'
-
-
-def _parse_kb_check(raw_check):
-    """Parse structured check output into (has_value, suggested_knowledge)."""
-    raw = (raw_check or '').strip()
-    if not raw:
-        return False, None
-
-    if re.search(r'\[DECISION\]', raw, re.IGNORECASE):
-        rest = re.split(r'\[DECISION\]', raw, flags=re.IGNORECASE, maxsplit=1)[1]
-        suggested = None
-        if re.search(r'\[SUGGESTED\]', rest, re.IGNORECASE):
-            decision_part, suggested_part = re.split(
-                r'\[SUGGESTED\]', rest, flags=re.IGNORECASE, maxsplit=1
-            )
-            decision = decision_part.strip()
-            suggested = suggested_part.strip()
-        else:
-            decision = rest.strip()
-        has_value = decision.upper().startswith('YES')
-        if suggested and suggested.lower() in {'none', 'n/a', '-', 'no'}:
-            suggested = None
-        return has_value, suggested or None
-
-    first_line = raw.splitlines()[0].strip().upper()
-    if first_line.startswith('YES'):
-        trailing = '\n'.join(raw.splitlines()[1:]).strip()
-        return True, trailing or None
-    if first_line.startswith('NO'):
-        return False, None
-    return False, None
-
-
-def _resolve_suggested_knowledge(suggested, message_body):
-    suggested = (suggested or '').strip()
-    if suggested and suggested.lower() not in {'none', 'n/a', '-'}:
-        return suggested
-    return (message_body or '').strip()
-
-
-def _run_kb_extract_check(conversation_sid, prompt_key, build_fallback, has_hint_fn, message_body, **prompt_kwargs):
-    ai_client, ai_error = _get_ai_client()
-    if not ai_client:
-        raise RuntimeError(f'AI client unavailable: {ai_error}')
-
-    format_kwargs = dict(prompt_kwargs, message_body=message_body)
-    check_content, check_from_db = _get_prompt_with_source(prompt_key, **format_kwargs)
-    if not check_content:
-        check_content = build_fallback(**format_kwargs)
-        check_from_db = False
-    model = _get_db_model()
-    check_response = ai_client.chat.completions.create(
-        model=model,
-        messages=[{'role': 'user', 'content': check_content}],
-        temperature=0,
-        max_tokens=400,
-    )
-    check_text = _safe_completion_content(check_response)
-    has_value, suggested = _parse_kb_check(check_text)
-    if not has_value and has_hint_fn and has_hint_fn(message_body):
-        has_value = True
-    log_ai_manager_check(
-        conversation_sid, check_content, model, has_value,
-        prompt_source=f'DB:{prompt_key}' if check_from_db else 'fallback',
-    )
-    return has_value, suggested
-
-
-def _run_kb_extract_merge(conversation_sid, prompt_key, build_fallback, original_kb, message_body, **prompt_kwargs):
-    ai_client, ai_error = _get_ai_client()
-    if not ai_client:
-        return {
-            'kb': original_kb,
-            'changes': None,
-            'saved': False,
-            'error': f'AI client unavailable: {ai_error}',
-        }
-
-    kb_content = original_kb or '(empty)'
-    suggested_knowledge = _resolve_suggested_knowledge(
-        prompt_kwargs.get('suggested_knowledge'),
-        message_body,
-    )
-    merge_content, merge_from_db = _get_prompt_with_source(
-        prompt_key,
-        knowledge_base=kb_content,
-        message_body=message_body,
-        suggested_knowledge=suggested_knowledge,
-    )
-    if not merge_content:
-        merge_content = build_fallback(
-            knowledge_base=kb_content,
-            message_body=message_body,
-            suggested_knowledge=suggested_knowledge,
-        )
-        merge_from_db = False
-    model = _get_db_model()
-    update_response = ai_client.chat.completions.create(
-        model=model,
-        messages=[{'role': 'user', 'content': merge_content}],
-        temperature=0.2,
-        max_tokens=2000,
-    )
-    raw_merge = _safe_completion_content(update_response)
-    if not raw_merge:
-        return {
-            'kb': original_kb,
-            'changes': None,
-            'saved': False,
-            'error': 'AI merge returned empty content',
-        }
-
-    updated_kb, changes = _parse_kb_merge(raw_merge)
-    saved = bool(updated_kb) and updated_kb != (original_kb or '')
-    if _kb_merge_has_no_reusable_knowledge(updated_kb, kb_content, changes):
-        saved = False
-    return {
-        'kb': updated_kb if saved else (original_kb or ''),
-        'changes': changes,
-        'saved': saved,
-        'error': None,
-        'merge_content': merge_content,
-        'model': model,
-        'prompt_source': f'DB:{prompt_key}' if merge_from_db else 'fallback',
-    }
-
-
-def extract_knowledge_from_manager_message(
-    conversation_sid,
-    message_body,
-    apartment,
-    conversation=None,
-    history_before=None,
-    save=True,
-    apartment_kb_draft=None,
-    global_kb_draft=None,
-):
-    """
-    Unified KB extraction for live chat and modal replay.
-    Uses ai_extract_check/merge (apartment) and ai_extract_global_check/merge (global).
-    Chat history = messages strictly before history_before, excluding notifications.
-    """
-    from mysite.models import TwilioConversation
-
-    if conversation is None:
-        conversation = TwilioConversation.objects.select_related(
-            'booking', 'booking__tenant',
-        ).filter(conversation_sid=conversation_sid).first()
-
-    chat_history = _format_chat_history_for_kb(conversation, history_before) if conversation else '(none)'
-    apartment_kb = apartment_kb_draft if apartment_kb_draft is not None else (apartment.knowledge_base or '')
-    global_kb = global_kb_draft if global_kb_draft is not None else get_global_knowledge_base_text()
-
-    result = {
-        'apartment_kb': apartment_kb,
-        'global_kb': global_kb,
-        'apartment_saved': False,
-        'global_saved': False,
-        'apartment_changes': None,
-        'global_changes': None,
-        'why': [],
-        'error': None,
-    }
-
+def _update_message_ai_result(message_sid, **kwargs):
+    """Update TwilioMessage AI metadata fields after processing."""
+    if not message_sid:
+        return
+    if not kwargs:
+        return
     try:
-        ai_client, ai_client_error = _get_ai_client()
-        if not ai_client:
-            result['error'] = ai_client_error
-            return result
+        from mysite.audit_bulk import audit_queryset_update
+        from mysite.models import TwilioMessage
+        from mysite.signals import get_current_user_info
 
-        fields_ctx = _apartment_fields_context(apartment)
-        apt_has_value, apt_suggested = _run_kb_extract_check(
-            conversation_sid,
-            KB_EXTRACT_APARTMENT_CHECK_KEY,
-            lambda **kw: build_ai_extract_check_prompt(fields_ctx, message_body, chat_history),
-            manager_message_has_operational_kb_hints,
-            message_body,
-            fields_ctx=fields_ctx,
-            chat_history=chat_history,
+        audit_queryset_update(
+            TwilioMessage.objects.filter(message_sid=message_sid),
+            changed_by=get_current_user_info(),
+            **kwargs,
         )
-        if apt_has_value:
-            apt_suggested_knowledge = _resolve_suggested_knowledge(apt_suggested, message_body)
-            apt_merge = _run_kb_extract_merge(
-                conversation_sid,
-                KB_EXTRACT_APARTMENT_MERGE_KEY,
-                lambda knowledge_base, message_body, suggested_knowledge, **kw: build_ai_extract_merge_prompt(
-                    knowledge_base, message_body, suggested_knowledge
-                ),
-                apartment_kb,
-                message_body,
-                suggested_knowledge=apt_suggested_knowledge,
-            )
-            if apt_merge.get('error'):
-                result['why'].append(f'Apartment: {apt_merge["error"]}')
-            elif apt_merge.get('saved'):
-                result['apartment_kb'] = apt_merge['kb']
-                result['apartment_changes'] = apt_merge.get('changes')
-                if save:
-                    apartment.knowledge_base = apt_merge['kb']
-                    apartment.save(update_fields=['knowledge_base', 'updated_at'])
-                    result['apartment_saved'] = True
-                    try:
-                        from uuid import uuid4
-                        changes_summary = apt_merge.get('changes')
-                        notification = (
-                            f'📚 Knowledge base updated: {changes_summary}'
-                            if changes_summary else '📚 Knowledge base updated.'
-                        )
-                        save_message_to_db(
-                            message_sid=f'KB-UPDATE-{uuid4().hex}',
-                            conversation_sid=conversation_sid,
-                            author='Virtual Assistant',
-                            body=notification,
-                            direction='outbound',
-                        )
-                    except Exception as notify_err:
-                        log_error(notify_err, 'Failed to save KB update notification to DB', source='web')
-                log_ai_manager_merge(
-                    conversation_sid=conversation_sid,
-                    apartment_id=apartment.id,
-                    knowledge_base_before=apartment_kb or '(empty)',
-                    message_body=message_body,
-                    merge_content=apt_merge.get('merge_content', ''),
-                    model=apt_merge.get('model', _get_db_model()),
-                    updated_notes=apt_merge.get('kb'),
-                    saved=True,
-                    prompt_source=apt_merge.get('prompt_source', 'fallback'),
-                )
-            elif apt_merge.get('changes'):
-                result['why'].append(f'Apartment: {apt_merge["changes"]}')
-        else:
-            log_info(f'AI: apartment KB check returned NO for {conversation_sid}', category='sms')
-
-        glob_has_value, glob_suggested = _run_kb_extract_check(
-            conversation_sid,
-            KB_EXTRACT_GLOBAL_CHECK_KEY,
-            lambda **kw: build_ai_extract_global_check_prompt(message_body, chat_history),
-            None,
-            message_body,
-            chat_history=chat_history,
-        )
-        if glob_has_value:
-            glob_suggested_knowledge = _resolve_suggested_knowledge(glob_suggested, message_body)
-            glob_merge = _run_kb_extract_merge(
-                conversation_sid,
-                KB_EXTRACT_GLOBAL_MERGE_KEY,
-                lambda knowledge_base, message_body, suggested_knowledge, **kw: build_ai_extract_global_merge_prompt(
-                    knowledge_base, message_body, suggested_knowledge
-                ),
-                global_kb,
-                message_body,
-                suggested_knowledge=glob_suggested_knowledge,
-            )
-            if glob_merge.get('error'):
-                result['why'].append(f'Global: {glob_merge["error"]}')
-            elif glob_merge.get('saved'):
-                result['global_kb'] = glob_merge['kb']
-                result['global_changes'] = glob_merge.get('changes')
-                if save:
-                    save_global_knowledge_base_text(glob_merge['kb'], conversation_sid)
-                    result['global_saved'] = True
-            elif glob_merge.get('changes'):
-                result['why'].append(f'Global: {glob_merge["changes"]}')
-
-        return result
-    except Exception as exc:
-        log_error(exc, 'extract_knowledge_from_manager_message failed', source='web')
-        log_ai_error(conversation_sid, 'extract_knowledge_from_manager_message', str(exc))
-        result['error'] = str(exc)
-        return result
-
-
-def collect_manager_messages_for_kb(messages):
-    eligible = []
-    for msg in messages:
-        if not should_run_kb_extraction_for_message(msg):
-            continue
-        body = _extract_marked_body(msg.body, KB_SUFFIX) or msg.body
-        if _is_skippable_message(body):
-            continue
-        eligible.append((msg, body.strip()))
-    return eligible
-
-
-def _parse_ai_customer_response(raw_text):
-    """
-    Parse structured AI customer output.
-    Returns (answer, why, no_answer).
-    Backward compatible with legacy plain-text responses.
-    """
-    raw = (raw_text or "").strip()
-    if raw.startswith("Virtual Assistant:"):
-        raw = raw[len("Virtual Assistant:"):].strip()
-
-    answer = raw
-    why = None
-    if "[ANSWER]" in raw and "[WHY]" in raw:
-        answer_part = raw.split("[ANSWER]", 1)[1]
-        if "[WHY]" in answer_part:
-            answer_text, why_text = answer_part.split("[WHY]", 1)
-            answer = answer_text.strip()
-            why = why_text.strip() or None
-
-    if not answer or answer.upper() == "NO_ANSWER":
-        return None, why, True
-    return answer, why, False
+    except Exception as e:
+        log_error(e, "Error updating message AI metadata", source='web')
 
 
 def _persist_customer_ai_result(message_sid, result, sent_to_chat=None):
@@ -2240,277 +1427,33 @@ def _safe_completion_content(response):
     return (content or "").strip()
 
 
-def ai_answer_customer_detailed(conversation_sid, message_body, apartment, booking, history_before=None):
-    """
-    Customer path with explicit status for tooling/replay.
-    Returns dict: answer, why, no_answer, error, model, raw_response.
-
-    history_before: optional TwilioMessage for point-in-time chat history (replay).
-    """
-    model = _get_db_model()
-    try:
-        ai_client, ai_client_error = _get_ai_client()
-        if not ai_client:
-            return {
-                "answer": None,
-                "why": None,
-                "no_answer": False,
-                "error": ai_client_error,
-                "model": model,
-                "raw_response": None,
-            }
-
-        context, context_sources = build_full_context(
-            conversation_sid, apartment, booking, history_before=history_before
-        )
-
-        system_prompt, system_from_db = _get_prompt_with_source('ai_answer_system')
-        if not system_prompt:
-            system_prompt = _fallback_ai_answer_system_prompt()
-            system_from_db = False
-
-        user_prompt, user_from_db = _get_prompt_with_source('ai_answer_user', context=context, message_body=message_body)
-        if not user_prompt:
-            user_prompt = _fallback_ai_answer_user_prompt(context, message_body)
-            user_from_db = False
-
-        temperature = 0.3
-        max_tokens = 450
-        response = ai_client.chat.completions.create(
-            model=model,
-            messages=[
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": user_prompt},
-            ],
-            temperature=temperature,
-            max_tokens=max_tokens,
-        )
-
-        raw_response = _safe_completion_content(response)
-        if not raw_response:
-            return {
-                "answer": None,
-                "why": None,
-                "no_answer": False,
-                "error": "AI returned empty content",
-                "model": model,
-                "raw_response": None,
-            }
-        answer, why, no_answer = _parse_ai_customer_response(raw_response)
-        usage = getattr(response, 'usage', None)
-
-        log_ai_customer_full(
-            conversation_sid=conversation_sid,
-            message_body=message_body,
-            context=context,
-            context_sources=context_sources,
-            system_prompt=system_prompt,
-            system_prompt_source="DB:ai_answer_system" if system_from_db else "fallback",
-            user_prompt=user_prompt,
-            user_prompt_source="DB:ai_answer_user" if user_from_db else "fallback",
-            model=model,
-            temperature=temperature,
-            max_tokens=max_tokens,
-            answer=answer or raw_response or "(empty)",
-            usage=usage,
-        )
-
-        if no_answer:
-            log_ai_customer_no_answer(conversation_sid, message_body, answer or raw_response)
-            log_info(f"AI: no answer for customer message in {conversation_sid}", category='sms')
-            return {
-                "answer": None,
-                "why": why,
-                "no_answer": True,
-                "error": None,
-                "model": model,
-                "raw_response": raw_response,
-            }
-
-        log_info(f"AI responded to customer in {conversation_sid}", category='sms')
-        return {
-            "answer": answer,
-            "why": why,
-            "no_answer": False,
-            "error": None,
-            "model": model,
-            "raw_response": raw_response,
-        }
-
-    except Exception as e:
-        log_ai_error(conversation_sid, "ai_answer_customer", str(e))
-        log_error(e, "Error in ai_answer_customer", source='web')
-        return {
-            "answer": None,
-            "why": None,
-            "no_answer": False,
-            "error": str(e),
-            "model": model,
-            "raw_response": None,
-        }
-
-
-def ai_answer_customer(conversation_sid, message_body, apartment, booking):
-    """
-    Customer path: AI answers the tenant's message using full context.
-    Returns answer/clarifying-question string, or None if no relevant info.
-    """
-    result = ai_answer_customer_detailed(conversation_sid, message_body, apartment, booking)
-    if result.get("error"):
-        return None
-    return result.get("answer")
-
-
-def ai_extract_knowledge(conversation_sid, message_body, apartment, conversation=None, history_before=None):
-    """
-    Live manager-message KB extraction (apartment + global).
-    Delegates to extract_knowledge_from_manager_message with save=True.
-    Off while the Claude agent backend is on (user decision 2026-09-23): the agent proposes knowledge from the
-    same manager message and it goes through the 15-minute staff review in Telegram instead of a silent rewrite.
-    The manual "generate KB" tools in the chat page are not affected.
-    """
-    try:
-        from mysite.ai_agent import config as ai_agent_config
-        if ai_agent_config.is_agent_backend_enabled():
-            return False, None
-        result = extract_knowledge_from_manager_message(
-            conversation_sid,
-            message_body,
-            apartment,
-            conversation=conversation,
-            history_before=history_before,
-            save=True,
-        )
-        if result.get('error') and not result.get('apartment_saved') and not result.get('global_saved'):
-            log_warning(f"AI knowledge extract skipped: {result['error']}", category='sms')
-            return False, None
-
-        saved = bool(result.get('apartment_saved') or result.get('global_saved'))
-        changes_parts = []
-        if result.get('apartment_changes'):
-            changes_parts.append(result['apartment_changes'])
-        if result.get('global_changes'):
-            changes_parts.append(f"Global: {result['global_changes']}")
-        changes = '\n'.join(changes_parts) if changes_parts else None
-        return saved, changes if saved else None
-    except Exception as e:
-        log_ai_error(conversation_sid, "ai_extract_knowledge", str(e))
-        log_error(e, "Error in ai_extract_knowledge", source='web')
-        return False, None
+GLOBAL_KB_KEY = 'global_knowledge_base'
 
 
 def get_global_knowledge_base_text():
     from mysite.models import AIManagement
 
-    entries = AIManagement.objects.filter(
-        entry_type=AIManagement.ENTRY_TYPE_KNOWLEDGE,
-    ).order_by('id')
-    parts = [entry.content.strip() for entry in entries if entry.content and entry.content.strip()]
-    return '\n\n'.join(parts)
+    # Only its own row: other 'knowledge'-type rows (e.g. old settings) are not knowledge base text
+    entry = AIManagement.objects.filter(prompt_key=GLOBAL_KB_KEY).first()
+    return (entry.content or '').strip() if entry else ''
 
 
 def save_global_knowledge_base_text(text, conversation_sid=None):
     from mysite.models import AIManagement
 
     text = (text or '').strip()
-    AIManagement.objects.filter(entry_type=AIManagement.ENTRY_TYPE_KNOWLEDGE).delete()
+    # Never delete other rows here: this used to wipe every 'knowledge'-type row, including the
+    # ai_clickup_writes switch (2026-09-28)
     if not text:
+        AIManagement.objects.filter(prompt_key=GLOBAL_KB_KEY).delete()
         return None
-    description = f'Updated from chat {conversation_sid}' if conversation_sid else 'Updated from chat'
-    return AIManagement.objects.create(
-        name='Global Knowledge Base',
-        content=text,
-        entry_type=AIManagement.ENTRY_TYPE_KNOWLEDGE,
-        prompt_key='global_knowledge_base',
-        description=description,
+    description = f'Updated from chat {conversation_sid}' if conversation_sid else 'Updated from AI Management'
+    entry, _ = AIManagement.objects.update_or_create(
+        prompt_key=GLOBAL_KB_KEY,
+        defaults={'name': 'Global Knowledge Base', 'content': text,
+                  'entry_type': AIManagement.ENTRY_TYPE_KNOWLEDGE, 'description': description},
     )
-
-
-def _parse_kb_merge(raw_merge):
-    if '[UPDATED KB]' in raw_merge and '[CHANGES]' in raw_merge:
-        kb_part = raw_merge.split('[UPDATED KB]', 1)[1]
-        updated_kb, changes = kb_part.split('[CHANGES]', 1)
-        return updated_kb.strip(), changes.strip()
-    return raw_merge.strip(), None
-
-
-def _kb_merge_has_no_reusable_knowledge(updated_kb, original_kb, changes):
-    if changes and changes.strip().lower().startswith('no reusable knowledge'):
-        return True
-    original = (original_kb or '').strip()
-    updated = (updated_kb or '').strip()
-    return bool(original) and updated == original
-
-
-def _parse_json_object(raw):
-    if not raw:
-        return None
-    match = re.search(r'\{.*\}', raw, re.DOTALL)
-    if not match:
-        return None
-    try:
-        return json.loads(match.group(0))
-    except json.JSONDecodeError:
-        return None
-
-
-def _short_ai_explain(prompt, max_tokens=180, model=None):
-    ai_client, ai_error = _get_ai_client()
-    if not ai_client:
-        return f'AI explanation unavailable: {ai_error}'
-    model = model or _get_db_model()
-    models_to_try = [model]
-    if model != LEGACY_CHAT_MODEL:
-        models_to_try.append(LEGACY_CHAT_MODEL)
-    last_error = None
-    for model_name in models_to_try:
-        try:
-            response = ai_client.chat.completions.create(
-                model=model_name,
-                messages=[{'role': 'user', 'content': prompt}],
-                temperature=0,
-                max_tokens=max_tokens,
-            )
-            return _safe_completion_content(response) or f'AI explanation failed: empty response'
-        except Exception as exc:
-            last_error = str(exc)
-            if '404' not in last_error and 'No endpoints found' not in last_error:
-                break
-    return f'AI explanation failed: {last_error}'
-
-
-def _classify_kb_scope(message_body, updated_kb, changes, model=None):
-    prompt = (
-        'You analyze property-management knowledge extracted from a group chat.\n'
-        'Return JSON only with keys: global, reusable, why.\n'
-        'global: reusable company-wide policy text, or empty string if apartment-specific.\n'
-        'reusable: true if it is a standing property procedure or fact future tenants still need '
-        '(access, parking how-it-works, house rules, WiFi/credentials, appliance operation); '
-        'false only for this-stay coordination (times/ETAs, meetups, delivering an item now, '
-        'personal contacts for one meeting). A current request can still contain a standing rule.\n'
-        'Credentials such as WiFi passwords are reusable=true.\n\n'
-        f'Manager message:\n{message_body}\n\n'
-        f'Apartment knowledge base draft:\n{updated_kb}\n\n'
-        f'Changes summary:\n{changes or "none"}'
-    )
-    raw = _short_ai_explain(prompt, max_tokens=300, model=model)
-    parsed = _parse_json_object(raw)
-    if parsed:
-        reusable = parsed.get('reusable')
-        if isinstance(reusable, str):
-            reusable = reusable.strip().lower() in {'true', 'yes', '1'}
-        elif reusable is None:
-            reusable = True
-        return {
-            'global': parsed.get('global') or None,
-            'reusable': reusable,
-            'why': parsed.get('why') or None,
-        }
-    return {
-        'global': None,
-        'reusable': True,
-        'why': raw,
-    }
+    return entry
 
 
 def _is_manager_kb_candidate(author, body, direction=None):
@@ -2534,374 +1477,6 @@ def should_run_kb_extraction_for_message(message):
     if is_assistant_system_notification(message):
         return False
     return _is_manager_kb_candidate(message.author, message.body, message.direction)
-
-
-def manager_kb_preview(conversation_sid, message_body, apartment, kb_draft=None):
-    """
-    Preview apartment/global KB updates from one manager message without saving.
-    Returns dict with has_value, apartment, global, why, changes.
-    """
-    model = _get_db_model()
-    ai_client, ai_error = _get_ai_client()
-    if not ai_client:
-        return {
-            'has_value': False,
-            'apartment': kb_draft,
-            'global': None,
-            'why': f'AI client unavailable: {ai_error}',
-            'changes': None,
-        }
-
-    kb_content = kb_draft if kb_draft is not None else (apartment.knowledge_base or '(empty)')
-
-    try:
-        fields_ctx = _apartment_fields_context(apartment)
-        check_content, _check_from_db = _get_prompt_with_source(
-            'ai_extract_check', fields_ctx=fields_ctx, message_body=message_body
-        )
-        if not check_content:
-            check_content = build_ai_extract_check_prompt(fields_ctx, message_body)
-
-        check_response = ai_client.chat.completions.create(
-            model=model,
-            messages=[{'role': 'user', 'content': check_content}],
-            temperature=0,
-            max_tokens=400,
-        )
-        check_text = _safe_completion_content(check_response)
-        if not check_text:
-            return {
-                'has_value': False,
-                'apartment': kb_draft,
-                'global': None,
-                'why': 'AI KB check returned empty content',
-                'changes': None,
-            }
-
-        has_value, suggested = _parse_kb_check(check_text)
-        if not has_value and manager_message_has_operational_kb_hints(message_body):
-            has_value = True
-        if not has_value:
-            why = _short_ai_explain(
-                'Explain in one sentence why this manager message should not add knowledge base information:\n'
-                f'{message_body}',
-                model=model,
-            )
-            return {'has_value': False, 'apartment': kb_draft, 'global': None, 'why': why, 'changes': None}
-
-        suggested_knowledge = _resolve_suggested_knowledge(suggested, message_body)
-        merge_content, _merge_from_db = _get_prompt_with_source(
-            'ai_extract_merge',
-            knowledge_base=kb_content,
-            message_body=message_body,
-            suggested_knowledge=suggested_knowledge,
-        )
-        if not merge_content:
-            merge_content = build_ai_extract_merge_prompt(
-                kb_content, message_body, suggested_knowledge
-            )
-
-        update_response = ai_client.chat.completions.create(
-            model=model,
-            messages=[{'role': 'user', 'content': merge_content}],
-            temperature=0.2,
-            max_tokens=1200,
-        )
-        raw_merge = _safe_completion_content(update_response)
-        if not raw_merge:
-            return {
-                'has_value': False,
-                'apartment': kb_draft,
-                'global': None,
-                'why': 'AI KB merge returned empty content',
-                'changes': None,
-            }
-
-        updated_kb, changes = _parse_kb_merge(raw_merge)
-        if _kb_merge_has_no_reusable_knowledge(updated_kb, kb_content, changes):
-            why = _short_ai_explain(
-                'Explain in one sentence why this manager message should not add knowledge base information:\n'
-                f'{message_body}',
-                model=model,
-            )
-            return {'has_value': False, 'apartment': kb_draft, 'global': None, 'why': why, 'changes': None}
-
-        classification = _classify_kb_scope(message_body, updated_kb, changes, model=model)
-        if classification.get('reusable') is False and not manager_message_has_operational_kb_hints(message_body):
-            return {
-                'has_value': False,
-                'apartment': kb_draft,
-                'global': None,
-                'why': classification.get('why') or 'One-time coordination, not reusable knowledge.',
-                'changes': None,
-            }
-
-        return {
-            'has_value': True,
-            'apartment': updated_kb,
-            'global': classification.get('global'),
-            'why': classification.get('why') or changes,
-            'changes': changes,
-        }
-    except Exception as exc:
-        log_error(exc, 'manager_kb_preview failed', source='web')
-        return {
-            'has_value': False,
-            'apartment': kb_draft,
-            'global': None,
-            'why': f'AI KB preview failed: {exc}',
-            'changes': None,
-        }
-
-
-def _friendly_kb_error(error):
-    error = (error or '').strip()
-    if not error:
-        return 'Could not analyze this message.'
-    if 'multiple values for argument' in error:
-        return 'Could not analyze this message (internal error).'
-    if error.startswith('AI client unavailable'):
-        return error
-    if error.startswith('AI merge returned empty'):
-        return 'AI returned no merge result for this message.'
-    return error
-
-
-def _format_kb_generate_message_line(msg, body, prev_apartment_kb, prev_global_kb, result):
-    """Build one human-readable block for KB modal generate output (full message text)."""
-    ts = msg.message_timestamp.strftime('%b %d %H:%M') if msg.message_timestamp else 'Message'
-    message_text = (body or '').strip()
-    header = f'{ts}\n{message_text}' if message_text else ts
-
-    def with_status(status):
-        return f'{header}\n→ {status}'
-
-    if result.get('error'):
-        return with_status(f'skipped — {_friendly_kb_error(result["error"])}')
-
-    apartment_kb = result.get('apartment_kb', prev_apartment_kb) or ''
-    global_kb = result.get('global_kb', prev_global_kb) or ''
-    apartment_changed = (apartment_kb or '').strip() != (prev_apartment_kb or '').strip()
-    global_changed = (global_kb or '').strip() != (prev_global_kb or '').strip()
-
-    parts = []
-    if apartment_changed:
-        detail = (result.get('apartment_changes') or 'updated').strip()
-        if detail.lower().startswith('no reusable knowledge'):
-            detail = 'updated'
-        parts.append(f'Apartment KB: {detail}')
-    if global_changed:
-        detail = (result.get('global_changes') or 'updated').strip()
-        if detail.lower().startswith('no reusable knowledge'):
-            detail = 'updated'
-        parts.append(f'Global KB: {detail}')
-
-    if parts:
-        return with_status('; '.join(parts))
-
-    for note in result.get('why') or []:
-        note = (note or '').strip()
-        if note.lower().startswith('no reusable knowledge'):
-            return with_status('no reusable knowledge found.')
-        if note.lower().startswith('apartment:'):
-            return with_status(note)
-        if note.lower().startswith('global:'):
-            return with_status(note)
-
-    return with_status('no reusable knowledge found.')
-
-
-def _kb_generate_stats(prev_apartment_kb, prev_global_kb, apartment_draft, global_draft, result):
-    stats = {
-        'apartment_changed': False,
-        'global_changed': False,
-        'skipped': bool(result.get('error')),
-        'no_knowledge': False,
-    }
-    if result.get('error'):
-        return stats
-    apt_changed = (apartment_draft or '').strip() != (prev_apartment_kb or '').strip()
-    glob_changed = (global_draft or '').strip() != (prev_global_kb or '').strip()
-    stats['apartment_changed'] = apt_changed
-    stats['global_changed'] = glob_changed
-    stats['no_knowledge'] = not apt_changed and not glob_changed
-    return stats
-
-
-def _kb_generate_summary(analyzed, apartment_updates, global_updates, no_knowledge, skipped):
-    if analyzed == 0:
-        return 'No manager messages found to analyze.'
-    summary = f'Analyzed {analyzed} manager message{"s" if analyzed != 1 else ""}.'
-    summary_parts = []
-    if apartment_updates:
-        summary_parts.append(f'{apartment_updates} added to apartment KB')
-    if global_updates:
-        summary_parts.append(f'{global_updates} added to global KB')
-    if no_knowledge:
-        summary_parts.append(f'{no_knowledge} with no reusable knowledge')
-    if skipped:
-        summary_parts.append(f'{skipped} skipped due to errors')
-    if summary_parts:
-        summary += ' ' + ', '.join(summary_parts) + '.'
-    else:
-        summary += ' No reusable knowledge found.'
-    summary += ' Review suggestions below, then Save KB.'
-    return summary
-
-
-def list_conversation_kb_eligible(conversation_sid):
-    """Return manager message ids eligible for KB extraction (no AI calls)."""
-    from mysite.models import TwilioConversation, TwilioMessage
-
-    conversation = TwilioConversation.objects.select_related('apartment').filter(
-        conversation_sid=conversation_sid,
-    ).first()
-    if not conversation:
-        return {'success': False, 'error': 'Conversation not found.'}
-    if not conversation.apartment_id:
-        return {'success': False, 'error': 'Conversation must be linked to an apartment.'}
-
-    messages = list(
-        TwilioMessage.objects.filter(conversation=conversation).order_by('message_timestamp', 'id')
-    )
-    eligible = collect_manager_messages_for_kb(messages)
-    return {
-        'success': True,
-        'message_ids': [msg.id for msg, _body in eligible],
-        'messages_analyzed': len(eligible),
-        'total_messages': len(messages),
-        'apartment_kb': conversation.apartment.knowledge_base or '',
-        'global_kb': get_global_knowledge_base_text() or '',
-    }
-
-
-def generate_conversation_kb_step(conversation_sid, message_id, apartment_kb_draft=None, global_kb_draft=None):
-    """Run KB extraction for one manager message (used by modal step-by-step generate)."""
-    from mysite.models import TwilioConversation, TwilioMessage
-
-    conversation = TwilioConversation.objects.select_related(
-        'apartment', 'booking', 'booking__tenant',
-    ).filter(
-        conversation_sid=conversation_sid,
-    ).first()
-    if not conversation:
-        return {'success': False, 'error': 'Conversation not found.'}
-    if not conversation.apartment_id:
-        return {'success': False, 'error': 'Conversation must be linked to an apartment.'}
-
-    message = TwilioMessage.objects.filter(id=message_id, conversation=conversation).first()
-    if not message:
-        return {'success': False, 'error': 'Message not found.'}
-
-    if not should_run_kb_extraction_for_message(message):
-        return {'success': False, 'error': 'Only manager messages can be used for knowledge base extraction.'}
-
-    body = _extract_marked_body(message.body, KB_SUFFIX) or message.body
-    if _is_skippable_message(body):
-        return {'success': False, 'error': 'Message is too short to extract knowledge from.'}
-    body = (body or '').strip()
-
-    apartment_draft = apartment_kb_draft if apartment_kb_draft is not None else (conversation.apartment.knowledge_base or '')
-    global_draft = global_kb_draft if global_kb_draft is not None else (get_global_knowledge_base_text() or '')
-
-    prev_apartment_kb = apartment_draft
-    prev_global_kb = global_draft
-    result = extract_knowledge_from_manager_message(
-        conversation_sid,
-        body,
-        conversation.apartment,
-        conversation=conversation,
-        history_before=message,
-        save=False,
-        apartment_kb_draft=apartment_draft,
-        global_kb_draft=global_draft,
-    )
-    apartment_draft = result.get('apartment_kb', apartment_draft)
-    global_draft = result.get('global_kb', global_draft)
-    line = _format_kb_generate_message_line(
-        message, body, prev_apartment_kb, prev_global_kb, result
-    )
-    stats = _kb_generate_stats(
-        prev_apartment_kb, prev_global_kb, apartment_draft, global_draft, result
-    )
-    return {
-        'success': True,
-        'apartment_kb': apartment_draft,
-        'global_kb': global_draft,
-        'line': line,
-        **stats,
-    }
-
-
-def generate_conversation_kb_suggestions(conversation_sid):
-    from mysite.models import TwilioConversation, TwilioMessage
-
-    conversation = TwilioConversation.objects.select_related(
-        'apartment', 'booking', 'booking__tenant',
-    ).filter(
-        conversation_sid=conversation_sid,
-    ).first()
-    if not conversation:
-        return {'success': False, 'error': 'Conversation not found.'}
-    if not conversation.apartment_id:
-        return {'success': False, 'error': 'Conversation must be linked to an apartment.'}
-
-    messages = list(
-        TwilioMessage.objects.filter(conversation=conversation).order_by('message_timestamp', 'id')
-    )
-    eligible = collect_manager_messages_for_kb(messages)
-    apartment_draft = conversation.apartment.knowledge_base or ''
-    global_draft = get_global_knowledge_base_text() or ''
-    why_lines = []
-    apartment_updates = 0
-    global_updates = 0
-    skipped = 0
-    no_knowledge = 0
-
-    for msg, body in eligible:
-        prev_apartment_kb = apartment_draft
-        prev_global_kb = global_draft
-        result = extract_knowledge_from_manager_message(
-            conversation_sid,
-            body,
-            conversation.apartment,
-            conversation=conversation,
-            history_before=msg,
-            save=False,
-            apartment_kb_draft=apartment_draft,
-            global_kb_draft=global_draft,
-        )
-        apartment_draft = result.get('apartment_kb', apartment_draft)
-        global_draft = result.get('global_kb', global_draft)
-        line = _format_kb_generate_message_line(
-            msg, body, prev_apartment_kb, prev_global_kb, result
-        )
-        why_lines.append(line)
-
-        if result.get('error'):
-            skipped += 1
-        else:
-            apt_changed = (apartment_draft or '').strip() != (prev_apartment_kb or '').strip()
-            glob_changed = (global_draft or '').strip() != (prev_global_kb or '').strip()
-            if apt_changed:
-                apartment_updates += 1
-            if glob_changed:
-                global_updates += 1
-            if not apt_changed and not glob_changed:
-                no_knowledge += 1
-
-    analyzed = len(eligible)
-    summary = _kb_generate_summary(analyzed, apartment_updates, global_updates, no_knowledge, skipped)
-
-    return {
-        'success': True,
-        'apartment_kb': apartment_draft,
-        'global_kb': global_draft,
-        'summary': summary,
-        'why': '\n'.join(why_lines[:40]),
-        'messages_analyzed': analyzed,
-        'total_messages': len(messages),
-    }
 
 
 @csrf_exempt
@@ -2970,7 +1545,7 @@ def twilio_webhook(request):
                         direction=direction,
                     )
 
-                    save_message_to_db(
+                    saved_message = save_message_to_db(
                         message_sid=message_sid,  # Use the actual MessageSid from Twilio
                         conversation_sid=conversation_sid,
                         author=author,
@@ -2980,180 +1555,17 @@ def twilio_webhook(request):
                         messaging_binding_address=messaging_binding_address,
                         messaging_binding_proxy_address=messaging_binding_proxy_address
                     )
+                    media_items = _store_webhook_media(saved_message, data)
                 else:
+                    media_items = []
                     log_warning("Received onMessageAdded without MessageSid, skipping message save to DB", category='sms')
 
-                # --- AI processing ---
-                if not (body and author):
-                    pass
-                elif author in ('ASSISTANT', 'Virtual Assistant'):
-                    body_stripped = body.strip()
-                    body_for_customer = _extract_marked_body(body_stripped, CLIENT_SUFFIX)
-                    if body_for_customer:
-                        try:
-                            from mysite.models import TwilioConversation, Apartment, Booking
-                            _conv = TwilioConversation.objects.filter(conversation_sid=conversation_sid).first()
-                            if _conv and _conv.apartment_id and _conv.booking_id:
-                                _apartment = Apartment.objects.prefetch_related('managers').select_related('owner').get(id=_conv.apartment_id)
-                                _booking = Booking.objects.select_related('tenant').get(id=_conv.booking_id)
-                                if _enqueue_for_ai_agent(conversation_sid, message_sid, body_for_customer):
-                                    pass  # answered asynchronously by the ai-agent worker
-                                elif not _is_skippable_message(body_for_customer):
-                                    log_ai_customer_start(conversation_sid, author, body_for_customer, _conv.apartment_id, _conv.booking_id)
-                                    _ai_result = ai_answer_customer_detailed(conversation_sid, body_for_customer, _apartment, _booking)
-                                    _ai_resp = _ai_result.get("answer")
-                                    if _ai_resp:
-                                        if _should_send_ai_to_group(_apartment):
-                                            try:
-                                                send_tenant_sms_gated(conversation_sid, 'Virtual Assistant', _ai_resp, twilio_phone, None)
-                                            except Exception:
-                                                _notify_manager_chat_delivery_failed(
-                                                    _booking.tenant.full_name or "N/A",
-                                                    _booking.tenant.phone or "N/A",
-                                                    _ai_resp,
-                                                    conversation_sid,
-                                                )
-                                                raise
-                                            log_ai_customer_sent(conversation_sid, _ai_resp)
-                                            _persist_customer_ai_result(message_sid, _ai_result, sent_to_chat=True)
-                                        else:
-                                            log_ai_disabled(conversation_sid or '', author or '', body_for_customer or '')
-                                            _persist_customer_ai_result(message_sid, _ai_result, sent_to_chat=False)
-                                            log_ai_customer_sent(conversation_sid, _ai_resp)
-                                    elif _ai_result.get("why") or _ai_result.get("no_answer"):
-                                        _persist_customer_ai_result(message_sid, _ai_result, sent_to_chat=False)
-                        except Exception as e:
-                            log_ai_error(conversation_sid or '', "AI message routing", str(e))
-                            log_error(e, "Error in AI message routing (ASSISTANT client)", source='web')
-                    else:
-                        body_for_extract = _extract_marked_body(body_stripped, KB_SUFFIX)
-                        if body_for_extract:
-                            try:
-                                from mysite.models import TwilioConversation, Apartment
-                                _conv = TwilioConversation.objects.filter(conversation_sid=conversation_sid).first()
-                                if _conv and _conv.apartment_id and _conv.booking_id:
-                                    _apartment = Apartment.objects.get(id=_conv.apartment_id)
-                                    log_ai_manager_start(conversation_sid, author, body_for_extract, _conv.apartment_id)
-                                    from mysite.models import TwilioMessage
-                                    _history_msg = TwilioMessage.objects.filter(message_sid=message_sid).first() if message_sid else None
-                                    ai_extract_knowledge(
-                                        conversation_sid, body_for_extract, _apartment,
-                                        conversation=_conv, history_before=_history_msg,
-                                    )
-                            except Exception as e:
-                                log_ai_error(conversation_sid or '', "AI message routing", str(e))
-                                log_error(e, "Error in AI message routing (ASSISTANT)", source='web')
-                elif not _is_ai_assistant_globally_enabled() and not _conversation_ai_group_chat_enabled(conversation_sid):
-                    # Test mode: run AI processing but do NOT send responses to chat
-                    log_ai_disabled(conversation_sid or '', author or '', body or '')
-                    try:
-                        from mysite.models import TwilioConversation, Apartment, Booking
-                        _conv = TwilioConversation.objects.filter(conversation_sid=conversation_sid).first()
-
-                        if _conv and _conv.apartment_id and _conv.booking_id:
-                            _apartment = Apartment.objects.prefetch_related('managers').select_related('owner').get(id=_conv.apartment_id)
-                            _booking = Booking.objects.select_related('tenant').get(id=_conv.booking_id)
-                            _is_customer = author not in (twilio_phone, 'ASSISTANT', 'Virtual Assistant') and author not in get_manager_phones()
-
-                            if _is_customer and _enqueue_for_ai_agent(conversation_sid, message_sid, body):
-                                pass  # answered asynchronously by the ai-agent worker
-                            elif _is_customer:
-                                if _is_skippable_message(body):
-                                    log_ai_customer_skipped(conversation_sid, body)
-                                else:
-                                    log_ai_customer_start(conversation_sid, author, body, _conv.apartment_id, _conv.booking_id)
-                                    _ai_result = ai_answer_customer_detailed(conversation_sid, body, _apartment, _booking)
-                                    _ai_resp = _ai_result.get("answer")
-                                    if _ai_resp:
-                                        log_ai_customer_sent(conversation_sid, _ai_resp)
-                                        _persist_customer_ai_result(message_sid, _ai_result, sent_to_chat=False)
-                                    elif _ai_result.get("why") or _ai_result.get("no_answer"):
-                                        _persist_customer_ai_result(message_sid, _ai_result, sent_to_chat=False)
-                            else:
-                                from mysite.models import TwilioMessage
-                                _history_msg = TwilioMessage.objects.filter(message_sid=message_sid).first() if message_sid else None
-                                if author in get_manager_phones():
-                                    # Claude agent: a manager's message updates issues / follow-ups (no-op on the legacy backend)
-                                    _enqueue_staff_for_ai_agent(conversation_sid, message_sid, body)
-                                if _history_msg and should_run_kb_extraction_for_message(_history_msg):
-                                    log_ai_manager_start(conversation_sid, author, body, _conv.apartment_id)
-                                    _kb_saved, _kb_new = ai_extract_knowledge(
-                                        conversation_sid, body, _apartment,
-                                        conversation=_conv, history_before=_history_msg,
-                                    )
-                                    _update_message_ai_result(
-                                        message_sid,
-                                        ai_kb_updated=_kb_saved,
-                                        ai_kb_changes=_kb_new,
-                                    )
-                        else:
-                            log_no_conv_link(conversation_sid or '', author or '', body or '')
-                    except Exception as e:
-                        log_ai_error(conversation_sid or '', "AI message routing (test mode)", str(e))
-                        log_error(e, "Error in AI message routing (test mode)", source='web')
-                else:
-                    try:
-                        from mysite.models import TwilioConversation, Apartment, Booking
-                        _conv = TwilioConversation.objects.filter(conversation_sid=conversation_sid).first()
-
-                        if _conv and _conv.apartment_id and _conv.booking_id:
-                            _apartment = Apartment.objects.prefetch_related('managers').select_related('owner').get(id=_conv.apartment_id)
-                            _booking = Booking.objects.select_related('tenant').get(id=_conv.booking_id)
-                            _is_customer = author not in (twilio_phone, 'ASSISTANT', 'Virtual Assistant') and author not in get_manager_phones()
-
-                            if _is_customer and _enqueue_for_ai_agent(conversation_sid, message_sid, body):
-                                pass  # answered asynchronously by the ai-agent worker
-                            elif _is_customer:
-                                # Customer → skip short ack messages, then AI tries to answer/clarify
-                                if _is_skippable_message(body):
-                                    log_ai_customer_skipped(conversation_sid, body)
-                                else:
-                                    log_ai_customer_start(conversation_sid, author, body, _conv.apartment_id, _conv.booking_id)
-                                    _ai_result = ai_answer_customer_detailed(conversation_sid, body, _apartment, _booking)
-                                    _ai_resp = _ai_result.get("answer")
-                                    if _ai_resp:
-                                        if _should_send_ai_to_group(_apartment):
-                                            try:
-                                                send_tenant_sms_gated(conversation_sid, 'Virtual Assistant', _ai_resp, twilio_phone, None)
-                                            except Exception:
-                                                _notify_manager_chat_delivery_failed(
-                                                    _booking.tenant.full_name or "N/A",
-                                                    _booking.tenant.phone or "N/A",
-                                                    _ai_resp,
-                                                    conversation_sid,
-                                                )
-                                                raise
-                                            log_ai_customer_sent(conversation_sid, _ai_resp)
-                                            _persist_customer_ai_result(message_sid, _ai_result, sent_to_chat=True)
-                                        else:
-                                            log_ai_disabled(conversation_sid or '', author or '', body or '')
-                                            log_ai_customer_sent(conversation_sid, _ai_resp)
-                                            _persist_customer_ai_result(message_sid, _ai_result, sent_to_chat=False)
-                                    elif _ai_result.get("why") or _ai_result.get("no_answer"):
-                                        _persist_customer_ai_result(message_sid, _ai_result, sent_to_chat=False)
-                            else:
-                                from mysite.models import TwilioMessage
-                                _history_msg = TwilioMessage.objects.filter(message_sid=message_sid).first() if message_sid else None
-                                if author in get_manager_phones():
-                                    # Claude agent: a manager's message updates issues / follow-ups (no-op on the legacy backend)
-                                    _enqueue_staff_for_ai_agent(conversation_sid, message_sid, body)
-                                if _history_msg and should_run_kb_extraction_for_message(_history_msg):
-                                    log_ai_manager_start(conversation_sid, author, body, _conv.apartment_id)
-                                    _kb_saved, _kb_new = ai_extract_knowledge(
-                                        conversation_sid, body, _apartment,
-                                        conversation=_conv, history_before=_history_msg,
-                                    )
-                                    _update_message_ai_result(
-                                        message_sid,
-                                        ai_kb_updated=_kb_saved,
-                                        ai_kb_changes=_kb_new,
-                                    )
-                        else:
-                            log_no_conv_link(conversation_sid or '', author or '', body or '')
-                    except Exception as e:
-                        log_ai_error(conversation_sid or '', "AI message routing", str(e))
-                        log_error(e, "Error in AI message routing", source='web')
-                # --- end AI processing ---
+                # --- AI: the Claude agent (ai-agent worker) handles every chat message ---
+                # Photos: the agent sees the images themselves, so a photo-only (or "ok" + photo) message
+                # still reaches it
+                ai_body = f"{(body or '').strip()} {PHOTO_PLACEHOLDER}".strip() if media_items else body
+                if ai_body and author and message_sid:
+                    _route_to_ai_agent(conversation_sid, message_sid, author, ai_body)
                 # Check if author is not twilio_phone and not manager_phone
                 author_is_customer = author not in (twilio_phone, 'ASSISTANT', 'Virtual Assistant') and author not in get_manager_phones()
                 
