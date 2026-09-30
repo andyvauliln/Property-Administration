@@ -164,15 +164,19 @@ SPECS = [
         'ai_agent_review_interpreter', 'Telegram reply interpreter', GROUP_REVIEW,
         _from('mysite.ai_agent.answer_review', 'INTERPRETER_PROMPT'),
         what="Turns a manager's Telegram reply to an AI alert into a decision (send / replace / don't send), plan "
-             "changes, ClickUp task actions, new facts and an optional lesson.",
+             "changes, ClickUp task actions, new facts, an optional lesson and a direct answer to staff questions.",
         how="The {name} placeholders are replaced with the run's data; the rest (also JSON braces) stays as written. "
             "Sent to Claude with a JSON schema for the structured output.",
         when="Each time a manager replies to an AI alert in the Telegram AI chat.",
         placeholders={'change_note': 'note when the answer can no longer be changed', 'apartment': 'apartment name',
                       'plan': 'numbered pending plan', 'tasks': 'existing ClickUp tasks of this chat',
                       'known': 'verified knowledge (key = value)', 'tenant': 'the tenant message(s)',
-                      'answer': 'the AI answer', 'author': 'the manager', 'reply': 'the manager reply'},
-        model='review model (env AI_AGENT_REVIEW_MODEL)',
+                      'answer': 'the AI answer', 'author': 'the manager', 'reply': 'the manager reply',
+                      'thread': 'earlier replies in this Telegram thread and what the bot answered',
+                      'why': "the AI's own reasoning for this alert", 'ai_input': 'the input the AI was given (trimmed)',
+                      'history': 'recent chat history', 'bookings': "the tenant's bookings and payments",
+                      'automations': 'what the scheduler sends by itself (sms_notifications)'},
+        model='review model (env AI_AGENT_REVIEW_MODEL / AI_AGENT_REVIEW_EFFORT, default Opus 5.5 medium)',
     ),
     # --- ClickUp ------------------------------------------------------------------------------------------
     PromptSpec(

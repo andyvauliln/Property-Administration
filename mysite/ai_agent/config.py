@@ -14,6 +14,9 @@ AI_CLICKUP_WRITES_KEY = 'ai_clickup_writes'
 AI_AGENT_KB_RULES_KEY = 'ai_agent_kb_rules'
 
 DEFAULT_AGENT_MODEL = 'claude-sonnet-5'
+# Reads staff replies in Telegram and answers their questions (user request 2026-09-30: Opus 5.5, medium effort)
+DEFAULT_REVIEW_MODEL = 'claude-opus-5-5'
+DEFAULT_REVIEW_EFFORT = 'medium'
 
 PACKAGE_DIR = Path(__file__).resolve().parent
 SCHEMA_PATH = PACKAGE_DIR / 'schema.json'
@@ -119,8 +122,13 @@ def oneshot_max_budget_usd():
 
 
 def review_model():
-    """Model that reads a staff reply to an AI answer (correction / lesson / stop)."""
-    return os.environ.get('AI_AGENT_REVIEW_MODEL') or get_agent_model()
+    """Model that reads a staff reply to an AI answer (correction / lesson / stop / question)."""
+    return os.environ.get('AI_AGENT_REVIEW_MODEL') or DEFAULT_REVIEW_MODEL
+
+
+def review_effort():
+    """claude --effort for the reply interpreter: low | medium | high | xhigh | max."""
+    return os.environ.get('AI_AGENT_REVIEW_EFFORT') or DEFAULT_REVIEW_EFFORT
 
 
 def claude_binary():

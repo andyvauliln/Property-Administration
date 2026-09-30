@@ -88,7 +88,7 @@ def _models_in_use():
     return [
         {'label': 'Agent (tenant chats)', 'value': ai_config.get_agent_model(), 'how': "row 'ai_agent_model' below, else env AI_AGENT_MODEL"},
         {'label': 'Chat-page helpers and knowledge-base merges', 'value': ai_config.oneshot_model(), 'how': 'env AI_AGENT_ONESHOT_MODEL, else the agent model'},
-        {'label': 'Telegram reply interpreter', 'value': ai_config.review_model(), 'how': 'env AI_AGENT_REVIEW_MODEL, else the agent model'},
+        {'label': 'Telegram reply interpreter', 'value': f"{ai_config.review_model()} (effort {ai_config.review_effort()})", 'how': f'env AI_AGENT_REVIEW_MODEL / AI_AGENT_REVIEW_EFFORT, else {ai_config.DEFAULT_REVIEW_MODEL} / {ai_config.DEFAULT_REVIEW_EFFORT}'},
         {'label': 'ClickUp delivery via Claude', 'value': clickup.DELIVERY_MODEL, 'how': 'env AI_AGENT_CLICKUP_DELIVERY_MODEL'},
     ]
 
