@@ -7,6 +7,7 @@ from datetime import date, timedelta
 os.environ["DJANGO_SETTINGS_MODULE"] = "testbed_settings"
 django.setup()
 os.environ["AI_AGENT_REVIEW_HOLD_MINUTES"] = "15"
+os.environ["AI_AGENT_APPROVAL"] = "timer"   # this file tests the 15-minute timer review (explicit approval: e2e_client_v4.py)
 os.environ["AI_AGENT_ALERT_CHAT_ID"] = "-500"
 from django.db import connection
 assert connection.vendor == "sqlite", "refusing to run outside the testbed"

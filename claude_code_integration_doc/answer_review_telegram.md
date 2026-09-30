@@ -1,5 +1,9 @@
 # Staff review in Telegram: nothing happens for 15 minutes
 
+> **Since 2026-09-30 (client spec v4) the default is EXPLICIT APPROVAL: no timer, buttons on the card, nothing is sent
+> or done until someone approves it** - see `client_spec_v4.md`. Everything below still describes the typed replies
+> (they all keep working) and the old timer, which comes back with `AI_AGENT_APPROVAL=timer`.
+
 Requested 2026-09-23. Code: `mysite/ai_agent/answer_review.py` (review, replies, running the plan) and
 `mysite/ai_agent/plan.py` (describes a plan without changing anything). Tests: `testbed/e2e_answer_review.py`
 (45 checks).

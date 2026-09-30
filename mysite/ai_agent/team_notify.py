@@ -156,6 +156,9 @@ def compose_telegram(meta, parsed, action_results, delivery, trigger_text, group
     if meta.get('tenant_chats'):
         # The tenant writes in more than one chat: say which one this is and where they wrote last
         lines.append(f"🔗 {meta['tenant_chats']}")
+    for key in ('after_hours_line', 'call_line'):
+        if meta.get(key):
+            lines.append(meta[key])
     if not clickup.writes_enabled(meta.get('apartment')):
         lines.append("🚫 ClickUp writes OFF - ClickUp tasks/comments/closes below are only what the AI WOULD do")
     lines += [
@@ -422,10 +425,27 @@ def deliver(ctx, ai_run, parsed, action_results, delivery, trigger_text, plan_it
         clickup_note = _deliver_clickup(ctx, groups, trigger_text, ai_run) if ctx.notify else ''
         wanted = groups or activity_enabled()
     telegram_note = ''
-    if ctx.notify and wanted:
+    explicit_card = plan_items is not None and config.explicit_approval()
+    if explicit_card:
+        wanted = wanted or bool(parsed.get('handled_info'))
+    if ctx.notify and wanted and explicit_card:
+        # Client spec v4 card with buttons, posted in the thread of the issue it is about
+        from mysite.ai_agent import approval, cards, cases
+        refs = (parsed.get('triage') or {}).get('issue_refs')
+        markup = approval.keyboard(ai_run.id, 1, bool((delivery or {}).get('held')), plan_items,
+                                   plan_mod.has_changes(plan_items))
+        if not markup and parsed.get('handled_info'):
+            markup = approval.give_back_keyboard(ai_run.id, cases.existing_issues(ai_run.conversation_sid,
+                                                                                  parsed['handled_info']['issues']))
+        reply_to = cases.thread_for(ai_run.conversation_sid, refs)
+        ok, telegram_note, message_id = send_ai_chat(
+            cards.compose(ctx.meta, parsed, delivery, trigger_text, plan_items, plan_actions, ai_run),
+            reply_to=reply_to, reply_markup=markup)
+    elif ctx.notify and wanted:
         ok, telegram_note, message_id = send_ai_chat(
             compose_telegram(ctx.meta, parsed, action_results, delivery, trigger_text, groups, ai_run,
                              getattr(ctx, 'ticket_updates', ()), plan_items=plan_items, plan_actions=plan_actions))
+    if ctx.notify and wanted:
         telegram_note = f"Telegram: {'sent' if ok else 'FAILED - ' + telegram_note}"
         if delivery is not None and message_id:
             delivery['telegram_message_id'] = message_id   # staff reply to it to change the plan

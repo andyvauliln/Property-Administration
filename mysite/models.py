@@ -2763,6 +2763,9 @@ class AIRun(models.Model):
     final_answer = models.TextField(blank=True, null=True)
     # {'reply_author', 'sender_phone', 'replies': [{'by', 'at', 'text', 'decision', 'lesson', 'result'}]}
     review = models.JSONField(default=dict, blank=True)
+    # The AI's own triage of this event (client spec v4): primary_type, secondary_types, priority, case_status,
+    # tenant_deadline, owner, next_action, verified_facts, uncertainties, no_reply_reason, issue_refs
+    triage = models.JSONField(default=dict, blank=True)
 
     input_tokens = models.PositiveIntegerField(default=0)
     output_tokens = models.PositiveIntegerField(default=0)
@@ -2905,6 +2908,30 @@ class AIIssue(models.Model):
     created_by_run = models.ForeignKey(AIRun, on_delete=models.SET_NULL, null=True, blank=True, related_name='created_issues')
     resolved_at = models.DateTimeField(null=True, blank=True)
 
+    # Client spec v4 case tracking. stage: how far the tenant got - acknowledged (a reply or the after-hours message
+    # reached them) / owner_accepted (a staff member took it) / answered (a substantive answer or plan was sent) /
+    # resolved. stage_times: {stage: ISO time it was first reached}
+    STAGE_REPORTED = 'reported'
+    STAGE_ACKNOWLEDGED = 'acknowledged'
+    STAGE_OWNER_ACCEPTED = 'owner_accepted'
+    STAGE_ANSWERED = 'answered'
+    STAGE_RESOLVED = 'resolved'
+    STAGES = (STAGE_REPORTED, STAGE_ACKNOWLEDGED, STAGE_OWNER_ACCEPTED, STAGE_ANSWERED, STAGE_RESOLVED)
+    stage = models.CharField(max_length=20, default=STAGE_REPORTED)
+    stage_times = models.JSONField(default=dict, blank=True)
+    tenant_deadline = models.DateTimeField(null=True, blank=True)
+    next_action = models.CharField(max_length=500, blank=True, null=True)
+    # "I'll handle" in Telegram: the AI stays out of this issue (no drafts, reminders, ClickUp changes) until
+    # "Give back to AI" or the issue is closed
+    handled_by = models.CharField(max_length=100, blank=True, null=True)
+    handled_at = models.DateTimeField(null=True, blank=True)
+    handled_prev_state = models.CharField(max_length=40, blank=True, null=True)
+    # First Telegram card of this issue: later cards about it are posted as replies to it (one thread per issue)
+    telegram_thread_message_id = models.BigIntegerField(null=True, blank=True)
+    # How often the tenant asked about it (repeat-question block on the card)
+    tenant_asks = models.PositiveIntegerField(default=0)
+    last_tenant_ask_at = models.DateTimeField(null=True, blank=True)
+
     created_by = models.CharField(max_length=255, blank=True, null=True, editable=False)
     last_updated_by = models.CharField(max_length=255, blank=True, null=True, editable=False)
     created_at = models.DateTimeField(auto_now_add=True)
@@ -2932,6 +2959,23 @@ class AIIssue(models.Model):
         return self.state != self.STATE_RESOLVED
 
     @property
+    def is_handled_by_staff(self):
+        return bool(self.handled_by) and self.is_open
+
+    def reach_stage(self, stage, when=None):
+        """Moves the stage forward (never back); records when each stage was first reached. Does not save."""
+        from django.utils import timezone
+        if stage not in self.STAGES:
+            return False
+        times = dict(self.stage_times or {})
+        times.setdefault(stage, (when or timezone.now()).isoformat())
+        self.stage_times = times
+        if self.STAGES.index(stage) > self.STAGES.index(self.stage if self.stage in self.STAGES else self.STAGE_REPORTED):
+            self.stage = stage
+            return True
+        return False
+
+    @property
     def links(self):
         return []
 
@@ -2943,11 +2987,13 @@ class AIFollowUp(models.Model):
     KIND_SECOND_TENANT_NUDGE = 'second_tenant_nudge'
     KIND_STAFF_REMINDER = 'staff_reminder'
     KIND_ESCALATION_CHECK = 'escalation_check'
+    KIND_DEADLINE_REMINDER = 'deadline_reminder'   # set by the backend from AIIssue.tenant_deadline, not by the AI
     KIND_CHOICES = [
         (KIND_TENANT_NUDGE, 'Tenant nudge'),
         (KIND_SECOND_TENANT_NUDGE, 'Second tenant nudge'),
         (KIND_STAFF_REMINDER, 'Staff reminder'),
         (KIND_ESCALATION_CHECK, 'Escalation check'),
+        (KIND_DEADLINE_REMINDER, 'Before a tenant deadline'),
     ]
 
     STATUS_PENDING = 'pending'
@@ -3043,6 +3089,8 @@ class PendingOutboundMessage(models.Model):
     sent_at = models.DateTimeField(null=True, blank=True)
     failed = models.BooleanField(default=False)
     error = models.TextField(blank=True, null=True)
+    # Send attempts: a failed send is retried once, 3 minutes after the failure alert (user decision 2026-09-30)
+    attempts = models.PositiveIntegerField(default=0)
 
     created_at = models.DateTimeField(auto_now_add=True)
 
@@ -3051,6 +3099,84 @@ class PendingOutboundMessage(models.Model):
 
     def __str__(self):
         return f"{self.conversation_sid} @ {self.send_after}"
+
+
+class AIAfterHoursAck(models.Model):
+    """
+    The automatic "we received your message outside office hours" SMS (client spec v4): at most once per 5 hours per
+    tenant (all chats of a tenant count as one), sent at once at any hour, without staff review. One row per tenant
+    message event, whatever was decided (mysite/ai_agent/after_hours.py).
+    """
+
+    STATUS_SENT = 'sent'                  # delivered to the tenant chat (live)
+    STATUS_WOULD_SEND = 'would_send'      # test mode: would have been sent, nothing sent
+    STATUS_SUPPRESSED = 'suppressed'      # inside the 5-hour cooldown, or staff are replying right now
+    STATUS_NOT_APPLICABLE = 'not_applicable'   # office hours / not a tenant chat
+    STATUS_FAILED = 'failed'              # Twilio refused; retried once after 3 minutes
+    STATUS_CHOICES = [
+        (STATUS_SENT, 'Sent'), (STATUS_WOULD_SEND, 'Would send (test)'), (STATUS_SUPPRESSED, 'Suppressed'),
+        (STATUS_NOT_APPLICABLE, 'Not applicable'), (STATUS_FAILED, 'Failed'),
+    ]
+
+    event = models.OneToOneField(AIEvent, on_delete=models.CASCADE, related_name='after_hours_ack')
+    conversation_sid = models.CharField(max_length=100, db_index=True)
+    mode = models.CharField(max_length=10, default='test')
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, db_index=True)
+    reason = models.CharField(max_length=255, blank=True, null=True)
+    text = models.TextField(blank=True, null=True)
+    sent_at = models.DateTimeField(null=True, blank=True, db_index=True)
+    attempts = models.PositiveIntegerField(default=0)
+    retry_at = models.DateTimeField(null=True, blank=True)
+    error = models.TextField(blank=True, null=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-id']
+
+    def __str__(self):
+        return f"after-hours ack {self.status} {self.conversation_sid} (event {self.event_id})"
+
+
+class AIAlertCall(models.Model):
+    """
+    A phone call (Twilio voice) to the on-call person for an emergency or a tenant's URGENT reply (user decision
+    2026-09-30: Farid, his second number when the first does not answer). mysite/ai_agent/calls.py
+    """
+
+    STATUS_PENDING = 'pending'       # created, not dialled yet
+    STATUS_CALLING = 'calling'       # dialled; the worker checks the result and tries the next number
+    STATUS_ANSWERED = 'answered'
+    STATUS_UNANSWERED = 'unanswered'  # no number answered
+    STATUS_FAILED = 'failed'
+    STATUS_SIMULATED = 'simulated'   # test mode / calls off: nobody was called
+    STATUS_SKIPPED = 'skipped'       # another call for this tenant a short time ago
+    STATUS_CHOICES = [
+        (STATUS_PENDING, 'Pending'), (STATUS_CALLING, 'Calling'), (STATUS_ANSWERED, 'Answered'),
+        (STATUS_UNANSWERED, 'Not answered'), (STATUS_FAILED, 'Failed'), (STATUS_SIMULATED, 'Simulated'),
+        (STATUS_SKIPPED, 'Skipped'),
+    ]
+
+    conversation_sid = models.CharField(max_length=100, db_index=True)
+    event = models.ForeignKey(AIEvent, on_delete=models.SET_NULL, null=True, blank=True, related_name='alert_calls')
+    ai_run = models.ForeignKey(AIRun, on_delete=models.SET_NULL, null=True, blank=True, related_name='alert_calls')
+    reason = models.CharField(max_length=500)
+    staff_name = models.CharField(max_length=50)
+    phones = models.JSONField(default=list, blank=True)
+    phone_index = models.PositiveIntegerField(default=0)
+    call_sid = models.CharField(max_length=64, blank=True, null=True)
+    status = models.CharField(max_length=12, choices=STATUS_CHOICES, default=STATUS_PENDING, db_index=True)
+    note = models.TextField(blank=True, null=True)
+    check_at = models.DateTimeField(null=True, blank=True)
+    mode = models.CharField(max_length=10, default='test')
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-id']
+
+    def __str__(self):
+        return f"call {self.status} {self.staff_name} ({self.reason[:40]})"
 
 
 def send_telegram_message(chat_id, token, message):

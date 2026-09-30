@@ -176,7 +176,18 @@ def tracking_block(conversation_sid, booking, sources=None):
 
     def issue_line(i):
         opened = i.created_at.astimezone(tz).strftime('%Y-%m-%d %H:%M')
-        return f"- issue_id: {i.public_id} | state: {i.state} | owner: {i.owner or '-'} | priority: {i.priority} | opened: {opened} | {i.summary}"
+        line = (f"- issue_id: {i.public_id} | state: {i.state} | stage: {i.stage} | owner: {i.owner or '-'} | "
+                f"priority: {i.priority} | opened: {opened} | {i.summary}")
+        if i.tenant_deadline:
+            line += f" | tenant deadline: {i.tenant_deadline.astimezone(tz).strftime('%a %Y-%m-%d %H:%M')}"
+        if i.next_action:
+            line += f" | next action: {i.next_action}"
+        if i.tenant_asks > 1:
+            line += f" | tenant asked {i.tenant_asks} times"
+        if i.handled_by:
+            line += (f" | HANDLED BY STAFF ({i.handled_by} pressed \"I'll handle\") - do NOT draft a tenant reply, "
+                     f"reminder, ticket change or any other action for this issue; staff do everything")
+        return line
 
     tickets = [i for i in issues if i.ticket_title]
     return "\n".join([
@@ -257,7 +268,9 @@ def build_agent_input(event_type, conversation_sid, apartment, booking, trigger_
         f"CURRENT_TIME: {now.strftime('%A %Y-%m-%d %H:%M')} ({config.TEAM_TIMEZONE} = US Eastern Time, Florida)",
         f"TEAM_TIMEZONE: {config.TEAM_TIMEZONE}",
         f"TENANT_TIMEZONE: {config.PROPERTY_TIMEZONE} (the property is in Florida; all times in this input are in this zone)",
-        "IS_HOLIDAY: not provided",
+        f"IS_HOLIDAY: {('yes - ' + config.holiday_name(now.date())) if config.holiday_name(now.date()) else 'no'} (US federal holidays)",
+        f"OFFICE_HOURS: {config.office_hours_label()} - right now it is "
+        f"{'INSIDE' if config.is_office_hours(now) else 'OUTSIDE'} office hours",
         f"APARTMENT_NAME: {getattr(apartment, 'name', '')} (use this name for the unit in alerts, tickets and notes)",
         staff_block(),
         tracking_block(conversation_sid, booking, sources),

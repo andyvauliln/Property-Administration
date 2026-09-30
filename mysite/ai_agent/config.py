@@ -68,6 +68,71 @@ def next_notification_window_start(now=None):
     return today_start if now < today_start else today_start + timedelta(days=1)
 
 
+# Office hours (client spec v4, user decision 2026-09-30): Monday-Friday 09:00-18:00 in TEAM_TIMEZONE. US federal
+# holidays are outside office hours, like a weekend.
+OFFICE_START_HOUR = int(os.environ.get('AI_AGENT_OFFICE_START', 9))
+OFFICE_END_HOUR = int(os.environ.get('AI_AGENT_OFFICE_END', 18))
+
+
+def _nth_weekday(year, month, weekday, n):
+    """n-th weekday (0 = Monday) of a month; n = -1 is the last one."""
+    from datetime import date, timedelta
+    if n > 0:
+        first = date(year, month, 1)
+        return first + timedelta(days=(weekday - first.weekday()) % 7 + 7 * (n - 1))
+    last = date(year + (month == 12), month % 12 + 1, 1) - timedelta(days=1)
+    return last - timedelta(days=(last.weekday() - weekday) % 7)
+
+
+def us_federal_holidays(year):
+    """{date: name} of the US federal holidays of a year, fixed-date ones moved to Friday / Monday when they fall on a
+    weekend (the observed day, as federal offices do)."""
+    from datetime import date, timedelta
+
+    def observed(day):
+        return day - timedelta(days=1) if day.weekday() == 5 else day + timedelta(days=1) if day.weekday() == 6 else day
+
+    days = {
+        observed(date(year, 1, 1)): "New Year's Day",
+        _nth_weekday(year, 1, 0, 3): 'Martin Luther King Jr. Day',
+        _nth_weekday(year, 2, 0, 3): "Washington's Birthday (Presidents Day)",
+        _nth_weekday(year, 5, 0, -1): 'Memorial Day',
+        observed(date(year, 6, 19)): 'Juneteenth',
+        observed(date(year, 7, 4)): 'Independence Day',
+        _nth_weekday(year, 9, 0, 1): 'Labor Day',
+        _nth_weekday(year, 10, 0, 2): 'Columbus Day',
+        observed(date(year, 11, 11)): 'Veterans Day',
+        _nth_weekday(year, 11, 3, 4): 'Thanksgiving Day',
+        observed(date(year, 12, 25)): 'Christmas Day',
+    }
+    # New Year's Day of the next year observed on Dec 31 of this one
+    if date(year + 1, 1, 1).weekday() == 5:
+        days[date(year, 12, 31)] = "New Year's Day (observed)"
+    return days
+
+
+def holiday_name(day):
+    """Name of the US federal holiday on this date, or None."""
+    return us_federal_holidays(day.year).get(day)
+
+
+def team_now(now=None):
+    from datetime import datetime
+    from zoneinfo import ZoneInfo
+    return (now or datetime.now(ZoneInfo(TEAM_TIMEZONE))).astimezone(ZoneInfo(TEAM_TIMEZONE))
+
+
+def is_office_hours(now=None):
+    """True Monday-Friday OFFICE_START_HOUR-OFFICE_END_HOUR team time, except US federal holidays."""
+    local = team_now(now)
+    return (local.weekday() < 5 and OFFICE_START_HOUR <= local.hour < OFFICE_END_HOUR
+            and not holiday_name(local.date()))
+
+
+def office_hours_label():
+    return f"Monday-Friday {OFFICE_START_HOUR:02d}:00-{OFFICE_END_HOUR:02d}:00 {TIMEZONE_LABEL} (US federal holidays excluded)"
+
+
 def site_url():
     """Base address of the CRM for links in Telegram / ClickUp messages."""
     return (os.environ.get('AI_AGENT_SITE_URL') or '').rstrip('/')
@@ -104,8 +169,20 @@ def review_hold_minutes():
 
 
 def review_poll_seconds():
-    """How often the worker reads staff replies from Telegram (it also reads right before releasing an answer)."""
-    return _env_float('AI_AGENT_REVIEW_POLL_SECONDS', 60)
+    """How often the worker reads staff replies and button presses from Telegram (it also reads right before
+    releasing an answer). Short, so a pressed button reacts at once."""
+    return _env_float('AI_AGENT_REVIEW_POLL_SECONDS', 3)
+
+
+def explicit_approval():
+    """
+    Client spec v4 (user decision 2026-09-30): nothing an AI run proposes happens until someone presses a button (or
+    replies "ok") in Telegram - no timer. AI_AGENT_APPROVAL=timer brings back the old 15-minute "silence = yes" review.
+    AI_AGENT_REVIEW_HOLD_MINUTES=0 switches any review off (everything happens at once, as before the review existed).
+    """
+    if review_hold_minutes() <= 0:
+        return False
+    return (os.environ.get('AI_AGENT_APPROVAL') or 'explicit').strip().lower() != 'timer'
 
 
 def oneshot_model():

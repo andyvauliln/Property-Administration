@@ -117,6 +117,7 @@ check("company-wide knowledge from staff goes to the global document, not the ap
 
 # ---- 3. a tenant's credential change waits for "approve N" in the Telegram review ---------------------------
 os.environ['AI_AGENT_REVIEW_HOLD_MINUTES'] = '15'
+os.environ['AI_AGENT_APPROVAL'] = 'timer'
 Apartment.objects.filter(id=apt.id).update(ai_group_chat_enabled=True)
 answer_review.run_interpreter = lambda prompt: {'decision': 'changes_only', 'corrected_answer': '', 'plan_ops': [
     {'op': 'approve', 'n': 1, 'priority': '', 'title': '', 'text': '', 'value': '', 'state': '', 'owner': ''}],

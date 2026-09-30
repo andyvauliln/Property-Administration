@@ -8,7 +8,7 @@ from django.core.management.base import BaseCommand
 from django.db import close_old_connections
 from django.utils import timezone
 
-from mysite.ai_agent import answer_review, config, service
+from mysite.ai_agent import after_hours, answer_review, calls, config, service
 from mysite.ai_agent.notify import report_error
 
 
@@ -24,8 +24,19 @@ class Command(BaseCommand):
 
         self.stdout.write(f"[{timezone.now():%Y-%m-%d %H:%M:%S}] ai-agent worker started")
         last_stale_check = last_followup_check = last_poll = last_release = 0.0
+        last_tick_error = -1e9
         while True:
             close_old_connections()
+            try:
+                # After-hours auto-message: within seconds of the tenant's message, before the burst wait and
+                # independent of Claude; then alert calls that wait for their result, and failed sends to retry
+                after_hours.process_pending()
+                calls.check_calls()
+                answer_review.retry_failed_sends()
+            except Exception as e:
+                if time.monotonic() - last_tick_error > 300:   # at most one alert per 5 minutes
+                    report_error(e, "after-hours / call / retry tick failed")
+                    last_tick_error = time.monotonic()
             try:
                 # Staff replies to AI answers in Telegram; release_due() also reads them before sending anything
                 if time.monotonic() - last_poll > config.review_poll_seconds():

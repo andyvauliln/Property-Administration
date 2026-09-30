@@ -123,6 +123,11 @@ def fire_due_followups():
                 status=AIFollowUp.STATUS_CANCELLED, status_note='issue already resolved - AI not woken',
             )
             continue
+        if followup.issue and followup.issue.handled_by:
+            AIFollowUp.objects.filter(id=followup.id).update(
+                status=AIFollowUp.STATUS_CANCELLED, status_note=f"{followup.issue.handled_by} handles it - AI not woken"[:255],
+            )
+            continue
         AIEvent.objects.create(
             event_type=AIEvent.TYPE_FOLLOWUP_DUE,
             conversation=TwilioConversation.objects.filter(conversation_sid=followup.conversation_sid).first(),
@@ -153,7 +158,53 @@ def _parse_output(output):
         # Legal / contract question: the answer is a suggestion that waits for a manager, never sent by the timer
         'needs_confirmation': bool(output.get('needs_manager_confirmation')) and not no_answer,
         'contract_basis': str(output.get('contract_basis') or '').strip() or None,
+        'triage': _parse_triage(output),
     }
+
+
+TRIAGE_TYPE_LABELS = {
+    'URGENT_PROPERTY_OR_ACCESS': '1 Urgent property / access', 'ROUTINE_MAINTENANCE': '2 Routine maintenance',
+    'TIME_SENSITIVE_LOGISTICS': '3 Time-sensitive logistics', 'PAYMENTS_AND_DOCUMENTS': '4 Payments / documents',
+    'BOOKING_AND_EXTENSION': '5 Booking / extension', 'PROPERTY_FACTS': '6 Property facts',
+    'COMPLAINT_OR_DISPUTE': '7 Complaint / dispute', 'FOLLOW_UP_REQUEST': '8 Follow-up request', 'NO_REPLY': 'No reply needed',
+}
+
+
+def _parse_triage(output):
+    """The AI's classification of the event (client spec v4). Missing fields stay empty - older outputs have none."""
+    def text(key, limit=500):
+        return str(output.get(key) or '').strip()[:limit]
+
+    def strings(key):
+        value = output.get(key)
+        return [str(v).strip()[:300] for v in value if str(v).strip()] if isinstance(value, list) else []
+
+    priority = text('priority')
+    return {
+        'primary_type': text('primary_type', 40) or None,
+        'secondary_types': strings('secondary_types'),
+        'priority': priority if priority in ('routine', 'urgent', 'emergency') else None,
+        'case_status': text('case_status', 20) or None,
+        'issue_refs': strings('issue_refs'),
+        'owner': text('owner', 50) or None,
+        'next_action': text('next_action') or None,
+        'tenant_deadline': text('tenant_deadline', 40) or None,
+        'verified_facts': strings('verified_facts'),
+        'uncertainties': strings('uncertainties'),
+        'no_reply_reason': text('no_reply_reason') or None,
+    }
+
+
+def parse_tenant_deadline(value):
+    """'YYYY-MM-DD HH:MM' (property time) -> aware datetime, or None."""
+    from datetime import datetime
+    from zoneinfo import ZoneInfo
+    for fmt in ('%Y-%m-%d %H:%M', '%Y-%m-%dT%H:%M', '%Y-%m-%d'):
+        try:
+            return datetime.strptime(str(value or '').strip()[:16], fmt).replace(tzinfo=ZoneInfo(config.PROPERTY_TIMEZONE))
+        except ValueError:
+            continue
+    return None
 
 
 def _tenant_chats_line(conversation_sid):
@@ -257,6 +308,13 @@ def _leaked_access_code(answer, apartment, booking):
     return any(value in answer for value in knowledge.hidden_code_values(apartment))
 
 
+def _ai_emergency(parsed):
+    """The AI itself rated it an emergency (an action or its triage) - not just a word in the message."""
+    if (parsed.get('triage') or {}).get('priority') == 'emergency':
+        return True
+    return any(isinstance(a, dict) and a.get('priority') == 'emergency' for a in parsed.get('actions') or [])
+
+
 def _is_emergency(parsed, last_message):
     """Emergency answers are never held for review."""
     if any(isinstance(a, dict) and a.get('priority') == 'emergency' for a in parsed.get('actions') or []):
@@ -325,6 +383,13 @@ def _deliver(parsed, mode, conversation_sid, booking, last_message, payload, apa
     # Test mode goes through the same 15-minute review as live (user request 2026-09-23); only the
     # final Twilio send is skipped
     minutes = config.review_hold_minutes()
+    explicit = config.explicit_approval()
+    if minutes > 0 and explicit and not _is_emergency(parsed, last_message):
+        # Client spec v4: nothing is sent without a manager pressing Approve (or replying "ok") - no timer
+        legal = bool(parsed.get('needs_confirmation'))
+        return {'sent_to_chat': False, 'held': True, 'confirm': legal, 'hold_until': None,
+                'note': ('LEGAL question - ' if legal else '') + 'waits for a manager to approve it in Telegram, never '
+                        'sent without approval' + ('' if live else ' (test mode - never sent to Twilio)')}
     if parsed.get('needs_confirmation') and not _is_emergency(parsed, last_message):
         # Legal question: held until a manager replies "ok" / a corrected answer in Telegram - the review timer
         # never sends it (answer_review.release_due skips it). hold_until only times the rest of the plan.
@@ -382,7 +447,10 @@ def _followup_block(events):
 def check_tickets_before_reminder(events):
     """
     A reminder became due: look at the ClickUp task of its issue first (status + latest comments).
-    - task closed  -> the issue is resolved quietly: no reminder, no message to the tenant, timers stopped
+    - task closed  -> (user decision 2026-09-30) the other reminders of the issue stop and Claude proposes telling the
+                      tenant it is done ("... if you still have any problem, just let us know") + resolving the issue;
+                      like every proposal it waits for a manager's approval. The old quiet close (no tenant message)
+                      is kept with AI_AGENT_APPROVAL=timer.
     - task open    -> its status and comments go to Claude, which decides whether a reminder is still needed
     Returns (events_still_needing_claude, ticket_block_text_or_None).
     """
@@ -405,6 +473,18 @@ def check_tickets_before_reminder(events):
             except clickup.ClickUpError as e:
                 checked[issue.id] = {'error': str(e)}
         state = checked[issue.id]
+        if state.get('closed') and config.explicit_approval() and issue.is_open:
+            issue.followups.filter(status=AIFollowUp.STATUS_PENDING).update(
+                status=AIFollowUp.STATUS_CANCELLED, status_note='ClickUp task closed', updated_at=timezone.now(),
+            )
+            remaining.append(event)
+            lines.append(
+                f"- ticket_id: t-{issue.id} | issue_id: {issue.public_id} | ClickUp task CLOSED (status: {state['status']}) - "
+                f"staff marked it done. PROPOSE: answer the tenant in one or two short sentences that the team marked "
+                f"\"{issue.summary}\" as done and that they should just let us know if they still have any problem "
+                f"(same language as the chat), and UPDATE_ISSUE_STATE {issue.public_id} RESOLVED. Nothing else, no "
+                f"new reminder. Both wait for a manager's approval.")
+            continue
         if state.get('closed'):
             if issue.is_open:
                 issue.state, issue.resolved_at = AIIssue.STATE_RESOLVED, timezone.now()
@@ -474,13 +554,23 @@ def process_events(events):
     reply_payload = (tenant_events[-1].payload if tenant_events else None) or {}
 
     # Answers / plans of this chat that still wait for staff review: the AI sees them and does not repeat them
-    pending_block = answer_review.pending_block(conversation_sid)
+    # (explicit approval: a new tenant / staff message replaces them - the AI repeats what is still needed)
+    from mysite.ai_agent import after_hours, calls, cases
+    pending_block = answer_review.pending_block(conversation_sid, event_type)
+    ack_block = after_hours.input_block(events)
     outcome = run_agent(
         event_type, conversation_sid, apartment, booking, trigger_messages, mode,
         body_override="\n".join(e.body or '' for e in tenant_events if not e.message_id) or None,
-        extra_block="\n\n".join(b for b in (_followup_block(events), ticket_block, pending_block) if b) or None,
+        extra_block="\n\n".join(b for b in (_followup_block(events), ticket_block, pending_block, ack_block) if b) or None,
     )
     run, parsed, meta = outcome['run'], outcome['parsed'], outcome['meta']
+    urgent_reply = any(after_hours.is_urgent(e.body) for e in tenant_events)
+    if parsed:
+        cases.enforce_handled(parsed, conversation_sid)   # staff took these issues over: the AI stays out
+        if urgent_reply and (parsed['triage'].get('priority') or 'routine') == 'routine':
+            parsed['triage']['priority'] = 'urgent'      # the tenant replied URGENT: the card says so
+    meta['urgent_reply'] = urgent_reply
+    meta['after_hours_ack_sent'] = any(a.status in ('sent', 'would_send') for a in after_hours.acks_for(events))
     if parsed and parsed['answer'] and tenant_events and answer_review.confirmation_pending(conversation_sid):
         # The new answer replaces a legal draft that waits for a manager: it waits for a manager too, so the legal
         # answer can not slip out through the next message's 15-minute timer
@@ -493,6 +583,21 @@ def process_events(events):
     )
     meta['run_id'] = ai_run.id
     meta['event_ids'] = [e.id for e in events]
+    AIRun.objects.filter(id=ai_run.id).update(triage=(parsed or {}).get('triage') or {})
+    ai_run.triage = (parsed or {}).get('triage') or {}
+    first_at = min(e.created_at for e in events)
+    try:
+        if tenant_events and ((parsed and _ai_emergency(parsed)) or (not parsed and _EMERGENCY.search(
+                "\n".join(e.body or '' for e in tenant_events)))):
+            # Emergency (or the run failed on an emergency-looking message): phone the on-call person at any hour
+            calls.request_call(conversation_sid, "emergency: " + " ".join((e.body or '') for e in tenant_events)[:160],
+                               mode, ai_run=ai_run)
+        if parsed:
+            cases.note_run(ai_run, parsed, bool(tenant_events))
+    except Exception as e:
+        report_error(e, "case tracking / alert call failed (the run goes on)", {'run': f"/ai-runs/{ai_run.id}/"})
+    meta['after_hours_line'] = after_hours.card_line(events)
+    meta['call_line'] = calls.card_line(conversation_sid, first_at - timedelta(minutes=1))
 
     action_results, delivery = [], {'sent_to_chat': False, 'note': 'run failed - nothing sent'}
     if parsed:
@@ -518,7 +623,10 @@ def process_events(events):
             delivery.setdefault('plan_until', delivery.get('hold_until') or answer_review.window_end())
         else:
             action_results = agent_actions.execute_actions(parsed, action_ctx)
-        if parsed['review_answer']:
+            delivery['executed_now'] = True
+        if (parsed.get('handled_info') or {}).get('answer_dropped'):
+            delivery['note'] = "NO_ANSWER - staff handle this issue (I'll handle); the AI answer is kept for review only"
+        elif parsed['review_answer']:
             delivery['note'] = 'NO_ANSWER - staff answered first; the review answer is stored for managers, never sent'
         if last_tenant_message:
             shown_answer, shown_why = parsed['answer'], parsed['why']
@@ -547,6 +655,7 @@ def process_events(events):
         why=parsed['why'] if parsed else None,
         no_answer=bool(parsed and parsed['no_answer']),
         review_answer=parsed['review_answer'] if parsed else None,
+        triage=(parsed or {}).get('triage') or {},
         actions=action_results, sent_to_chat=delivery['sent_to_chat'],
         delivery_note=(delivery.get('note') or '')[:255],
         error=run.get('error') or delivery.get('error'),
@@ -574,6 +683,17 @@ def process_events(events):
         answer_review.start(ai_run, parsed, delivery, reply_payload, booking, has_tenant_message=bool(tenant_events),
                             plan_items=plan_items, plan_actions=plan_actions, action_ctx=action_ctx,
                             trigger_text=trigger_text)
+        try:
+            ai_run.refresh_from_db()
+            if plan_items is None:   # executed at once (emergency / review off)
+                cases.after_apply(ai_run, {k: i.id for k, i in action_ctx.temp_ids.items()}, bool(tenant_events))
+                if parsed['answer'] and (delivery.get('sent_to_chat') or mode == AIRun.MODE_TEST) \
+                        and not (delivery.get('note') or '').startswith(('suppressed', 'BLOCKED')):
+                    cases.mark_answer_sent(ai_run, delivery.get('note') or '')
+            if meta.get('after_hours_ack_sent'):
+                cases.mark_acknowledged(conversation_sid, cases.run_issues(ai_run))
+        except Exception as e:
+            report_error(e, "case tracking failed (the run itself is done)", {'run': f"/ai-runs/{ai_run.id}/"})
         log_info(
             f"AI agent run #{ai_run.id} {event_type} {mode} {meta['apartment']}: "
             f"{'NO_ANSWER' if parsed['no_answer'] else 'ANSWER'}, {len(action_results)} actions, ${summary['cost_usd']:.4f}",
@@ -596,7 +716,9 @@ def process_events(events):
 
 def _batch_wait_seconds(batch):
     from mysite.models import AIEvent
-    if any(_EMERGENCY.search(e.body or '') for e in batch if e.event_type == AIEvent.TYPE_TENANT_MESSAGE):
+    from mysite.ai_agent import after_hours
+    if any(_EMERGENCY.search(e.body or '') or after_hours.is_urgent(e.body) for e in batch
+           if e.event_type == AIEvent.TYPE_TENANT_MESSAGE):
         return 0
     if all(e.event_type == AIEvent.TYPE_FOLLOWUP_DUE for e in batch):
         return 0

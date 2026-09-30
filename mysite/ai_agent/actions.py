@@ -145,6 +145,9 @@ def _update_issue_state(ctx, action):
     old_state = issue.state
     issue.state = state
     issue.resolved_at = timezone.now() if state == AIIssue.STATE_RESOLVED else None
+    if state == AIIssue.STATE_RESOLVED:
+        issue.reach_stage(AIIssue.STAGE_RESOLVED)
+        issue.handled_by = issue.handled_at = issue.handled_prev_state = None
     issue.save()
     detail = f"{issue.public_id}: {old_state} -> {state}"
     if state == AIIssue.STATE_RESOLVED:
@@ -180,13 +183,16 @@ def _schedule_followup(ctx, action):
     from mysite.models import AIFollowUp
 
     kind = action.get('kind')
-    if kind not in dict(AIFollowUp.KIND_CHOICES):
-        raise ActionError(f"unknown follow-up kind {kind}")
+    if kind not in dict(AIFollowUp.KIND_CHOICES) or kind == AIFollowUp.KIND_DEADLINE_REMINDER:
+        raise ActionError(f"unknown follow-up kind {kind}" + (" - deadline reminders are set by the backend from "
+                                                               "tenant_deadline" if kind == AIFollowUp.KIND_DEADLINE_REMINDER else ""))
     issue = _issue(ctx, action.get('issue_id'), required=False)
     reason = str(action.get('reason') or '').strip()
 
     if issue is not None:
-        if issue.followups.count() >= policy.MAX_FOLLOWUPS_PER_ISSUE:
+        if issue.handled_by and issue.is_open:
+            raise ActionError(f"{issue.public_id} is handled by staff ({issue.handled_by} pressed \"I'll handle\") - no AI reminders")
+        if issue.followups.exclude(kind=AIFollowUp.KIND_DEADLINE_REMINDER).count() >= policy.MAX_FOLLOWUPS_PER_ISSUE:
             raise ActionError(f"{issue.public_id} reached the limit of {policy.MAX_FOLLOWUPS_PER_ISSUE} follow-ups")
         pending = issue.followups.filter(kind=kind, status=AIFollowUp.STATUS_PENDING).first()
         if pending:

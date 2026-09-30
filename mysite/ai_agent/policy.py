@@ -22,13 +22,23 @@ DELAYS = {
 TENANT_WINDOW = (time(9, 0), time(20, 0))
 TENANT_RESUME = time(10, 0)
 
-# Non-urgent reminders to staff only inside this window (team time); otherwise next STAFF_WINDOW start
-STAFF_WINDOW = (time(10, 0), time(18, 0))
+# Non-urgent reminders to staff only inside office hours (team time); otherwise next STAFF_WINDOW start
+STAFF_WINDOW = (time(config.OFFICE_START_HOUR, 0), time(config.OFFICE_END_HOUR, 0))
 
 TENANT_KINDS = ('tenant_nudge', 'second_tenant_nudge')
 
-# Safety cap: an issue can never produce more follow-ups than this (stops endless reminder loops)
+# Safety cap: an issue can never produce more follow-ups than this (stops endless reminder loops).
+# Deadline reminders are set by the backend, not the AI, and do not count.
 MAX_FOLLOWUPS_PER_ISSUE = 8
+DEADLINE_KIND = 'deadline_reminder'
+
+# Reminders before a tenant deadline (user decision 2026-09-30): the owner 24 h and 2 h before; at 2 h Kevin too when
+# staff have not acted yet
+DEADLINE_REMINDERS = (
+    (timedelta(hours=24), "24h", "Tenant deadline in about 24 hours: remind the owner"),
+    (timedelta(hours=2), "2h", "Tenant deadline in about 2 hours: remind the owner, and ALSO alert Kevin if staff have "
+                               "not acted on it yet"),
+)
 
 
 def _tz():
@@ -64,3 +74,9 @@ def due_at(kind, priority='routine', now=None):
     moved = _into_window(local, STAFF_WINDOW, STAFF_WINDOW[0])
     note = f"{kind}: +{delay}" + (" moved to staff hours" if moved != local else "")
     return moved, note
+
+
+def deadline_reminders(deadline, now=None):
+    """[(due_at, label, reason)] for the reminders before a tenant deadline that are still in the future."""
+    now = now or timezone.now()
+    return [(deadline - before, label, reason) for before, label, reason in DEADLINE_REMINDERS if deadline - before > now]

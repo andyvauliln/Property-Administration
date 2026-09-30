@@ -1,5 +1,11 @@
 # AI reminders (follow-ups): full logic
 
+> **Changes of 2026-09-30 (client spec v4, `claude_code_integration_doc/client_spec_v4.md`):** staff hours are now
+> 09:00-18:00 (routine staff reminders move to 09:00, not 10:00); nothing waits 15 minutes any more - plans and
+> reminder messages are done only when a manager approves them; new kind `deadline_reminder` (backend-made, 24 h and
+> 2 h before a tenant deadline, outside the 8-reminder cap); a CLOSED ClickUp task no longer closes the issue quietly -
+> the AI proposes telling the tenant it is done; issues a manager took over ("I'll handle") get no reminders.
+
 How the Claude agent decides to create, change or cancel a reminder, how the backend times it,
 what happens when it fires, and every way it stops. Everything below is taken from the code
 as of 2026-09-28.

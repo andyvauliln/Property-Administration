@@ -5,6 +5,7 @@ alerts, failed runs, failed SMS deliveries, worker crashes.
 Chat: env AI_AGENT_ALERT_CHAT_ID. Until it is set, everything goes to the existing error chat
 (TELEGRAM_ERROR_CHAT_ID), so nothing is ever lost.
 """
+import json
 import os
 
 import requests
@@ -17,12 +18,14 @@ def ai_chat_id():
     return configured or (os.environ.get('TELEGRAM_ERROR_CHAT_ID') or '').strip()
 
 
-def _post(token, chat_id, text, reply_to=None):
+def _post(token, chat_id, text, reply_to=None, reply_markup=None):
     """Returns (ok, note, message_id). The note never contains the bot token."""
     data = {'chat_id': chat_id, 'text': text[:3900]}
     if reply_to:
         data['reply_to_message_id'] = reply_to
         data['allow_sending_without_reply'] = 'true'
+    if reply_markup:
+        data['reply_markup'] = json.dumps(reply_markup)
     try:
         response = requests.post(f"https://api.telegram.org/bot{token}/sendMessage", data=data, timeout=10)
         body = response.json() if response.content else {}
@@ -33,13 +36,13 @@ def _post(token, chat_id, text, reply_to=None):
         if new_id and str(new_id) != str(chat_id):
             # The group became a supergroup (happens e.g. when the bot is made admin): its id changed
             logger.error(f"Telegram chat {chat_id} is now {new_id} - update AI_AGENT_ALERT_CHAT_ID in .env")
-            ok, note, message_id = _post(token, new_id, text, reply_to)
+            ok, note, message_id = _post(token, new_id, text, reply_to, reply_markup)
             return ok, f"{note} (group was upgraded: set AI_AGENT_ALERT_CHAT_ID={new_id} in .env)", message_id
         return False, f"Telegram refused ({response.status_code}): {body.get('description') or 'no reason given'}", None
     return True, f"sent to Telegram chat {chat_id}", (body.get('result') or {}).get('message_id')
 
 
-def send_ai_chat(text, reply_to=None):
+def send_ai_chat(text, reply_to=None, reply_markup=None):
     """
     Returns (ok, note, telegram_message_id). When the AI group refuses the message (e.g. members may not
     send messages there), it goes to the error chat (TELEGRAM_ERROR_CHAT_ID) instead so it is not lost;
@@ -49,7 +52,7 @@ def send_ai_chat(text, reply_to=None):
     chat_id = ai_chat_id()
     if not token or not chat_id:
         return False, "no Telegram chat configured (TELEGRAM_TOKEN + AI_AGENT_ALERT_CHAT_ID)", None
-    ok, note, message_id = _post(token, chat_id, text, reply_to)
+    ok, note, message_id = _post(token, chat_id, text, reply_to, reply_markup)
     if ok:
         return ok, note, message_id
     logger.error(f"AI agent Telegram notification failed: {note}")
@@ -59,6 +62,31 @@ def send_ai_chat(text, reply_to=None):
         if copied:
             note += f"; copy sent to the error chat {fallback}"
     return False, note, None
+
+
+def _call(method, data):
+    """One Telegram Bot API call on the AI chat. Returns (ok, description). Never raises, never logs the token."""
+    token = os.environ.get('TELEGRAM_TOKEN')
+    if not token:
+        return False, 'no TELEGRAM_TOKEN'
+    try:
+        response = requests.post(f"https://api.telegram.org/bot{token}/{method}", data=data, timeout=10)
+        body = response.json() if response.content else {}
+    except Exception as e:
+        return False, f"Telegram not reachable: {type(e).__name__}"
+    return bool(body.get('ok')), body.get('description') or ''
+
+
+def edit_reply_markup(message_id, reply_markup=None):
+    """Replaces (None: removes) the buttons under one of the bot's messages in the AI chat."""
+    return _call('editMessageReplyMarkup', {'chat_id': ai_chat_id(), 'message_id': message_id,
+                                            'reply_markup': json.dumps(reply_markup or {'inline_keyboard': []})})
+
+
+def answer_callback(callback_id, text='', alert=False):
+    """The small notice Telegram shows to the person who pressed a button (must be answered, or it keeps spinning)."""
+    return _call('answerCallbackQuery', {'callback_query_id': callback_id, 'text': text[:190],
+                                         'show_alert': 'true' if alert else 'false'})
 
 
 def notify_ai_chat(text):

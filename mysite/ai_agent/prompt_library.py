@@ -159,6 +159,17 @@ SPECS = [
         when="Every agent run.",
         kind=KIND_RULES, fill=FILL_NONE, model=_AGENT_MODEL,
     ),
+    PromptSpec(
+        'ai_after_hours_ack', 'After-hours auto-message to the tenant', GROUP_AGENT,
+        _from('mysite.ai_agent.after_hours', 'DEFAULT_ACK_TEXT'),
+        what="The fixed SMS a tenant gets at once when they write outside office hours (client spec v4). It is the "
+             "only message sent to a tenant without staff approval.",
+        how="Sent exactly as written (no placeholders), at most once per 5 hours per tenant (all their chats count as "
+            "one), at any hour - it skips the 21:00-08:00 SMS hold. Test apartments: only shown as WOULD AUTO-SEND on "
+            "the Telegram card. A tenant reply containing URGENT raises a 🚨 card and phones the on-call person.",
+        when="Each tenant message outside Monday-Friday 09:00-18:00 ET and on US federal holidays.",
+        fill=FILL_NONE, model='none - fixed text',
+    ),
     # --- Telegram review ----------------------------------------------------------------------------------
     PromptSpec(
         'ai_agent_review_interpreter', 'Telegram reply interpreter', GROUP_REVIEW,

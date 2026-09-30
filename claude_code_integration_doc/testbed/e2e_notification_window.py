@@ -73,9 +73,17 @@ PendingOutboundMessage.objects.create(conversation_sid="CHwin3", author="Virtual
                                        sender_phone="+1", receiver_phone="+1", send_after=timezone.now() - timedelta(minutes=1))
 call_command('flush_pending_sms')
 failed_row = PendingOutboundMessage.objects.get(conversation_sid="CHwin3")
-check("a failed flush marks the row failed and alerts the manager chat instead of losing it",
-      failed_row.failed and 'twilio down' in (failed_row.error or '') and len(failure_alerts) == 1)
+check("a failed flush alerts the manager chat and schedules ONE retry in 3 minutes (not failed yet)",
+      not failed_row.failed and failed_row.attempts == 1 and 'twilio down' in (failed_row.error or '')
+      and len(failure_alerts) == 1 and failed_row.send_after > timezone.now() + timedelta(minutes=2))
 call_command('flush_pending_sms')
-check("a failed row is not retried automatically", len(failure_alerts) == 1)
+check("the retry waits for its 3 minutes", len(failure_alerts) == 1)
+PendingOutboundMessage.objects.filter(id=failed_row.id).update(send_after=timezone.now() - timedelta(seconds=1))
+call_command('flush_pending_sms')
+failed_row.refresh_from_db()
+check("the retry failed too: the row is marked failed and alerted again", failed_row.failed and failed_row.attempts == 2
+      and len(failure_alerts) == 2)
+call_command('flush_pending_sms')
+check("a failed row is not retried a second time", len(failure_alerts) == 2)
 
 print(f"\n{sum(checks)}/{len(checks)} checks passed"); sys.exit(0 if all(checks) else 1)

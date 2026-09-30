@@ -48,11 +48,107 @@
     "review_answer": {
       "type": "string",
       "description": "Only when answer is NO_ANSWER because staff already answered or are handling the topic: the reply you would have given if staff had not replied. Never sent to the tenant - managers read it to review the AI. Empty string otherwise."
+    },
+    "primary_type": {
+      "type": "string",
+      "enum": [
+        "URGENT_PROPERTY_OR_ACCESS",
+        "ROUTINE_MAINTENANCE",
+        "TIME_SENSITIVE_LOGISTICS",
+        "PAYMENTS_AND_DOCUMENTS",
+        "BOOKING_AND_EXTENSION",
+        "PROPERTY_FACTS",
+        "COMPLAINT_OR_DISPUTE",
+        "FOLLOW_UP_REQUEST",
+        "NO_REPLY"
+      ],
+      "description": "Main message type: 1 URGENT_PROPERTY_OR_ACCESS, 2 ROUTINE_MAINTENANCE, 3 TIME_SENSITIVE_LOGISTICS, 4 PAYMENTS_AND_DOCUMENTS, 5 BOOKING_AND_EXTENSION, 6 PROPERTY_FACTS, 7 COMPLAINT_OR_DISPUTE, 8 FOLLOW_UP_REQUEST; NO_REPLY for pure thanks / likes / reactions / staff-only updates. For a staff message or a reminder: the type of the matter it is about."
+    },
+    "secondary_types": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "enum": [
+          "URGENT_PROPERTY_OR_ACCESS",
+          "ROUTINE_MAINTENANCE",
+          "TIME_SENSITIVE_LOGISTICS",
+          "PAYMENTS_AND_DOCUMENTS",
+          "BOOKING_AND_EXTENSION",
+          "PROPERTY_FACTS",
+          "COMPLAINT_OR_DISPUTE",
+          "FOLLOW_UP_REQUEST"
+        ]
+      },
+      "description": "Other types in the same message(s); [] when none."
+    },
+    "priority": {
+      "type": "string",
+      "enum": [
+        "routine",
+        "urgent",
+        "emergency"
+      ],
+      "description": "Priority of the matter as a whole."
+    },
+    "case_status": {
+      "type": "string",
+      "enum": [
+        "NEW",
+        "ACKNOWLEDGED",
+        "OWNER_ACCEPTED",
+        "ANSWERED",
+        "RESOLVED",
+        "NONE"
+      ],
+      "description": "Where the tenant's case stands once your proposal is carried out: ACKNOWLEDGED (only told we received it / what is being checked), OWNER_ACCEPTED (a staff member has taken it), ANSWERED (the tenant gets the substantive answer or a confirmed plan), RESOLVED (the underlying issue is done), NEW (nothing reaches the tenant yet), NONE (no case)."
+    },
+    "issue_refs": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "Issue ids this event is about: existing i-N from OPEN_ISSUES and/or new-N you create now; [] when none."
+    },
+    "owner": {
+      "type": "string",
+      "description": "Named staff member responsible for the next step (Edy / Janna / Kevin / Farid), or ''."
+    },
+    "next_action": {
+      "type": "string",
+      "description": "The ONE next action staff must take, with who, or '' when nothing is needed."
+    },
+    "tenant_deadline": {
+      "type": "string",
+      "description": "When the tenant needs the outcome, as 'YYYY-MM-DD HH:MM' in TENANT_TIMEZONE (e.g. arrival time for a bed delivery), only when the tenant or staff stated or clearly implied it; '' otherwise."
+    },
+    "verified_facts": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "Short verified facts from trusted sources that the proposal relies on; [] when none."
+    },
+    "uncertainties": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "Open questions, conflicting facts or missing information staff should know; [] when none."
+    },
+    "no_reply_reason": {
+      "type": "string",
+      "description": "When answer is NO_ANSWER: the specific reason (e.g. 'thanks only', 'Edy answered at 10:02', 'needs Farid's decision on the refund'); '' otherwise."
     }
   },
   "required": [
     "answer",
     "actions",
-    "why"
+    "why",
+    "primary_type",
+    "priority",
+    "issue_refs",
+    "next_action",
+    "tenant_deadline",
+    "no_reply_reason"
   ]
 }

@@ -153,6 +153,8 @@ def ai_issue_resolve(request, issue_id):
     if issue.is_open:
         issue.state = AIIssue.STATE_RESOLVED
         issue.resolved_at = timezone.now()
+        issue.reach_stage(AIIssue.STAGE_RESOLVED)
+        issue.handled_by = issue.handled_at = issue.handled_prev_state = None
         issue.save()
         issue.followups.filter(status=AIFollowUp.STATUS_PENDING).update(
             status=AIFollowUp.STATUS_CANCELLED, status_note='issue resolved by a manager', updated_at=timezone.now(),

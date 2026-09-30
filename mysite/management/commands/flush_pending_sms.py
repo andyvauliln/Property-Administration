@@ -11,6 +11,8 @@ class Command(BaseCommand):
     help = "Send tenant SMS held for the 08:00-21:00 Florida notification window, once it opens"
 
     def handle(self, *args, **options):
+        from datetime import timedelta
+
         from django.utils import timezone
 
         from mysite.ai_agent import config
@@ -30,12 +32,18 @@ class Command(BaseCommand):
                     pending.sender_phone, pending.receiver_phone,
                 )
                 pending.sent_at = timezone.now()
-                pending.save(update_fields=['sent_at'])
+                pending.attempts += 1
+                pending.save(update_fields=['sent_at', 'attempts'])
                 sent += 1
             except Exception as e:
-                pending.failed = True
+                pending.attempts += 1
                 pending.error = str(e)
-                pending.save(update_fields=['failed', 'error'])
+                if pending.attempts < 2:
+                    # One automatic retry, 3 minutes after the failure alert (user decision 2026-09-30)
+                    pending.send_after = timezone.now() + timedelta(minutes=3)
+                else:
+                    pending.failed = True
+                pending.save(update_fields=['failed', 'error', 'attempts', 'send_after'])
                 failed += 1
                 _notify_manager_chat_delivery_failed(pending.author, pending.receiver_phone, pending.body, pending.conversation_sid)
         self.stdout.write(f"sent {sent}, failed {failed}")
