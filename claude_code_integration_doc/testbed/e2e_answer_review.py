@@ -11,6 +11,8 @@ os.environ["AI_AGENT_APPROVAL"] = "timer"   # this file tests the 15-minute time
 os.environ["AI_AGENT_ALERT_CHAT_ID"] = "-500"
 from django.db import connection
 assert connection.vendor == "sqlite", "refusing to run outside the testbed"
+from mysite.ai_agent import calls as _calls
+_calls._dial = lambda call: None   # the emergency scenarios below must never dial a real phone
 
 from django.core.management import call_command
 from django.utils import timezone

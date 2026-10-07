@@ -160,6 +160,17 @@ SPECS = [
         kind=KIND_RULES, fill=FILL_NONE, model=_AGENT_MODEL,
     ),
     PromptSpec(
+        'ai_agent_team_rules', 'Agent - team rules', GROUP_AGENT, '',
+        what="How the team wants the agent to work, given from Telegram replies to alerts (\"ClickUp off means ...\", "
+             "\"never create a task for ...\"). One rule per line: '- [company] key: rule' or '- [apartment #ID NAME] key: rule'.",
+        how="Last part of the agent system prompt, under 'TEAM RULES'. Company rules and the rules of the chat's own "
+            "apartment are included. A reply to an alert that asks for a change of the agent itself becomes a proposal "
+            "with ✅ Apply Change; the press adds the line here (same scope and key: the older line is replaced). "
+            "Team rules never override safety, access-code or payment rules.",
+        when="Every agent run.",
+        kind=KIND_RULES, fill=FILL_NONE, model=_AGENT_MODEL,
+    ),
+    PromptSpec(
         'ai_after_hours_ack', 'After-hours auto-message to the tenant', GROUP_AGENT,
         _from('mysite.ai_agent.after_hours', 'DEFAULT_ACK_TEXT'),
         what="The fixed SMS a tenant gets at once when they write outside office hours (client spec v4). It is the "
@@ -383,6 +394,7 @@ def append_rule(key, rule_line):
 
 
 LESSONS_KEY = 'ai_agent_answer_lessons'
+TEAM_RULES_KEY = 'ai_agent_team_rules'
 _LESSON_LINE = re.compile(r"^-\s*\[(company|apartment #(\d+)[^\]]*)\]\s*([a-z0-9_]+)\s*:\s*(.*)$")
 
 
@@ -400,9 +412,10 @@ def parse_lesson(line):
     return (int(match.group(2)) if match.group(2) else None), match.group(3), match.group(4).strip()
 
 
-def upsert_lesson(apartment, key, rule):
+def upsert_lesson(apartment, key, rule, prompt_key=LESSONS_KEY):
     """
     Adds a lesson line; a lesson with the same scope (company / this apartment) and key replaces the older line.
+    prompt_key: the lessons (default) or the team rules, which use the same line format.
     Returns a short detail for the confirmation message.
     """
     from mysite.ai_agent.knowledge import normalize_key
@@ -413,23 +426,39 @@ def upsert_lesson(apartment, key, rule):
     apartment_id = getattr(apartment, 'id', None)
     new_line = f"- [{_lesson_tag(apartment)}] {key}: {rule}"
     lines, replaced = [], 0
-    for line in raw(LESSONS_KEY).splitlines():
+    for line in raw(prompt_key).splitlines():
         parsed = parse_lesson(line)
         if parsed and parsed[0] == apartment_id and parsed[1] == key:
             replaced += 1
             continue
         lines.append(line)
     lines.append(new_line)
-    save(LESSONS_KEY, "\n".join(l for l in lines if l.strip()))
+    save(prompt_key, "\n".join(l for l in lines if l.strip()))
     return f"'{key}'" + (f", replaced {replaced} older" if replaced else "")
 
 
-def lessons_for(apartment):
-    """Lesson lines that apply to a chat of this apartment: company ones and this apartment's own."""
+def upsert_team_rule(apartment, key, rule):
+    """A rule about how the agent works, given by the team from Telegram (part TEAM RULES of the system prompt)."""
+    return upsert_lesson(apartment, key, rule, prompt_key=TEAM_RULES_KEY)
+
+
+def team_rules_for(apartment):
+    """Team-rule lines for a chat of this apartment. Reads the row without creating it: nothing is written to the
+    database before the first rule is saved."""
+    entry = _row(TEAM_RULES_KEY)
+    return _lines_for(apartment, (entry.content or '') if entry else '')
+
+
+def _lines_for(apartment, content):
     apartment_id = getattr(apartment, 'id', None)
     picked = []
-    for line in raw(LESSONS_KEY).splitlines():
+    for line in content.splitlines():
         parsed = parse_lesson(line)
         if parsed and (parsed[0] is None or parsed[0] == apartment_id):
             picked.append(line.strip())
     return picked
+
+
+def lessons_for(apartment):
+    """Lesson lines that apply to a chat of this apartment: company ones and this apartment's own."""
+    return _lines_for(apartment, raw(LESSONS_KEY))

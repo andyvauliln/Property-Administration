@@ -18,6 +18,19 @@ DELAYS = {
     ('staff_reminder', 'emergency'): timedelta(minutes=30),
 }
 
+# Simple alerts (v5, simple_telegram_alerts.md 1.3): at most 2 reminders per case - the first within 2 hours (urgent
+# and emergency: 30 minutes, user decision 2026-10-06), the second the next day. Deadline reminders are separate and
+# do not count.
+DELAYS_V5 = {
+    'escalation_check': timedelta(minutes=30),
+    'tenant_nudge': timedelta(hours=2),
+    'second_tenant_nudge': timedelta(hours=24),
+    ('staff_reminder', 'routine'): timedelta(hours=2),
+    ('staff_reminder', 'urgent'): timedelta(minutes=30),
+    ('staff_reminder', 'emergency'): timedelta(minutes=30),
+}
+MAX_REMINDERS_PER_CASE_V5 = 2
+
 # Routine tenant nudges only inside this window (tenant local time); otherwise next day at TENANT_RESUME
 TENANT_WINDOW = (time(9, 0), time(20, 0))
 TENANT_RESUME = time(10, 0)
@@ -57,10 +70,24 @@ def _into_window(moment, window, resume_at):
     return datetime.combine(day, resume_at, tzinfo=moment.tzinfo)
 
 
+def _office_moment(moment):
+    """The moment itself when it is inside office hours on a working day, else the start of the next working day
+    (weekends and US federal holidays are skipped)."""
+    start, end = STAFF_WINDOW
+    for _ in range(14):
+        working = moment.weekday() < 5 and not config.holiday_name(moment.date())
+        if working and start <= moment.time() < end:
+            return moment
+        day = moment.date() if working and moment.time() < start else moment.date() + timedelta(days=1)
+        moment = datetime.combine(day, start, tzinfo=moment.tzinfo)
+    return moment
+
+
 def due_at(kind, priority='routine', now=None):
     """Returns (aware UTC-safe datetime, human note explaining the choice)."""
     now = now or timezone.now()
-    delay = DELAYS.get((kind, priority)) or DELAYS.get(kind) or DELAYS[('staff_reminder', 'routine')]
+    delays = DELAYS_V5 if config.alert_style() == 'v5' else DELAYS
+    delay = delays.get((kind, priority)) or delays.get(kind) or delays[('staff_reminder', 'routine')]
     local = (now + delay).astimezone(_tz())
 
     if kind in TENANT_KINDS:
@@ -71,7 +98,7 @@ def due_at(kind, priority='routine', now=None):
     if priority in ('urgent', 'emergency'):
         return local, f"{kind} ({priority}): +{delay}, any hour"
 
-    moved = _into_window(local, STAFF_WINDOW, STAFF_WINDOW[0])
+    moved = _office_moment(local) if config.alert_style() == 'v5' else _into_window(local, STAFF_WINDOW, STAFF_WINDOW[0])
     note = f"{kind}: +{delay}" + (" moved to staff hours" if moved != local else "")
     return moved, note
 

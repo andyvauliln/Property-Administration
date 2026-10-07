@@ -106,6 +106,25 @@ def enqueue_staff_message(conversation_sid, message_sid, body, source='webhook')
         return False
 
 
+def enqueue_notification(conversation_sid, kind, text, booking_id=None, source='sms_notifications'):
+    """
+    An automatic notification of the daily job (move-in, rent due, ...) is handed to the AI instead of being sent
+    blindly: it checks the tenant's chats and the payments first (simple alerts, part 8a). Returns True when queued.
+    """
+    try:
+        from mysite.ai_agent import alerts_v5
+        from mysite.models import AIEvent, TwilioConversation
+        conversation = TwilioConversation.objects.filter(conversation_sid=conversation_sid).first()
+        AIEvent.objects.create(
+            event_type=alerts_v5.NOTIFICATION, conversation=conversation, conversation_sid=conversation_sid, body=text,
+            send_allowed=True, payload={'kind': kind, 'booking_id': booking_id, 'source': source},
+        )
+        return True
+    except Exception as e:
+        report_error(e, "could not queue an automatic notification for the AI agent", source='command')
+        return False
+
+
 def fire_due_followups():
     """Due follow-ups become FOLLOWUP_DUE events. Returns how many were fired."""
     from mysite.models import AIEvent, AIFollowUp, TwilioConversation
@@ -558,10 +577,13 @@ def process_events(events):
     from mysite.ai_agent import after_hours, calls, cases
     pending_block = answer_review.pending_block(conversation_sid, event_type)
     ack_block = after_hours.input_block(events)
+    from mysite.ai_agent import alerts_v5
+    notification = alerts_v5.notification_of(events) if config.alert_style() == 'v5' else None
     outcome = run_agent(
         event_type, conversation_sid, apartment, booking, trigger_messages, mode,
         body_override="\n".join(e.body or '' for e in tenant_events if not e.message_id) or None,
-        extra_block="\n\n".join(b for b in (_followup_block(events), ticket_block, pending_block, ack_block) if b) or None,
+        extra_block="\n\n".join(b for b in (_followup_block(events), ticket_block, pending_block, ack_block,
+                                             alerts_v5.notification_block(events) if notification else None) if b) or None,
     )
     run, parsed, meta = outcome['run'], outcome['parsed'], outcome['meta']
     urgent_reply = any(after_hours.is_urgent(e.body) for e in tenant_events)
@@ -607,8 +629,13 @@ def process_events(events):
         if not any(e.event_type in (AIEvent.TYPE_TENANT_MESSAGE, AIEvent.TYPE_STAFF_MESSAGE) for e in events):
             from mysite import conversation_groups
             send_to = conversation_groups.main_sid(conversation_sid)
-        delivery = deliver(parsed, mode, conversation_sid, booking, last_message, reply_payload, apartment=apartment,
-                           send_to=send_to)
+        if notification:
+            # The AI decided whether the planned notification is still needed: sent now, or it waits for a press
+            meta['notification'] = alerts_v5.settle_notification(notification, parsed, mode)
+            delivery = alerts_v5.deliver_notification(meta['notification'], parsed, mode, send_to or conversation_sid, booking)
+        else:
+            delivery = deliver(parsed, mode, conversation_sid, booking, last_message, reply_payload, apartment=apartment,
+                               send_to=send_to)
         action_ctx = agent_actions.ActionContext(
             mode, meta, outcome['new_messages_text'], conversation_sid,
             apartment=apartment, booking=booking, ai_run=ai_run,
@@ -619,7 +646,10 @@ def process_events(events):
             # Staff review: nothing is executed now - the actions become a plan in the Telegram alert and are
             # executed when the review window ends (answer_review.apply_plan)
             plan_items, plan_actions = agent_plan.describe(parsed, action_ctx)
-            action_results = agent_plan.as_results(plan_items, plan_actions)
+            from mysite.ai_agent import alerts_v5
+            if alerts_v5.applies(meta):
+                alerts_v5.prepare(plan_actions, action_ctx, parsed.get('triage'))   # reminders exist before the alert shows them
+            action_results = alerts_v5.results(agent_plan.as_results(plan_items, plan_actions), plan_actions)
             delivery.setdefault('plan_until', delivery.get('hold_until') or answer_review.window_end())
         else:
             action_results = agent_actions.execute_actions(parsed, action_ctx)
@@ -685,6 +715,9 @@ def process_events(events):
                             trigger_text=trigger_text)
         try:
             ai_run.refresh_from_db()
+            if plan_items is not None and (ai_run.review or {}).get('style') == 'v5':
+                from mysite.ai_agent import alerts_v5
+                alerts_v5.after_post(ai_run, bool(tenant_events))
             if plan_items is None:   # executed at once (emergency / review off)
                 cases.after_apply(ai_run, {k: i.id for k, i in action_ctx.temp_ids.items()}, bool(tenant_events))
                 if parsed['answer'] and (delivery.get('sent_to_chat') or mode == AIRun.MODE_TEST) \
@@ -702,6 +735,10 @@ def process_events(events):
     else:
         _finish_events(events, AIEvent.STATUS_FAILED, run.get('error'))
         log_ai_error(conversation_sid, "ai_agent", run.get('error') or 'unknown error')
+        if notification and live:
+            # A notification is never lost because the AI is down: the template goes out as it always did
+            from mysite import conversation_groups
+            send_answer(conversation_groups.main_sid(conversation_sid), notification['template'], 'Virtual Assistant', None, booking)
         # The message must still reach a human when the AI is down
         report_error(
             Exception(run.get('error') or 'AI agent run failed'),
@@ -720,7 +757,7 @@ def _batch_wait_seconds(batch):
     if any(_EMERGENCY.search(e.body or '') or after_hours.is_urgent(e.body) for e in batch
            if e.event_type == AIEvent.TYPE_TENANT_MESSAGE):
         return 0
-    if all(e.event_type == AIEvent.TYPE_FOLLOWUP_DUE for e in batch):
+    if all(e.event_type in (AIEvent.TYPE_FOLLOWUP_DUE, 'NOTIFICATION_DUE') for e in batch):
         return 0
     if all((e.payload or {}).get('source') == 'chat_ui' for e in batch):
         return config.chat_ui_debounce_seconds()

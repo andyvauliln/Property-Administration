@@ -18,9 +18,11 @@ def ai_chat_id():
     return configured or (os.environ.get('TELEGRAM_ERROR_CHAT_ID') or '').strip()
 
 
-def _post(token, chat_id, text, reply_to=None, reply_markup=None):
-    """Returns (ok, note, message_id). The note never contains the bot token."""
+def _post(token, chat_id, text, reply_to=None, reply_markup=None, silent=False):
+    """Returns (ok, note, message_id). The note never contains the bot token. silent: posted without sound."""
     data = {'chat_id': chat_id, 'text': text[:3900]}
+    if silent:
+        data['disable_notification'] = 'true'
     if reply_to:
         data['reply_to_message_id'] = reply_to
         data['allow_sending_without_reply'] = 'true'
@@ -36,13 +38,13 @@ def _post(token, chat_id, text, reply_to=None, reply_markup=None):
         if new_id and str(new_id) != str(chat_id):
             # The group became a supergroup (happens e.g. when the bot is made admin): its id changed
             logger.error(f"Telegram chat {chat_id} is now {new_id} - update AI_AGENT_ALERT_CHAT_ID in .env")
-            ok, note, message_id = _post(token, new_id, text, reply_to, reply_markup)
+            ok, note, message_id = _post(token, new_id, text, reply_to, reply_markup, silent)
             return ok, f"{note} (group was upgraded: set AI_AGENT_ALERT_CHAT_ID={new_id} in .env)", message_id
         return False, f"Telegram refused ({response.status_code}): {body.get('description') or 'no reason given'}", None
     return True, f"sent to Telegram chat {chat_id}", (body.get('result') or {}).get('message_id')
 
 
-def send_ai_chat(text, reply_to=None, reply_markup=None):
+def send_ai_chat(text, reply_to=None, reply_markup=None, silent=False):
     """
     Returns (ok, note, telegram_message_id). When the AI group refuses the message (e.g. members may not
     send messages there), it goes to the error chat (TELEGRAM_ERROR_CHAT_ID) instead so it is not lost;
@@ -52,7 +54,7 @@ def send_ai_chat(text, reply_to=None, reply_markup=None):
     chat_id = ai_chat_id()
     if not token or not chat_id:
         return False, "no Telegram chat configured (TELEGRAM_TOKEN + AI_AGENT_ALERT_CHAT_ID)", None
-    ok, note, message_id = _post(token, chat_id, text, reply_to, reply_markup)
+    ok, note, message_id = _post(token, chat_id, text, reply_to, reply_markup, silent)
     if ok:
         return ok, note, message_id
     logger.error(f"AI agent Telegram notification failed: {note}")
@@ -81,6 +83,12 @@ def edit_reply_markup(message_id, reply_markup=None):
     """Replaces (None: removes) the buttons under one of the bot's messages in the AI chat."""
     return _call('editMessageReplyMarkup', {'chat_id': ai_chat_id(), 'message_id': message_id,
                                             'reply_markup': json.dumps(reply_markup or {'inline_keyboard': []})})
+
+
+def edit_message_text(message_id, text, reply_markup=None):
+    """Replaces the text (and the buttons) of one of the bot's messages in the AI chat."""
+    return _call('editMessageText', {'chat_id': ai_chat_id(), 'message_id': message_id, 'text': text[:4096],
+                                     'reply_markup': json.dumps(reply_markup or {'inline_keyboard': []})})
 
 
 def answer_callback(callback_id, text='', alert=False):

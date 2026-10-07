@@ -92,9 +92,22 @@ INTERPRETER_SCHEMA = {
         'lesson': {'type': 'string', 'description': "Reusable rule for similar future messages, else ''"},
         'lesson_key': {'type': 'string', 'description': "short snake_case topic, e.g. late_checkout_request"},
         'lesson_scope': {'type': 'string', 'enum': ['company', 'apartment']},
+        'agent_changes': {
+            'type': 'array', 'description': "Changes the manager asks for in the AGENT ITSELF (how it works in general, "
+                                            "not this alert), as rules for the AI; [] when none",
+            'items': {'type': 'object', 'properties': {
+                'key': {'type': 'string', 'description': 'short snake_case topic, e.g. clickup_off'},
+                'rule': {'type': 'string', 'description': 'one self-contained instruction to the AI, 1-3 sentences'},
+                'scope': {'type': 'string', 'enum': ['company', 'apartment']},
+                'already': {'type': 'boolean', 'description': 'true when HOW THE SYSTEM WORKS says this is already so'},
+            }, 'required': ['key', 'rule', 'scope', 'already']},
+        },
+        'cannot': {'type': 'string', 'description': "The part of an agent change request that a rule can not do (needs "
+                                                    "a code change: new buttons, data, integrations, pages), else ''"},
+        'refused': {'type': 'string', 'description': "Why an agent change request is harmful and must not be applied, else ''"},
     },
     'required': ['decision', 'corrected_answer', 'plan_ops', 'task_actions', 'new_facts', 'staff_answer', 'lesson',
-                 'lesson_key', 'lesson_scope'],
+                 'lesson_key', 'lesson_scope', 'agent_changes', 'cannot', 'refused'],
 }
 
 # Seed default of the 'ai_agent_review_interpreter' prompt (the live text is in AIManagement).
@@ -244,6 +257,8 @@ def confirmation_pending(conversation_sid):
 def pending_block(conversation_sid, event_type=None):
     """Input block for a new run: this chat's answers / plans that still wait for staff review."""
     AIRun = _models()
+    if config.alert_style() == 'v5' and event_type == 'STAFF_MESSAGE':
+        return _still_valid_block(conversation_sid)
     if config.explicit_approval() and event_type in ('TENANT_MESSAGE', 'STAFF_MESSAGE'):
         return _replaced_block(conversation_sid)
     lines = []
@@ -269,6 +284,29 @@ def pending_block(conversation_sid, event_type=None):
     return "\n".join(lines) or None
 
 
+def _still_valid_block(conversation_sid):
+    """Simple alerts, a team message: the earlier alerts of this chat stay valid, the AI must not repeat them."""
+    AIRun = _models()
+    lines = []
+    for run in AIRun.objects.filter(conversation_sid=conversation_sid, review__plan__status='pending').order_by('id'):
+        plan = run.review['plan']
+        for item in plan.get('items') or []:
+            action = plan['actions'][item['idx']]
+            if item['kind'] == 'change' and not item.get('removed_by') and not action.get('removed_by'):
+                state = 'done' if action.get('done') else 'waits for its button'
+                ref = f" [refer to this issue as r{run.id}:{action['temp_id']}]" if action.get('type') == 'CREATE_ISSUE' and action.get('temp_id') and not action.get('done') else ""
+                lines.append(f"- run #{run.id} ({state}): {item['lines'][0]}{ref}")
+    held = AIRun.objects.filter(conversation_sid=conversation_sid, hold_status=AIRun.HOLD_HOLDING).order_by('id')
+    for run in held:
+        lines.append(f"- run #{run.id} answer draft, NOT sent ({_team_time(run.created_at)}): {run.answer}")
+    if not lines:
+        return None
+    return ("EARLIER_ALERTS of this chat that the team already has in Telegram. They stay valid with their own buttons: do NOT "
+            "repeat their actions and do not create the same task or reminder again. An answer draft listed here is dropped "
+            "now, because a team member wrote in the chat - propose a new answer only when the tenant still needs one.\n"
+            + "\n".join(lines))
+
+
 def _replaced_block(conversation_sid):
     """Explicit approval: the new tenant / staff message makes every waiting proposal of this chat stale."""
     from django.db.models import Q
@@ -288,7 +326,7 @@ def _replaced_block(conversation_sid):
         plan = (run.review or {}).get('plan') or {}
         if plan.get('status') == 'pending':
             for item in plan.get('items') or []:
-                if item['kind'] == 'change' and not item.get('removed_by'):
+                if item['kind'] == 'change' and not item.get('removed_by') and not plan['actions'][item['idx']].get('done'):
                     lines.append(f"- run #{run.id} planned: {item['lines'][0]}")
     return "\n".join(lines)
 
@@ -308,12 +346,19 @@ def start(ai_run, parsed, delivery, payload, booking=None, has_tenant_message=Fa
             'telegram_message_id': delivery.get('telegram_message_id'),
             'review': {'reply_author': payload.get('reply_author'), 'sender_phone': payload.get('sender_phone'),
                        'telegram_chat_id': ai_chat_id(), 'replies': [], 'version': 1,
-                       'explicit': explicit,
+                       'explicit': explicit, 'style': config.alert_style(),
+                       # the earlier parts of a long alert sent as (1/2), (2/2): a reply to any of them is a reply to it
+                       'bot_message_ids': list(delivery.get('telegram_part_ids') or []),
                        # a reminder may go to the tenant's main chat instead of the run's chat (service.deliver)
                        'send_to': delivery.get('send_to')},
         }
         if delivery.get('held') and delivery.get('confirm'):
             fields['review'].update(needs_confirmation=True, contract_basis=parsed.get('contract_basis'))
+        if action_ctx is not None:   # what a simple alert needs to be written again after a change
+            fields['review']['meta'] = {k: action_ctx.meta.get(k) for k in (
+                'apartment', 'tenant', 'mode', 'event_type', 'run_id', 'after_hours_ack_sent', 'after_hours_line', 'call_line',
+                'event_ids', 'v5_head', 'notification')}
+            fields['review']['v5_head'] = action_ctx.meta.get('v5_head') or []
         planned = plan_items is not None and plan_mod.has_changes(plan_items)
         if planned:
             meta = action_ctx.meta
@@ -335,7 +380,14 @@ def start(ai_run, parsed, delivery, payload, booking=None, has_tenant_message=Fa
             fields.update(hold_status=AIRun.HOLD_SENT, final_answer=parsed['answer'])
         AIRun.objects.filter(id=ai_run.id).update(**fields)
         ai_run.refresh_from_db()
-        if not fields['telegram_message_id'] and explicit and (delivery.get('held') or planned):
+        waits = delivery.get('held') or planned
+        if fields['review']['style'] == 'v5' and plan_actions is not None:
+            from mysite.ai_agent import alerts_v5
+            if alerts_v5.applies(getattr(action_ctx, 'meta', None)):
+                waits = alerts_v5.waiting(delivery, plan_actions)   # what is done at once does not wait for anybody
+        if not fields['telegram_message_id'] and not waits:
+            pass
+        elif not fields['telegram_message_id'] and explicit and (delivery.get('held') or planned):
             # Nothing is ever sent or done without a person's approval: it stays waiting, somebody must look at it
             report_error(Exception("Telegram card failed"), "AI proposal could NOT be posted for approval - nothing "
                          "sent or done, check the run", {'run': f"/ai-runs/{ai_run.id}/"})
@@ -454,7 +506,8 @@ def apply_plan(run, how):
     plan['status'] = 'applying'   # saved before executing: never twice
     _save_plan(run, plan)
     ctx = _ctx_for(run)
-    active = [a for a in plan['actions'] if not (isinstance(a, dict) and a.get('removed_by'))]
+    # 'done': already carried out by its own button or automatically (simple alerts) - never twice
+    active = [a for a in plan['actions'] if not (isinstance(a, dict) and (a.get('removed_by') or a.get('done')))]
     results = agent_actions.execute_actions({'answer': None, 'actions': active}, ctx)
     groups, clickup_note = team_notify.deliver_clickup_now(ctx, plan.get('trigger_text'), run)
     items = {id(plan['actions'][i['idx']]): i for i in plan['items'] if i.get('n')}
@@ -633,9 +686,10 @@ def _release(run, text, status, how, announce=True):
     sent = False
     if service._staff_replied_after(run.conversation_sid, run.message):
         status, note = AIRun.HOLD_SUPPRESSED, 'not sent - staff answered the tenant directly in the meantime'
-    elif run.mode != AIRun.MODE_LIVE:
+    elif run.mode != AIRun.MODE_LIVE and review.get('style') != 'v5':
         note = 'TEST mode - final answer stored, not sent to Twilio'
     else:
+        # Simple alerts (v5): a pressed Send Answer really sends, also in a test apartment (rule 1.1.2)
         try:
             result = service.send_answer(review.get('send_to') or run.conversation_sid, text,
                                          review.get('reply_author'), review.get('sender_phone'))
@@ -784,6 +838,13 @@ def fetch_updates():
         return []
 
 
+def ai_chat_link(message_id):
+    """The t.me link of a message of the AI group (a supergroup id -100xxxx -> xxxx), for 'see the newer alert'."""
+    from mysite.ai_agent.notify import ai_chat_id
+    chat = str(ai_chat_id() or '')
+    return f"https://t.me/c/{chat[4:]}/{message_id}" if chat.startswith('-100') else f"message {message_id}"
+
+
 def _say(run, text, reply_to=None):
     """send_ai_chat for a message about this run; its id is remembered so a reply to it reaches the run too."""
     ok, note, message_id = send_ai_chat(text, reply_to=reply_to or run.telegram_message_id)
@@ -807,8 +868,9 @@ def remember_bot_message(run_id, message_id):
 def run_for_telegram_message(message_id, chat_id):
     """The run whose alert - or one of whose bot messages (report, release note ...) - has this Telegram id."""
     AIRun = _models()
-    candidates = list(AIRun.objects.filter(telegram_message_id=message_id).order_by('-id')) or _runs_with_bot_message(message_id)
-    return next((r for r in candidates if str((r.review or {}).get('telegram_chat_id')) == chat_id), None)
+    # Message ids are per chat: an alert of another group can carry the same number, so every candidate is checked
+    candidates = list(AIRun.objects.filter(telegram_message_id=message_id).order_by('-id')) + _runs_with_bot_message(message_id)
+    return next((r for r in candidates if str((r.review or {}).get('telegram_chat_id')) == str(chat_id)), None)
 
 
 def _runs_with_bot_message(message_id):
@@ -857,6 +919,13 @@ def poll_telegram():
             if approval.handle_prompt_reply(run, parent['message_id'], message['text'], _author(message.get('from') or {})):
                 handled += 1
                 continue
+            if (run.review or {}).get('stale') and config.alert_style() == 'v5':
+                # Simple alerts (E7): an outdated alert is not worked on any more - the newer one is
+                newer = approval.newest_proposal(run)
+                link = f" ({ai_chat_link(newer.telegram_message_id)})" if newer.telegram_message_id and newer.id != run.id else ""
+                _say(run, f"⚠️ This alert is outdated – please reply to the newer one{link}.", reply_to=message.get('message_id'))
+                handled += 1
+                continue
             run = approval.newest_proposal(run)   # a reply to a stale card goes to the proposal that replaced it
             handle_reply(run, message['text'], _author(message.get('from') or {}), at, message.get('message_id'))
         except Exception as e:
@@ -898,11 +967,13 @@ def run_interpreter(prompt):
 
 
 EMPTY_DECISION = {'corrected_answer': '', 'plan_ops': [], 'task_actions': [], 'new_facts': [], 'staff_answer': '',
-                  'lesson': '', 'lesson_key': '', 'lesson_scope': 'company'}
+                  'lesson': '', 'lesson_key': '', 'lesson_scope': 'company', 'agent_changes': [], 'cannot': '', 'refused': ''}
 
 
-def interpret(run, text, author, can_change):
-    """Returns the decision dict for one reply. Plain stop / don't send / ok replies skip Claude."""
+def interpret(run, text, author, can_change, sent_note=None, extra_note=None):
+    """Returns the decision dict for one reply. Plain stop / don't send / ok replies skip Claude.
+    sent_note: what to tell the interpreter when the answer already went to the tenant (simple alerts);
+    extra_note: more rules for this reply (simple alerts)."""
     if STOP_REPLY.match(text):
         return dict(EMPTY_DECISION, decision='stop_all')
     if DONT_SEND_REPLY.match(text):
@@ -912,10 +983,14 @@ def interpret(run, text, author, can_change):
     from mysite.ai_agent import run_report
     if not run.answer:
         change_note = "NOTE: the AI did NOT answer the tenant in this alert - there is no answer to correct."
+    elif sent_note and not can_change:
+        change_note = sent_note
     elif not can_change:
         change_note = "NOTE: the answer can no longer be changed (already handled); still fill the other fields."
     else:
         change_note = ""
+    if extra_note:
+        change_note = f"{change_note}\n{extra_note}".strip()
     plan = _plan(run)
     plan_lines = plan_mod.render(plan['items']) if plan.get('status') == 'pending' else []
     tasks = [f"- t-{i.id} | {'this alert | ' if mine else ''}{i.ticket_title or i.summary} | issue {i.public_id}: "
@@ -1114,6 +1189,10 @@ def handle_reply(run, text, author, at, reply_to=None):
     """
     AIRun = _models()
     run.refresh_from_db()
+    if (run.review or {}).get('style') == 'v5':
+        # Simple alerts: a typed reply never changes anything by itself (rule 1.1.3)
+        from mysite.ai_agent import alerts_v5
+        return alerts_v5.handle_reply(run, text, author, at, reply_to)
     reply_to = reply_to or run.telegram_message_id
     dry = bool(TEST_REPLY.match(text))
     body = TEST_REPLY.sub('', text, count=1).strip() if dry else text.strip()

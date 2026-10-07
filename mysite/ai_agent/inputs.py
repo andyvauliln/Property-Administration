@@ -251,6 +251,10 @@ def build_agent_input(event_type, conversation_sid, apartment, booking, trigger_
     if not sources.get('payments'):
         context += "\n\n=== PAYMENT_RECORDS ===\nnone on file for this booking - do not state any payment status, route payment questions to Janna"
 
+    if not sources.get('parking'):
+        context += ("\n\n=== PARKING ===\nnone on file: no parking spot is booked for this booking and this apartment has no "
+                    "own spot in the CRM")
+
     # Code-level guard: access codes only from 24h before check-in until checkout
     codes_allowed = knowledge.access_codes_allowed(booking, now)
     if not codes_allowed:

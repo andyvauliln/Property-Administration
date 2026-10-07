@@ -802,6 +802,29 @@ def _apartment_fields_context(apartment):
     )
 
 
+def parking_context_lines(booking, apartment):
+    """Lines of the === PARKING === block: what the CRM knows about parking for this booking and apartment."""
+    from mysite.models import Parking, ParkingBooking
+    lines, seen = [], set()
+    if booking:
+        for p in ParkingBooking.objects.filter(booking=booking).select_related('parking'):
+            if not p.parking:
+                continue
+            seen.add(p.parking_id)
+            lines.append(f"- Spot #{p.parking.number} ({p.parking.notes or ''}, building: {p.parking.building or 'N/A'})"
+                         f" - booked for this booking, status: {p.status or 'N/A'}")
+    from mysite.ai_agent import crm_changes
+    for spot in crm_changes.apartment_spots(apartment):
+        if spot.id in seen:
+            continue
+        other = crm_changes.taken_by(spot, booking)
+        state = (f"TAKEN {other.start_date} to {other.end_date} by another booking" if other
+                 else "FREE for this booking's dates" if booking else "no booking to check the dates")
+        lines.append(f"- Spot #{spot.number} ({spot.notes or ''}, building: {spot.building or 'N/A'})"
+                     f" - this apartment's own spot, NOT booked for this booking in the CRM; {state}")
+    return lines
+
+
 def build_full_context(conversation_sid, apartment, booking, history_before=None, include_history=True, now=None):
     """
     Full context for AI: apartment notes + structured fields + booking (all fields) +
@@ -864,15 +887,11 @@ def build_full_context(conversation_sid, apartment, booking, history_before=None
         f"Car rental: {'Yes' if booking.is_rent_car else 'No'}{car_info}"
     )
 
-    # Parking booked for this booking
-    parking = ParkingBooking.objects.filter(booking=booking).select_related('parking')
-    context_sources["parking"] = parking.exists()
-    if parking.exists():
-        lines = [
-            f"- Spot #{p.parking.number} ({p.parking.notes or ''}, building: {p.parking.building or 'N/A'})"
-            for p in parking
-        ]
-        parts.append("=== PARKING ===\n" + "\n".join(lines))
+    # Parking: the spot(s) booked for this booking and the apartment's own spot(s) - from the CRM, not the knowledge base
+    parking_lines = parking_context_lines(booking, apartment)
+    context_sources["parking"] = bool(parking_lines)
+    if parking_lines:
+        parts.append("=== PARKING ===\n" + "\n".join(parking_lines))
 
     # Cleanings for this booking
     cleanings = Cleaning.objects.filter(booking=booking).order_by('date')[:5]

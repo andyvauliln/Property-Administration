@@ -76,6 +76,9 @@ def give_back_keyboard(run_id, issues):
 
 def keyboard_for(run):
     review = run.review or {}
+    if review.get('style') == 'v5':
+        from mysite.ai_agent import alerts_v5
+        return alerts_v5.keyboard_for(run)
     plan = review.get('plan') or {}
     return keyboard(run.id, review.get('version', 1), run.hold_status == _models().HOLD_HOLDING,
                     plan.get('items'), plan.get('status') == 'pending')
@@ -273,8 +276,14 @@ def give_back(run, issue_id, author):
 # ---------------------------------------------------------------------------
 
 def ask_for_text(run, author):
-    message_id = _say(run, f"✏️ {author}: REPLY to THIS message with the exact text the tenant should get. It becomes a "
-                           f"draft first; it is sent only after you press ✅ Send this.",
+    review = run.review or {}
+    if review.get('style') == 'v5':
+        tenant = str((review.get('meta') or {}).get('tenant') or 'the tenant').split()[0]
+        ask = f"✏️ {author}, reply to THIS message with the correct answer for {tenant}."
+    else:
+        ask = (f"✏️ {author}: REPLY to THIS message with the exact text the tenant should get. It becomes a "
+               f"draft first; it is sent only after you press ✅ Send this.")
+    message_id = _say(run, ask,
                       reply_markup={'force_reply': True, 'selective': False,
                                     'input_field_placeholder': 'Text for the tenant'})
     if message_id:
@@ -342,6 +351,9 @@ def handle_callback(callback):
     message = callback.get('message') or {}
     parts = (callback.get('data') or '').split('|')
     author = ar._author(callback.get('from') or {})
+    if parts[0] == 'v5':
+        from mysite.ai_agent import alerts_v5
+        return alerts_v5.handle_callback(callback)
     if len(parts) != 5 or parts[0] != PREFIX or str((message.get('chat') or {}).get('id')) != str(ai_chat_id()):
         answer_callback(callback_id, 'Unknown button')
         return
@@ -413,6 +425,11 @@ def handle_prompt_reply(run, parent_id, text, author):
     """A reply to the bot's "reply with the text" or note request. Returns True when it was one of those."""
     review = run.review or {}
     if int(parent_id) in (review.get('replace_prompts') or []):
+        if review.get('style') == 'v5':
+            # Simple alerts: the written text is shown as the new answer with its own Send button (doc E3)
+            from mysite.ai_agent import alerts_v5
+            alerts_v5.handle_reply(run, text.strip(), author, timezone.now(), reply_to=int(parent_id), written=True)
+            return True
         _say(run, create_draft(run, text.strip(), author))
         return True
     if int(parent_id) in (review.get('note_prompts') or []):
@@ -458,6 +475,12 @@ def supersede_older(ai_run):
     """
     from django.db.models import Q
     ar, AIRun = _ar(), _models()
+    v5 = config.alert_style() == 'v5'
+    if v5 and ai_run.event_type == 'STAFF_MESSAGE':
+        # Simple alerts: a team message does not replace the earlier alert - its task / reminder buttons stay valid.
+        # Only an AI answer that still waited is not needed any more: the team answered (A18).
+        from mysite.ai_agent import alerts_v5
+        return alerts_v5.answered_by_team(ai_run)
     older = AIRun.objects.filter(conversation_sid=ai_run.conversation_sid, id__lt=ai_run.id).filter(
         Q(hold_status=AIRun.HOLD_HOLDING) | Q(review__plan__status='pending'))
     for run in older:
@@ -471,7 +494,10 @@ def supersede_older(ai_run):
             plan.update(status='superseded', superseded_by=ai_run.id)
             ar._save_plan(run, plan)
         _update_review(run, stale=ai_run.id)
-        if run.telegram_message_id:
+        if (run.review or {}).get('style') == 'v5':
+            from mysite.ai_agent import alerts_v5
+            alerts_v5.mark_outdated(run, ai_run)   # "⚠️ Outdated - Vera wrote again 14:50, see the newer alert", no buttons
+        elif run.telegram_message_id:
             edit_reply_markup(run.telegram_message_id, None)
             _say(run, f"⤴ Replaced by a newer proposal (run #{ai_run.id}, after a new message in the chat) - these "
                       f"buttons no longer work; nothing of this card was done.")

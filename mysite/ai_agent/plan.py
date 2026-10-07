@@ -135,6 +135,8 @@ def describe(parsed, ctx):
             lines = [f"⏹ Cancel reminder {action.get('followup_id')}" + (f": {action.get('reason')}" if action.get('reason') else "")]
         elif kind == 'CASE_NOTE':
             lines = [f"📝 Internal note{about}: {str(action.get('text') or '')[:400]}"]
+        elif kind == 'CRM_CHANGE':
+            lines = [f"🗂 CRM change (made only with its own button): {action.get('label') or action.get('change')}"]
         elif kind == 'KB_UPDATE':
             try:
                 plan = knowledge.plan_kb_update(ctx, action, ctx.staff_in_trigger or bool(action.get('approved_by')))

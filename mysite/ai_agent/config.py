@@ -185,6 +185,15 @@ def explicit_approval():
     return (os.environ.get('AI_AGENT_APPROVAL') or 'explicit').strip().lower() != 'timer'
 
 
+def alert_style():
+    """
+    Layout and buttons of the Telegram alerts: 'v5' = the simple alerts of simple_telegram_alerts.md (one block per
+    thing, one button per block, reminders created at once), 'v4' = the long approval card (default until v5 is
+    deployed). AI_AGENT_ALERT_STYLE=v4 + a worker restart is the rollback.
+    """
+    return 'v5' if (os.environ.get('AI_AGENT_ALERT_STYLE') or 'v4').strip().lower() == 'v5' else 'v4'
+
+
 def oneshot_model():
     """Model for the chat-page helpers (rules, KB drafts, explanations) - oneshot.py."""
     return os.environ.get('AI_AGENT_ONESHOT_MODEL') or get_agent_model()

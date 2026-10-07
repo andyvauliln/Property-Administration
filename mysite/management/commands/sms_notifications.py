@@ -46,6 +46,9 @@ class Command(BaseCommand):
                     details={'booking_id': booking.id, 'event': event_type}
                 )
                 
+                # Simple alerts (v5): the AI first checks the tenant's chats and payments, then sends or holds it
+                if self.hand_to_agent(booking, message, event_type):
+                    continue
                 # Only send if conversation exists (production)
                 self.send_sms(booking, message, event_type)
 
@@ -60,6 +63,20 @@ class Command(BaseCommand):
                         'dates': f"{booking.start_date} - {booking.end_date}"
                     }
                 )
+
+    def hand_to_agent(self, booking, message, event_type):
+        """
+        True when the notification was queued for the AI agent (simple alerts, part 8a of simple_telegram_alerts.md).
+        False -> the caller sends it directly, as before: old alert style, AI_AGENT_NOTIFICATIONS=direct, no chat for
+        this booking, or the queue failed (a notification is never lost).
+        """
+        from mysite.ai_agent import config, service
+        if config.alert_style() != 'v5' or (os.environ.get('AI_AGENT_NOTIFICATIONS') or 'agent').strip().lower() == 'direct':
+            return False
+        conversation = self.get_existing_conversation(booking)
+        if not (conversation and conversation.apartment_id and conversation.booking_id):
+            return False
+        return service.enqueue_notification(conversation.conversation_sid, event_type, message, booking.id)
 
     def get_bookings_for_event(self, event_type):
         now = timezone.now()
@@ -163,6 +180,10 @@ class Command(BaseCommand):
 
         if template and template.content and template.sms_enabled is True:
             return template.content
+        if template and template.sms_enabled is False:
+            # Switched OFF on the site: nothing is sent. (Before, the built-in text below was sent anyway - e.g.
+            # "safe_travel" and "pending_rent_3d" went out although their templates were off.)
+            return None
             
         # Fallback to hardcoded messages if not in DB
         if event_type == 'unsigned_contract_1d':

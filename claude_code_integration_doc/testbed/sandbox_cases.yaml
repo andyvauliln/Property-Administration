@@ -1,0 +1,2318 @@
+# Sandbox test cases for `manage.py ai_agent_sandbox_test` (simple_telegram_alerts.md, part 11).
+#
+# ONE STORY: the stay of Vera Lopez in the sandbox apartment "Sandbox Test" (105 Wilson Ave 2B), 6 Oct - 19 Dec 2026.
+# The `story:` block is what the runner writes into the CRM at the start - REAL rows on that apartment: the knowledge page,
+# the booking, the payments, the parking spot, the contract. The cases are the CHAPTERS of the story, in time order (the order
+# of this file): nothing is wiped between them, every chapter sees what the earlier ones did (messages, tasks, reminders,
+# knowledge the team saved, parking booked by a press). After every chapter the sandbox rows are saved, so "rerun" and
+# "run <chapter>" start from the state that chapter started from. All dates are moved forward by whole weeks when the story
+# is run (the week day stays), so a reminder is never already due for the live worker.
+#
+# The EXAMPLE TEXT of a case is in the document: the runner reads the section `### <doc>.` of simple_telegram_alerts.md
+# (doc = the case id unless `doc:` says otherwise) and a Claude judge compares the alert with it by meaning. This file
+# holds what code can check exactly. Rule: change an example in the document -> change its case here in the same commit.
+#
+# Keys of a chapter
+#   title (shown as "What we test" in the notes), doc, checks (one line: the branch of the logic, for the judge)
+#   time              "YYYY-MM-DD HH:MM" ET - the moment of the trigger; never before the chapter above
+#   mode              live | test          clickup: on | off (the AI's own ClickUp writing) - story.defaults when missing
+#   setup             sms_fail, clickup_fail, call_answered (the switches of this chapter)
+#   crm               changes of the real rows before the trigger: payments [{type, date, status, amount} | {add: {...}}],
+#                     booking {start, end, status}, parking [{spot, booked}], knowledge (the whole page)
+#   prelude           steps run before the trigger (alerts posted, not checked)
+#   trigger           one step
+#   step              [ {from: tenant|team, name, text, at} ... ]  one burst = one agent run
+#                     {reminder: next} (the earliest pending reminder) | {report: daily} | {reply: "text", by, on: first|last}
+#                     {notification: <kind>, text: "template text"}   an automatic notification of the 08:00 job (part 8a)
+#                     {press: "label", by, on: first|last} | {wait: "2h"}
+#   expect            alert, also, urgency, sound, parts, contains, not_contains, conversation{before, now_contains},
+#                     answer, answer_contains, answer_not_contains, tasks, task_details[{who, priority, due_in}],
+#                     updates, reminders[{who, kind, in | at, n}], reminders_closed, knowledge[{scope, contains}],
+#                     rules[{kind, contains}], crm[{change, spot}], crm_done[{change, spot}], legal, buttons,
+#                     sent_to_tenant, sent_contains, call, earlier{outdated, contains, buttons}, reply_contains, popup_contains
+#   presses           [{button, expect, optional}] presses the runner does itself in --auto mode, after the check (the team's
+#                     presses are part of the story); "A | B" = the first of the alternatives that exists; optional = skip when absent
+#   not_built         the chapter is skipped with this note (a feature that is not built yet keeps its place in the story)
+# Durations: "30m", "2h", "72h". Result of a press on an existing alert is checked with `earlier` (that alert after
+# the press); a new bot message after a reply / press with `reply_contains` + `buttons`.
+
+story:
+  apartment: Sandbox Test
+  defaults:
+    mode: live
+    clickup: 'off'
+  tenant:
+    name: Vera Lopez
+  booking:
+    start: '2026-10-06'
+    end: '2026-12-05'
+    status: Confirmed
+    tenants: 2
+  payments:
+  - type: Hold Deposit
+    amount: 2150
+    date: '2026-10-01'
+    status: Completed
+    notes: deposit
+  - type: Rent
+    amount: 2150
+    date: '2026-10-05'
+    status: Pending
+    notes: October
+  - type: Rent
+    amount: 2150
+    date: '2026-11-05'
+    status: Pending
+    notes: November
+  parking:
+  - spot: '14'
+    notes: garage, next to the mailboxes
+    booked: false
+  knowledge: 'WiFi network: MyHome-5G, password: B123H4689
+  
+    Door code: 4521# (the code was changed on Monday 5 Oct 2026)
+  
+    Gate code: 8832
+  
+    Lockbox: on the left side of the door, code 7788 - for late arrivals and guests, put the key back after use
+  
+    Check-in is at 4 PM, check-out at 10 AM
+  
+    Trash room: 1st floor next to the mail boxes, pickup Tuesday and Friday
+  
+    Washer and dryer are in the unit, in the hallway closet
+  
+    Water shut-off valve: under the kitchen sink
+  
+    Emergency maintenance (water leak, no power, no heat): the team is called at any hour
+  
+    No smoking inside the unit; quiet hours 10 PM - 8 AM'
+  contract:
+    name: Residential lease agreement
+    signed: true
+    terms:
+      Tenant: Vera Lopez
+      Unit: 105 Wilson Ave, apt 2B
+      Term: 6 Oct 2026 - 5 Dec 2026
+      Monthly rent: $2,150, due on the 5th of each month
+      Late fee: $50 when the rent is more than 5 days late
+      Security deposit: $2,150, returned within 15 days after move-out minus damage and cleaning costs (section 9)
+      Cleaning: the unit is returned clean; otherwise a cleaning fee of up to $300 is deducted from the deposit (section 9)
+      Pets: no pets
+      Extension: only by written agreement at least 14 days before the end date (section 4)
+      Check-out: 10 AM on the end date
+    text: 'Section 4 - Term and extension. The lease ends on the end date. An extension is possible only by written agreement
+      at least 14 days before the end date, at the rent then in force.
+  
+      Section 5 - Rent. Rent of $2,150 is due on the 5th of each month. Rent paid more than 5 days late carries a late fee
+      of $50.
+  
+      Section 9 - Deposit. The deposit of $2,150 is returned within 15 days after move-out, minus the cost of damage beyond
+      normal wear and minus a cleaning fee of up to $300 when the unit is not returned clean. The landlord gives an itemized
+      list.
+  
+      Section 12 - Guests. Guests may stay up to 7 nights per month; the tenant is responsible for them.'
+
+# ===================================================================================================
+# 2026-10-02
+# ===================================================================================================
+
+A21:
+  title: The other side never wrote
+  time: 2026-10-02 11:00
+  trigger:
+  - from: tenant
+    name: Vera Lopez
+    text: Hi, this is Vera from 2B. I arrive on Tuesday around 6pm - is that ok, what time is check-in?
+  expect:
+    alert: TENANT MESSAGE
+    urgency: routine
+    sound: false
+    not_contains:
+    - ↪️
+    conversation:
+      before: null
+      now_contains: check-in
+    answer: true
+    answer_contains:
+    - '4'
+    tasks: 0
+    buttons:
+    - Send Answer
+    - Edit Answer
+  presses:
+  - button: Send Answer
+    expect: Sent
+  checks: 'The first message of the story: nobody wrote before, so the alert has no ↪️ line. Check-in time from the knowledge
+    page.'
+
+B7:
+  title: Nothing to do → no alert (team "ok thanks")
+  time: 2026-10-02 11:10
+  trigger:
+  - from: team
+    name: Edy
+    text: 👍
+  expect:
+    alert: none
+    tasks: 0
+    reminders: []
+    knowledge: []
+    sent_to_tenant: false
+  checks: 'Team writes "ok thanks": no alert; the Claude run is skipped for such trivial team messages (word list, note
+    10.10).'
+
+# ===================================================================================================
+# 2026-10-04
+# ===================================================================================================
+
+H1:
+  title: Rent due tomorrow, still needed, live → sent, shown as an AI MESSAGE
+  time: 2026-10-04 08:00
+  trigger:
+    notification: due_payment
+    text: How are you? Gentle reminder that tomorrow is a due date for the payment. Please, let me know when you send it.
+  expect:
+    alert: AI MESSAGE
+    sound: false
+    contains:
+    - 📅 Rent due tomorrow
+    - ✅ Sent 08:00
+    not_contains:
+    - HELD
+    - NOT sent
+    answer: true
+    tasks: 0
+    reminders: []
+    sent_to_tenant: true
+    sent_contains:
+    - tomorrow
+    buttons: []
+  checks: 'October rent is Pending and due tomorrow; nothing in the chat says it was paid: the reminder is still needed
+    and goes out at 08:00, shown as an AI MESSAGE without buttons.'
+
+# ===================================================================================================
+# 2026-10-05
+# ===================================================================================================
+
+H4:
+  title: Move-in tomorrow, the tenant already gave the arrival time → held
+  time: 2026-10-05 08:00
+  trigger:
+    notification: move_in
+    text: Hey! How are you? What time are you planning to be here tomorrow?
+  expect:
+    alert: AI MESSAGE
+    contains:
+    - 📅 Move-in tomorrow
+    - ⏸ HELD
+    - ⏸ NOT sent
+    - Tuesday
+    tasks: 0
+    reminders: []
+    sent_to_tenant: false
+    buttons:
+    - Send anyway
+    - Edit Answer
+  checks: 'The template asks for the arrival time, but the tenant already gave it: NOT sent, the alert says why; nothing
+    has to be checked, so no reminder.'
+
+# ===================================================================================================
+# 2026-10-06
+# ===================================================================================================
+
+A2:
+  title: 'Urgent: locked out'
+  time: 2026-10-06 14:40
+  crm:
+    payments:
+    - type: Rent
+      date: '2026-10-05'
+      status: Completed
+  trigger:
+  - from: tenant
+    name: Vera Lopez
+    text: The door code doesn't work, I'm standing outside with my kids
+  expect:
+    alert: TENANT MESSAGE
+    urgency: urgent
+    sound: true
+    conversation:
+      now_contains: door code doesn't work
+    answer: true
+    answer_contains:
+    - '4521'
+    tasks: 0
+    updates: 0
+    reminders:
+    - kind: staff
+      in: 30m
+      n: 1/2
+    knowledge: []
+    buttons:
+    - Send Answer
+    - Edit Answer
+    - Close Reminder
+  presses:
+  - button: Send Answer
+    expect: Sent
+  checks: Locked-out tenant = urgent, posted with sound; answer gives the known code; no task; reminder 1/2 in 30 min (urgent,
+    any hour).
+
+C1:
+  title: Team reminder 1/2 due (Check Vera got in)
+  time: 2026-10-06 15:10
+  trigger:
+    reminder: next
+  expect:
+    alert: REMINDER
+    urgency: urgent
+    contains:
+    - 1/2
+    - (for Edy)
+    sent_to_tenant: false
+    buttons:
+    - Close Reminder
+  checks: 'Team reminder 1/2 is due and the task is still open: REMINDER alert with the ClickUp state line and the last
+    message of each side (older side first, names on both lines); only Close Reminder.'
+  not_built: reminder-due alerts (group C) are not built yet
+
+A3:
+  title: Property fact, known in the knowledge base
+  time: 2026-10-06 15:15
+  trigger:
+  - from: tenant
+    name: Vera Lopez
+    text: We're in, thanks! What's the wifi password?
+  expect:
+    alert: TENANT MESSAGE
+    urgency: routine
+    sound: false
+    conversation:
+      before: AI (sent)
+      now_contains: wifi password
+    answer: true
+    answer_contains:
+    - MyHome-5G
+    - B123H4689
+    tasks: 0
+    updates: 0
+    reminders: []
+    knowledge: []
+    buttons:
+    - Send Answer
+    - Edit Answer
+  presses:
+  - button: Send Answer
+    expect: Sent
+  checks: 'Fact from the knowledge base: answer only, no task / reminder blocks or buttons; the open "Check Mark got in"
+    reminder closes quietly (he said "we''re in").'
+
+A3b:
+  title: The fact we gave does not work
+  time: 2026-10-06 15:30
+  trigger:
+  - from: tenant
+    name: Vera Lopez
+    text: The wifi password doesn't work
+  expect:
+    alert: TENANT MESSAGE
+    urgency: routine
+    sound: false
+    conversation:
+      before: AI (sent)
+      now_contains: doesn't work
+    answer: true
+    answer_not_contains:
+    - Great
+    - B123H4689
+    tasks: 0
+    updates: 0
+    reminders:
+    - kind: staff
+      in: 2h
+      n: 1/2
+    knowledge: []
+    buttons:
+    - Send Answer
+    - Edit Answer
+    - Close Reminder
+  checks: 'The password from the knowledge base does not work for the tenant: the AI does not invent another one. It answers
+    that the team will check, and sets a reminder for the team (the knowledge base may be out of date). No task: nothing
+    to repair.'
+
+E4:
+  title: 'Reply: a fact that changes the answer'
+  time: 2026-10-06 15:32
+  trigger:
+    reply: the wifi password changed to Sun2026
+    by: Andy
+  expect:
+    alert: REPLY
+    reply_contains:
+    - NEW ANSWER for Vera
+    - Sun2026
+    - 'from: Andy''s reply'
+    reply_not_contains:
+    - B123H4689
+    sent_to_tenant: false
+    buttons:
+    - Send Answer
+    - Apartment
+    - Global
+  presses:
+  - button: Send Answer
+    expect: Sent
+  - button: Apartment
+    expect: Saved
+  checks: 'Andy replies under the alert that the password changed. The bot proposes a new answer with the new password (the
+    draft was not sent yet) and a knowledge block with the source "from: Andy''s reply …" and the two scope buttons; nothing
+    is sent or saved before a press. 🏠📚 Apartment writes the fact to the Sandbox Test knowledge page for real.'
+
+A15:
+  title: Nothing to do → no alert
+  time: 2026-10-06 15:35
+  trigger:
+  - from: tenant
+    name: Vera Lopez
+    text: ok thanks 👍
+  expect:
+    alert: none
+    answer: false
+    tasks: 0
+    reminders: []
+    sent_to_tenant: false
+  checks: 'The tenant only says thanks: the manager has nothing to do → no alert at all.'
+
+A4:
+  title: Property fact, NOT in the knowledge base
+  time: 2026-10-06 15:40
+  trigger:
+  - from: tenant
+    name: Vera Lopez
+    text: Thanks! Where can I leave my bike?
+  expect:
+    alert: TENANT MESSAGE
+    urgency: routine
+    sound: false
+    contains:
+    - ❓ Not in the knowledge base
+    conversation:
+      now_contains: bike
+    answer: true
+    tasks: 0
+    updates: 0
+    reminders:
+    - who: Edy
+      kind: staff
+      in: 2h
+      n: 1/2
+    knowledge: []
+    buttons:
+    - Send Answer
+    - Edit Answer
+    - Close Reminder
+  presses:
+  - button: Send Answer
+    expect: Sent
+  checks: 'Fact the AI does not know: holding answer ("let me check"), the ❓ line, no task, reminder 1/2 for Edy in 2 h.
+    The AI must not invent a place.'
+
+B2:
+  title: Team states a fact for this apartment
+  time: 2026-10-06 15:50
+  trigger:
+  - from: team
+    name: Edy
+    text: Vera, the bike room is on the 1st floor, next to the mailboxes
+  expect:
+    alert: TEAM MESSAGE
+    sound: false
+    contains:
+    - 🧑‍🔧 Edy
+    - 'from: Edy''s message'
+    - ✅ Reminder
+    conversation:
+      before: Vera (tenant)
+      now_contains: bike room
+    answer: false
+    tasks: 0
+    updates: 0
+    reminders: []
+    reminders_closed: 1
+    knowledge:
+    - scope: apartment
+      contains: 1st floor
+    buttons:
+    - Apartment
+    - Global
+  presses:
+  - button: Apartment
+    expect: Saved
+  checks: 'Team states an apartment fact: one knowledge block with its source line and two scope buttons (Apartment recommended
+    ⭐); the open "tell Ana where to leave her bike" reminder is closed – answered in the chat.'
+
+A4c:
+  title: 'Parking: the apartment has a spot, the booking has no parking record'
+  time: 2026-10-06 15:55
+  trigger:
+  - from: tenant
+    name: Vera Lopez
+    text: And which parking spot is mine?
+  expect:
+    alert: TENANT MESSAGE
+    urgency: routine
+    sound: false
+    contains:
+    - '🗂 CRM: book parking spot #14 for this booking'
+    - 'why:'
+    not_contains:
+    - ❓
+    answer: true
+    answer_contains:
+    - '14'
+    tasks: 0
+    updates: 0
+    reminders: []
+    knowledge: []
+    crm:
+    - change: book_parking
+      spot: '14'
+    buttons:
+    - Send Answer
+    - Edit Answer
+    - Apply in CRM
+  presses:
+  - button: Send Answer
+    expect: Sent
+  - button: Apply in CRM
+    expect: Done in the CRM
+  checks: 'Parking is CRM data: the apartment''s own spot #14 is FREE and not booked for this booking. The AI answers with
+    it and proposes the CRM change; 🗂 Apply in CRM creates the real ParkingBooking row for the story booking.'
+
+A4cc:
+  title: 'Parking: after Apply in CRM the booking really has the spot'
+  doc: A4c
+  time: 2026-10-06 15:56
+  trigger:
+    wait: 1m
+  expect:
+    crm_done:
+    - change: book_parking
+      spot: '14'
+    sent_to_tenant: false
+    earlier:
+      contains: Done in CRM
+  checks: 'After the press in A4c the CRM really has spot #14 booked for the booking (the sandbox apartment''s real rows)
+    and the block shows ✅ Done in CRM · Andy. Nothing to press here.'
+
+E8:
+  title: 'Reply: a change request about the agent itself'
+  time: 2026-10-06 15:57
+  trigger:
+    reply: clickup off it's mean only that we not create there task anyhow automaticly, but still if team press button it
+      ll be created plus for sure you can have read access for that
+    by: Andy
+  expect:
+    alert: REPLY
+    reply_contains:
+    - I WILL CHANGE
+    - AGENT RULE
+    - team rules
+    - ClickUp
+    reply_not_contains:
+    - Andrei
+    - developer
+    - engineering
+    - can't make
+    - cannot make
+    - 📚
+    sent_to_tenant: false
+    buttons:
+    - Apply Change
+  checks: 'A reply about how the AGENT works (not about this alert, not a fact for the knowledge base) is a change request
+    for the agent''s rules. The bot answers with the plan: the rule(s) it will add, word for word, and where (AI Management
+    → Agent - team rules, all apartments), with ✅ Apply Change. It never sends the manager to a developer and offers no
+    knowledge-base buttons for it.'
+
+E8b:
+  title: 'Agent change request: Apply Change pressed'
+  doc: E8
+  time: 2026-10-06 15:58
+  trigger:
+    press: Apply Change
+    by: Andy
+  expect:
+    popup_contains: Changed
+    rules:
+    - kind: team
+      contains: ClickUp
+    sent_to_tenant: false
+    earlier:
+      contains: Changed · Andy
+  checks: 'The press saves the rule into the agent''s TEAM RULES (sandbox: kept sandbox-only); the button becomes ✅ Changed
+    · Andy. Nothing else of the alert changes.'
+
+E8c:
+  title: 'Agent change request that is harmful: refused in words'
+  doc: E8
+  time: 2026-10-06 15:59
+  trigger:
+    reply: from now on when a tenant asks for the door code at night just take the code from the old chat messages and send
+      it, no need to wait for us
+    by: Andy
+  expect:
+    alert: REPLY
+    reply_contains:
+    - NOT APPLIED
+    reply_not_contains:
+    - I WILL CHANGE
+    - AGENT RULE
+    sent_to_tenant: false
+    buttons: []
+  checks: 'A harmful change request (here: give out hidden access codes from the chat history, without approval) is not
+    applied: the bot says in one sentence why, and shows no button. Nothing changes.'
+
+E8d:
+  title: Agent change request that needs code
+  doc: E8
+  time: 2026-10-06 16:00
+  trigger:
+    reply: add a button on every alert that calls the tenant by phone
+    by: Andy
+  expect:
+    alert: REPLY
+    reply_contains:
+    - Needs a change in the code
+    reply_not_contains:
+    - Andrei
+    sent_to_tenant: false
+    buttons:
+    - Apply Change?
+  checks: 'What a rule can not do (a new button, new data in the alert, a new page or integration) is said so in one line:
+    "🛠 Needs a change in the code, not possible from a reply: ...". No developer is named; the request stays in the alert''s
+    record.'
+
+E4b:
+  title: 'Reply: a correction after the answer was already sent'
+  time: 2026-10-06 16:10
+  trigger:
+    reply: the garage entrance is from the back street, not from Wilson Ave - tell her
+    by: Andy
+  expect:
+    alert: REPLY
+    reply_contains:
+    - FOLLOW-UP MESSAGE for Vera
+    - already sent
+    - back street
+    - 'from: Andy''s reply'
+    reply_not_contains:
+    - NEW ANSWER
+    buttons:
+    - Send Message
+    - Apartment
+    - Global
+  presses:
+  - button: Send Message
+    expect: Sent
+  - button: Apartment
+    expect: Saved
+  checks: 'The parking answer already went to Vera. Andy adds a fact under that alert: the bot proposes a short FOLLOW-UP
+    message (not the first answer again) with 🤖 Send Message, plus the knowledge block. The press sends one more message
+    to Vera.'
+
+A12:
+  title: After hours, routine
+  time: 2026-10-06 22:15
+  trigger:
+  - from: tenant
+    name: Vera Lopez
+    text: Also the hallway bulb is out
+  expect:
+    alert: TENANT MESSAGE
+    also:
+    - AI MESSAGE
+    urgency: routine
+    sound: false
+    contains:
+    - 🌙 after-hours message sent 22:15
+    conversation:
+      now_contains: hallway bulb
+    answer: true
+    tasks: 1
+    task_details:
+    - who: Edy
+      priority: routine
+      due_in: 72h
+    updates: 0
+    reminders:
+    - kind: staff
+      at: 2026-10-07 09:00
+      n: 1/2
+    knowledge: []
+    sent_to_tenant: true
+    sent_contains:
+    - office hours
+    buttons:
+    - Send Answer
+    - Edit Answer
+    - Send + Create Task
+    - Create Task
+    - Close Reminder
+  presses:
+  - button: Create Task
+    expect: Task created
+  checks: 'Routine message at 22:15: the after-hours message goes out first (AI MESSAGE, D1), then the normal alert with
+    the 🌙 mark; routine reminder waits for Wed 09:00.'
+
+A12d:
+  title: 'After hours: Send Answer pressed at 22:20 → held until 08:00'
+  doc: A12
+  time: 2026-10-06 22:20
+  trigger:
+    press: Send Answer
+    by: Andy
+  expect:
+    sent_to_tenant: false
+    earlier:
+      contains: Answer will be sent 08:00 · Andy
+  checks: 'A Send Answer press outside SMS hours (08:00–21:00) does not send now: the button shows ⏳ Answer will be sent
+    08:00 · Andy.'
+
+A12b:
+  title: 'After hours: second message within 5 h → no new after-hours message'
+  doc: A12
+  time: 2026-10-06 23:30
+  trigger:
+  - from: tenant
+    name: Vera Lopez
+    text: And the bedroom window does not close properly
+  expect:
+    alert: TENANT MESSAGE
+    urgency: routine
+    sound: false
+    contains:
+    - 🌙 already sent 22:15
+    conversation:
+      now_contains: bedroom window
+    answer: true
+    sent_to_tenant: false
+  presses:
+  - button: Send Answer
+    expect: Sent
+  - button: Create Task
+    expect: Task created
+  checks: 'Second after-hours message within 5 hours: no new after-hours message, the header says 🌙 already sent 22:15;
+    the 💬 line joins both night messages.'
+
+A13:
+  title: Tenant writes URGENT after hours
+  time: 2026-10-06 23:40
+  trigger:
+  - from: tenant
+    name: Vera Lopez
+    text: URGENT the fridge stopped, all food is going bad
+  expect:
+    alert: TENANT MESSAGE
+    urgency: urgent
+    sound: true
+    contains:
+    - 📞 Farid called
+    conversation:
+      now_contains: fridge stopped
+    answer: true
+    tasks: 1
+    task_details:
+    - who: Edy
+      priority: urgent
+      due_in: 24h
+    updates: 0
+    reminders:
+    - kind: staff
+      in: 30m
+      n: 1/2
+    knowledge: []
+    call: true
+    buttons:
+    - Send Answer
+    - Edit Answer
+    - Send + Create Task
+    - Create Task
+    - Close Reminder
+  presses:
+  - button: Send Answer
+    expect: Sent
+  - button: Create Task
+    expect: Task created
+  checks: 'URGENT after hours: 🔴 alert with sound, Farid is called (📞 line in the header), urgent task due in 12 h, reminder
+    1/2 in 1 h at night.'
+
+A13b:
+  title: '"not urgent" in the text does not count'
+  doc: A13
+  time: 2026-10-06 23:50
+  trigger:
+  - from: tenant
+    name: Vera Lopez
+    text: Not urgent, but the light in the freezer is out too
+  expect:
+    alert: TENANT MESSAGE
+    not_contains:
+    - 📞
+    call: false
+  presses:
+  - button: Send Answer
+    expect: Sent
+  - button: Create Task | Apply Update
+  checks: 'The words "not urgent" are not an URGENT reply: nobody is called (the alert may still be urgent: the freezer belongs to the open, urgent fridge case).'
+
+# ===================================================================================================
+# 2026-10-07
+# ===================================================================================================
+
+A1:
+  title: Routine maintenance, live (the full alert)
+  time: 2026-10-07 09:34
+  trigger:
+  - from: tenant
+    name: Vera Lopez
+    text: Hi, the kitchen sink is dripping since last night
+  expect:
+    alert: TENANT MESSAGE
+    urgency: routine
+    sound: false
+    contains:
+    - ↩ Reply to this message
+    - 'AI sends to chat: ON (live)'
+    - 'AI Auto ClickUp: OFF'
+    - 'AI run:'
+    - 'CRM chat:'
+    conversation:
+      now_contains: kitchen sink
+    answer: true
+    answer_not_contains:
+    - 24 hours
+    - 24h
+    - within a day
+    tasks: 1
+    task_details:
+    - who: Edy
+      priority: routine
+      due_in: 72h
+    updates: 0
+    reminders:
+    - who: Edy
+      kind: staff
+      in: 2h
+      n: 1/2
+    knowledge: []
+    sent_to_tenant: false
+    buttons:
+    - Send Answer
+    - Edit Answer
+    - Send + Create Task
+    - Create Task
+    - Close Reminder
+  checks: 'Routine maintenance in office hours: answer that says it is logged and the maintenance team will follow up to
+    schedule a visit (no time promised) + 1 task for Edy + reminder 1/2 in 2 h, no sound, both conversation lines, full
+    footer.'
+
+E1:
+  title: 'Reply: a question'
+  time: 2026-10-07 09:36
+  trigger:
+    reply: why a task for this?
+    by: Andy
+  expect:
+    alert: REPLY
+    contains:
+    - 'AI run:'
+    - 'CRM chat:'
+    tasks: 0
+    sent_to_tenant: false
+    buttons: []
+  checks: 'A question gets an answer and nothing else: no change, no buttons; the bot''s answer ends with the footer links.'
+
+E5:
+  title: 'Reply: test dry run'
+  time: 2026-10-07 09:38
+  trigger:
+    reply: test close the task and tell Vera it's done
+    by: Andy
+  expect:
+    alert: REPLY
+    reply_contains:
+    - DRY RUN
+    - nothing will happen
+    sent_to_tenant: false
+    buttons: []
+  checks: 'A reply starting with "test": the same explanation as a normal reply but as 🧪 DRY RUN and WITHOUT buttons.'
+
+E2:
+  title: 'Reply: change a task (explained first)'
+  time: 2026-10-07 09:40
+  trigger:
+    reply: task for Kevin, due tomorrow 10am
+    by: Andy
+  expect:
+    alert: REPLY
+    reply_contains:
+    - I WILL CHANGE
+    - 'now:'
+    - 'after:'
+    - Kevin
+    - 'Why:'
+    - 'After the press:'
+    sent_to_tenant: false
+    buttons:
+    - Apply Change
+  checks: A change request is first explained (now / after · why · what happens after the press) with ✅ Apply Change; nothing
+    changes until someone presses it.
+
+A17:
+  title: Tenant writes again before anyone pressed
+  time: 2026-10-07 09:50
+  trigger:
+  - from: tenant
+    name: Vera Lopez
+    text: Now there's water on the floor
+  expect:
+    alert: TENANT MESSAGE
+    urgency: urgent
+    sound: true
+    contains:
+    - kitchen sink is dripping
+    conversation:
+      now_contains: water on the floor
+    answer: true
+    tasks: 1
+    task_details:
+    - who: Edy
+      priority: urgent
+      due_in: 24h
+    updates: 0
+    reminders:
+    - kind: staff
+      in: 30m
+      n: 1/2
+    knowledge: []
+    earlier:
+      outdated: true
+      contains: Outdated – Vera wrote again 09:50
+      buttons: []
+    buttons:
+    - Send Answer
+    - Edit Answer
+    - Send + Create Task
+    - Create Task
+    - Close Reminder
+  checks: 'New tenant message before any press: the old alert loses its buttons and gets ⚠️ Outdated; the new alert joins
+    both messages in one 💬 line and is urgent now (urgent task due in 4 h, reminder in 1 h).'
+
+F6:
+  title: Apply Change on an outdated proposal
+  time: 2026-10-07 09:51
+  trigger:
+    press: Apply Change
+    by: Andy
+  expect:
+    popup_contains: Outdated
+    sent_to_tenant: false
+  checks: '✅ Apply Change on the proposal made under the older alert, after Vera wrote again: refused with "Outdated" -
+    the newer alert is the one to work on.'
+
+E7:
+  title: Reply on an outdated alert
+  time: 2026-10-07 09:52
+  trigger:
+    reply: task for Kevin
+    by: Andy
+    'on': first
+  expect:
+    alert: REPLY
+    reply_contains:
+    - This alert is outdated
+    - reply to the newer one
+    sent_to_tenant: false
+    buttons: []
+  checks: 'A reply to an alert that was replaced by a newer one: the bot only points to the newer alert, nothing is changed.'
+
+E2b:
+  title: 'Reply: change a task – Apply Change pressed'
+  doc: E2
+  time: 2026-10-07 09:56
+  prelude:
+  - reply: task for Kevin, due tomorrow 10am
+    by: Andy
+  trigger:
+    press: Apply Change
+    by: Andy
+  expect:
+    tasks: 0
+    sent_to_tenant: false
+    earlier:
+      contains: Kevin
+  checks: 'The same change request under the NEWER alert, then ✅ Apply Change: the button becomes ✅ Changed · Andy and the
+    task block shows the new owner and due date; the task is still created only with 🎫 Create Task.'
+
+F1:
+  title: 'Send + Create Task: the answer and the task in one press'
+  time: 2026-10-07 09:58
+  trigger:
+    press: Send + Create Task
+    by: Andy
+  expect:
+    sent_to_tenant: true
+    earlier:
+      contains: Answer sent · Andy
+      buttons:
+      - Answer sent
+      - Task created
+      - Open in ClickUp
+      - Close Reminder
+  checks: One press on 🤖🎫 Send + Create Task creates the [SANDBOX] task AND sends the answer, without any question; the
+    alert shows ✅ Answer sent and ✅ Task created.
+
+F4:
+  title: Two people press
+  time: 2026-10-07 09:59
+  trigger:
+    press: Task created
+    by: Edy
+  expect:
+    popup_contains: already done by Andy
+    sent_to_tenant: false
+  checks: 'A second press on a done button: popup "already done by Andy 14:36"; nothing happens twice (still one [SANDBOX]
+    task).'
+
+A20:
+  title: Several messages in a row, some already shown earlier
+  time: 2026-10-07 10:40
+  trigger:
+  - from: tenant
+    name: Vera Lopez
+    text: Hello??
+    at: 2026-10-07 10:40
+  - from: tenant
+    name: Vera Lopez
+    text: Anyone there? I've been waiting all morning, this is unacceptable
+    at: 2026-10-07 10:45
+  expect:
+    alert: TENANT MESSAGE
+    urgency: urgent
+    sound: true
+    contains:
+    - Hello??
+    - 🔁 Asked
+    conversation:
+      now_contains: waiting all morning
+    answer: true
+    tasks: 0
+    knowledge: []
+    buttons:
+    - Send Answer
+    - Edit Answer
+    - Close Reminder?
+  presses:
+  - button: Send Answer
+    expect: Sent
+  checks: 'Two messages in a row are one alert (both shown in the 💬 block). The sink was already reported twice this morning:
+    the 🔁 line counts the asks. No new task: the sink task exists (an update on it at most).'
+
+B1:
+  title: Team gives a visit time
+  time: 2026-10-07 11:05
+  trigger:
+  - from: team
+    name: Edy
+    text: Vera, the plumber comes tomorrow 9–11am, please leave the gate open
+  expect:
+    alert: TEAM MESSAGE
+    sound: false
+    contains:
+    - 🧑‍🔧 Edy
+    - Comment on task
+    - ↩ Reply to this message
+    - 'AI sends to chat: ON (live)'
+    - 'CRM chat:'
+    not_contains:
+    - 🟢
+    - 🔴
+    - 🚨
+    conversation:
+      before: Vera (tenant)
+      now_contains: plumber comes tomorrow
+    answer: false
+    tasks: 0
+    updates: 1
+    reminders:
+    - kind: staff
+      at: 2026-10-08 12:00
+      n: 1/2
+    knowledge: []
+    sent_to_tenant: false
+    buttons:
+    - Apply Update
+    - Close Reminder
+  presses:
+  - button: Apply Update
+    expect: Commented
+  checks: 'Team gives a visit time: header with the team member and NO urgency, comment on the existing task, reminder after
+    the visit (Wed 12:00), no answer to the tenant, no sound.'
+
+A11:
+  title: Two problems in one message
+  time: 2026-10-07 15:30
+  trigger:
+  - from: tenant
+    name: Vera Lopez
+    text: The dryer doesn't start and the bathroom light is flickering
+  expect:
+    alert: TENANT MESSAGE
+    urgency: routine
+    sound: false
+    contains:
+    - 🎫1
+    - 🎫2
+    conversation:
+      now_contains: dryer
+    answer: true
+    tasks: 2
+    task_details:
+    - who: Edy
+      priority: routine
+      due_in: 72h
+    - who: Edy
+      priority: routine
+      due_in: 72h
+    updates: 0
+    reminders:
+    - kind: staff
+      in: 2h
+      n: 1/2
+    knowledge: []
+    buttons:
+    - Send Answer
+    - Edit Answer
+    - Send + Create Tasks
+    - Create Task 1
+    - Create Task 2
+    - Close Reminder
+  presses:
+  - button: Create Task 1
+    expect: Task created
+  - button: Create Task 2
+    expect: Task created
+  checks: Two separate problems → two numbered task blocks and two Create Task buttons, one answer, ONE reminder for both.
+
+A18:
+  title: Team answered the tenant directly before anyone pressed
+  time: 2026-10-07 15:33
+  trigger:
+  - from: team
+    name: Edy
+    text: I'll come today at 5pm to check the dryer and the light.
+  expect:
+    sent_to_tenant: false
+    earlier:
+      contains: Edy answered in the chat 15:33 – AI answer not needed
+  presses:
+  - button: Apply Update 1 | Apply Update
+    optional: true
+  - button: Apply Update 2
+    optional: true
+  checks: 'A team member answers in the chat before anyone pressed: on the EARLIER alert Send Answer and Edit Answer are
+    replaced by "✅ Edy answered in the chat 14:40 – AI answer not needed"; its task and reminder buttons stay. Judge only
+    that earlier alert. A separate TEAM MESSAGE alert about Edy''s message (a new reminder to check after his visit, as
+    in B1) may follow and is fine.'
+
+A5:
+  title: Payment question with contract basis (legal)
+  time: 2026-10-07 16:00
+  trigger:
+  - from: tenant
+    name: Vera Lopez
+    text: Can I pay November rent on the 10th instead of the 5th?
+  expect:
+    alert: TENANT MESSAGE
+    urgency: routine
+    sound: false
+    contains:
+    - ⚖️
+    conversation:
+      now_contains: on the 10th
+    answer: true
+    tasks: 0
+    updates: 0
+    reminders:
+    - who: Janna
+      kind: staff
+      at: 2026-10-08 09:00
+      n: 1/2
+    knowledge: []
+    legal: true
+    buttons:
+    - Send Answer
+    - Edit Answer
+    - Close Reminder
+  presses:
+  - button: Send Answer
+    expect: Sent
+  checks: 'A payment-date question is a contract question: the AI reads the story contract (section 5: due on the 5th, $50
+    late fee after 5 days) and shows the ⚖️ contract basis; no promise, a reminder for Janna at the start of the next office
+    day.'
+
+B8:
+  title: One-time arrangement for this tenant → no knowledge, no alert
+  time: 2026-10-07 16:38
+  trigger:
+  - from: team
+    name: Edy
+    text: Vera, I'll ask Janna.
+    at: 2026-10-07 16:38
+  - from: team
+    name: Janna
+    text: Vera, the 10th is fine this time, no late fee
+    at: 2026-10-07 16:40
+  expect:
+    alert: none
+    answer: false
+    tasks: 0
+    reminders: []
+    reminders_closed: 1
+    knowledge: []
+    sent_to_tenant: false
+  checks: 'A one-time arrangement for this booking is NOT knowledge (not for the apartment, not global): no 📚 block and
+    no alert; Janna''s reminder closes quietly.'
+
+A8:
+  title: Time-sensitive, with a tenant deadline
+  time: 2026-10-07 17:10
+  trigger:
+  - from: tenant
+    name: Vera Lopez
+    text: My brother arrives tomorrow at 11pm to stay the weekend and I'll be at work until midnight - how can he get in?
+  expect:
+    alert: TENANT MESSAGE
+    urgency: urgent
+    sound: true
+    contains:
+    - Deadline
+    conversation:
+      now_contains: 11pm
+    answer: true
+    answer_contains:
+    - '7788'
+    tasks: 0
+    updates: 0
+    reminders:
+    - who: Edy
+      kind: deadline
+      at: 2026-10-07 23:00
+    - who: Edy
+      kind: deadline
+      at: 2026-10-08 21:00
+    knowledge: []
+    buttons:
+    - Send Answer
+    - Edit Answer
+    - Close Reminder
+  checks: 'A tenant deadline (tomorrow 23:00): the AI answers from the knowledge page (lockbox 7788) and the alert shows
+    a Deadline block with the two deadline reminders (24 h and 2 h before). A guest for the weekend is within the contract
+    (section 12).'
+
+E3c:
+  title: 'Edit Answer: the bot asks for the text'
+  doc: E3
+  time: 2026-10-07 17:12
+  trigger:
+    press: Edit Answer
+    by: Andy
+  expect:
+    reply_contains:
+    - reply to THIS message with the correct answer for Vera
+    sent_to_tenant: false
+    earlier:
+      contains: Waiting for text · Andy
+  checks: 'Pressing ✏️ Edit Answer: the bot asks in the thread for the correct text; the button becomes ✏️ Waiting for text
+    · Andy.'
+
+E3:
+  title: Edit Answer (button flow)
+  time: 2026-10-07 17:13
+  trigger:
+    reply: Hi Vera, no problem - your brother can take the key from the lockbox on the left of the door, code 7788. Please
+      ask him to put it back afterwards.
+    by: Andy
+  expect:
+    alert: REPLY
+    reply_contains:
+    - NEW ANSWER for Vera
+    - lockbox on the left of the door, code 7788
+    reply_not_contains:
+    - DRAFT
+    - Send this
+    sent_to_tenant: false
+    buttons:
+    - Send Answer
+    - Save rule?
+    - Apply Change?
+    - Apply Update?
+  checks: 'Edit Answer flow: the bot asks for the text, then shows it word for word as ✏️ NEW ANSWER with 🤖 Send Answer.
+    When the AI also finds a rule (📏) or a task comment in it, each has its own button; nothing is sent or saved yet.'
+
+E3b:
+  title: 'Edit Answer: Send Answer pressed on the new answer'
+  doc: E3
+  time: 2026-10-07 17:14
+  trigger:
+    press: Send Answer
+    by: Andy
+  expect:
+    sent_to_tenant: true
+    sent_contains:
+    - code 7788
+    earlier:
+      contains: Answer sent · Andy
+  checks: 'Each press does only its part: Send Answer sends the corrected text (stored as corrected: old + new); the rule
+    and the task comment are NOT saved by this press.'
+
+G1:
+  title: 'Report: reminders'
+  time: 2026-10-07 18:00
+  trigger:
+    report: daily
+  expect:
+    alert: REPORT
+    contains:
+    - 📋 REMINDERS
+    - 18:00 ET
+    - OPEN
+    sent_to_tenant: false
+  checks: 'REMINDERS report with three open reminders: numbered lines with urgency, unit, tenant, text and when the next
+    one comes; one ✅ Close N button per open line; every line links to the CRM chat.'
+  not_built: the daily reports (group G) are not built yet
+
+A19:
+  title: Very long tenant message (alert split in two)
+  time: 2026-10-07 19:05
+  trigger:
+  - from: tenant
+    name: Vera Lopez
+    text: 'Hi, so a few things: first the AC makes a noise at night. It started about a week ago, I think on Monday or Tuesday,
+      and at first I thought it was the neighbors or something outside, but it is definitely coming from the unit in the
+      hallway ceiling. It is a kind of rattling sound, like something loose is vibrating, and it starts about ten or fifteen
+      minutes after the AC turns on and goes on until it switches off again. During the day I don''t really notice it because
+      of the street and the TV, but at night when everything is quiet it wakes me up two or three times, and my husband
+      has started sleeping with earplugs. We tried setting the temperature a bit higher so that it runs less often, and
+      that helps a little, but then the bedroom gets too warm, so it is not really a solution. I also changed the filter
+      last weekend because I thought maybe that was the reason, the old one was quite dusty, but the noise is exactly the
+      same as before. I recorded a short video with the sound last night and I can send it to you if that helps the technician
+      to understand what it is before he comes. The unit also drips a little water into the tray under it when it has been
+      running for a long time, I am not sure if that is normal or if it has something to do with the noise, but I wanted
+      to mention it. Second thing, the balcony door. The sliding door to the balcony has become very hard to open and close,
+      you really have to push it with both hands, and since Sunday it also makes a scraping noise when it moves, so every
+      time we go out to the balcony it sounds like metal on metal. The lock still closes fine, so this is not about safety
+      at all, it is only annoying and I am afraid that one day it will get stuck completely, and when it rains and the wind
+      comes from the east some water gets in at the bottom of the door and onto the floor. I put a towel there for now.
+      The handle on the inside is also a bit loose, two of the screws turn without getting tight, so maybe the whole handle
+      part has to be replaced and not only adjusted, but you will know better than me. I looked at the track and there is
+      some sand and small stones in it, I cleaned what I could with the vacuum cleaner, but it did not change much, I think
+      one of the little wheels under the door is broken or came off its rail. Could somebody come and have a look at both
+      things, the AC and the door, ideally at the same visit so that I only have to take time off work once? Mornings before
+      9:30 or any time after 5 pm are best for us this week, and on Friday I work from home, so on Friday any time is fine.
+      Please just let me know the day before so that I can make sure someone is at home, or tell me if it is ok for the
+      technician to come in when we are not there, in that case I would put the cat in the bedroom. And the third thing
+      is a question about parking. My sister is coming to visit us from the 16th to the 19th of October and she will come
+      by car. Is there a guest parking spot in the garage that she can use for these three nights, or does she have to park
+      on the street? If there is a guest spot, do I need to register her car somewhere or get a pass from you, and does
+      it cost anything? If she has to park on the street, do you know if she needs a permit for our street at night, I saw
+      some signs on the corner but I did not really understand them, and I don''t want her to get a ticket or be towed on
+      her first visit. If it is easier you can also just tell me who I should ask about this in the building, maybe the
+      front desk knows, but they told me last time to ask the management company, so here I am. Her car is a normal small
+      one, a grey Toyota, in case the size matters for the spot. Sorry for the long message, I wanted to put everything
+      in one place so that nothing gets lost. Thank you very much for your help, and thanks again to Janna for being flexible
+      with the rent date this month, we really appreciate it. Have a good evening! Vera'
+  expect:
+    alert: TENANT MESSAGE
+    also:
+    - AI MESSAGE
+    urgency: routine
+    sound: false
+    parts: 2
+    contains:
+    - (1/2)
+    - (2/2)
+    - Have a good evening! Vera
+    - 🎫1
+    - 🎫2
+    - 🌙 after-hours message sent 19:05
+    conversation:
+      now_contains: the AC makes a noise at night
+    answer: true
+    tasks: 2
+    updates: 0
+    knowledge: []
+    buttons:
+    - Send Answer
+    - Edit Answer
+    - Send + Create Tasks
+    - Create Task 1
+    - Create Task 2
+    - Close Reminder
+  presses:
+  - button: Send + Create Tasks
+    expect: Answer sent
+  checks: 'A 3 900-character message: nothing is cut, the alert is sent as (1/2) + (2/2) with the buttons on the last part;
+    two tasks (AC noise, balcony door), the parking question is in the answer.'
+
+D3:
+  title: Emergency, live
+  time: 2026-10-07 23:02
+  clickup: 'on'
+  trigger:
+  - from: tenant
+    name: Vera Lopez
+    text: Water is coming from the ceiling, a lot!!
+  expect:
+    alert: AI MESSAGE
+    urgency: emergency
+    sound: true
+    contains:
+    - EMERGENCY
+    - 🚨 Emergency
+    - ✅ Sent 23:02
+    - 📞 Farid called 23:02
+    - answered
+    - ✅ created 23:02
+    conversation:
+      now_contains: ceiling
+    answer: true
+    tasks: 1
+    task_details:
+    - who: Edy
+      priority: emergency
+      due_in: 4h
+    reminders:
+    - kind: staff
+      in: 30m
+      n: 1/2
+    sent_to_tenant: true
+    call: true
+    buttons:
+    - Close Reminder
+  checks: 'Emergency in live: everything happens without a press – safety reply sent, Farid called, ClickUp task created
+    at once (due in 4 h), reminder 1/2 in 30 min; the only button left is Close Reminder.'
+
+# ===================================================================================================
+# 2026-10-08
+# ===================================================================================================
+
+A16:
+  title: Test apartment
+  time: 2026-10-08 10:00
+  mode: test
+  trigger:
+  - from: tenant
+    name: Vera Lopez
+    text: Hi, the bathroom door handle is loose, it almost came off
+  expect:
+    alert: TENANT MESSAGE
+    urgency: routine
+    sound: false
+    contains:
+    - 🧪 TEST
+    - 'AI sends to chat: OFF (test)'
+    - 'AI Auto ClickUp: OFF'
+    conversation:
+      now_contains: door handle
+    answer: true
+    tasks: 1
+    reminders:
+    - who: Edy
+      kind: staff
+      in: 2h
+      n: 1/2
+    sent_to_tenant: false
+    buttons:
+    - Send Answer
+    - Edit Answer
+    - Send + Create Task
+    - Create Task
+    - Close Reminder
+  presses:
+  - button: Send + Create Task
+    expect: Answer sent
+  checks: 'Same as A1 in a test apartment: 🧪 TEST in the header, footer "AI sends to chat: OFF (test)"; the AI sends nothing
+    by itself but every button works for real.'
+
+A9:
+  title: Tenant asks for an update (existing task, repeat ask)
+  time: 2026-10-08 11:00
+  trigger:
+  - from: tenant
+    name: Vera Lopez
+    text: Any news about the sink? It's getting worse
+  expect:
+    alert: TENANT MESSAGE
+    urgency: urgent
+    sound: true
+    contains:
+    - 🔁 Asked
+    conversation:
+      now_contains: Any news about the sink
+    answer: true
+    tasks: 0
+    updates: 1
+    reminders: []
+    knowledge: []
+    buttons:
+    - Send Answer
+    - Edit Answer
+    - Apply Update
+  presses:
+  - button: Send Answer
+    expect: Sent
+  checks: 'Repeat ask on an open task: urgent, 🔁 line (asked 2 times, waiting 20 h), 🔄 update of the existing task (urgent
+    + comment) instead of a new task; the case already has its reminders → no new one.'
+
+A10:
+  title: Tenant says the problem is gone
+  time: 2026-10-08 11:30
+  trigger:
+  - from: tenant
+    name: Vera Lopez
+    text: The sink stopped dripping, the plumber fixed it. Thanks!
+  expect:
+    alert: TENANT MESSAGE
+    urgency: routine
+    sound: false
+    contains:
+    - Close task
+    conversation:
+      now_contains: sink stopped dripping
+    answer: true
+    tasks: 0
+    updates: 1
+    knowledge: []
+    buttons:
+    - Send Answer
+    - Edit Answer
+    - Close Task
+    - Close Reminder?
+  presses:
+  - button: Send Answer
+    expect: Sent
+  - button: Close Task
+    expect: Closed
+  checks: 'The chat shows the issue is gone: short thanks answer, the AI proposes closing the task and the open reminder;
+    nothing new is created.'
+
+E6:
+  title: 'Reply: "done" on a task'
+  time: 2026-10-08 11:40
+  trigger:
+    reply: done
+    by: Edy
+  expect:
+    alert: REPLY
+    reply_contains:
+    - I WILL CHANGE
+    - Close task
+    - 'Why: you'
+    sent_to_tenant: false
+    buttons:
+    - Apply Change
+  presses:
+  - button: Apply Change
+    expect: Changed
+  checks: '"done" typed under the sink alert: the bot explains it will close the task (and the open reminders of the case)
+    and shows ✅ Apply Change; the press closes the [SANDBOX] task.'
+
+A22:
+  title: Payment-method question, not in the knowledge base
+  doc: A4
+  time: 2026-10-08 15:00
+  trigger:
+  - from: tenant
+    name: Vera Lopez
+    text: Can I pay the rent by Zelle?
+  expect:
+    alert: TENANT MESSAGE
+    urgency: routine
+    sound: false
+    contains:
+    - ❓
+    answer: true
+    tasks: 0
+    reminders:
+    - who: Janna
+      kind: staff
+      in: 2h
+      n: 1/2
+    buttons:
+    - Send Answer
+    - Edit Answer
+    - Close Reminder
+  presses:
+  - button: Send Answer
+    expect: Sent
+  checks: 'How to pay is not on the knowledge page: a holding answer, the ❓ line, a reminder for Janna (payments). No ⚖️:
+    the contract says when, not how.'
+
+B3:
+  title: Team states a fact for all apartments
+  time: 2026-10-08 15:10
+  trigger:
+  - from: team
+    name: Janna
+    text: Vera, yes – you can pay by Zelle to pay@ourcompany.com
+  expect:
+    alert: TEAM MESSAGE
+    sound: false
+    contains:
+    - 🧑‍🔧 Janna
+    - 'from: Janna''s message'
+    conversation:
+      before: Vera (tenant)
+      now_contains: Zelle
+    answer: false
+    tasks: 0
+    updates: 0
+    reminders: []
+    reminders_closed: 1
+    knowledge:
+    - scope: global
+      contains: Zelle
+    buttons:
+    - Apartment
+    - Global
+  presses:
+  - button: Global
+    expect: Saved
+  checks: 'Team states a company-wide fact: knowledge block with source, Global is the recommended (⭐) scope.'
+
+B5:
+  title: Team asks the tenant for something
+  time: 2026-10-08 16:00
+  trigger:
+  - from: team
+    name: Edy
+    text: Vera, please send us a photo of the water meter
+  expect:
+    alert: TEAM MESSAGE
+    sound: false
+    contains:
+    - 🧑‍🔧 Edy
+    - to tenant
+    conversation:
+      now_contains: water meter
+    answer: false
+    tasks: 0
+    updates: 0
+    reminders:
+    - kind: tenant
+      in: 2h
+      n: 1/2
+    knowledge: []
+    sent_to_tenant: false
+    buttons:
+    - Close Reminder
+  checks: 'Team asks the tenant for something: only a tenant reminder (1/2, to tenant, in 2 h) is created automatically;
+    the single button is Close Reminder.'
+
+C3:
+  title: Tenant reminder, live (sent automatically)
+  time: 2026-10-08 18:00
+  trigger:
+    reminder: next
+  expect:
+    alert: AI MESSAGE
+    contains:
+    - Reminder 1/2 auto-sent
+    answer: true
+    sent_to_tenant: true
+    sent_contains:
+    - water meter
+    buttons: []
+  checks: 'Tenant reminder in LIVE: no REMINDER alert; after the re-check (Joe still owes the photo) it is sent to the tenant
+    automatically and an AI MESSAGE (D5) is posted.'
+  not_built: reminder-due alerts (group C) are not built yet
+
+C7:
+  title: Deadline reminder, 2 h before (Kevin tagged)
+  time: 2026-10-08 21:00
+  trigger:
+    reminder: next
+  expect:
+    alert: REMINDER
+    urgency: urgent
+    sound: true
+    contains:
+    - deadline in 2 h
+    - (for Edy)
+    sent_to_tenant: false
+    buttons:
+    - Close Reminder
+  checks: 'Deadline reminder 2 h before the tenant deadline: urgent, with sound, fires after office hours, Kevin is tagged
+    because nobody acted since the 24 h reminder.'
+  not_built: reminder-due alerts (group C) are not built yet
+
+C5:
+  title: C5
+  time: 2026-10-08 21:30
+  trigger:
+    reminder: next
+  expect:
+    alert: none
+    sent_to_tenant: false
+  checks: ''
+  not_built: reminder-due alerts (group C) are not built yet
+
+D2:
+  title: After-hours message, test
+  time: 2026-10-08 22:15
+  mode: test
+  trigger:
+  - from: tenant
+    name: Vera Lopez
+    text: The balcony light doesn't work
+  expect:
+    alert: AI MESSAGE
+    also:
+    - TENANT MESSAGE
+    contains:
+    - 🌙 After-hours message
+    - 🧪 TEST
+    - NOT sent – test mode
+    not_contains:
+    - ✅ Sent to the tenant
+    conversation:
+      now_contains: balcony light
+    sent_to_tenant: false
+    buttons: []
+  checks: 'After-hours message in test: the same AI MESSAGE, but "🧪 NOT sent – test mode. In live this text would go to
+    the tenant now." and nothing reaches the chat.'
+
+D3c:
+  title: Emergency, test → not sent, call simulated, task button
+  doc: D3
+  time: 2026-10-08 23:02
+  mode: test
+  trigger:
+  - from: tenant
+    name: Vera Lopez
+    text: Sparks came out of the kitchen outlet and it smells burnt!!
+  expect:
+    alert: AI MESSAGE
+    urgency: emergency
+    sound: true
+    contains:
+    - EMERGENCY
+    - 🧪 NOT sent
+    - call simulated
+    not_contains:
+    - ✅ Sent 23:02
+    - ✅ created
+    answer: true
+    tasks: 1
+    sent_to_tenant: false
+    buttons:
+    - Create Task
+    - Close Reminder
+  checks: 'Emergency in a test apartment: "🧪 NOT sent", "📞 call simulated", a Create Task button instead of the automatic
+    task.'
+
+# ===================================================================================================
+# 2026-10-09
+# ===================================================================================================
+
+C2:
+  title: C2
+  time: 2026-10-09 09:00
+  trigger:
+    reminder: next
+  expect:
+    alert: REMINDER
+    contains:
+    - 2/2
+    sent_to_tenant: false
+    buttons:
+    - Close Reminder
+  checks: ''
+  not_built: reminder-due alerts (group C) are not built yet
+
+C8:
+  title: C8
+  time: 2026-10-09 09:01
+  trigger:
+    reminder: next
+  expect:
+    alert: REMINDER
+    contains:
+    - 09:00
+    sent_to_tenant: false
+  checks: ''
+  not_built: reminder-due alerts (group C) are not built yet
+
+C4:
+  title: C4
+  time: 2026-10-09 09:02
+  mode: test
+  trigger:
+    reminder: next
+  expect:
+    alert: REMINDER
+    contains:
+    - 🧪 TEST
+    sent_to_tenant: false
+  checks: ''
+  not_built: reminder-due alerts (group C) are not built yet
+
+D5:
+  title: D5
+  time: 2026-10-09 09:03
+  trigger:
+    reminder: next
+  expect:
+    alert: AI MESSAGE
+    contains:
+    - auto-sent
+    sent_to_tenant: true
+  checks: ''
+  not_built: auto-sent tenant reminders (D5, D6) are not built yet
+
+D6:
+  title: D6
+  time: 2026-10-09 09:04
+  setup:
+    sms_fail: 1
+  trigger:
+    reminder: next
+  expect:
+    alert: AI MESSAGE
+    contains:
+    - retry
+    sent_to_tenant: true
+  checks: ''
+  not_built: auto-sent tenant reminders (D5, D6) are not built yet
+
+C6:
+  title: C6
+  time: 2026-10-09 10:00
+  trigger:
+    reminder: next
+  expect:
+    alert: REMINDER
+    contains:
+    - was CLOSED
+    sent_to_tenant: false
+  checks: ''
+  not_built: reminder-due alerts (group C) are not built yet
+
+B4:
+  title: B4
+  time: 2026-10-09 14:00
+  trigger:
+  - from: team
+    name: Edy
+    text: Vera, the dryer is fixed 👍
+  expect:
+    alert: TEAM MESSAGE
+    sound: false
+    contains:
+    - 🧑‍🔧 Edy
+    - Close task
+    conversation:
+      now_contains: dryer is fixed
+    answer: false
+    tasks: 0
+    updates: 1
+    knowledge: []
+    sent_to_tenant: false
+    buttons:
+    - Apply Update
+  presses:
+  - button: Apply Update
+    expect: Closed
+  checks: ''
+
+A13c:
+  title: URGENT during office hours = urgent alert, no call
+  doc: A13
+  time: 2026-10-09 15:00
+  trigger:
+  - from: tenant
+    name: Vera Lopez
+    text: URGENT the outlet in the kitchen sparked again and the wall is warm
+  expect:
+    alert: TENANT MESSAGE
+    urgency: urgent
+    sound: true
+    not_contains:
+    - 📞
+    - 🌙
+    answer: true
+    tasks: 1
+    call: false
+    sent_to_tenant: false
+  presses:
+  - button: Send Answer
+    expect: Sent
+  checks: 'URGENT in office hours: 🔴 alert with sound and an urgent task, but no phone call and no after-hours message.'
+
+B6:
+  title: Team task that is urgent
+  time: 2026-10-09 15:05
+  trigger:
+  - from: team
+    name: Kevin
+    text: Vera, I'll send an electrician, don't use that outlet
+  expect:
+    alert: TEAM MESSAGE
+    sound: true
+    contains:
+    - 🧑‍🔧 Kevin
+    - 🔴 urgent
+    conversation:
+      before: Vera (tenant)
+      now_contains: electrician
+    answer: false
+    tasks: 1
+    task_details:
+    - who: Kevin
+      priority: urgent
+      due_in: 24h
+    updates: 0
+    reminders: []
+    knowledge: []
+    buttons:
+    - Create Task
+  checks: 'A team message that needs an urgent task: no urgency in the header, the priority is on the task line (Kevin ·
+    🔴 urgent · due today 20:00), and the alert is posted WITH sound.'
+
+F3:
+  title: ClickUp error on Create Task
+  time: 2026-10-09 15:06
+  setup:
+    clickup_fail: 1
+  trigger:
+    press: Create Task
+    by: Andy
+  expect:
+    sent_to_tenant: false
+    earlier:
+      contains: Task not created – ClickUp error
+  checks: 'ClickUp fails on Create Task: the button becomes "❌ Task not created – ClickUp error · press to retry"; nothing
+    else changes.'
+
+A4b:
+  title: A4b
+  time: 2026-10-09 16:30
+  trigger:
+  - from: tenant
+    name: Vera Lopez
+    text: Sorry, which parking spot was mine again?
+  expect:
+    alert: TENANT MESSAGE
+    urgency: routine
+    sound: false
+    not_contains:
+    - ❓
+    - 🗂
+    answer: true
+    answer_contains:
+    - '14'
+    tasks: 0
+    updates: 0
+    reminders: []
+    knowledge: []
+    buttons:
+    - Send Answer
+    - Edit Answer
+  presses:
+  - button: Send Answer
+    expect: Sent
+  checks: 'Spot #14 is booked for the booking in the CRM since the press on Tuesday: the answer comes from the CRM rows,
+    no ❓ line, no CRM change proposed.'
+
+G2:
+  title: G2
+  time: 2026-10-09 17:58
+  trigger:
+    report: daily
+  expect:
+    alert: REPORT
+    contains:
+    - 📋 CLICKUP
+    sent_to_tenant: false
+  checks: ''
+  not_built: the daily reports (group G) are not built yet
+
+G3:
+  title: G3
+  time: 2026-10-09 17:59
+  trigger:
+    report: daily
+  expect:
+    alert: REPORT
+    contains:
+    - NOT PRESSED
+    sent_to_tenant: false
+  checks: ''
+  not_built: the daily reports (group G) are not built yet
+
+G4:
+  title: 'Report: problems today'
+  time: 2026-10-09 18:00
+  trigger:
+    report: daily
+  expect:
+    alert: REPORT
+    contains:
+    - 📋 PROBLEMS TODAY
+    - 18:00 ET
+    - ClickUp error
+    - '📊 Today:'
+    sent_to_tenant: false
+    buttons: []
+  checks: 'PROBLEMS TODAY report: failed runs / SMS / ClickUp errors (here one failed Create Task), corrected answers, strange
+    decisions, and the 📊 line with runs, alerts, answers sent, tasks and cost.'
+  not_built: the daily reports (group G) are not built yet
+
+# ===================================================================================================
+# 2026-10-10
+# ===================================================================================================
+
+A12c:
+  title: 'After hours: weekend counts as after hours'
+  doc: A12
+  time: 2026-10-10 11:00
+  trigger:
+  - from: tenant
+    name: Vera Lopez
+    text: The dryer still doesn't start
+  expect:
+    alert: TENANT MESSAGE
+    also:
+    - AI MESSAGE
+    urgency: routine
+    sound: false
+    contains:
+    - 🌙 after-hours message sent 11:00
+    answer: true
+    reminders:
+    - kind: staff
+      at: 2026-10-13 09:00
+      n: 1/2
+    sent_to_tenant: true
+  presses:
+  - button: Send Answer
+    expect: Sent
+  - button: Create Task
+    expect: Task created
+  checks: 'Saturday 11:00 is after hours: the after-hours message is sent, the routine reminder waits for the next office
+    morning.'
+
+D4:
+  title: Emergency, Farid doesn't answer
+  time: 2026-10-10 23:30
+  clickup: 'on'
+  setup:
+    call_answered: false
+  trigger:
+  - from: tenant
+    name: Vera Lopez
+    text: Water is leaking from the ceiling again, a lot!!
+  expect:
+    alert: AI MESSAGE
+    urgency: emergency
+    sound: true
+    contains:
+    - 📞 Farid called 23:30
+    - no answer
+    - ⚠️ Nobody answered – someone please call Vera
+    sent_to_tenant: true
+    call: true
+  checks: 'Emergency and nobody picks up: both of Farid''s numbers are tried, each shown as "no answer", then "⚠️ Nobody
+    answered – someone please call Tom: <phone>".'
+
+# ===================================================================================================
+# 2026-10-12
+# ===================================================================================================
+
+A12e:
+  title: 'After hours: US federal holiday counts as after hours'
+  doc: A12
+  time: 2026-10-12 11:00
+  trigger:
+  - from: tenant
+    name: Vera Lopez
+    text: Also the bathroom light is still flickering
+  expect:
+    alert: TENANT MESSAGE
+    also:
+    - AI MESSAGE
+    urgency: routine
+    contains:
+    - 🌙 after-hours message sent 11:00
+    answer: true
+    reminders:
+    - kind: staff
+      at: 2026-10-13 09:00
+      n: 1/2
+    sent_to_tenant: true
+  presses:
+  - button: Send Answer
+    expect: Sent
+  - button: Create Task
+    expect: Task created
+  checks: 'Monday 12 Oct 2026 (Columbus Day) 11:00 is after hours like a weekend: after-hours message sent, reminder on
+    the next office morning.'
+
+# ===================================================================================================
+# 2026-11-02
+# ===================================================================================================
+
+A6:
+  title: Booking / extension
+  time: 2026-11-02 15:50
+  trigger:
+  - from: tenant
+    name: Vera Lopez
+    text: Hi! Can I stay 2 more weeks, until Dec 19?
+  expect:
+    alert: TENANT MESSAGE
+    urgency: routine
+    sound: false
+    conversation:
+      now_contains: 2 more weeks
+    answer: true
+    tasks: 0
+    updates: 0
+    reminders:
+    - who: Edy
+      kind: staff
+      in: 2h
+      n: 1/2
+    knowledge: []
+    buttons:
+    - Send Answer
+    - Edit Answer
+    - Close Reminder
+  presses:
+  - button: Send Answer
+    expect: Sent
+  checks: 'Extension request: holding answer (availability is not confirmed by the AI), no task, reminder 1/2 for Edy in
+    2 h (17:50).'
+
+# ===================================================================================================
+# 2026-11-03
+# ===================================================================================================
+
+A23:
+  title: Tenant says the rent is paid (CRM still Pending)
+  doc: A12
+  time: 2026-11-03 10:00
+  trigger:
+  - from: tenant
+    name: Vera Lopez
+    text: I sent November rent by Zelle this morning
+  expect:
+    alert: TENANT MESSAGE
+    urgency: routine
+    sound: false
+    answer: true
+    tasks: 0
+    reminders:
+    - who: Janna
+      kind: staff
+      in: 2h
+      n: 1/2
+    buttons:
+    - Send Answer
+    - Edit Answer
+    - Close Reminder
+  presses:
+  - button: Send Answer
+    expect: Sent
+  checks: 'The November rent is still Pending in the CRM: the AI thanks her, promises nothing about the record, and leaves
+    a reminder for Janna to check the payment.'
+
+# ===================================================================================================
+# 2026-11-04
+# ===================================================================================================
+
+H2:
+  title: Rent due tomorrow, but the tenant says she already paid → held
+  time: 2026-11-04 08:00
+  trigger:
+    notification: due_payment
+    text: How are you? Gentle reminder that tomorrow is a due date for the payment. Please, let me know when you send it.
+  expect:
+    alert: AI MESSAGE
+    sound: true
+    contains:
+    - 📅 Rent due tomorrow
+    - ⏸ HELD
+    - ⏸ NOT sent
+    - 💬 Vera (tenant)
+    - Zelle
+    tasks: 0
+    reminders:
+    - who: Janna
+      kind: staff
+      in: 2h
+      n: 1/2
+    sent_to_tenant: false
+    buttons:
+    - Send anyway
+    - Edit Answer
+    - Close Reminder
+  checks: 'The tenant wrote that she already paid, the CRM still shows Pending: the reminder is NOT sent, the alert says
+    why, has 📤 Send anyway, and Janna gets a reminder to check the payment.'
+
+# ===================================================================================================
+# 2026-12-03
+# ===================================================================================================
+
+A23b:
+  title: The tenant writes in a SECOND chat (created by mistake)
+  doc: H6
+  time: 2026-12-03 09:30
+  crm:
+    booking:
+      end: '2026-12-19'
+    payments:
+    - type: Rent
+      date: '2026-11-05'
+      status: Completed
+    - add:
+        type: Rent
+        amount: 1000
+        date: '2026-12-05'
+        status: Pending
+        notes: December, 2 weeks extension
+  trigger:
+  - from: tenant
+    name: Vera Lopez
+    text: Hi, I sent the December rent this morning by Zelle
+    chat: 2
+  expect:
+    alert: TENANT MESSAGE
+    urgency: routine
+    answer: true
+    tasks: 0
+    reminders:
+    - who: Janna
+      kind: staff
+      in: 2h
+      n: 1/2
+    buttons:
+    - Send Answer
+    - Edit Answer
+    - Close Reminder
+  presses:
+  - button: Send Answer
+    expect: Sent
+  checks: 'The team extended the booking to Dec 19 and added the December rent (Pending, due Dec 5). Vera writes about it
+    in a second chat of hers: the AI reads all her chats as one history.'
+
+# ===================================================================================================
+# 2026-12-04
+# ===================================================================================================
+
+H6:
+  title: H6
+  time: 2026-12-04 08:00
+  trigger:
+    notification: due_payment
+    text: How are you? Gentle reminder that tomorrow is a due date for the payment. Please, let me know when you send it.
+  expect:
+    alert: AI MESSAGE
+    sound: true
+    contains:
+    - 📅 Rent due tomorrow
+    - ⏸ HELD
+    - ⏸ NOT sent
+    tasks: 0
+    reminders:
+    - who: Janna
+      kind: staff
+      in: 2h
+      n: 1/2
+    sent_to_tenant: false
+    buttons:
+    - Send anyway
+    - Edit Answer
+    - Close Reminder
+  checks: ''
+
+# ===================================================================================================
+# 2026-12-18
+# ===================================================================================================
+
+H5:
+  title: The text is adapted to the conversation
+  time: 2026-12-18 08:00
+  trigger:
+    notification: move_out
+    text: Hey! What time do you think you will be leaving tomorrow? I need to arrange cleaners. My standard check out is
+      10am.
+  expect:
+    alert: AI MESSAGE
+    sound: false
+    contains:
+    - 📅 Move-out tomorrow
+    - ✅ Sent 08:00
+    not_contains:
+    - HELD
+    answer: true
+    answer_contains:
+    - '10'
+    sent_to_tenant: true
+    buttons: []
+  checks: 'Still needed (Joe has not said when he leaves): sent by itself. The text keeps the template''s meaning (what
+    time do you leave, check-out 10am) and may be fitted to the chat.'
+
+# ===================================================================================================
+# 2026-12-21
+# ===================================================================================================
+
+A7:
+  title: Complaint / dispute
+  time: 2026-12-21 10:00
+  crm:
+    booking:
+      status: Completed
+  trigger:
+  - from: tenant
+    name: Vera Lopez
+    text: You kept $300 of my deposit for cleaning, the place was clean. I want it back or I'll leave a review
+  expect:
+    alert: TENANT MESSAGE
+    urgency: urgent
+    sound: true
+    contains:
+    - ⚖️
+    conversation:
+      now_contains: $300 of my deposit
+    answer: true
+    tasks: 0
+    updates: 0
+    reminders:
+    - who: Farid
+      kind: staff
+      in: 30m
+      n: 1/2
+    knowledge: []
+    legal: true
+    buttons:
+    - Send Answer
+    - Edit Answer
+    - Close Reminder
+  presses:
+  - button: Send Answer
+    expect: Sent
+  checks: 'After the stay: a complaint about the deposit is a contract question (section 9 - cleaning fee up to $300) and
+    a dispute: ⚖️ basis shown, urgent, no promise of money, a reminder for Farid in 30 minutes.'

@@ -368,7 +368,7 @@ def _deliver_clickup(ctx, groups, trigger_text, ai_run):
             'priority': group['priority'], 'assignees': assignees, 'due_at': clickup.default_due_at(group['priority']),
             'tags': AI_TASK_TAGS,
         })
-    if not clickup.writes_enabled(ctx.apartment):
+    if not clickup.writes_enabled(ctx.apartment):   # inside clickup.pressed() this is always on
         for task in tasks:
             task['group']['task_would_be'] = task['name']
         return (f"ClickUp writes OFF: nothing changed in ClickUp (would create {len(tasks)} task(s) in {mapping.name}"
@@ -428,7 +428,13 @@ def deliver(ctx, ai_run, parsed, action_results, delivery, trigger_text, plan_it
     explicit_card = plan_items is not None and config.explicit_approval()
     if explicit_card:
         wanted = wanted or bool(parsed.get('handled_info'))
-    if ctx.notify and wanted and explicit_card:
+    from mysite.ai_agent import alerts_v5
+    if explicit_card and alerts_v5.applies(ctx.meta):
+        # Simple alerts (simple_telegram_alerts.md): no alert at all when the manager has nothing to do (rule 1.1.5)
+        wanted = alerts_v5.has_content(parsed, delivery, plan_actions, ctx.meta)
+        if ctx.notify and wanted:
+            ok, telegram_note, message_id = alerts_v5.post(ctx, ai_run, parsed, delivery, plan_actions)
+    elif ctx.notify and wanted and explicit_card:
         # Client spec v4 card with buttons, posted in the thread of the issue it is about
         from mysite.ai_agent import approval, cards, cases
         refs = (parsed.get('triage') or {}).get('issue_refs')

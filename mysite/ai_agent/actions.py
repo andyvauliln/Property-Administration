@@ -14,6 +14,7 @@ from mysite.ai_agent import config, policy
 ACTION_TYPES = frozenset([
     'CREATE_ISSUE', 'UPDATE_ISSUE_STATE', 'CREATE_TICKET', 'TICKET_COMMENT', 'UPDATE_TICKET',
     'INTERNAL_ALERT', 'QUEUE_FOR_REVIEW', 'SCHEDULE_FOLLOWUP', 'CANCEL_FOLLOWUP', 'KB_UPDATE', 'CASE_NOTE',
+    'CRM_CHANGE',
 ])
 # Actions staff must actually see
 NOTIFY_ACTION_TYPES = frozenset(['INTERNAL_ALERT', 'QUEUE_FOR_REVIEW', 'CREATE_TICKET'])
@@ -194,11 +195,22 @@ def _schedule_followup(ctx, action):
             raise ActionError(f"{issue.public_id} is handled by staff ({issue.handled_by} pressed \"I'll handle\") - no AI reminders")
         if issue.followups.exclude(kind=AIFollowUp.KIND_DEADLINE_REMINDER).count() >= policy.MAX_FOLLOWUPS_PER_ISSUE:
             raise ActionError(f"{issue.public_id} reached the limit of {policy.MAX_FOLLOWUPS_PER_ISSUE} follow-ups")
+        # A reminder of an alert that became outdated before it fired does not count: the newer alert has its own
+        if config.alert_style() == 'v5' and issue.followups.exclude(kind=AIFollowUp.KIND_DEADLINE_REMINDER) \
+                .exclude(status=AIFollowUp.STATUS_CANCELLED, status_note__startswith='alert outdated') \
+                .count() >= policy.MAX_REMINDERS_PER_CASE_V5:
+            raise ActionError(f"{issue.public_id} already had its {policy.MAX_REMINDERS_PER_CASE_V5} reminders")
         pending = issue.followups.filter(kind=kind, status=AIFollowUp.STATUS_PENDING).first()
         if pending:
             return _ok(f"{pending.public_id} ({kind}) is already pending for {issue.public_id}, due {pending.due_at:%Y-%m-%d %H:%M %Z}")
 
     due, note = policy.due_at(kind, issue.priority if issue else 'routine')
+    if config.alert_style() == 'v5' and action.get('after'):
+        # "after": the check only makes sense after a moment the chat names (the plumber comes 9-11am -> ask at 12:00)
+        from mysite.ai_agent import service
+        after = service.parse_tenant_deadline(action.get('after'))
+        if after and after > due:
+            due, note = after, f"{note}; not before {action.get('after')}"
     followup = AIFollowUp.objects.create(
         conversation_sid=ctx.conversation_sid, issue=issue, kind=kind, reason=reason,
         due_at=due, created_by_run=ctx.ai_run,
@@ -265,6 +277,14 @@ def _kb_update(ctx, action):
     return _ok(knowledge.apply_kb_update(ctx, action, ctx.staff_in_trigger or bool(action.get('approved_by'))))
 
 
+def _crm_change(ctx, action):
+    """A CRM record change (crm_changes.py). It is only ever carried out by a manager's press on its button."""
+    from mysite.ai_agent import crm_changes
+    if not action.get('approved_by'):
+        raise ActionError("a CRM change waits for its button (🗂 Apply in CRM) - it is never made automatically")
+    return _ok(crm_changes.carry_out(ctx.booking, ctx.apartment, action, action['approved_by']))
+
+
 def _ticket_note(ctx, action):
     """Case note + (API token, not a replay) a real comment on the issue's ClickUp task."""
     from mysite.ai_agent import clickup
@@ -306,6 +326,7 @@ HANDLERS = {
     'TICKET_COMMENT': _ticket_note,
     'UPDATE_TICKET': _ticket_note,
     'KB_UPDATE': _kb_update,
+    'CRM_CHANGE': _crm_change,
 }
 
 

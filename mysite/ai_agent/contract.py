@@ -99,6 +99,14 @@ def contract_for_booking(booking):
     if not booking.contract_id:
         return (f"No contract on file for this booking (contract status in the CRM: {booking.contract_send_status or 'none'}). "
                 "Do not state any contract terms.")
+    if booking.contract_id == 'SANDBOX-CONTRACT':
+        # The sandbox test story (mysite/ai_agent/sandbox_test/story.py): its contract is a text file, not a DocuSeal submission.
+        # The tool runs in its own process, so this is read here and not patched by the runner.
+        from mysite.ai_agent.sandbox_test import story
+        try:
+            return story.CONTRACT_FILE.read_text(encoding='utf-8')
+        except OSError:
+            return "No contract on file for this booking (sandbox: the story has no contract). Do not state any contract terms."
     try:
         submission = _get(f"/submissions/{booking.contract_id}")
     except Exception as e:

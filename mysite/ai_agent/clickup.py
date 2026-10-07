@@ -24,6 +24,26 @@ class ClickUpWritesOff(ClickUpError):
     pass
 
 
+_PRESS = {'active': 0}
+
+
+class pressed:
+    """
+    `with clickup.pressed():` - a person pressed a button for this ClickUp change (simple alerts, rule 1.1.2): it is
+    done for real also when the AI's own ClickUp writing is OFF.
+    """
+
+    def __enter__(self):
+        _PRESS['active'] += 1
+
+    def __exit__(self, *exc):
+        _PRESS['active'] -= 1
+
+
+def press_active():
+    return _PRESS['active'] > 0
+
+
 def is_test_apartment(apartment):
     """Apartment (or its name) with "test" in the name: the sandbox / test apartments (same rule as channel_for)."""
     name = apartment if isinstance(apartment, str) else getattr(apartment, 'name', '')
@@ -33,7 +53,7 @@ def is_test_apartment(apartment):
 def writes_enabled(apartment=None):
     """The ai_clickup_writes switch. Test apartments always write, whatever the switch says (user request 2026-09-24)."""
     from mysite.ai_agent import config
-    return config.clickup_writes_enabled() or is_test_apartment(apartment)
+    return press_active() or config.clickup_writes_enabled() or is_test_apartment(apartment)
 
 
 def _is_test_list(list_id):

@@ -24,7 +24,8 @@
               "SCHEDULE_FOLLOWUP",
               "CANCEL_FOLLOWUP",
               "KB_UPDATE",
-              "CASE_NOTE"
+              "CASE_NOTE",
+              "CRM_CHANGE"
             ]
           }
         },
