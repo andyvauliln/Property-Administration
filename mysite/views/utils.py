@@ -5,22 +5,21 @@ from django.db.models import Q
 from django.db import models
 from django.db.models import ProtectedError
 from datetime import datetime, date, timedelta
-from collections import defaultdict
 import calendar
 from django.contrib import messages
-from django.db.models import Case, When
 from decimal import Decimal
 from django.core.serializers.json import DjangoJSONEncoder
 from django.core.exceptions import PermissionDenied
 from mysite.error_logger import log_exception
+import logging
+
+logger = logging.getLogger(__name__)
 
 COUNTED_PAYMENT_STATUSES = frozenset({'Completed', 'Expected', 'Merged'})
 
 
 def handle_post_request(request, model, form_class):
     try:
-        print(f"DEBUG - handle_post_request - POST data: {request.POST}")
-        
         if 'edit' in request.POST or 'edit_booking' in request.POST:
             item_id = request.POST['id']
             if item_id:
@@ -30,7 +29,6 @@ def handle_post_request(request, model, form_class):
                 if form.is_valid():
                     form.save()
                 else:
-                    print(f"DEBUG - Form errors: {form.errors}")
                     for field, errors in form.errors.items():
                         for error in errors:
                             messages.error(request, f"{field}: {error}")
@@ -40,7 +38,6 @@ def handle_post_request(request, model, form_class):
             if form.is_valid():
                 form.save()
             else:
-                print(f"DEBUG - Form errors: {form.errors}")
                 for field, errors in form.errors.items():
                     for error in errors:
                         messages.error(request, f"{field}: {error}")
@@ -59,11 +56,9 @@ def handle_post_request(request, model, form_class):
         return redirect(request.path)
     except ProtectedError as e:
         # Handle protected deletion errors (e.g., apartment with related data)
-        print(f"DEBUG - ProtectedError: {e}")
         messages.error(request, str(e.args[0]) if e.args else "Cannot delete: this item has related data that must be removed first.")
         return redirect(request.path)
     except Exception as e:
-        print(f"DEBUG - Exception: {e}")
         log_exception(
             error=e,
             context="Utils - handle_post_request",
@@ -275,21 +270,6 @@ def combine_stack(stack):
     return stack[0]
 
 
-def get_payments_for_month(year, month):
-    return Payment.objects.filter(
-        payment_date__year=year,
-        payment_date__month=month
-    ).order_by(
-        Case(
-            When(payment_status="Pending", then=0),
-            When(payment_status="Completed", then=1),
-            When(payment_status="Expected", then=1),
-            When(payment_status="Merged", then=1),
-        ),
-        'payment_date'
-    )
-
-
 def calculate_unique_booked_days(bookings, month_start, month_end):
 
     # Create a set to store all booked days
@@ -307,31 +287,6 @@ def calculate_unique_booked_days(bookings, month_start, month_end):
 
     # The number of unique booked days is the size of the set
     return len(booked_days)
-
-
-def calculate_total_booked_days(bookings, month_start, month_end):
-    # Dictionary to store booked days and total count for each apartment
-    booked_data_by_apartment = defaultdict(
-        lambda: {"booked_dates": set(), "total_days": 0})
-    totalnumber = 0
-    for booking in bookings:
-        # Adjust the start and end dates of the booking to be within the month
-        booking_start = max(booking.start_date, month_start)
-        booking_end = min(booking.end_date, month_end)
-
-        # Calculate the number of days booked for this booking and store each date
-        current_date = booking_start
-        while current_date <= booking_end:
-            if current_date not in booked_data_by_apartment[booking.apartment.name]["booked_dates"]:
-                booked_data_by_apartment[booking.apartment.name]["total_days"] += 1
-                totalnumber += 1
-
-            booked_data_by_apartment[booking.apartment.name]["booked_dates"].add(
-                current_date)
-
-            current_date += timedelta(days=1)
-
-    return totalnumber
 
 
 def get_model_fields(form):
@@ -421,4 +376,4 @@ def send_handyman_telegram_notification(booking, action):
     try:
         requests.get(base_url, params=params)
     except Exception as e:
-        print(f"Failed to send Telegram notification: {str(e)}")
+        logger.error("Failed to send handyman Telegram notification: %s", e)

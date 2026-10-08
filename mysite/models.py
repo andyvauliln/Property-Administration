@@ -2641,15 +2641,13 @@ class AIEvent(models.Model):
 
     TYPE_TENANT_MESSAGE = 'TENANT_MESSAGE'
     TYPE_STAFF_MESSAGE = 'STAFF_MESSAGE'
-    TYPE_CLICKUP_MESSAGE = 'CLICKUP_MESSAGE'
     TYPE_FOLLOWUP_DUE = 'FOLLOWUP_DUE'
-    TYPE_TICKET_UPDATE = 'TICKET_UPDATE'
+    TYPE_NOTIFICATION_DUE = 'NOTIFICATION_DUE'   # an automatic notification of the 08:00 job, handed to the AI
     EVENT_TYPE_CHOICES = [
         (TYPE_TENANT_MESSAGE, 'Tenant message'),
         (TYPE_STAFF_MESSAGE, 'Staff message'),
-        (TYPE_CLICKUP_MESSAGE, 'ClickUp message'),
         (TYPE_FOLLOWUP_DUE, 'Follow-up due'),
-        (TYPE_TICKET_UPDATE, 'Ticket update'),
+        (TYPE_NOTIFICATION_DUE, 'Automatic notification due'),
     ]
 
     STATUS_PENDING = 'pending'
@@ -2727,7 +2725,6 @@ class AIRun(models.Model):
     )
     event_type = models.CharField(max_length=30, default=AIEvent.TYPE_TENANT_MESSAGE)
     mode = models.CharField(max_length=10, choices=MODE_CHOICES, default=MODE_TEST)
-    backend = models.CharField(max_length=30, default='claude_cli')
     model = models.CharField(max_length=100, blank=True, null=True)
     session_id = models.CharField(max_length=100, blank=True, null=True)
 
@@ -2742,7 +2739,7 @@ class AIRun(models.Model):
     delivery_note = models.CharField(max_length=255, blank=True, null=True)
 
     # Staff review of the answer in the Telegram AI group (mysite/ai_agent/answer_review.py)
-    HOLD_HOLDING = 'holding'        # live answer waits hold_until for a correction, then goes out
+    HOLD_HOLDING = 'holding'        # the answer waits for a manager's press in Telegram
     HOLD_SENT = 'sent'              # sent as the AI wrote it (nobody corrected it, or 'ok')
     HOLD_CORRECTED = 'corrected'    # staff's corrected text was sent instead
     HOLD_CANCELLED = 'cancelled'    # staff said not to send
@@ -2757,7 +2754,6 @@ class AIRun(models.Model):
         (HOLD_FAILED, 'Send failed'), (HOLD_TEST, 'Test mode'),
     ]
     hold_status = models.CharField(max_length=12, choices=HOLD_CHOICES, blank=True, null=True, db_index=True)
-    hold_until = models.DateTimeField(null=True, blank=True)
     telegram_message_id = models.BigIntegerField(null=True, blank=True, db_index=True)
     # What was (or, in test mode, would have been) sent after the review
     final_answer = models.TextField(blank=True, null=True)
@@ -2921,11 +2917,6 @@ class AIIssue(models.Model):
     stage_times = models.JSONField(default=dict, blank=True)
     tenant_deadline = models.DateTimeField(null=True, blank=True)
     next_action = models.CharField(max_length=500, blank=True, null=True)
-    # "I'll handle" in Telegram: the AI stays out of this issue (no drafts, reminders, ClickUp changes) until
-    # "Give back to AI" or the issue is closed
-    handled_by = models.CharField(max_length=100, blank=True, null=True)
-    handled_at = models.DateTimeField(null=True, blank=True)
-    handled_prev_state = models.CharField(max_length=40, blank=True, null=True)
     # First Telegram card of this issue: later cards about it are posted as replies to it (one thread per issue)
     telegram_thread_message_id = models.BigIntegerField(null=True, blank=True)
     # How often the tenant asked about it (repeat-question block on the card)
@@ -2957,10 +2948,6 @@ class AIIssue(models.Model):
     @property
     def is_open(self):
         return self.state != self.STATE_RESOLVED
-
-    @property
-    def is_handled_by_staff(self):
-        return bool(self.handled_by) and self.is_open
 
     def reach_stage(self, stage, when=None):
         """Moves the stage forward (never back); records when each stage was first reached. Does not save."""

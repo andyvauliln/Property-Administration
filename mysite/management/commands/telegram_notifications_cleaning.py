@@ -1,14 +1,9 @@
-import requests
+from mysite.telegram_utils import send_telegram_message
 from datetime import timedelta, date
 from mysite.models import Cleaning, format_telegram_links
 import os
 from mysite.management.commands.base_command import BaseCommandWithErrorHandling
 from django.db.models import Q
-
-
-def send_telegram_message(chat_id, token, message):
-    url = f"https://api.telegram.org/bot{token}/sendMessage"
-    requests.get(url, params={"chat_id": chat_id, "text": message})
 
 
 def _build_cleaning_message(cleaning, prefix):

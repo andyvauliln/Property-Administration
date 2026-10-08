@@ -4,7 +4,6 @@ from pathlib import Path
 from django.conf import settings
 
 # The only AI backend (the OpenRouter backend and its switch were removed 2026-09-28)
-BACKEND_CLAUDE_CLI = 'claude_cli'
 
 # AIManagement.prompt_key values
 AI_AGENT_MODEL_KEY = 'ai_agent_model'
@@ -163,35 +162,10 @@ def chat_ui_debounce_seconds():
     return int(_env_float('AI_AGENT_CHAT_UI_DEBOUNCE_SECONDS', 5))
 
 
-def review_hold_minutes():
-    """Live AI answers wait this long for a staff correction in the Telegram AI group (0 = send at once)."""
-    return _env_float('AI_AGENT_REVIEW_HOLD_MINUTES', 15)
-
-
 def review_poll_seconds():
     """How often the worker reads staff replies and button presses from Telegram (it also reads right before
     releasing an answer). Short, so a pressed button reacts at once."""
     return _env_float('AI_AGENT_REVIEW_POLL_SECONDS', 3)
-
-
-def explicit_approval():
-    """
-    Client spec v4 (user decision 2026-09-30): nothing an AI run proposes happens until someone presses a button (or
-    replies "ok") in Telegram - no timer. AI_AGENT_APPROVAL=timer brings back the old 15-minute "silence = yes" review.
-    AI_AGENT_REVIEW_HOLD_MINUTES=0 switches any review off (everything happens at once, as before the review existed).
-    """
-    if review_hold_minutes() <= 0:
-        return False
-    return (os.environ.get('AI_AGENT_APPROVAL') or 'explicit').strip().lower() != 'timer'
-
-
-def alert_style():
-    """
-    Layout and buttons of the Telegram alerts: 'v5' = the simple alerts of simple_telegram_alerts.md (one block per
-    thing, one button per block, reminders created at once), 'v4' = the long approval card (default until v5 is
-    deployed). AI_AGENT_ALERT_STYLE=v4 + a worker restart is the rollback.
-    """
-    return 'v5' if (os.environ.get('AI_AGENT_ALERT_STYLE') or 'v4').strip().lower() == 'v5' else 'v4'
 
 
 def oneshot_model():
@@ -227,14 +201,6 @@ def _management_value(prompt_key):
     if entry and entry.content and entry.content.strip():
         return entry.content.strip()
     return None
-
-
-def get_ai_backend():
-    return BACKEND_CLAUDE_CLI
-
-
-def is_agent_backend_enabled():
-    return True
 
 
 def get_agent_model():

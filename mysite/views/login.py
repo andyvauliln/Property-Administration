@@ -24,8 +24,6 @@ def custom_login_view(request):
                 return redirect('/')
 
             return redirect('/')
-        else:
-            print(f"DEBUG - Login form errors: {form.errors}")
     else:
         form = CustomUserLoginForm()
     return render(request, 'login.html', {'form': form, "title": "login"})

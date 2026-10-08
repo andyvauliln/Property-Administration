@@ -1,41 +1,16 @@
 """
-Staff review of everything an AI run wants to do, in the Telegram AI group (user requests 2026-09-23).
+Staff review of everything an AI run wants to do, in the Telegram AI group (simple alerts, simple_telegram_alerts.md).
 
-NOTHING a run wants is done at once. The answer is held and every action (issues, issue states, reminders, notes,
-ClickUp tasks / comments / closes, knowledge) becomes a numbered PLAN (plan.py). The Telegram alert says
-"⏳ NOTHING IS DONE YET. At 14:35 ET, unless someone replies: ...". When the window (AI_AGENT_REVIEW_HOLD_MINUTES,
-default 15) ends, the answer goes out and the plan is executed with the normal handlers (apply_plan), and the thread
-is told what was done. Test mode is the same, except the answer never goes to Twilio.
+NOTHING a run wants is done at once (emergencies are the exception: they run at once). The answer is held and every
+action becomes the run's plan (AIRun.review['plan']); the alert (alerts_v5.py) shows one block and one button per
+thing, and only a press makes it happen - there is no timer. A new tenant / staff message makes the older waiting
+alert of the chat outdated and the new run proposes again, told to repeat what is still needed (pending_block).
 
-Anyone in the group can REPLY to the alert:
-  "ok"                        -> everything now (answer + plan)
-  "stop"                      -> nothing at all: answer and plan cancelled
-  "don't send"                -> only the answer is cancelled, the plan still runs
-  "remove 3", "3 urgent", any change in words -> the plan changes (Claude reads the reply, plan_ops)
-  a corrected answer          -> sent now instead of the AI answer
-  "done" / "no task needed" / "make it urgent" about an EXISTING ClickUp task -> done on that task at once
-  a new fact ("wifi password is B123") -> saved at once as verified knowledge
-  "next time ..."             -> an answer lesson for the AI
-  "test ..."                  -> dry run: says what would happen, changes nothing
-  a question ("why did you answer that?", "what payment was pending?") -> answered in the thread, nothing changes
-A reply to one of the bot's own messages about a run (the report, "reading it...", release notes) counts as a reply
-to that run's alert (review.bot_message_ids); any other reply to a bot message gets a hint - never silence
-(user request 2026-09-30).
-Every reply gets a report in the thread. Emergencies skip the review and run at once.
-LEGAL / contract questions (review.needs_confirmation, user request 2026-09-25): the answer is only a suggestion based on
-the contract and is NEVER sent by the timer - only a manager's "ok" or corrected answer sends it. The plan still runs
-when the window ends. A newer answer in that chat inherits the flag (service.process_events). A newer answer in the same
-chat replaces a held one; a pending plan stays and the next run is told about it (pending_block) so it does not
-repeat it; it can refer to an issue that plan creates as r<run>:new-N.
-
-The ai-agent worker reads Telegram every AI_AGENT_REVIEW_POLL_SECONDS (default 3) and checks for due work every
-few seconds; release_due() reads Telegram first, so a reply sent in time always wins over the timer.
-
-EXPLICIT APPROVAL (client spec v4, default since 2026-09-30, config.explicit_approval()): there is NO timer. The card
-has buttons (approval.py) and nothing is sent or done until someone presses one or replies "ok"; a corrected answer
-becomes a draft with its own "Send this" button. A new tenant / staff message makes the older waiting proposal stale
-(its buttons stop working) and the new run proposes again, told to repeat what is still needed. AI_AGENT_APPROVAL=timer
-brings back the 15-minute timer described above.
+A typed reply to an alert never changes anything by itself: alerts_v5.handle_reply answers a question, or explains
+the change it understood and shows a button (interpret() reads the reply). A reply to one of the bot's own messages
+about a run counts as a reply to that run's alert (review.bot_message_ids); any other reply to a bot message gets a
+hint - never silence. LEGAL / contract questions (review.needs_confirmation): the answer is only a suggestion and is
+sent only when a manager presses Send. The worker reads Telegram every AI_AGENT_REVIEW_POLL_SECONDS (default 3).
 """
 import json
 import os
@@ -46,7 +21,7 @@ from datetime import datetime, timedelta, timezone as dt_timezone
 import requests
 from django.utils import timezone
 
-from mysite.ai_agent import config, knowledge
+from mysite.ai_agent import config
 from mysite.ai_agent import plan as plan_mod
 from mysite.ai_agent.notify import ai_chat_id, report_error, send_ai_chat
 from mysite.unified_logger import log_info, log_warning
@@ -105,19 +80,21 @@ INTERPRETER_SCHEMA = {
         'cannot': {'type': 'string', 'description': "The part of an agent change request that a rule can not do (needs "
                                                     "a code change: new buttons, data, integrations, pages), else ''"},
         'refused': {'type': 'string', 'description': "Why an agent change request is harmful and must not be applied, else ''"},
+        'operations': {'type': 'array', 'items': {'type': 'string', 'enum': ['test_reminder']},
+                       'description': "System operations the manager asks to start (see OPERATIONS); [] when none"},
     },
     'required': ['decision', 'corrected_answer', 'plan_ops', 'task_actions', 'new_facts', 'staff_answer', 'lesson',
-                 'lesson_key', 'lesson_scope', 'agent_changes', 'cannot', 'refused'],
+                 'lesson_key', 'lesson_scope', 'agent_changes', 'cannot', 'refused', 'operations'],
 }
 
 # Seed default of the 'ai_agent_review_interpreter' prompt (the live text is in AIManagement).
 INTERPRETER_PROMPT = """You process a property manager's Telegram reply to an alert of our AI assistant. The alert shows the
-answer the AI drafted for a tenant and a numbered PLAN of changes; they happen only when a manager approves them with
-the buttons or "ok" (older alerts: automatically after a review window). Return only the structured output.
+answer the AI drafted for a tenant and a numbered PLAN of changes; they happen only when a manager presses their
+buttons. Return only the structured output.
 
 decision (about the answer to the tenant):
 - replace: the reply gives a better answer, or says what the tenant should be told instead. corrected_answer = the
-  message to send (it becomes a draft the manager sends with one more click). If the reply is already written to the tenant, copy it VERBATIM. If it is an instruction ("tell
+  message to send (it is shown as the new answer with its own Send button). If the reply is already written to the tenant, copy it VERBATIM. If it is an instruction ("tell
   him the plumber comes at 10"), write the tenant message in the same voice, language and length as the AI answer,
   following the instruction exactly and adding nothing the manager did not say.
 - send_as_is: the manager approves everything as it is ("ok", "go ahead").
@@ -184,7 +161,7 @@ AUTOMATIC MESSAGES (sent by the scheduler under the assistant's name, not by the
 {automations}
 === END CONTEXT ===
 
-PLAN (happens when approved; items the manager unticked are marked REMOVED):
+PLAN (each item happens only when its button is pressed; items a manager removed are marked REMOVED):
 {plan}
 
 EXISTING TASKS (already in ClickUp, newest first):
@@ -224,14 +201,6 @@ def _at(when):
     return f"{_team_time(when)} {config.TIMEZONE_LABEL} ({'in ' + str(minutes) + ' min' if minutes else 'now'})"
 
 
-def window_end():
-    """When a waiting answer / plan happens by itself - None with explicit approval (only a person makes it happen)."""
-    if config.explicit_approval():
-        return None
-    return timezone.now() + timedelta(minutes=config.review_hold_minutes())
-
-
-
 # ---------------------------------------------------------------------------
 # Run side
 # ---------------------------------------------------------------------------
@@ -239,8 +208,7 @@ def window_end():
 def review_applies(parsed, last_message, ctx):
     """True when this run's actions must wait for the staff review (not for emergencies or replays)."""
     from mysite.ai_agent import service
-    return (config.review_hold_minutes() > 0 and ctx.notify and ctx.persist
-            and not service._is_emergency(parsed, last_message))
+    return ctx.notify and ctx.persist and not service._is_emergency(parsed, last_message)
 
 
 def _needs_confirmation(run):
@@ -257,9 +225,9 @@ def confirmation_pending(conversation_sid):
 def pending_block(conversation_sid, event_type=None):
     """Input block for a new run: this chat's answers / plans that still wait for staff review."""
     AIRun = _models()
-    if config.alert_style() == 'v5' and event_type == 'STAFF_MESSAGE':
+    if event_type == 'STAFF_MESSAGE':
         return _still_valid_block(conversation_sid)
-    if config.explicit_approval() and event_type in ('TENANT_MESSAGE', 'STAFF_MESSAGE'):
+    if event_type == 'TENANT_MESSAGE':
         return _replaced_block(conversation_sid)
     lines = []
     held = list(AIRun.objects.filter(conversation_sid=conversation_sid, hold_status=AIRun.HOLD_HOLDING).order_by('id'))
@@ -268,14 +236,11 @@ def pending_block(conversation_sid, event_type=None):
         lines += [f"- drafted {_team_time(r.created_at)}{' [LEGAL - waits for a manager to confirm]' if _needs_confirmation(r) else ''}: "
                   f"{r.answer}" for r in held]
         lines.append("If you answer now, your new answer REPLACES this draft (it will never be sent), so include whatever "
-                     "from it is still needed. If you return NO_ANSWER, the draft stays as it is"
-                     + (" (a LEGAL draft is sent only when a manager confirms it; a new answer replacing it also waits for "
-                        "a manager)." if any(_needs_confirmation(r) for r in held) else " and is sent."))
+                     "from it is still needed. If you return NO_ANSWER, the draft stays as it is and still waits for a manager.")
     for run in AIRun.objects.filter(conversation_sid=conversation_sid, review__plan__status='pending').order_by('id'):
         plan = run.review['plan']
-        when = (f"it happens at {_team_time(run.hold_until)} {config.TIMEZONE_LABEL} unless staff change it"
-                if run.hold_until else "it waits for a manager's approval")
-        lines.append(f"PENDING_PLAN of your earlier run #{run.id} - NOT done yet, {when}. Do not repeat these actions:")
+        lines.append(f"PENDING_PLAN of your earlier run #{run.id} - NOT done yet, it waits for a manager's press. Do not "
+                     f"repeat these actions:")
         for item in plan.get('items') or []:
             if item['kind'] == 'change' and not item.get('removed_by'):
                 action = plan['actions'][item['idx']]
@@ -335,18 +300,15 @@ def start(ai_run, parsed, delivery, payload, booking=None, has_tenant_message=Fa
           action_ctx=None, trigger_text=''):
     """After a run's notifications: records the review state (held answer + plan). Never raises."""
     AIRun = _models()
-    explicit = config.explicit_approval()
     try:
-        if explicit and ai_run.event_type in ('TENANT_MESSAGE', 'STAFF_MESSAGE'):
+        if ai_run.event_type in ('TENANT_MESSAGE', 'STAFF_MESSAGE'):
             from mysite.ai_agent import approval
             approval.supersede_older(ai_run)
-        elif parsed.get('answer') and has_tenant_message:
-            _supersede_older(ai_run)
         fields = {
             'telegram_message_id': delivery.get('telegram_message_id'),
             'review': {'reply_author': payload.get('reply_author'), 'sender_phone': payload.get('sender_phone'),
                        'telegram_chat_id': ai_chat_id(), 'replies': [], 'version': 1,
-                       'explicit': explicit, 'style': config.alert_style(),
+                       'explicit': True, 'style': 'v5',
                        # the earlier parts of a long alert sent as (1/2), (2/2): a reply to any of them is a reply to it
                        'bot_message_ids': list(delivery.get('telegram_part_ids') or []),
                        # a reminder may go to the tenant's main chat instead of the run's chat (service.deliver)
@@ -357,7 +319,7 @@ def start(ai_run, parsed, delivery, payload, booking=None, has_tenant_message=Fa
         if action_ctx is not None:   # what a simple alert needs to be written again after a change
             fields['review']['meta'] = {k: action_ctx.meta.get(k) for k in (
                 'apartment', 'tenant', 'mode', 'event_type', 'run_id', 'after_hours_ack_sent', 'after_hours_line', 'call_line',
-                'event_ids', 'v5_head', 'notification')}
+                'event_ids', 'v5_head', 'notification', 'reminder')}
             fields['review']['v5_head'] = action_ctx.meta.get('v5_head') or []
         planned = plan_items is not None and plan_mod.has_changes(plan_items)
         if planned:
@@ -367,13 +329,10 @@ def start(ai_run, parsed, delivery, payload, booking=None, has_tenant_message=Fa
                 'staff_in_trigger': bool(action_ctx.staff_in_trigger), 'trigger_text': trigger_text,
                 'meta': {k: meta.get(k) for k in ('apartment', 'tenant', 'mode', 'event_type', 'run_id', 'after_hours_ack_sent')},
             }
-            fields['hold_until'] = delivery.get('plan_until') or window_end()
-        if explicit and delivery.get('held'):
-            fields['hold_until'] = None
         if not parsed.get('answer'):
             pass
         elif delivery.get('held'):   # live and test mode alike
-            fields.update(hold_status=AIRun.HOLD_HOLDING, hold_until=delivery['hold_until'])
+            fields.update(hold_status=AIRun.HOLD_HOLDING)
         elif ai_run.mode != AIRun.MODE_LIVE:
             fields.update(hold_status=AIRun.HOLD_TEST, final_answer=parsed['answer'])
         elif delivery.get('sent_to_chat'):
@@ -381,85 +340,17 @@ def start(ai_run, parsed, delivery, payload, booking=None, has_tenant_message=Fa
         AIRun.objects.filter(id=ai_run.id).update(**fields)
         ai_run.refresh_from_db()
         waits = delivery.get('held') or planned
-        if fields['review']['style'] == 'v5' and plan_actions is not None:
+        if plan_actions is not None:
             from mysite.ai_agent import alerts_v5
             if alerts_v5.applies(getattr(action_ctx, 'meta', None)):
-                waits = alerts_v5.waiting(delivery, plan_actions)   # what is done at once does not wait for anybody
-        if not fields['telegram_message_id'] and not waits:
-            pass
-        elif not fields['telegram_message_id'] and explicit and (delivery.get('held') or planned):
+                waits = alerts_v5.waiting(delivery, plan_actions, action_ctx.meta)   # what is done at once does not wait for anybody
+        if not fields['telegram_message_id'] and waits:
             # Nothing is ever sent or done without a person's approval: it stays waiting, somebody must look at it
-            report_error(Exception("Telegram card failed"), "AI proposal could NOT be posted for approval - nothing "
+            report_error(Exception("Telegram alert failed"), "AI proposal could NOT be posted for approval - nothing "
                          "sent or done, check the run", {'run': f"/ai-runs/{ai_run.id}/"})
-        elif not fields['telegram_message_id']:
-            # Nobody saw it in Telegram, so nobody can review it: do not keep the tenant or the team waiting
-            if delivery.get('held') and delivery.get('confirm'):
-                # A legal answer is never sent unconfirmed - it stays held; someone must look at the run
-                report_error(Exception("Telegram alert failed"), "LEGAL answer waits for a manager but nobody was told - "
-                             "NOT sent, check the run", {'run': f"/ai-runs/{ai_run.id}/"})
-            elif delivery.get('held'):
-                _claim_and_release(ai_run, ai_run.answer, AIRun.HOLD_SENT, 'Telegram alert failed - sent without review')
-            if planned:
-                apply_plan(ai_run, 'Telegram alert failed - done without review')
         _write_review_file(ai_run.id)
     except Exception as e:
         report_error(e, "staff review could not start - check the run", {'run': f"/ai-runs/{ai_run.id}/"})
-
-
-def _supersede_older(ai_run):
-    AIRun = _models()
-    older = AIRun.objects.filter(
-        conversation_sid=ai_run.conversation_sid, hold_status=AIRun.HOLD_HOLDING, id__lt=ai_run.id,
-    )
-    for run in older:
-        if AIRun.objects.filter(id=run.id, hold_status=AIRun.HOLD_HOLDING).update(
-            hold_status=AIRun.HOLD_SUPERSEDED, delivery_note=f'not sent - replaced by the newer answer of run #{ai_run.id}',
-        ):
-            _mark_chat(run, f"[REPLACED by the newer AI answer of run #{ai_run.id} - not sent]")
-            if run.telegram_message_id:
-                _say(run, f"↪ Answer not sent: replaced by a newer AI answer (run #{ai_run.id}). Its plan (if any) "
-                          f"still happens as announced.")
-            _write_review_file(run.id)
-
-
-def _due_runs(now):
-    from django.db.models import Q
-    AIRun = _models()
-    # A held legal answer is never due: only a manager's reply sends it
-    return AIRun.objects.filter(
-        (Q(hold_status=AIRun.HOLD_HOLDING) & ~Q(review__has_key='needs_confirmation'))
-        | Q(review__plan__status='pending'), hold_until__lte=now,
-    ).order_by('id')
-
-
-def release_due(now=None):
-    """
-    Review window over: sends held answers and executes pending plans, then tells the Telegram thread. Reads
-    Telegram first when something is due, so a reply sent in time wins over the timer. Returns how many runs.
-    """
-    AIRun = _models()
-    now = now or timezone.now()
-    if not _due_runs(now).exists():
-        return 0
-    poll_telegram()
-    handled = 0
-    for run in _due_runs(now)[:20]:
-        lines = []
-        if run.hold_status == AIRun.HOLD_HOLDING and _needs_confirmation(run):
-            lines.append("⚖️ Answer: NOT sent - legal question, it waits until a manager replies \"ok\" or a corrected answer.")
-        elif run.hold_status == AIRun.HOLD_HOLDING:
-            result = _claim_and_release(run, run.answer, AIRun.HOLD_SENT, 'no correction in the review window - sent as written')
-            if result and result[0] == AIRun.HOLD_SENT:
-                lines.append(_release_line(result, "✅ Answer: sent to the tenant as written." if run.mode == AIRun.MODE_LIVE
-                                           else "✅ Answer: final as written (TEST mode: it would have been sent to the "
-                                                "tenant now - nothing sent to Twilio)."))
-        run.refresh_from_db()
-        if ((run.review or {}).get('plan') or {}).get('status') == 'pending':
-            lines += apply_plan(run, 'nobody changed it in the review window')
-        handled += 1
-        if lines and run.telegram_message_id:
-            _say(run, "⏰ Review window over, nobody stopped it - done now:\n" + "\n".join(lines))
-    return handled
 
 
 def _plan(run):
@@ -569,103 +460,10 @@ def issue_from_earlier_plan(run_id, temp_id, conversation_sid):
     return AIIssue.objects.filter(id=issue_id).first() if issue_id else None
 
 
-def apply_plan_ops(run, ops, author, dry):
-    """Staff edits of the pending plan. Returns report lines."""
-    plan = _plan(run)
-    if not ops:
-        return []
-    if plan.get('status') != 'pending':
-        return [f"ℹ The plan can't be changed any more ({plan.get('status') or 'this alert has no plan'})."]
-    by_number = {item['n']: item for item in plan['items'] if item.get('n')}
-    lines = []
-    for op in ops:
-        item = by_number.get(op.get('n'))
-        if not item:
-            lines.append(f"✗ there is no item {op.get('n')} in the plan")
-            continue
-        action = plan['actions'][item['idx']]
-        label = f"#{item['n']} ({item['lines'][0][:90]})"
-        if op.get('op') == 'remove':
-            doomed = [action]
-            if action.get('type') == 'CREATE_ISSUE' and action.get('temp_id'):
-                doomed += [a for a in plan['actions'] if isinstance(a, dict) and a is not action
-                           and action['temp_id'] in (a.get('issue_id'), a.get('ticket_id'))]
-            if dry:
-                lines.append(f"Would REMOVE {label}" + (f" and {len(doomed) - 1} item(s) that depend on it" if len(doomed) > 1 else ""))
-                continue
-            for a in doomed:
-                a['removed_by'] = author
-            lines.append(f"❌ Removed {label}" + (f" and {len(doomed) - 1} item(s) that depend on it" if len(doomed) > 1 else ""))
-            continue
-        changes = _changes_for(action, op)
-        if op.get('op') == 'approve' or (action.get('type') == 'KB_UPDATE' and 'text' in changes):
-            # A manager approved or rewrote the knowledge: it now counts as said by staff
-            changes['approved_by'] = author
-        if not changes:
-            lines.append(f"✗ {label}: nothing to change was given")
-            continue
-        shown = ", ".join(f"{k} → {v}" for k, v in changes.items() if k != 'approved_by') or 'approved'
-        if dry:
-            lines.append(f"Would CHANGE {label}: {shown}")
-            continue
-        action.update(changes)
-        action['changed_by'] = author
-        lines.append(f"✏ Changed {label}: {shown}")
-    if not dry:
-        _save_plan(run, _redescribe(run, plan))
-    return lines
-
-
-def _changes_for(action, op):
-    """Plan-op fields -> the action's own field names."""
-    kind, out = action.get('type'), {}
-    value = {k: (op.get(k) or '').strip() for k in ('priority', 'title', 'text', 'value', 'state', 'owner')}
-    if value['priority'] and kind in ('CREATE_TICKET', 'INTERNAL_ALERT', 'QUEUE_FOR_REVIEW', 'CREATE_ISSUE'):
-        out['priority'] = value['priority']
-    if value['title']:
-        out['title' if kind == 'CREATE_TICKET' else 'summary'] = value['title']
-    if value['text']:
-        out[{'CREATE_TICKET': 'description', 'SCHEDULE_FOLLOWUP': 'reason'}.get(kind, 'text')] = value['text']
-    if value['value'] and kind == 'KB_UPDATE':
-        out['text'] = value['value']   # the knowledge text (older plans called it value)
-    if value['state'] and kind in ('UPDATE_ISSUE_STATE', 'CREATE_ISSUE'):
-        out['state'] = value['state']
-    if value['owner']:
-        out['responsible' if kind == 'CREATE_TICKET' else 'owner'] = [value['owner']] if kind == 'CREATE_TICKET' else value['owner']
-    return out
-
-
-def cancel_plan(run, author):
-    plan = _plan(run)
-    if plan.get('status') != 'pending':
-        return False
-    plan.update(status='cancelled', cancelled_by=author)
-    _save_plan(run, plan)
-    _write_review_file(run.id)
-    return True
-
-
-def plan_text(run):
-    """The plan as it stands, for replies and 'test'."""
-    plan = _plan(run)
-    status = plan.get('status')
-    if not status:
-        return "No planned changes on this alert."
-    if status == 'pending':
-        return ((f"Plan (happens automatically at {_at(run.hold_until)} unless changed):\n" if run.hold_until else
-                 "Plan (happens only when a manager approves it - no timer; ☑ items are done):\n")
-                + ("\n".join(plan_mod.render(plan['items'])) or "(every item was removed - nothing will be done)"))
-    if status == 'cancelled':
-        return f"🛑 Plan cancelled by {plan.get('cancelled_by')} - nothing of it was done."
-    if status == 'superseded':
-        return f"⤴ Plan replaced by the newer proposal of run #{plan.get('superseded_by')} - nothing of it was done."
-    return f"Plan already done ({plan.get('how')})."
-
-
 def _claim_and_release(run, text, status, how, announce=True):
     """HOLDING -> status, then sends text to the tenant. Returns (status, note) or None when already taken."""
     AIRun = _models()
-    if config.explicit_approval() and run.hold_status == AIRun.HOLD_HOLDING:
+    if run.hold_status == AIRun.HOLD_HOLDING:
         from mysite.ai_agent import approval
         newer = approval.tenant_wrote_after(run)
         if newer:
@@ -686,10 +484,8 @@ def _release(run, text, status, how, announce=True):
     sent = False
     if service._staff_replied_after(run.conversation_sid, run.message):
         status, note = AIRun.HOLD_SUPPRESSED, 'not sent - staff answered the tenant directly in the meantime'
-    elif run.mode != AIRun.MODE_LIVE and review.get('style') != 'v5':
-        note = 'TEST mode - final answer stored, not sent to Twilio'
     else:
-        # Simple alerts (v5): a pressed Send Answer really sends, also in a test apartment (rule 1.1.2)
+        # A pressed Send Answer really sends, also in a test apartment (rule 1.1.2)
         try:
             result = service.send_answer(review.get('send_to') or run.conversation_sid, text,
                                          review.get('reply_author'), review.get('sender_phone'))
@@ -763,16 +559,13 @@ def _mark_chat(run, prefix):
         _persist_customer_ai_result(run.message.message_sid, {'why': f"{prefix} {run.why or ''}".strip()}, sent_to_chat=False)
 
 
-def pending_prefix(hold_until, mode, confirm=False):
+def pending_prefix(mode, confirm=False):
     """Shown in the CRM chat page while an answer waits for review."""
     if confirm:
         return ("[⚖️ LEGAL - SUGGESTED ANSWER, waits for a manager to confirm in Telegram, never sent automatically"
                 + ('' if mode == 'live' else ' - TEST: never sent to Twilio') + "]")
-    if not hold_until:
-        return ("[⏳ WAITING FOR APPROVAL in Telegram - sent only when a manager approves it"
-                + ('' if mode == 'live' else ' - TEST: never sent to Twilio') + "]")
-    what = 'then sent to the tenant' if mode == 'live' else 'TEST: never sent to Twilio'
-    return f"[⏳ WAITING FOR STAFF REVIEW in Telegram until {_at(hold_until)} - {what}]"
+    return ("[⏳ WAITING FOR APPROVAL in Telegram - sent only when a manager approves it"
+            + ('' if mode == 'live' else ' - TEST: never sent to Twilio') + "]")
 
 
 def final_prefix(status, how, mode):
@@ -790,7 +583,7 @@ def _write_review_file(run_id):
     run = AIRun.objects.filter(id=run_id).first()
     if not (run and run.report_dir and Path(run.report_dir).is_dir()):
         return
-    data = {'hold_status': run.hold_status, 'hold_until': run.hold_until, 'final_answer': run.final_answer,
+    data = {'hold_status': run.hold_status, 'final_answer': run.final_answer,
             'sent_to_chat': run.sent_to_chat, 'delivery_note': run.delivery_note, 'review': run.review}
     (Path(run.report_dir) / '09_review.json').write_text(json.dumps(data, indent=2, ensure_ascii=False, default=str))
 
@@ -919,7 +712,7 @@ def poll_telegram():
             if approval.handle_prompt_reply(run, parent['message_id'], message['text'], _author(message.get('from') or {})):
                 handled += 1
                 continue
-            if (run.review or {}).get('stale') and config.alert_style() == 'v5':
+            if (run.review or {}).get('stale'):
                 # Simple alerts (E7): an outdated alert is not worked on any more - the newer one is
                 newer = approval.newest_proposal(run)
                 link = f" ({ai_chat_link(newer.telegram_message_id)})" if newer.telegram_message_id and newer.id != run.id else ""
@@ -967,7 +760,8 @@ def run_interpreter(prompt):
 
 
 EMPTY_DECISION = {'corrected_answer': '', 'plan_ops': [], 'task_actions': [], 'new_facts': [], 'staff_answer': '',
-                  'lesson': '', 'lesson_key': '', 'lesson_scope': 'company', 'agent_changes': [], 'cannot': '', 'refused': ''}
+                  'lesson': '', 'lesson_key': '', 'lesson_scope': 'company', 'agent_changes': [], 'cannot': '', 'refused': '',
+                  'operations': []}
 
 
 def interpret(run, text, author, can_change, sent_note=None, extra_note=None):
@@ -1095,207 +889,16 @@ def chat_tasks(run, limit=8):
     return [(i, i.created_by_run_id == run.id or i.public_id in touched) for i in issues.order_by('-id')[:limit]]
 
 
-KIND_LABEL = {
-    'replace': 'a corrected answer', 'send_as_is': 'OK - do everything now', 'do_not_send': "don't send the answer",
-    'stop_all': 'STOP - do nothing', 'lesson_only': 'a lesson for next time',
-    'changes_only': 'changes to the plan / tasks / knowledge', 'question': 'a question', 'unclear': 'unclear',
-}
-
-
-def _state_text(run):
-    """Why the answer can no longer be changed."""
-    AIRun = _models()
-    return {
-        AIRun.HOLD_TEST: "test apartment - nothing is ever sent to the tenant",
-        AIRun.HOLD_SUPERSEDED: "this answer was already replaced by a newer one",
-        AIRun.HOLD_CANCELLED: "this answer was already cancelled",
-    }.get(run.hold_status, f"too late - {run.delivery_note or 'the answer was already handled'}")
-
-
-def _answer_status(run):
-    AIRun = _models()
-    if not run.answer:
-        return "Answer: none (the AI did not answer the tenant)."
-    if run.hold_status == AIRun.HOLD_HOLDING and _needs_confirmation(run):
-        return "Answer: LEGAL - waits for a manager to confirm (\"ok\" or a corrected answer); never sent automatically."
-    if run.hold_status == AIRun.HOLD_HOLDING and not run.hold_until:
-        draft = (run.review or {}).get('draft') or {}
-        return ("Answer: waits for approval - press ✅ Approve all (or reply \"ok\"); never sent without it."
-                + (f" A draft by {draft['by']} waits under its own ✅ Send this." if draft.get('status') == 'waiting' else ""))
-    if run.hold_status == AIRun.HOLD_HOLDING:
-        return f"Answer: waits for review, goes to the tenant as written at {_at(run.hold_until)} if nobody corrects it."
-    return f"Answer: {run.get_hold_status_display() if run.hold_status else 'no review'} ({_state_text(run)})."
-
-
-def _lesson_scope(run, decision):
-    apartment = _apartment(run) if decision.get('lesson_scope') == 'apartment' else None
-    return apartment, (apartment.name if apartment else 'all apartments (company-wide)')
-
-
-def _tenant_side(run, kind, corrected, author, dry, can_change):
-    AIRun = _models()
-    live = run.mode == AIRun.MODE_LIVE
-    if not run.answer:
-        return "this alert had no AI answer to the tenant - nothing sent or changed."
-    if kind in ('replace', 'do_not_send', 'send_as_is', 'stop_all') and not can_change:
-        return f"nothing {'would change' if dry else 'changed'}: {_state_text(run)}."
-    if kind == 'replace' and config.explicit_approval():
-        if dry:
-            return f"Would make your text a DRAFT (sent only after ✅ Send this), instead of the AI answer:\n{corrected}"
-        from mysite.ai_agent import approval
-        return approval.create_draft(run, corrected, author, 'from your reply')
-    if kind == 'replace':
-        if dry:
-            return f"Would send your corrected answer to the tenant NOW, instead of the AI answer:\n{corrected}"
-        result = _claim_and_release(run, corrected, AIRun.HOLD_CORRECTED, f"corrected by {author} in Telegram", announce=False)
-        return _release_line(result, (f"✅ Sent your corrected answer to the tenant (the AI answer was NOT sent):\n{corrected}" if live else
-                                      f"✅ Your corrected answer is final instead of the AI one (TEST mode: would be sent now, "
-                                      f"nothing sent to Twilio):\n{corrected}"))
-    if kind == 'send_as_is':
-        if dry:
-            return "Would send the AI answer to the tenant NOW, as written."
-        result = _claim_and_release(run, run.answer, AIRun.HOLD_SENT, f"approved by {author} in Telegram", announce=False)
-        return _release_line(result, "✅ Sent the AI answer to the tenant as written." if live
-                             else "✅ AI answer approved as written (TEST mode: would be sent now, nothing sent to Twilio).")
-    if kind in ('do_not_send', 'stop_all'):
-        if dry:
-            return "Would cancel the AI answer: the tenant would get nothing from the AI for this message."
-        if AIRun.objects.filter(id=run.id, hold_status=AIRun.HOLD_HOLDING).update(
-            hold_status=AIRun.HOLD_CANCELLED, delivery_note=f"not sent - cancelled by {author} in Telegram",
-        ):
-            _mark_chat(run, f"[CANCELLED BY STAFF: {author} in Telegram - not sent]")
-            return "🛑 Answer cancelled: NOT sent. The tenant gets nothing from the AI for this message."
-        return "Too late to cancel the answer - it was already handled."
-    if kind == 'unclear':
-        return ("❓ Not sure what you want. Reply with the exact answer to send, \"ok\", \"stop\", \"remove N\" or \"next time ...\"."
-                + ((" The legal answer waits for you; it is never sent automatically." if _needs_confirmation(run) else
-                    " Nothing happens until someone approves it." if not run.hold_until else
-                    f" Until then everything happens automatically as announced at {_at(run.hold_until)}.") if can_change else ""))
-    if can_change and _needs_confirmation(run):
-        return ("answer unchanged - LEGAL, it still waits for a manager: reply \"ok\" to send it as written or send a "
-                "corrected answer. It is never sent automatically.")
-    if can_change and not run.hold_until:
-        return "answer unchanged - it still waits for approval (✅ Approve all or \"ok\")."
-    if can_change:
-        return (f"answer unchanged - it {'would still go' if dry else 'still goes'} to the tenant as written at "
-                f"{_at(run.hold_until)}.")
-    return f"answer: nothing to change ({_state_text(run)})."
-
-
 def handle_reply(run, text, author, at, reply_to=None):
-    """
-    Applies one staff reply to an alert and posts a report of what was done. A reply starting with "test" is a
-    dry run: the report says what a real reply would do; nothing is saved, sent or changed. Returns the report.
-    """
-    AIRun = _models()
+    """A typed reply to an alert: alerts_v5.handle_reply answers it, or explains the change and waits for the press.
+    An alert of the old card (before the simple alerts) can not be worked on any more."""
     run.refresh_from_db()
-    if (run.review or {}).get('style') == 'v5':
-        # Simple alerts: a typed reply never changes anything by itself (rule 1.1.3)
-        from mysite.ai_agent import alerts_v5
-        return alerts_v5.handle_reply(run, text, author, at, reply_to)
-    reply_to = reply_to or run.telegram_message_id
-    dry = bool(TEST_REPLY.match(text))
-    body = TEST_REPLY.sub('', text, count=1).strip() if dry else text.strip()
-    if dry and not body:
-        report = ("🧪 TEST - nothing was saved or sent. Current state:\n" + _answer_status(run) + "\n" + plan_text(run)
-                  + "\nWrite \"test\" followed by your reply (e.g. \"test remove 2\") to see what it would do.")
-        _say(run, report, reply_to=reply_to)
+    if (run.review or {}).get('style') != 'v5':
+        report = "⚠️ This alert has the old format and can not be changed any more – please reply to a newer alert."
+        _say(run, report, reply_to=reply_to or run.telegram_message_id)
         return report
-    if not (STOP_REPLY.match(body) or DONT_SEND_REPLY.match(body) or OK_REPLY.match(body)):
-        _say(run, f"👀 Got your reply{' (TEST)' if dry else ''} - reading it...", reply_to=reply_to)
-
-    can_change = run.hold_status == AIRun.HOLD_HOLDING
-    decision = interpret(run, body, author, can_change)
-    kind = decision['decision']
-    corrected = (decision.get('corrected_answer') or '').strip()
-    if kind == 'replace' and not corrected:
-        kind = 'unclear'
-    plan_ops = [o for o in decision.get('plan_ops') or [] if isinstance(o, dict) and o.get('op') in PLAN_OPS]
-    task_actions = [a for a in decision.get('task_actions') or [] if isinstance(a, dict)]
-    new_facts = [f for f in decision.get('new_facts') or [] if isinstance(f, dict)]
-    lesson = (decision.get('lesson') or '').strip()
-    staff_answer = (decision.get('staff_answer') or '').strip()
-    if kind in ('unclear', 'question') and (plan_ops or task_actions or new_facts):
-        kind = 'changes_only'
-    elif kind == 'unclear' and staff_answer:
-        kind = 'question'
-    if kind == 'question' and not lesson:
-        # Only a question: answer it plainly - no plan / answer / task report (user request 2026-09-30)
-        report = (f"{'🧪 TEST - ' if dry else ''}💬 {staff_answer or 'I could not find the answer in the data I have.'}"
-                  f"\n\n(Nothing was changed. {_answer_status(run)})")
-        if not dry:
-            _save_reply(run, author, at, text, kind, None, None, [], [], [], report)
-        _say(run, report, reply_to=reply_to)
-        return report
-
-    # 📋 the plan first (edits), then the answer, then "ok" / "stop" for the plan
-    plan_lines = apply_plan_ops(run, plan_ops, author, dry)
-    tenant = _tenant_side(run, kind, corrected, author, dry, can_change)
-    run.refresh_from_db()
-    pending = _plan(run).get('status') == 'pending'
-    if kind == 'send_as_is' and pending:
-        plan_lines += (["Would do the whole plan NOW:"] + plan_mod.render(_plan(run)['items']) if dry else
-                       ["Done now:"] + apply_plan(run, f"approved with 'ok' by {author}"))
-    elif kind == 'stop_all' and pending:
-        plan_lines.append("Would CANCEL the whole plan: nothing of it would be done" if dry else
-                          ("🛑 Plan cancelled: nothing of it will be done." if cancel_plan(run, author) else "ℹ The plan was already handled."))
-    elif not dry or not plan_lines:
-        plan_lines.append(plan_text(run) if not (dry and pending) else "(plan unchanged)")
-
-    task_lines = apply_task_actions(run, task_actions, author, dry) if task_actions else []
-    fact_lines = [_add_fact(run, fact, author, dry) for fact in new_facts]
-    if lesson:
-        apartment, where = _lesson_scope(run, decision)
-        if dry:
-            instructions = f"Would add a lesson for {where} (not saved) - the AI would get it on every similar message:\n{lesson}"
-        else:
-            from mysite.ai_agent import prompt_library
-            detail = prompt_library.upsert_lesson(apartment, decision.get('lesson_key') or 'answer_lesson', lesson)
-            instructions = (f"📚 AI instructions updated - lesson {detail} for {where}. From now on the AI gets it on "
-                            f"every similar message (AI Management -> Prompts -> Agent - answer lessons):\n{lesson}")
-    else:
-        instructions = "AI instructions: no change (to teach the AI, start a reply with \"next time ...\")."
-
-    header = ("🧪 TEST - nothing was saved, sent or changed. With a real reply I would do this:" if dry
-              else "🧾 Done - here is what happened:")
-    sections = [f"💬 {staff_answer}"] if staff_answer else []
-    sections += [f"{header}\nUnderstood as: {KIND_LABEL[kind]}", f"👤 Tenant: {tenant}", "📋 " + "\n".join(plan_lines)]
-    sections.append("🗂 Existing ClickUp tasks:\n" + "\n".join(task_lines) if task_lines else "🗂 Existing ClickUp tasks: no change.")
-    sections.append("📚 Knowledge base:\n" + "\n".join(fact_lines) if fact_lines else "📚 Knowledge base: no change.")
-    sections.append(f"🤖 {instructions}")
-    report = "\n\n".join(sections)
-    if not dry:
-        _save_reply(run, author, at, text, kind, corrected, lesson, plan_ops, task_lines, fact_lines, report)
-        if (run.review or {}).get('explicit'):
-            from mysite.ai_agent import approval
-            if plan_ops:
-                approval._update_review(run, bump=True)
-            run.refresh_from_db()
-            approval.refresh_card(run)
-    _say(run, report, reply_to=reply_to)
-    return report
-
-
-def _save_reply(run, author, at, text, kind, corrected, lesson, plan_ops, task_lines, fact_lines, report):
-    AIRun = _models()
-    run.refresh_from_db()
-    review = dict(run.review or {})
-    review['replies'] = (review.get('replies') or []) + [{
-        'by': author, 'at': at.isoformat(), 'text': text, 'decision': kind, 'corrected_answer': corrected or None,
-        'lesson': lesson or None, 'plan_ops': plan_ops, 'tasks': task_lines, 'facts': fact_lines, 'result': report,
-    }]
-    AIRun.objects.filter(id=run.id).update(review=review)
-    _write_review_file(run.id)
-
-
-def _release_line(result, success):
-    AIRun = _models()
-    if result is None:
-        return "ℹ Too late - the answer was already handled."
-    status, note = result
-    if status in (AIRun.HOLD_SENT, AIRun.HOLD_CORRECTED):
-        return success if not note.startswith('held') else success + "\n(outside 08:00-21:00: it goes out when the window opens)"
-    return f"⚠ {note}"
+    from mysite.ai_agent import alerts_v5
+    return alerts_v5.handle_reply(run, text, author, at, reply_to)
 
 
 def _resolve_issue(issue, note):
@@ -1303,7 +906,6 @@ def _resolve_issue(issue, note):
     if issue.is_open:
         issue.state, issue.resolved_at = AIIssue.STATE_RESOLVED, timezone.now()
         issue.reach_stage(AIIssue.STAGE_RESOLVED)
-        issue.handled_by = issue.handled_at = issue.handled_prev_state = None
     stopped = issue.followups.filter(status=AIFollowUp.STATUS_PENDING).update(
         status=AIFollowUp.STATUS_CANCELLED, status_note=note[:255], updated_at=timezone.now(),
     )

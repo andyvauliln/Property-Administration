@@ -849,6 +849,26 @@ class World:
         self.call_answered = setup.get('call_answered', True) is not False
         return story.apply_crm(self, case.get('crm'), self.shift)
 
+    def team_task(self, step):
+        """A team member works on a sandbox task directly in ClickUp, outside the alerts: {close_task: "sink"} closes it
+        (C6), {comment_task: "sink", text: "Plumber booked Mon 9-11am"} comments on it (C5) - the real [SANDBOX] task
+        in the TEST list, found by a text of its title. Returns a note for the step."""
+        from mysite.ai_agent import clickup
+        from mysite.models import AIIssue
+        closing = 'close_task' in step
+        text = str(step.get('close_task') if closing else step.get('comment_task') or '').strip().lower()
+        issue = next((i for i in AIIssue.objects.filter(conversation_sid=SANDBOX_SID, ticket_ref__isnull=False).order_by('-id')
+                      if text and text in f"{i.ticket_title or ''} {i.summary}".lower()), None)
+        if not issue:
+            return f"no sandbox task with \"{text}\" in its title"
+        with clickup.pressed():
+            if closing:
+                clickup.set_task_closed(issue.ticket_ref, True)
+            else:
+                clickup.add_task_comment(issue.ticket_ref, str(step.get('text') or ''))
+        self.log(f"  [sandbox] the team {'closed' if closing else 'commented on'} the task \"{issue.ticket_title or issue.summary}\" in ClickUp")
+        return None
+
     # -- triggers -------------------------------------------------------------------------------------------------------
     def queue_burst(self, messages):
         """
@@ -904,8 +924,8 @@ class World:
                 return [], "the reminder is not pending any more (closed or already fired)"
             followup.refresh_from_db()
             issue = followup.issue
-            if issue and (not issue.is_open or issue.handled_by):
-                note = 'issue already resolved - AI not woken' if not issue.is_open else f"{issue.handled_by} handles it - AI not woken"
+            if issue and not issue.is_open:
+                note = 'issue already resolved - AI not woken'
                 AIFollowUp.objects.filter(id=followup.id).update(status=AIFollowUp.STATUS_CANCELLED, status_note=note[:255])
                 return [], f"closed quietly, no alert ({note})"
             event = AIEvent.objects.create(

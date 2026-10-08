@@ -9,7 +9,7 @@ from django.test import Client
 from django.utils import timezone
 assert connection.vendor == "sqlite"
 from mysite import conversation_groups
-from mysite.ai_agent import config, inputs, service
+from mysite.ai_agent import inputs, service
 from mysite.models import AIRun, Apartment, Booking, TwilioConversation, TwilioMessage, User
 
 checks = []
@@ -100,16 +100,23 @@ check("AI history includes the other chat, marked", f"[other chat #{A.id}]" in t
 # ---- where answers / reminders are sent ----------------------------------------------------------------
 sent = []
 service.send_answer = lambda sid, *a, **k: sent.append(sid) or {'sent_to_chat': True, 'note': 'sent'}
-orig_hold = config.review_hold_minutes
-config.review_hold_minutes = lambda: 0
+from mysite.ai_agent import answer_review
 parsed = {'answer': 'We are on it', 'actions': [], 'why': ''}
-service.deliver(parsed, AIRun.MODE_LIVE, "CHmergeA", booking, trigger, {}, apartment=apt)
+def press_send(sid, message, result):
+    """What 🤖 Send Answer does once its checks passed: the held answer is released to the chat the run kept."""
+    run = AIRun.objects.create(conversation_sid=sid, message=message, mode=AIRun.MODE_LIVE, answer=parsed['answer'],
+                               hold_status=AIRun.HOLD_HOLDING, review={'style': 'v5', 'send_to': result.get('send_to')})
+    return answer_review._release(run, run.answer, AIRun.HOLD_SENT, "Send Answer pressed by Andy")
+result = service.deliver(parsed, AIRun.MODE_LIVE, "CHmergeA", booking, trigger, {}, apartment=apt)
+check("an answer is held for the press, nothing sent yet", result.get('held') and not sent and 'send_to' not in result, (sent, result))
+press_send("CHmergeA", trigger, result)
 check("an answer to a message goes to the chat the message came from", sent == ["CHmergeA"], sent)
 sent.clear()
 result = service.deliver(parsed, AIRun.MODE_LIVE, "CHmergeA", booking, None, {}, apartment=apt,
                          send_to=conversation_groups.main_sid("CHmergeA"))
-check("a reminder goes to the main chat and says so", sent == ["CHmergeB"] and result.get('send_to') == "CHmergeB"
+check("a reminder answer is held, keeps the main chat and says so", not sent and result.get('send_to') == "CHmergeB"
       and "main chat" in result['note'], (sent, result))
-config.review_hold_minutes = orig_hold
+press_send("CHmergeA", None, result)
+check("... and the press sends it to the main chat", sent == ["CHmergeB"], sent)
 
 print(f"\n{sum(checks)}/{len(checks)} checks passed"); sys.exit(0 if all(checks) else 1)

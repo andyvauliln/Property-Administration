@@ -55,19 +55,12 @@ def get_manager_phones():
     return _manager_phones_cache['phones']
 
 
-def _is_ai_assistant_globally_enabled():
-    return os.environ.get('AI_ASSISTANT_ENABLED', 'true').lower() == 'true'
-
-
 def _should_send_ai_to_group(apartment):
     return bool(apartment and apartment.ai_group_chat_enabled)
 
 
 def _enqueue_for_ai_agent(conversation_sid, message_sid, body, **kwargs):
-    """
-    True when the Claude agent backend (AIManagement 'ai_backend' = claude_cli) queued the tenant
-    message for the ai-agent worker; False means the legacy inline AI must handle it.
-    """
+    """True when the tenant message was queued for the ai-agent worker."""
     from mysite.ai_agent.service import enqueue_tenant_message
     return enqueue_tenant_message(conversation_sid, message_sid, body, **kwargs)
 
@@ -76,20 +69,6 @@ def _enqueue_staff_for_ai_agent(conversation_sid, message_sid, body, **kwargs):
     """Queues a manager's message for the Claude agent. Never replaces the knowledge-base extraction."""
     from mysite.ai_agent.service import enqueue_staff_message
     return enqueue_staff_message(conversation_sid, message_sid, body, **kwargs)
-
-
-def _conversation_ai_group_chat_enabled(conversation_sid):
-    try:
-        from mysite.models import TwilioConversation
-        conversation = (
-            TwilioConversation.objects
-            .select_related('apartment')
-            .filter(conversation_sid=conversation_sid)
-            .first()
-        )
-        return bool(conversation and conversation.apartment and conversation.apartment.ai_group_chat_enabled)
-    except Exception:
-        return False
 
 
 def is_reserved_phone(phone):
@@ -134,7 +113,6 @@ try:
 except Exception as e:
     log_error(e, "Error initializing Twilio client", source='twilio')
     client = None
-
 
 
 def save_conversation_to_db(conversation_sid, friendly_name, booking=None, apartment=None, author=None):
@@ -190,48 +168,6 @@ def save_conversation_to_db(conversation_sid, friendly_name, booking=None, apart
     except Exception as e:
         log_error(e, "Save Conversation to DB", source='web')
         return None
-
-
-def update_conversation_booking_link(conversation_sid, phone_number):
-    """
-    Update an existing conversation with booking/apartment relationship
-    Useful when booking is created after the conversation
-    
-    Args:
-        conversation_sid (str): Twilio conversation SID
-        phone_number (str): Phone number to find booking for
-        
-    Returns:
-        bool: True if successfully updated, False otherwise
-    """
-    try:
-        from mysite.models import TwilioConversation
-        
-        conversation = TwilioConversation.objects.filter(conversation_sid=conversation_sid).first()
-        if not conversation:
-            log_info(f"Conversation not found: {conversation_sid}", category='sms')
-            return False
-            
-        # Skip if already linked
-        if conversation.booking and conversation.apartment:
-            log_info(f"Conversation already linked to booking: {conversation.booking}", category='sms')
-            return True
-            
-        # Try to find booking
-        booking = get_booking_from_phone(phone_number)
-        if booking:
-            conversation.booking = booking
-            conversation.apartment = booking.apartment
-            conversation.save()
-            log_info(f"Updated conversation {conversation_sid} with booking: {booking} and apartment: {booking.apartment}", category='sms')
-            return True
-        else:
-            log_info(f"No booking found for phone: {phone_number}", category='sms')
-            return False
-            
-    except Exception as e:
-        log_error(e, "Error updating conversation booking link", source='web')
-        return False
 
 
 def check_author_in_group_conversations_for_apartment(author_phone, apartment_id=None):
@@ -401,7 +337,6 @@ def validate_phone_number(phone):
         return f"+{digits_only}"
 
     return None
-
 
 
 def _conversation_has_tenant_participant(conversation_sid, tenant_phone):
@@ -695,7 +630,6 @@ def delete_all_messages(conversation_sid):
         raise
 
 
-
 PHOTO_PLACEHOLDER = '[photo]'
 
 
@@ -767,18 +701,6 @@ def _extract_marked_body(text, marker):
     if text.endswith(marker):
         return text[:-len(marker)].strip()
     return ""
-
-
-def _get_ai_client():
-    """Client for the chat-page AI helpers (the Claude one-shot client). Returns (client, error_reason)."""
-    from mysite.ai_agent.oneshot import ClaudeTextClient
-    return ClaudeTextClient(), None
-
-
-def _get_db_model(fallback=None):
-    """Model of the chat-page AI helpers: the Claude one-shot model."""
-    from mysite.ai_agent import config as ai_agent_config
-    return ai_agent_config.oneshot_model()
 
 
 def _apartment_fields_context(apartment):
@@ -1199,19 +1121,9 @@ def generate_answer_rule_text(client_message, correct_answer, ai_response=None, 
                 ai_response_section=ai_response_section,
             )
 
-    ai_client, ai_error = _get_ai_client()
-    if not ai_client:
-        return {'success': False, 'error': f'AI client unavailable: {ai_error}'}
-
-    model = _get_db_model()
+    from mysite.ai_agent import oneshot
     try:
-        response = ai_client.chat.completions.create(
-            model=model,
-            messages=[{'role': 'user', 'content': prompt_content}],
-            temperature=0.2,
-            max_tokens=250,
-        )
-        rule = _safe_completion_content(response).strip()
+        rule = oneshot.complete(prompt_content)['text'].strip()
         if not rule:
             return {'success': False, 'error': 'AI returned empty rule.'}
         if not rule.startswith('-'):
@@ -1348,19 +1260,9 @@ def generate_kb_rule_text(
                 rule_intent_label=rule_intent_label,
             )
 
-    ai_client, ai_error = _get_ai_client()
-    if not ai_client:
-        return {'success': False, 'error': f'AI client unavailable: {ai_error}'}
-
-    model = _get_db_model()
+    from mysite.ai_agent import oneshot
     try:
-        response = ai_client.chat.completions.create(
-            model=model,
-            messages=[{'role': 'user', 'content': prompt_content}],
-            temperature=0.2,
-            max_tokens=250,
-        )
-        rule = _safe_completion_content(response).strip()
+        rule = oneshot.complete(prompt_content)['text'].strip()
         if not rule:
             return {'success': False, 'error': 'AI returned empty rule.'}
         if not rule.startswith('-'):
@@ -1436,14 +1338,6 @@ def _persist_customer_ai_result(message_sid, result, sent_to_chat=None):
         kwargs["ai_sent_to_chat"] = sent_to_chat
     if kwargs:
         _update_message_ai_result(message_sid, **kwargs)
-
-
-def _safe_completion_content(response):
-    """Return stripped completion text, or empty string if the model returned nothing."""
-    if not response or not getattr(response, "choices", None):
-        return ""
-    content = response.choices[0].message.content
-    return (content or "").strip()
 
 
 GLOBAL_KB_KEY = 'global_knowledge_base'
@@ -1700,7 +1594,6 @@ def twilio_webhook(request):
     except Exception as e:
         log_error(e, "Error in twilio_webhook", source='web')
         return JsonResponse({'status': 'error', 'message': str(e)}, status=500)
-
 
 
 def find_reusable_group_conversation(booking, tenant_phone):

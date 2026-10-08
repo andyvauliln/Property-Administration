@@ -59,10 +59,9 @@ def _user_tag(request):
 
 
 def _trace_enabled():
-    # Default ON so UI requests always create a trace line.
-    # Set PAYMENT_SYNC_V2_TRACE=0 to disable.
-    v = str(os.getenv("PAYMENT_SYNC_V2_TRACE", "1")).strip().lower()
-    return v not in ("0", "false", "no", "off")
+    # Default OFF. Set PAYMENT_SYNC_V2_TRACE=1 to write a trace line per UI request.
+    v = str(os.getenv("PAYMENT_SYNC_V2_TRACE", "")).strip().lower()
+    return v in ("1", "true", "yes", "on")
 
 
 def _trace_full():
@@ -1093,14 +1092,6 @@ def _payment_to_rich_dict(p):
     }
 
 
-def _tokenize(s):
-    if not s:
-        return set()
-    s2 = re.sub(r'[^a-zA-Z0-9]+', ' ', str(s)).strip().lower()
-    parts = [p for p in s2.split(' ') if p and len(p) >= 3]
-    return set(parts)
-
-
 def _manual_score_db_payment(db_payment_obj, composite, amount_delta, date_delta=4):
     """
     Returns a dict with score breakdown, or None (filtered out).
@@ -2127,29 +2118,6 @@ def match_apartment_candidates(description, apartments):
     return keyword_matches
 
 
-def match_apartment(description, apartments):
-    """
-    Backward-compatible single-apartment matcher.
-    Uses full name, then best keyword hit.
-    """
-    desc = _normalize_match_text(description)
-    if not desc:
-        return None
-
-    # full name first
-    for apt in apartments:
-        full = _normalize_match_text(getattr(apt, "name", ""))
-        if full and full in desc:
-            return apt
-
-    # best keyword match
-    candidates = []
-    for apt in apartments:
-        kws = _split_keywords_csv(getattr(apt, "keywords", None))
-        candidates.append((apt, kws, getattr(apt, "name", "")))
-    return _best_keyword_hit(candidates, desc)
-
-
 def match_booking_context_candidates(description, bookings):
     """
     Return (apartment_names, tenant_names) derived from bookings when description matches:
@@ -2196,20 +2164,6 @@ def match_booking_context_candidates(description, bookings):
 
     return matched_apartment_names, matched_tenant_names
 
-def _match_apartment_token_split_legacy(description, apartments):
-    """
-    Legacy token-splitting matcher (kept for reference).
-    Current V2 flow uses full name + keywords only via `match_apartment_candidates` / `match_apartment`.
-    """
-    desc = (description or "").strip().lower()
-    if not desc:
-        return None
-    for apt in apartments:
-        full = str(getattr(apt, "name", "") or "").strip().lower()
-        if full and full in desc:
-            return apt
-    return None
-
 
 def extract_id_from_description(description):
     """Extract payment ID from description if present"""
@@ -2250,30 +2204,6 @@ def remove_trailing_zeros_from_str(amount_str):
     """Remove trailing zeros from amount string"""
     amount_float = float(amount_str)
     return ('%f' % abs(amount_float)).rstrip('0').rstrip('.')
-
-
-def get_date_range(payment_data):
-    """Get start and end dates from payment data"""
-    if not payment_data or len(payment_data) < 1:
-        return None, None
-    
-    dates = [p['payment_date'] for p in payment_data]
-    return min(dates), max(dates)
-
-
-def query_db_payments(start_date, end_date):
-    """Query all database payments within date range."""
-    if start_date is None or end_date is None:
-        return Payment.objects.none()
-    
-    # Add buffer to date range
-    date_from = start_date - timedelta(days=45)
-    date_to = end_date + timedelta(days=45)
-    
-    return Payment.objects.filter(
-        payment_date__range=(date_from, date_to)
-    ).select_related('payment_type', 'payment_method', 'apartment', 'booking__tenant')
-
 
 
 def match_payments(db_payments, file_payments, amount_delta, date_delta):

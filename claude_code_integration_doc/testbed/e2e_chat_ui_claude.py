@@ -1,6 +1,6 @@
 """
 Chat-page AI tools, all on Claude (the OpenRouter backend was removed 2026-09-28):
-- the helpers (rules, KB drafts, explanations) use the Claude one-shot client
+- the helpers (rules, KB drafts, explanations) call oneshot.complete directly
 - "Teach AI answer" adds a line to the answer lessons prompt, "Add KB rule" goes into the agent system prompt
 - "Generate AI" / "Generate all" run the agent in the background: nothing sent, no action executed
 """
@@ -67,15 +67,9 @@ m2 = msg("0002", "Also where do I park my car?")
 m_sent = msg("0003", "What is the wifi password?", ai_response="Wifi is Guest123", ai_sent_to_chat=True)
 m_short = msg("0004", "ok")
 
-def set_backend(value):
-    AIManagement.objects.update_or_create(prompt_key="ai_backend", defaults={'name': "backend", 'entry_type': "ai_model", 'content': value})
 c = Client(); c.force_login(admin)
 
-# ---- helpers use the Claude one-shot client -------------------------------------------------
-set_backend("openrouter")   # an old row from before the switch was removed
-client, _err = messaging._get_ai_client()
-check("helpers always get the Claude one-shot client (no OpenRouter any more)", isinstance(client, oneshot.ClaudeTextClient), type(client))
-check("model is the Claude one-shot model, not an OpenRouter slug", messaging._get_db_model() == config.oneshot_model())
+# ---- helpers use the Claude one-shot call -------------------------------------------------------
 r = c.post(f"/chat/{SID}/messages/{m1.id}/answer-rule/generate/",
            json.dumps({'correct_answer': 'Depends on cleaning, we confirm the day before.'}), content_type='application/json')
 check("Teach AI answer: rule generated through Claude", r.status_code == 200 and r.json().get('rule', '').startswith('- Early')
@@ -157,12 +151,6 @@ runner.run_claude = failing_run
 data = c.post(f"/chat/{SID}/messages/{m2.id}/generate-ai-answer/", json.dumps({}), content_type='application/json').json()
 item = c.get(f"/chat/{SID}/ai-regenerate-status/?runs={data['run_ids'][0]}").json()['runs'][0]
 check("failed run: finished with the error", item['finished'] and 'timed out' in (item['error'] or ''), item)
-
-# ---- no legacy path: Generate AI always runs the agent ------------------------------------------
-runner.run_claude = fake_run_claude
-script.append({'answer': 'Sure.', 'why': 'x', 'actions': []})
-data = c.post(f"/chat/{SID}/messages/{m1.id}/generate-ai-answer/", json.dumps({}), content_type='application/json').json()
-check("Generate AI runs the Claude agent even with an old 'openrouter' row", data.get('success') and data.get('run_ids'), data)
 
 print(f"{sum(checks)}/{len(checks)} checks passed")
 sys.exit(0 if all(checks) else 1)

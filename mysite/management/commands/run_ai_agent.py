@@ -23,7 +23,7 @@ class Command(BaseCommand):
         from mysite.models import AIEvent
 
         self.stdout.write(f"[{timezone.now():%Y-%m-%d %H:%M:%S}] ai-agent worker started")
-        last_stale_check = last_followup_check = last_poll = last_release = 0.0
+        last_stale_check = last_followup_check = last_poll = 0.0
         last_tick_error = -1e9
         while True:
             close_old_connections()
@@ -38,18 +38,13 @@ class Command(BaseCommand):
                     report_error(e, "after-hours / call / retry tick failed")
                     last_tick_error = time.monotonic()
             try:
-                # Staff replies to AI answers in Telegram; release_due() also reads them before sending anything
+                # Button presses and replies under the alerts in Telegram
                 if time.monotonic() - last_poll > config.review_poll_seconds():
                     answer_review.poll_telegram()
                     last_poll = time.monotonic()
-                if time.monotonic() - last_release > 5:
-                    released = answer_review.release_due()
-                    if released:
-                        self.stdout.write(f"[{timezone.now():%H:%M:%S}] {released} reviewed answer(s) released")
-                    last_release = time.monotonic()
             except Exception as e:
-                report_error(e, "answer review tick failed (Telegram replies / held answers)")
-                last_poll = last_release = time.monotonic()
+                report_error(e, "answer review tick failed (Telegram replies / presses)")
+                last_poll = time.monotonic()
             if time.monotonic() - last_stale_check > 60:
                 service.release_stale_events()
                 last_stale_check = time.monotonic()
@@ -57,6 +52,9 @@ class Command(BaseCommand):
                 fired = service.fire_due_followups()
                 if fired:
                     self.stdout.write(f"[{timezone.now():%H:%M:%S}] {fired} follow-up(s) became due")
+                from mysite.ai_agent import alerts_v5
+                # D6: a tenant reminder that could not be sent, once more (the sandbox runner retries its own)
+                alerts_v5.retry_due(skip_prefix='CHSANDBOX')
                 last_followup_check = time.monotonic()
 
             batch = service.claim_next_batch()

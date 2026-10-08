@@ -83,22 +83,13 @@ def enqueue_staff_message(conversation_sid, message_sid, body, source='webhook')
     """
     A manager wrote in a tenant chat: the AI updates issues / follow-ups (normally without replying).
     It is also how the agent learns knowledge from staff (KB_UPDATE). Returns True when queued.
-    AI_AGENT_STAFF_EVENTS: all (default) | open_issues (only chats with open issues or follow-ups) | off
     """
     try:
-        from mysite.models import AIEvent, AIFollowUp, AIIssue
+        from mysite.models import AIEvent
         from mysite.views.messaging import _is_skippable_message
 
-        setting = os.environ.get('AI_AGENT_STAFF_EVENTS', 'all').lower()
-        if setting == 'off' or _is_skippable_message(body):
+        if _is_skippable_message(body):
             return False
-        if setting == 'open_issues':
-            has_work = (
-                AIIssue.objects.filter(conversation_sid=conversation_sid).exclude(state=AIIssue.STATE_RESOLVED).exists()
-                or AIFollowUp.objects.filter(conversation_sid=conversation_sid, status=AIFollowUp.STATUS_PENDING).exists()
-            )
-            if not has_work:
-                return False
         payload = {'source': source}
         return _enqueue_message(AIEvent.TYPE_STAFF_MESSAGE, conversation_sid, message_sid, body, True, payload) is not None
     except Exception as e:
@@ -125,12 +116,21 @@ def enqueue_notification(conversation_sid, kind, text, booking_id=None, source='
         return False
 
 
+SANDBOX_PREFIX = 'CHSANDBOX'   # the DB-only chats of the sandbox test runner (ai_agent_sandbox)
+
+
 def fire_due_followups():
     """Due follow-ups become FOLLOWUP_DUE events. Returns how many were fired."""
     from mysite.models import AIEvent, AIFollowUp, TwilioConversation
 
+    from django.db.models import Q
+    from mysite.ai_agent import alerts_v5
+
     fired = 0
     due = AIFollowUp.objects.filter(status=AIFollowUp.STATUS_PENDING, due_at__lte=timezone.now()).select_related('issue')
+    # The sandbox story's reminders belong to the test runner (it fires them itself, at story time); only a test
+    # reminder asked for in Telegram (🧪 Send test reminder) is fired here, so it reaches the real group
+    due = due.exclude(Q(conversation_sid__startswith=SANDBOX_PREFIX) & ~Q(issue__summary__startswith=alerts_v5.TEST_REMINDER))
     for followup in due[:50]:
         claimed = AIFollowUp.objects.filter(id=followup.id, status=AIFollowUp.STATUS_PENDING).update(
             status=AIFollowUp.STATUS_FIRED, updated_at=timezone.now(),
@@ -140,11 +140,6 @@ def fire_due_followups():
         if followup.issue and not followup.issue.is_open:
             AIFollowUp.objects.filter(id=followup.id).update(
                 status=AIFollowUp.STATUS_CANCELLED, status_note='issue already resolved - AI not woken',
-            )
-            continue
-        if followup.issue and followup.issue.handled_by:
-            AIFollowUp.objects.filter(id=followup.id).update(
-                status=AIFollowUp.STATUS_CANCELLED, status_note=f"{followup.issue.handled_by} handles it - AI not woken"[:255],
             )
             continue
         AIEvent.objects.create(
@@ -280,7 +275,6 @@ def run_agent(event_type, conversation_sid, apartment, booking, trigger_messages
         'started_at': started_at.astimezone(inputs._team_tz()).strftime('%Y-%m-%d %H:%M:%S %Z'),
         'event_type': event_type,
         'mode': mode,
-        'backend': config.BACKEND_CLAUDE_CLI,
         'conversation_sid': conversation_sid,
         'apartment': run_report.apartment_label(apartment),
         'apartment_id': getattr(apartment, 'id', None),
@@ -341,15 +335,21 @@ def _is_emergency(parsed, last_message):
     return bool(_EMERGENCY.search(getattr(last_message, 'body', '') or ''))
 
 
-def send_answer(conversation_sid, answer, reply_author, sender_phone, booking=None):
-    """Sends one answer to the tenant group chat (notification-window gated). Returns {'sent_to_chat', 'note'}."""
+def send_answer(conversation_sid, answer, reply_author, sender_phone, booking=None, any_hour=False):
+    """Sends one answer to the tenant group chat. Returns {'sent_to_chat', 'note'}. Held for the 08:00-21:00 SMS hours,
+    except any_hour: the safety answer of a real emergency goes out at once, day or night (user decision 2026-10-08)."""
     from mysite.group_chat_logger import log_ai_customer_sent
-    from mysite.views.messaging import TWILIO_ASSISTANT_PHONE, send_tenant_sms_gated
+    from mysite.views.messaging import TWILIO_ASSISTANT_PHONE, send_messsage_by_sid, send_tenant_sms_gated
 
     try:
-        sent = send_tenant_sms_gated(
-            conversation_sid, reply_author or 'Virtual Assistant', answer, sender_phone or TWILIO_ASSISTANT_PHONE, None,
-        )
+        if any_hour:
+            send_messsage_by_sid(conversation_sid, reply_author or 'Virtual Assistant', answer,
+                                 sender_phone or TWILIO_ASSISTANT_PHONE, None)
+            sent = True
+        else:
+            sent = send_tenant_sms_gated(
+                conversation_sid, reply_author or 'Virtual Assistant', answer, sender_phone or TWILIO_ASSISTANT_PHONE, None,
+            )
     except Exception as e:
         tenant = getattr(booking, 'tenant', None)
         report_error(e, "AI answer was NOT delivered to the tenant", {
@@ -399,30 +399,16 @@ def _deliver(parsed, mode, conversation_sid, booking, last_message, payload, apa
         log_ai_disabled(conversation_sid, payload.get('reply_author') or '', answer)
     if _staff_replied_after(conversation_sid, last_message):
         return {'sent_to_chat': False, 'note': 'suppressed - staff replied while the AI was working'}
-    # Test mode goes through the same 15-minute review as live (user request 2026-09-23); only the
-    # final Twilio send is skipped
-    minutes = config.review_hold_minutes()
-    explicit = config.explicit_approval()
-    if minutes > 0 and explicit and not _is_emergency(parsed, last_message):
-        # Client spec v4: nothing is sent without a manager pressing Approve (or replying "ok") - no timer
+    if not _is_emergency(parsed, last_message):
+        # Nothing is sent without a manager pressing Send (simple alerts) - no timer; test mode alike
         legal = bool(parsed.get('needs_confirmation'))
-        return {'sent_to_chat': False, 'held': True, 'confirm': legal, 'hold_until': None,
+        return {'sent_to_chat': False, 'held': True, 'confirm': legal,
                 'note': ('LEGAL question - ' if legal else '') + 'waits for a manager to approve it in Telegram, never '
                         'sent without approval' + ('' if live else ' (test mode - never sent to Twilio)')}
-    if parsed.get('needs_confirmation') and not _is_emergency(parsed, last_message):
-        # Legal question: held until a manager replies "ok" / a corrected answer in Telegram - the review timer
-        # never sends it (answer_review.release_due skips it). hold_until only times the rest of the plan.
-        return {'sent_to_chat': False, 'held': True, 'confirm': True,
-                'hold_until': timezone.now() + timedelta(minutes=max(minutes, 0)),
-                'note': 'LEGAL question - held until a manager confirms in Telegram, never sent automatically'
-                        + ('' if live else ' (test mode - never sent to Twilio)')}
-    if minutes > 0 and not _is_emergency(parsed, last_message):
-        return {'sent_to_chat': False, 'held': True, 'hold_until': timezone.now() + timedelta(minutes=minutes),
-                'note': f"held {minutes:g} min for staff review in Telegram, then "
-                        + ('sent unless corrected' if live else 'final unless corrected (test mode - never sent to Twilio)')}
     if not live:
         return {'sent_to_chat': False, 'note': 'test mode - stored in DB, not sent to Twilio'}
-    return send_answer(send_to, answer, payload.get('reply_author'), payload.get('sender_phone'), booking)
+    # Only an emergency gets here (everything else waits for a press): its safety answer goes out at once, any hour
+    return send_answer(send_to, answer, payload.get('reply_author'), payload.get('sender_phone'), booking, any_hour=True)
 
 
 # ---------------------------------------------------------------------------
@@ -463,7 +449,7 @@ def _followup_block(events):
     return "\n".join(lines)
 
 
-def check_tickets_before_reminder(events):
+def check_tickets_before_reminder(events, states=None):
     """
     A reminder became due: look at the ClickUp task of its issue first (status + latest comments).
     - task closed  -> (user decision 2026-09-30) the other reminders of the issue stop and Claude proposes telling the
@@ -471,7 +457,7 @@ def check_tickets_before_reminder(events):
                       like every proposal it waits for a manager's approval. The old quiet close (no tenant message)
                       is kept with AI_AGENT_APPROVAL=timer.
     - task open    -> its status and comments go to Claude, which decides whether a reminder is still needed
-    Returns (events_still_needing_claude, ticket_block_text_or_None).
+    Returns (events_still_needing_claude, ticket_block_text_or_None). states (a dict): filled with {issue id: task state}.
     """
     from mysite.ai_agent import clickup
     from mysite.ai_agent.notify import notify_ai_chat
@@ -492,7 +478,9 @@ def check_tickets_before_reminder(events):
             except clickup.ClickUpError as e:
                 checked[issue.id] = {'error': str(e)}
         state = checked[issue.id]
-        if state.get('closed') and config.explicit_approval() and issue.is_open:
+        if states is not None:
+            states[issue.id] = state
+        if state.get('closed') and issue.is_open:
             issue.followups.filter(status=AIFollowUp.STATUS_PENDING).update(
                 status=AIFollowUp.STATUS_CANCELLED, status_note='ClickUp task closed', updated_at=timezone.now(),
             )
@@ -559,7 +547,8 @@ def process_events(events):
 
     apartment = Apartment.objects.prefetch_related('managers').select_related('owner').get(id=conversation.apartment_id)
     booking = Booking.objects.select_related('tenant').get(id=conversation.booking_id)
-    events, ticket_block = check_tickets_before_reminder(events)
+    ticket_states = {}
+    events, ticket_block = check_tickets_before_reminder(events, ticket_states)
     if not events:
         return None   # every due reminder belonged to a task that is already closed in ClickUp
     last_event = events[-1]
@@ -578,17 +567,19 @@ def process_events(events):
     pending_block = answer_review.pending_block(conversation_sid, event_type)
     ack_block = after_hours.input_block(events)
     from mysite.ai_agent import alerts_v5
-    notification = alerts_v5.notification_of(events) if config.alert_style() == 'v5' else None
+    notification = alerts_v5.notification_of(events)
+    # A reminder that became due (no new message in the batch): the simple REMINDER alert (C1-C8, D5, D6)
+    reminder = alerts_v5.reminder_of(events, ticket_states) if event_type == AIEvent.TYPE_FOLLOWUP_DUE else None
     outcome = run_agent(
         event_type, conversation_sid, apartment, booking, trigger_messages, mode,
         body_override="\n".join(e.body or '' for e in tenant_events if not e.message_id) or None,
         extra_block="\n\n".join(b for b in (_followup_block(events), ticket_block, pending_block, ack_block,
-                                             alerts_v5.notification_block(events) if notification else None) if b) or None,
+                                             alerts_v5.notification_block(events) if notification else None,
+                                             alerts_v5.reminder_block(reminder) if reminder else None) if b) or None,
     )
     run, parsed, meta = outcome['run'], outcome['parsed'], outcome['meta']
     urgent_reply = any(after_hours.is_urgent(e.body) for e in tenant_events)
     if parsed:
-        cases.enforce_handled(parsed, conversation_sid)   # staff took these issues over: the AI stays out
         if urgent_reply and (parsed['triage'].get('priority') or 'routine') == 'routine':
             parsed['triage']['priority'] = 'urgent'      # the tenant replied URGENT: the card says so
     meta['urgent_reply'] = urgent_reply
@@ -633,6 +624,15 @@ def process_events(events):
             # The AI decided whether the planned notification is still needed: sent now, or it waits for a press
             meta['notification'] = alerts_v5.settle_notification(notification, parsed, mode)
             delivery = alerts_v5.deliver_notification(meta['notification'], parsed, mode, send_to or conversation_sid, booking)
+        elif reminder:
+            # The AI re-checked the reminder: already done -> closed quietly; a live tenant reminder -> sent now
+            meta['reminder'] = alerts_v5.settle_reminder(reminder, parsed, mode)
+            delivery = alerts_v5.deliver_reminder(
+                meta['reminder'], parsed, mode, send_to or conversation_sid, booking,
+                lambda: deliver(parsed, mode, conversation_sid, booking, last_message, reply_payload, apartment=apartment,
+                                send_to=send_to))
+            if not meta['reminder']['needed']:
+                alerts_v5.close_done_reminder(conversation_sid, meta['reminder'])
         else:
             delivery = deliver(parsed, mode, conversation_sid, booking, last_message, reply_payload, apartment=apartment,
                                send_to=send_to)
@@ -650,13 +650,10 @@ def process_events(events):
             if alerts_v5.applies(meta):
                 alerts_v5.prepare(plan_actions, action_ctx, parsed.get('triage'))   # reminders exist before the alert shows them
             action_results = alerts_v5.results(agent_plan.as_results(plan_items, plan_actions), plan_actions)
-            delivery.setdefault('plan_until', delivery.get('hold_until') or answer_review.window_end())
         else:
             action_results = agent_actions.execute_actions(parsed, action_ctx)
             delivery['executed_now'] = True
-        if (parsed.get('handled_info') or {}).get('answer_dropped'):
-            delivery['note'] = "NO_ANSWER - staff handle this issue (I'll handle); the AI answer is kept for review only"
-        elif parsed['review_answer']:
+        if parsed['review_answer']:
             delivery['note'] = 'NO_ANSWER - staff answered first; the review answer is stored for managers, never sent'
         if last_tenant_message:
             shown_answer, shown_why = parsed['answer'], parsed['why']
@@ -668,7 +665,7 @@ def process_events(events):
                 # Live mode, but a manager replied while the AI was working: keep the answer for review only
                 shown_why = f"{REVIEW_ONLY_PREFIX} {parsed['why'] or ''}".strip()
             elif delivery.get('held'):
-                shown_why = (f"{answer_review.pending_prefix(delivery['hold_until'], mode, delivery.get('confirm'))} "
+                shown_why = (f"{answer_review.pending_prefix(mode, delivery.get('confirm'))} "
                              f"{parsed['why'] or ''}").strip()
             _persist_customer_ai_result(
                 last_tenant_message.message_sid,

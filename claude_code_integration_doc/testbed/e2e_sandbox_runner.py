@@ -4,12 +4,11 @@ database: fake Claude, Telegram offline, no judge. Proves the mechanics - case t
 run like the worker, checks, simulated presses and replies, reminders, real-chat replay - and above all that a test
 stays inside the sandbox.
 """
-import os, sys, django, tempfile
+import copy, os, sys, django, tempfile
 from datetime import date, timedelta
 from pathlib import Path
 os.environ["DJANGO_SETTINGS_MODULE"] = "testbed_settings"
 django.setup()
-os.environ["AI_AGENT_REVIEW_HOLD_MINUTES"] = "15"   # explicit approval, as in production
 os.environ["AI_AGENT_ALERT_CHAT_ID"] = "-500"
 from django.db import connection
 assert connection.vendor == "sqlite", "refusing to run outside the testbed"
@@ -131,6 +130,8 @@ def fake_run_claude(system_prompt, user_input, conversation_sid, run_dir, until_
     inputs_seen.append(user_input)
     output = script.pop(0)
     output = output(user_input) if callable(output) else output   # a scripted answer may need ids from the input
+    # A copy: the backend marks the actions it carried out ('done') in place, and the same fixture is used again later
+    output = copy.deepcopy(output)
     return {'ok': True, 'error': None, 'output': output, 'events': [], 'result_event': {}, 'stdout': '', 'stderr': '',
             'command': 'fake', 'mcp_config': {}, 'model': 'fake', 'exit_code': 0, 'duration_ms': 5, 'timed_out': False}
 agent_runner.run_claude = fake_run_claude
@@ -149,13 +150,15 @@ LEAK = {'answer': "Please turn off the main water valve and call 911 if water to
         'why': 'emergency', 'primary_type': 'URGENT_PROPERTY_OR_ACCESS', 'priority': 'emergency', 'owner': 'Edy',
         'actions': [{'type': 'CREATE_ISSUE', 'temp_id': 'new-1', 'summary': 'Ceiling leak', 'owner': 'Edy', 'priority': 'emergency'},
                     {'type': 'INTERNAL_ALERT', 'issue_id': 'new-1', 'priority': 'emergency', 'text': 'Ceiling leak, a lot of water'}]}
-REMIND = {'answer': 'NO_ANSWER', 'why': 'task still open', 'primary_type': 'FOLLOW_UP_REQUEST', 'priority': 'routine',
+# still needed: next_action says what the team must do now (without it the reminder closes quietly, C5)
+REMIND = {'answer': 'NO_ANSWER', 'why': 'task still open', 'primary_type': 'FOLLOW_UP_REQUEST', 'priority': 'routine', 'owner': 'Edy',
+          'next_action': 'Edy: give the sink task a visit date', 'no_reply_reason': 'reminder for the team',
           'actions': [{'type': 'INTERNAL_ALERT', 'priority': 'routine', 'text': 'Sink task still has no visit date', 'responsible': ['Edy']}]}
 QUIET = {'answer': 'NO_ANSWER', 'why': 'nothing to do', 'primary_type': 'NO_REPLY', 'actions': []}
 
 lines_out = []
 cases = catalog.load_cases()
-runner = Runner(auto=True, offline=True, use_claude=False, out=lambda text='': lines_out.append(str(text)), style='v4')
+runner = Runner(auto=True, offline=True, use_claude=False, out=lambda text='': lines_out.append(str(text)))
 real_now = timezone.now
 runner.start()
 world, clock = runner.world, runner.clock
@@ -174,7 +177,7 @@ try:
            list(cases)[0] == 'A21' and cases['A1']['mode'] == 'live' and cases['A16']['mode'] == 'test', [(i, c.get('mode')) for i, c in list(cases.items())[:3]])
     check_("catalog: `on: first` survives YAML's on/off booleans", cases['E7']['trigger'].get('on') == 'first', cases['E7']['trigger'])
 
-    # ---- 2. A1 against the old card -------------------------------------------------------------------------------------
+    # ---- 2. A1: the simple alert ----------------------------------------------------------------------------------------
     script.append(SINK)
     result = runner.run_case(cases['A1'], 1, 1, first=True)
     got = result['got']
@@ -196,37 +199,41 @@ try:
            and not ParkingBooking.objects.filter(booking=world.booking).exists() and "Door code: 4521#" in world.apartment.knowledge_base)
     check_("A1: simulated LIVE mode on the test apartment", got['runs'][0].mode == 'live')
     reason = result['reason']
-    check_("A1: FAIL against the old card, with the differences named", result['verdict'] == 'FAIL' and 'The buttons are different.' in reason and 'We agreed: Send Answer, Edit Answer' in reason
-           and 'old card layout' in reason, reason)
-    check_("A1: the old 24 h reminder is reported against the expected 2 h", "The reminder is different" in reason and "a reminder for the team (Edy) in 2 h" in reason
-           and "in 24 h" in reason, reason)
+    check_("A1: PASS - the simple alert matches every structured expectation of the chapter", result['verdict'] == 'PASS', reason)
     verdict = (catalog.RESULTS_DIR / runner.run_name / "A1.md").read_text()
     check_("A1: what matches is reported as matching", "✅ 1 new task(s)" in verdict and "✅ answer for the tenant" in verdict, verdict[-1500:])
-    check_("A1: report file has input, result and verdict", all(t in verdict for t in ("## Input (the case)", "## What the agent did", "🧪 RESULT · A1 · ❌ FAIL")))
+    check_("A1: report file has input, result and verdict", all(t in verdict for t in ("## Input (the case)", "## What the agent did", "🧪 RESULT · A1 · ✅ PASS")),
+           verdict[-1500:])
     posted = world.tap.messages[alert['id']]['posted']
     check_("A1: the alert carried the test header and the notes; the agent's own text is kept apart", result['notes_inline']
            and posted.startswith("🧪 SANDBOX TEST · case A1 · 1 of 1") and "🧪 TEST NOTES\nWhat we test: " in posted
            and "🧪" not in alert['text'].replace("🧪 TEST", ""), posted)
-    check_("A1: last result saved for --list", catalog.last_results()['A1']['verdict'] == 'FAIL')
+    check_("A1: last result saved for --list", catalog.last_results()['A1']['verdict'] == 'PASS')
 
     # ---- 3. a press, handled in this process by the real button code ---------------------------------------------------------
-    pressed = runner.do_step({'press': 'Approve all', 'by': 'Andy'})
     run = AIRun.objects.get(id=got['runs'][0].id)
-    check_("press: Approve all sends the answer into the SANDBOX chat (no Twilio)", run.hold_status == 'sent' and len(pressed['sent']) == 1
+    check_("press: before any press the issue and the reminder exist, the answer waits", run.hold_status == 'holding'
+           and AIIssue.objects.filter(conversation_sid=SANDBOX_SID).count() == 1
+           and AIFollowUp.objects.filter(conversation_sid=SANDBOX_SID, status='pending').count() == 1, run.hold_status)
+    pressed = runner.do_step({'press': 'Send + Create Task', 'by': 'Andy'})
+    run.refresh_from_db()
+    check_("press: Send + Create Task sends the answer into the SANDBOX chat (no Twilio)", run.hold_status == 'sent' and len(pressed['sent']) == 1
            and TwilioMessage.objects.filter(conversation_sid=SANDBOX_SID, author='Virtual Assistant', body__startswith='Hi Vera, thanks').exists(),
            (run.hold_status, pressed['sent'], pressed['note']))
     check_("press: real Twilio was never called", not twilio_calls, twilio_calls)
-    check_("press: the plan was applied - issue and reminder exist", AIIssue.objects.filter(conversation_sid=SANDBOX_SID).count() == 1
-           and AIFollowUp.objects.filter(conversation_sid=SANDBOX_SID, status='pending').count() == 1)
+    check_("press: the task part was done too (the sandbox apartment has no ClickUp List: noted)",
+           any((a.get('done') or {}).get('label', '').startswith('✅ Task noted · Andy') for a in run.review['plan']['actions']),
+           run.review['plan']['actions'])
     due = AIFollowUp.objects.get(conversation_sid=SANDBOX_SID).due_at
     check_("press: the reminder is due in the real future", due > real_now())
-    check_("press: the bot's confirmation is the step's REPLY", pressed['alerts'] and pressed['alerts'][-1]['type'] == 'REPLY'
-           and 'APPROVE ALL' in pressed['alerts'][-1]['text'], pressed['alerts'])
+    check_("press: the result is a popup and the button, no extra message in the group",
+           any(p.startswith('✅ Answer sent · Andy') for p in pressed['popups']) and not [a for a in pressed['alerts'] if a['type'] == 'REPLY'],
+           (pressed['popups'], pressed['alerts']))
     script.append(REMIND)
     fired = runner.do_step({'reminder': 'next'})
     check_("reminder: next = the earliest pending reminder of the story fires (fast time), the agent runs on FOLLOWUP_DUE",
            len(fired['runs']) == 1 and fired['runs'][0].event_type == 'FOLLOWUP_DUE' and "FOLLOWUP_DUE" in inputs_seen[-1], fired['note'])
-    check_("reminder: reminder alert recognised", fired['alerts'] and fired['alerts'][0]['type'] == 'REMINDER', fired['alerts'])
+    check_("reminder: reminder alert recognised", fired['alerts'] and fired['alerts'][0]['type'] == 'REMINDER', (fired['note'], fired['alerts']))
 
     # ---- 4. isolation ---------------------------------------------------------------------------------------------------------
     try:
@@ -266,18 +273,17 @@ try:
     got = result['got']
     check_("clean start: the earlier case is gone", AIRun.objects.filter(conversation_sid=SANDBOX_SID).count() == 1
            and not world.state['knowledge'] and not world.state['rules'])
-    check_("D3: the after-hours message went to the tenant = the sandbox chat", len(got['sent']) == 1 and 'outside our regular office hours' in got['sent'][0]['text'], got['sent'])
-    check_("D3: old code holds the emergency answer for 08:00 - kept in memory, reported, nothing left for the live flush job",
-           len(got['held']) == 1 and 'main water valve' in got['held'][0]['text']
-           and f"⚪ held for the tenant until {got['held'][0]['until'].strftime('%a %d %b %H:%M')}" in (catalog.RESULTS_DIR / runner.run_name / "D3.md").read_text(), got['held'])
+    check_("D3: the after-hours message went to the tenant = the sandbox chat", any('outside our regular office hours' in m['text'] for m in got['sent']), got['sent'])
+    check_("D3: a real emergency's safety answer goes out at once at 23:02 - not held for the 08:00 SMS hours",
+           any('main water valve' in m['text'] for m in got['sent']) and not got['held'], (got['sent'], got['held']))
     check_("D3: Farid's call is simulated", len(got['calls']) == 1 and got['calls'][0].status == AIAlertCall.STATUS_ANSWERED and not twilio_calls, got['calls'])
     check_("D3: after hours (23:02) for the AI", "OUTSIDE office hours" in inputs_seen[-1])
 
     # ---- 6. a chapter of a feature that is not built yet is skipped by the list runner, with its place kept -------------------------
     runner.results = []
-    runner.run_cases([cases['C1'], cases['A15']], "C1 + A15")
+    runner.run_cases([cases['G2'], cases['A15']], "G2 + A15")
     check_("not built: the chapter is skipped and reported SKIPPED, the next one runs", [r['verdict'] for r in runner.results][0] == 'SKIPPED'
-           and catalog.last_results()['C1']['verdict'] == 'SKIPPED' and len(runner.results) == 2, runner.results)
+           and catalog.last_results()['G2']['verdict'] == 'SKIPPED' and len(runner.results) == 2, runner.results)
 
     # ---- 6b. a team member without a phone in AI staff still writes under their name -------------------------------------------
     script.append(QUIET)
@@ -293,7 +299,7 @@ try:
            result['reason'])
     script.append(QUIET)
     result = runner.run_case(cases['A15'], 1, 1, first=True)
-    check_("A15: the old code posts a card for a no-reply run -> reported", result['verdict'] == 'FAIL' and 'We agreed: no alert' in result['reason'], result['reason'])
+    check_("A15: a no-reply run posts no alert; the case passes", result['verdict'] == 'PASS' and not result['got']['alerts'], result['reason'])
 
     # ---- 8. the daily report does not exist yet ------------------------------------------------------------------------------------------
     result = runner.run_case(cases['G1'], 1, 1, first=True)
@@ -328,7 +334,7 @@ finally:
 
 # ---- 10b. the simple alerts (v5): A1 looks like the example, every button does its own part -----------------------------
 v5_out = []
-v5 = Runner(auto=False, offline=True, use_claude=False, out=lambda text='': v5_out.append(str(text)), style='v5')
+v5 = Runner(auto=False, offline=True, use_claude=False, out=lambda text='': v5_out.append(str(text)))
 v5.start()
 try:
     script.append(dict(SINK, actions=[dict(a) for a in SINK['actions']]))
@@ -446,6 +452,151 @@ try:
         return [[b['text'] for b in row] for row in (v5.world.tap.messages[message['id']]['markup'] or {}).get('inline_keyboard', [])]
     def ref(pattern, text):
         return _re.search(pattern, text).group(1)
+
+    # ---- reminders that become due (C1-C8, D5, D6) -----------------------------------------------------------------------------
+    from mysite.ai_agent import alerts_v5 as _v5
+    def labels_of(message):
+        return [[b['text'] for b in row] for row in (message.get('markup') or {}).get('inline_keyboard', [])]
+    def due_case(summary, kind='staff_reminder', reason='Check it', priority='routine', ticket=None, minutes=5):
+        issue = AIIssue.objects.create(conversation_sid=SANDBOX_SID, apartment=v5.world.apartment, booking=v5.world.booking,
+                                       summary=summary, owner='Edy', priority=priority, ticket_ref=ticket, ticket_title=summary if ticket else None)
+        return AIFollowUp.objects.create(conversation_sid=SANDBOX_SID, issue=issue, kind=kind, reason=reason,
+                                         due_at=v5.clock.now() + timedelta(minutes=minutes))
+    AIFollowUp.objects.filter(conversation_sid=SANDBOX_SID, status='pending').update(status='cancelled')
+    v5.world.mode = 'live'
+    first = due_case('Tenant locked out', reason='Check Mark got in', priority='urgent')
+    script.append({'answer': 'NO_ANSWER', 'why': 'not confirmed yet', 'primary_type': 'FOLLOW_UP_REQUEST', 'priority': 'urgent', 'owner': 'Edy',
+                   'next_action': 'Edy: call Mark and check he got in', 'no_reply_reason': 'reminder for the team',
+                   'actions': [{'type': 'SCHEDULE_FOLLOWUP', 'issue_id': first.issue.public_id, 'kind': 'staff_reminder', 'reason': 'again'},
+                               {'type': 'INTERNAL_ALERT', 'text': 'Mark not confirmed', 'responsible': ['Edy']}]})
+    step = v5.do_step({'reminder': 'next'})
+    alert = step['alerts'][0] if step['alerts'] else {'text': step['note'], 'markup': None, 'silent': True}
+    second = AIFollowUp.objects.filter(issue=first.issue, status='pending').first()
+    check_("v5 C1: a due team reminder that is still needed -> ⏰ REMINDER 1/2, the 2/2 is set for tomorrow 10:00",
+           alert['text'].startswith("⏰ REMINDER · ") and "🔴 Urgent · 1/2 (2/2 tomorrow 10:00)" in alert['text']
+           and "⏰ Check Mark got in (for Edy) ⏰" in alert['text'] and "now:" not in alert['text']
+           and labels_of(alert) == [['✅ Close Reminder']] and not alert['silent']
+           and second and second.kind == 'staff_reminder' and _v5._local(second.due_at).strftime('%H:%M') == '10:00', (alert['text'], labels_of(alert)))
+    check_("v5 C1: the AI's own reminder and team note are not shown (the backend times reminders, the alert is the note)",
+           AIFollowUp.objects.filter(issue=first.issue).count() == 2 and "Mark not confirmed" not in alert['text'], alert['text'])
+    step = v5.do_step({'press': 'Close Reminder', 'by': 'Andy'})
+    second.refresh_from_db()
+    check_("v5 C1: Close Reminder on the REMINDER alert stops the 2/2 and shows who closed it",
+           second.status == 'cancelled' and labels_of(v5.world.tap.messages[alert['id']]) == [['✅ Reminder closed · Andy']], labels_of(v5.world.tap.messages[alert['id']]))
+
+    # C2: the last one (2/2) still needed -> Remind again in 24 hours
+    last = due_case('Tenant locked out again', reason='Check the lock was changed')
+    AIFollowUp.objects.create(conversation_sid=SANDBOX_SID, issue=last.issue, kind='staff_reminder', reason='Check the lock was changed',
+                              due_at=v5.clock.now() - timedelta(days=1), status='fired')
+    last.delete()
+    last = AIFollowUp.objects.create(conversation_sid=SANDBOX_SID, issue=AIIssue.objects.get(summary='Tenant locked out again'), kind='staff_reminder',
+                                     reason='Check the lock was changed', due_at=v5.clock.now() + timedelta(minutes=5))
+    script.append({'answer': 'NO_ANSWER', 'why': 'still open', 'primary_type': 'FOLLOW_UP_REQUEST', 'priority': 'routine', 'owner': 'Edy',
+                   'next_action': 'Edy: change the lock', 'actions': []})
+    step = v5.do_step({'reminder': 'next'})
+    alert = step['alerts'][0] if step['alerts'] else {'text': step['note'], 'markup': None}
+    check_("v5 C2: the last reminder -> 2/2 (last), Close Reminder + Remind again in 24 hours, no new reminder by itself",
+           "🟢 Routine · 2/2 (last)" in alert['text'] and labels_of(alert) == [['✅ Close Reminder'], ['⏰ Remind again in 24 hours']]
+           and not AIFollowUp.objects.filter(issue=last.issue, status='pending').exists(), (alert['text'], labels_of(alert)))
+    step = v5.do_step({'press': 'Remind again in 24 hours', 'by': 'Edy'})
+    again = AIFollowUp.objects.filter(issue=last.issue, status='pending').first()
+    check_("v5 C2: Remind again in 24 hours sets one more reminder, the next day 10:00, and says so on the button",
+           again and _v5._local(again.due_at).strftime('%H:%M') == '10:00'
+           and labels_of(v5.world.tap.messages[alert['id']])[1][0].startswith('⏰ Next: ') and '· Edy' in labels_of(v5.world.tap.messages[alert['id']])[1][0],
+           labels_of(v5.world.tap.messages[alert['id']]))
+    again.delete()
+
+    # C5: already done -> closed quietly, no alert; the alert that showed it says so on its button
+    done = due_case('Wifi password', reason='Check Vera got the wifi password')
+    script.append({'answer': 'NO_ANSWER', 'why': 'done', 'primary_type': 'NO_REPLY', 'next_action': '',
+                   'no_reply_reason': 'Vera wrote at 15:20 that the wifi works', 'actions': []})
+    step = v5.do_step({'reminder': 'next'})
+    done.refresh_from_db()
+    check_("v5 C5: the AI finds it done -> no alert, the reminder is closed with the reason",
+           not step['alerts'] and done.status == 'fired' and done.status_note == 'done: Vera wrote at 15:20 that the wifi works',
+           (step['alerts'], done.status, done.status_note))
+
+    # C3 / D5: tenant reminder, live -> sent by itself, shown as an AI MESSAGE with the next one
+    nudge = due_case('Water meter photo', kind='tenant_nudge', reason='Remind Vera to send the water meter photo')
+    script.append({'answer': 'Hi Vera, just a reminder to send us the photo of the water meter when you can. Thanks!', 'why': 'still owed',
+                   'primary_type': 'FOLLOW_UP_REQUEST', 'priority': 'routine', 'next_action': 'Vera sends the photo', 'actions': []})
+    step = v5.do_step({'reminder': 'next'})
+    alert = step['alerts'][0] if step['alerts'] else {'text': step['note'], 'markup': None}
+    nxt = AIFollowUp.objects.filter(issue=nudge.issue, status='pending').first()
+    check_("v5 D5: a live tenant reminder is sent by itself into the chat and shown as an AI MESSAGE, the 2/2 is set",
+           alert['text'].startswith("🤖 AI MESSAGE · ") and "⏰ Reminder 1/2 auto-sent" in alert['text'] and "✅ Sent " in alert['text']
+           and "⏰ Next: 2/2 tomorrow 10:00" in alert['text'] and len(step['sent']) == 1 and 'water meter' in step['sent'][0]['text']
+           and nxt and nxt.kind == 'second_tenant_nudge' and labels_of(alert) == [['✅ Close Reminder']] and alert['silent'],
+           (alert['text'], step['sent'], labels_of(alert)))
+
+    # D6: the 2/2 can not be sent -> retry in 3 minutes -> sent on retry
+    v5.world.sms_fail = 1
+    script.append({'answer': 'Hi Vera, a last reminder about the water meter photo. Thanks!', 'why': 'still owed',
+                   'primary_type': 'FOLLOW_UP_REQUEST', 'priority': 'routine', 'next_action': 'Vera sends the photo', 'actions': []})
+    step = v5.do_step({'reminder': 'next'})
+    alert = step['alerts'][0] if step['alerts'] else {'text': step['note'], 'markup': None}
+    check_("v5 D6: the send failed -> the AI MESSAGE says so and when it is tried again; the last one has no button",
+           "❌ Could not send to Vera (" in alert['text'] and "– retry at " in alert['text'] and not step['sent'] and not labels_of(alert),
+           (alert['text'], labels_of(alert)))
+    step = v5.do_step({'wait': '5m'})
+    text = v5.world.tap.messages[alert['id']]['text']
+    check_("v5 D6: after 3 minutes it is sent on retry, the AI MESSAGE is updated", "✅ Sent on retry " in text and len(step['sent']) == 1, (text, step['sent']))
+
+    # C4: tenant reminder, test -> not sent by itself, Send now / Edit Answer / Close Reminder
+    v5.world.mode = 'test'
+    test_nudge = due_case('Parking permit photo', kind='tenant_nudge', reason='Remind Vera to send the parking permit photo')
+    script.append({'answer': 'Hi Vera, just a reminder to send us the photo of your parking permit. Thanks!', 'why': 'still owed',
+                   'primary_type': 'FOLLOW_UP_REQUEST', 'priority': 'routine', 'next_action': 'Vera sends the photo', 'actions': []})
+    step = v5.do_step({'reminder': 'next'})
+    alert = step['alerts'][0] if step['alerts'] else {'text': step['note'], 'markup': None}
+    check_("v5 C4: a test tenant reminder waits for a press: REMINDER 1/2 (to tenant), 🧪 TEST, nothing sent",
+           alert['text'].startswith("⏰ REMINDER · ") and "1/2 (to tenant) · 🧪 TEST" in alert['text']
+           and "🧪 Test mode: NOT sent automatically. Press to send for real." in alert['text'] and not step['sent']
+           and labels_of(alert) == [['🤖 Send now', '✏️ Edit Answer'], ['✅ Close Reminder']], (alert['text'], labels_of(alert)))
+    step = v5.do_step({'press': 'Send now', 'by': 'Andy'})
+    check_("v5 C4: Send now sends it (into the sandbox chat)", len(step['sent']) == 1 and 'parking permit' in step['sent'][0]['text'], step['sent'])
+    AIFollowUp.objects.filter(conversation_sid=SANDBOX_SID, status='pending').update(status='cancelled')
+
+    # C6: the task was closed in ClickUp -> the "marked as done" message is proposed, no Close Task button
+    v5.world.mode = 'live'
+    ref_closed = 'sandbox://task/closed-sink'
+    v5.world.fake_tasks[ref_closed] = {'closed': True, 'comments': [], 'owner': 'Edy', 'updated': '2026-10-09 09:12'}
+    closed_case = due_case('Kitchen sink dripping', reason='Check the sink task has a visit date', ticket=ref_closed)
+    script.append(lambda text: {'answer': 'Hi Vera, our team marked the sink repair as done. If you still have any problem, just let us know.',
+                                'why': 'task closed', 'primary_type': 'FOLLOW_UP_REQUEST', 'priority': 'routine', 'next_action': '',
+                                'actions': [{'type': 'UPDATE_ISSUE_STATE', 'issue_id': closed_case.issue.public_id, 'state': 'RESOLVED'}]})
+    step = v5.do_step({'reminder': 'next'})
+    alert = step['alerts'][0] if step['alerts'] else {'text': step['note'], 'markup': None}
+    closed_case.issue.refresh_from_db()
+    check_("v5 C6: a closed ClickUp task -> REMINDER with the CLOSED line and the proposed message; the case is resolved at once",
+           "🎫 Task \"Kitchen sink dripping\" was CLOSED (complete" in alert['text'] and "our team marked the sink repair as done" in alert['text']
+           and labels_of(alert) == [['🤖 Send Answer', '✏️ Edit Answer'], ['✅ Close Reminder']] and closed_case.issue.state == 'RESOLVED',
+           (alert['text'], labels_of(alert), closed_case.issue.state))
+
+    # E9: a reply asks for a test reminder -> 🧪 Send test reminder -> a reminder on the Sandbox Test chat, due in 1 minute,
+    # which the live worker fires (other sandbox reminders it leaves to the runner)
+    interpreter_out.append(dict(answer_review.EMPTY_DECISION, decision='question', staff_answer='I can make a test reminder.',
+                                operations=['test_reminder']))
+    step = v5.do_step({'reply': 'send a test reminder in the sandbox apartment to check', 'by': 'Andy'})
+    bot = step['alerts'][-1] if step['alerts'] else {'text': step['note'], 'markup': None}
+    check_("v5 E9: the reply gets the operation explained with its own button",
+           "🧪 TEST REMINDER on the \"Sandbox Test\" apartment" in bot['text'] and labels_of(bot) == [['🧪 Send test reminder']], (bot['text'], labels_of(bot)))
+    v5.world.apartment.ai_group_chat_enabled = False
+    v5.world.apartment.save()
+    story_reminder = due_case('Story case', reason='a story reminder', minutes=0)
+    step = v5.do_step({'press': 'Send test reminder', 'by': 'Andy'})
+    test_followup = AIFollowUp.objects.filter(conversation_sid=SANDBOX_SID, issue__summary__startswith=_v5.TEST_REMINDER).first()
+    check_("v5 E9: the press creates the test reminder, due in 1 minute",
+           test_followup and 50 <= (test_followup.due_at - v5.clock.now()).total_seconds() <= 70, (step['popups'], test_followup))
+    from mysite.ai_agent import service as _service
+    v5.clock.forward_to(v5.clock.now() + timedelta(minutes=2))
+    _service.fire_due_followups()
+    test_followup.refresh_from_db()
+    story_reminder.refresh_from_db()
+    check_("v5 E9: the live worker fires the test reminder, never a story reminder of the sandbox",
+           test_followup.status == 'fired' and story_reminder.status == 'pending', (test_followup.status, story_reminder.status))
+    AIEvent.objects.filter(conversation_sid=SANDBOX_SID, status='pending').update(status='done')
+    AIFollowUp.objects.filter(conversation_sid=SANDBOX_SID, status='pending').update(status='cancelled')
 
     # A12: after hours, live -> the after-hours text goes out at once and is shown as an AI MESSAGE; the alert says so
     script.append({'answer': "Thanks Vera, we've noted it.", 'why': 'bulb', 'primary_type': 'ROUTINE_MAINTENANCE', 'priority': 'routine', 'owner': 'Edy',
@@ -706,9 +857,6 @@ try:
     check_("job: with the simple alerts the 08:00 job queues the notification for the AI instead of sending it",
            handed and queued and queued.body == "Gentle reminder" and queued.payload['kind'] == 'due_payment' and not twilio_calls, (handed, queued))
     AIEvent.objects.filter(conversation_sid=SANDBOX_SID, event_type='NOTIFICATION_DUE').delete()
-    os.environ['AI_AGENT_NOTIFICATIONS'] = 'direct'
-    check_("job: AI_AGENT_NOTIFICATIONS=direct (or the old alert style) keeps the direct send", job.hand_to_agent(v5.world.booking, "x", 'due_payment') is False)
-    os.environ.pop('AI_AGENT_NOTIFICATIONS')
     AIManagement.objects.update_or_create(prompt_key='safe_travel', defaults={'name': 'safe travel', 'entry_type': 'sms_template', 'content': 'Bye!', 'sms_enabled': False})
     check_("job: a template switched OFF sends nothing (before: its built-in text went out anyway)", job.get_message_for_event('safe_travel') is None
            and job.get_message_for_event('move_in'))
@@ -788,7 +936,7 @@ finally:
 
 # ---- 10c. with an own sandbox bot: the run waits, a real press and "next" arrive from Telegram ------------------------------
 waited_out, sent_updates = [], {'n': 0}
-live = Runner(auto=False, offline=True, use_claude=False, out=lambda text='': waited_out.append(str(text)), style='v5')
+live = Runner(auto=False, offline=True, use_claude=False, out=lambda text='': waited_out.append(str(text)))
 def bot_updates():
     record, button = live.world.tap.find_button('Create Task')
     if sent_updates['n'] == 0 and not button:
@@ -882,7 +1030,7 @@ check_("group commands: continue, restart, run <cases>, test-conversation <chat>
 check_("run A1,B: the case A1 and every B case, in STORY order (B7 and B2 come before A1 in the story)",
        [c['id'] for c in catalog.pick('A1,b')][:3] == ['B7', 'B2', 'A1'] and all(c['id'][0] in 'AB' for c in catalog.pick('A1,b'))
        and sum(1 for c in catalog.pick('A1,b') if c['id'][0] == 'A') == 1, [c['id'] for c in catalog.pick('A1,b')][:4])
-serving = Runner(auto=False, offline=True, use_claude=False, out=lambda text='': None, style='v5')
+serving = Runner(auto=False, offline=True, use_claude=False, out=lambda text='': None)
 trace, outcomes = [], ['restart', None, ('run', 'B2'), None, None]
 idle = ['continue', ('test conversation', 'CHabc12345 5')]
 serving.run_cases = lambda cases, label, start=0, fresh=False, restore=True: (
@@ -979,7 +1127,7 @@ try:
     own.own_bot = True
     incoming = [{'update_id': 5, 'message': {'chat': {'id': -500}, 'text': 'rerun with: the sink is flooding', 'from': {'first_name': 'Andy'}, 'message_id': 9}},
                 {'update_id': 6, 'callback_query': {'id': 'c1', 'data': 'sbx|apply|A1', 'from': {'first_name': 'Andy'}}},
-                {'update_id': 7, 'callback_query': {'id': 'c2', 'data': 'v4|a|1|1|', 'from': {'first_name': 'Andy'}}},
+                {'update_id': 7, 'callback_query': {'id': 'c2', 'data': 'v5|sa|1|', 'from': {'first_name': 'Andy'}}},
                 {'update_id': 8, 'message': {'chat': {'id': -500}, 'text': 'why a task for this?', 'from': {'first_name': 'Andy'},
                                              'reply_to_message': {'message_id': 1}}}]
     passed_on = own._updates(lambda: incoming)

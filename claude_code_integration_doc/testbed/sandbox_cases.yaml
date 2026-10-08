@@ -263,19 +263,20 @@ C1:
   title: Team reminder 1/2 due (Check Vera got in)
   time: 2026-10-06 15:10
   trigger:
-    reminder: next
+    reminder:
+      of: A2
   expect:
     alert: REMINDER
     urgency: urgent
     contains:
-    - 1/2
+    - 1/2 (2/2 tomorrow
     - (for Edy)
     sent_to_tenant: false
     buttons:
     - Close Reminder
-  checks: 'Team reminder 1/2 is due and the task is still open: REMINDER alert with the ClickUp state line and the last
-    message of each side (older side first, names on both lines); only Close Reminder.'
-  not_built: reminder-due alerts (group C) are not built yet
+  checks: 'Team reminder 1/2 of the locked-out case is due and Vera has not confirmed she got in: REMINDER alert with the
+    last message of each side (older side first, names on both lines), "1/2 (2/2 tomorrow 10:00)" - the 2/2 is set at
+    once; only Close Reminder. Nobody presses it: the 2/2 fires on Wednesday (C5).'
 
 A3:
   title: Property fact, known in the knowledge base
@@ -593,6 +594,26 @@ E8d:
     "🛠 Needs a change in the code, not possible from a reply: ...". No developer is named; the request stays in the alert''s
     record.'
 
+E9:
+  title: 'Reply asks for an operation: a test reminder (button, no restart)'
+  time: 2026-10-06 16:05
+  trigger:
+    reply: restart if needed and send a test reminder in the sandbox apartment to check
+    by: Andy
+  expect:
+    alert: REPLY
+    reply_contains:
+    - TEST REMINDER
+    reply_not_contains:
+    - Andrei
+    - Engineering
+    sent_to_tenant: false
+    buttons:
+    - Send test reminder
+  checks: 'An operation from the fixed list is proposed with its own button (🧪 Send test reminder), nothing happens before
+    the press; the restart is answered in one sentence (it does not change any alert, code changes are made outside
+    Telegram), no developer is named and no causes are guessed. Nobody presses it in the story.'
+
 E4b:
   title: 'Reply: a correction after the answer was already sent'
   time: 2026-10-06 16:10
@@ -769,6 +790,24 @@ A13b:
 # ===================================================================================================
 # 2026-10-07
 # ===================================================================================================
+
+C8:
+  title: Team reminder due after hours fires at 09:00 (bedroom window, 1/2)
+  time: 2026-10-07 09:00
+  trigger:
+    reminder:
+      of: A12b
+  expect:
+    alert: REMINDER
+    contains:
+    - 09:00
+    - 1/2 (2/2 tomorrow 10:00)
+    sent_to_tenant: false
+    buttons:
+    - Close Reminder
+  checks: 'The routine reminder of the bedroom window (reported 23:30) was due 01:30, after hours: it fires at 09:00, the next
+    working morning, as a REMINDER 1/2 with the 2/2 set for tomorrow 10:00. The fridge and freezer messages of the same night
+    are other cases: they did not cancel it. Nobody presses: the 2/2 fires on Thursday (C2).'
 
 A1:
   title: Routine maintenance, live (the full alert)
@@ -1366,6 +1405,27 @@ A19:
   checks: 'A 3 900-character message: nothing is cut, the alert is sent as (1/2) + (2/2) with the buttons on the last part;
     two tasks (AC noise, balcony door), the parking question is in the answer.'
 
+C7b:
+  title: Deadline reminder, 24 h before
+  doc: C7
+  time: 2026-10-07 23:00
+  trigger:
+    reminder:
+      of: A8
+      kind: deadline
+  expect:
+    alert: REMINDER
+    urgency: urgent
+    contains:
+    - deadline in 24 h
+    not_contains:
+    - '@Kevin'
+    sent_to_tenant: false
+    buttons:
+    - Close Reminder
+  checks: 'The 24 h reminder before the tenant deadline of A8 (her brother arrives Thursday 23:00): urgent, fires after office
+    hours, "deadline in 24 h", the case and the deadline time, no @Kevin (only at 2 h). Nobody presses.'
+
 D3:
   title: Emergency, live
   time: 2026-10-07 23:02
@@ -1407,6 +1467,27 @@ D3:
 # ===================================================================================================
 # 2026-10-08
 # ===================================================================================================
+
+C2:
+  title: Team reminder 2/2 (last) → Remind again in 24 hours
+  time: 2026-10-08 10:00
+  trigger:
+    reminder:
+      of: C8
+  expect:
+    alert: REMINDER
+    contains:
+    - 2/2 (last)
+    sent_to_tenant: false
+    buttons:
+    - Close Reminder
+    - Remind again in 24 hours
+  presses:
+  - button: Remind again in 24 hours
+    expect: 'Next:'
+  checks: 'The 2/2 of the bedroom window is due and nobody acted: REMINDER 2/2 (last) with Close Reminder and Remind again in
+    24 hours; no further reminder is set by itself. The team presses Remind again: one more reminder tomorrow 10:00, the
+    button says "⏰ Next: ...".'
 
 A16:
   title: Test apartment
@@ -1622,52 +1703,49 @@ B5:
     the single button is Close Reminder.'
 
 C3:
-  title: Tenant reminder, live (sent automatically)
+  title: Tenant reminder, live → sent automatically (water meter photo, 1/2)
   time: 2026-10-08 18:00
   trigger:
-    reminder: next
+    reminder:
+      of: B5
+      kind: tenant
   expect:
     alert: AI MESSAGE
     contains:
     - Reminder 1/2 auto-sent
+    - 'Next: 2/2 tomorrow 10:00'
     answer: true
     sent_to_tenant: true
     sent_contains:
-    - water meter
-    buttons: []
-  checks: 'Tenant reminder in LIVE: no REMINDER alert; after the re-check (Joe still owes the photo) it is sent to the tenant
-    automatically and an AI MESSAGE (D5) is posted.'
-  not_built: reminder-due alerts (group C) are not built yet
+    - meter
+    buttons:
+    - Close Reminder
+  checks: 'Tenant reminder in LIVE: no REMINDER alert. The re-check finds Vera still owes the photo, so it is sent to her by
+    itself and an AI MESSAGE (D5) says so, with the 2/2 tomorrow 10:00 and Close Reminder to stop it. The balcony light
+    message later that evening (D2) is another case: it does not cancel the 2/2.'
 
 C7:
   title: Deadline reminder, 2 h before (Kevin tagged)
   time: 2026-10-08 21:00
   trigger:
-    reminder: next
+    reminder:
+      of: A8
+      kind: deadline
   expect:
     alert: REMINDER
     urgency: urgent
     sound: true
     contains:
     - deadline in 2 h
-    - (for Edy)
+    - '@Kevin'
     sent_to_tenant: false
     buttons:
     - Close Reminder
-  checks: 'Deadline reminder 2 h before the tenant deadline: urgent, with sound, fires after office hours, Kevin is tagged
-    because nobody acted since the 24 h reminder.'
-  not_built: reminder-due alerts (group C) are not built yet
-
-C5:
-  title: C5
-  time: 2026-10-08 21:30
-  trigger:
-    reminder: next
-  expect:
-    alert: none
-    sent_to_tenant: false
-  checks: ''
-  not_built: reminder-due alerts (group C) are not built yet
+  presses:
+  - button: Close Reminder
+    expect: Reminder closed
+  checks: 'Deadline reminder 2 h before the tenant deadline: urgent, with sound, fires after office hours, Kevin is tagged.
+    The team presses Close Reminder.'
 
 D2:
   title: After-hours message, test
@@ -1727,92 +1805,75 @@ D3c:
 # 2026-10-09
 # ===================================================================================================
 
-C2:
-  title: C2
-  time: 2026-10-09 09:00
-  trigger:
-    reminder: next
-  expect:
-    alert: REMINDER
-    contains:
-    - 2/2
-    sent_to_tenant: false
-    buttons:
-    - Close Reminder
-  checks: ''
-  not_built: reminder-due alerts (group C) are not built yet
-
-C8:
-  title: C8
-  time: 2026-10-09 09:01
-  trigger:
-    reminder: next
-  expect:
-    alert: REMINDER
-    contains:
-    - 09:00
-    sent_to_tenant: false
-  checks: ''
-  not_built: reminder-due alerts (group C) are not built yet
-
-C4:
-  title: C4
-  time: 2026-10-09 09:02
-  mode: test
-  trigger:
-    reminder: next
-  expect:
-    alert: REMINDER
-    contains:
-    - 🧪 TEST
-    sent_to_tenant: false
-  checks: ''
-  not_built: reminder-due alerts (group C) are not built yet
-
 D5:
-  title: D5
-  time: 2026-10-09 09:03
-  trigger:
-    reminder: next
-  expect:
-    alert: AI MESSAGE
-    contains:
-    - auto-sent
-    sent_to_tenant: true
-  checks: ''
-  not_built: auto-sent tenant reminders (D5, D6) are not built yet
-
-D6:
-  title: D6
-  time: 2026-10-09 09:04
-  setup:
-    sms_fail: 1
-  trigger:
-    reminder: next
-  expect:
-    alert: AI MESSAGE
-    contains:
-    - retry
-    sent_to_tenant: true
-  checks: ''
-  not_built: auto-sent tenant reminders (D5, D6) are not built yet
-
-C6:
-  title: C6
+  title: Tenant reminder 2/2 (last), live → sent automatically, nothing left to stop
   time: 2026-10-09 10:00
   trigger:
-    reminder: next
+    reminder:
+      of: C3
+  expect:
+    alert: AI MESSAGE
+    contains:
+    - Reminder 2/2 auto-sent
+    not_contains:
+    - 'Next:'
+    answer: true
+    sent_to_tenant: true
+    sent_contains:
+    - meter
+    buttons: []
+  checks: 'The 2/2 of the water meter photo: Vera still has not sent it, so the last reminder is sent by itself and shown as an
+    AI MESSAGE; it is the last one, so there is no "Next" line and no button.'
+
+C5:
+  title: Already done → closed quietly, no alert (toilet visit booked in ClickUp)
+  time: 2026-10-09 10:15
+  prelude:
+  - - from: tenant
+      name: Vera Lopez
+      text: Hi, the toilet keeps running all the time after flushing
+  - press: Create Task
+  - comment_task: toilet
+    text: Plumber booked for Monday 9-11am - Edy
+  trigger:
+    reminder:
+      of: C5
+  expect:
+    alert: none
+    sent_to_tenant: false
+  checks: 'The team reminder of the toilet case becomes due, but Edy already booked the plumber (a comment on the ClickUp
+    task, written in ClickUp, not in the chat). The re-check sees it: the reminder closes quietly, no alert; the button of
+    the toilet alert says "✅ Reminder closed · done – checked ...".'
+
+C6:
+  title: ClickUp task closed → "marked as done" message proposed
+  time: 2026-10-09 12:20
+  prelude:
+  - - from: tenant
+      name: Vera Lopez
+      text: The dishwasher doesn't drain, there is water left at the bottom
+  - press: Create Task
+  - close_task: dishwasher
+  trigger:
+    reminder:
+      of: C6
   expect:
     alert: REMINDER
     contains:
     - was CLOSED
+    answer: true
     sent_to_tenant: false
-  checks: ''
-  not_built: reminder-due alerts (group C) are not built yet
+    buttons:
+    - Send Answer
+    - Edit Answer
+    - Close Reminder
+  checks: 'The team closed the dishwasher task in ClickUp (not in the chat). When its reminder is due, the REMINDER says the
+    task was CLOSED and proposes the "our team marked it as done, let us know if there is still a problem" message
+    (Send Answer / Edit Answer); the case is closed at once, no Close Task button.'
 
 B4:
   title: B4
-  time: 2026-10-09 14:00
+  time: 2026-10-09 14:15
   trigger:
   - from: team
     name: Edy
@@ -1936,9 +1997,49 @@ A4b:
   checks: 'Spot #14 is booked for the booking in the CRM since the press on Tuesday: the answer comes from the CRM rows,
     no ❓ line, no CRM change proposed.'
 
+D6:
+  title: Tenant reminder, live, send fails → retry in 3 minutes
+  time: 2026-10-09 16:35
+  setup:
+    sms_fail: 1
+  prelude:
+  - - from: team
+      name: Edy
+      text: Vera, could you please send us a photo of your car registration? We need it for the parking permit
+  trigger:
+    reminder:
+      of: D6
+      kind: tenant
+  expect:
+    alert: AI MESSAGE
+    contains:
+    - Could not send
+    - retry at
+    answer: true
+    sent_to_tenant: false
+  checks: 'A live tenant reminder (the car registration photo Edy asked for) can not be sent (Twilio error): the AI MESSAGE
+    says so and when it is tried again (3 minutes later).'
+
+D6b:
+  title: Tenant reminder, send retried → sent on retry
+  doc: D6
+  time: 2026-10-09 18:40
+  trigger:
+    wait: 5m
+  expect:
+    alert: none
+    sent_to_tenant: true
+    sent_contains:
+    - registration
+    earlier:
+      contains:
+      - Sent on retry
+  checks: 'Three minutes after the failed send the worker tries once more: it goes out, and the AI MESSAGE of D6 now says
+    "✅ Sent on retry ...".'
+
 G2:
   title: G2
-  time: 2026-10-09 17:58
+  time: 2026-10-09 18:50
   trigger:
     report: daily
   expect:
@@ -1951,7 +2052,7 @@ G2:
 
 G3:
   title: G3
-  time: 2026-10-09 17:59
+  time: 2026-10-09 18:51
   trigger:
     report: daily
   expect:
@@ -1964,7 +2065,7 @@ G3:
 
 G4:
   title: 'Report: problems today'
-  time: 2026-10-09 18:00
+  time: 2026-10-09 18:52
   trigger:
     report: daily
   expect:
@@ -1983,6 +2084,37 @@ G4:
 # ===================================================================================================
 # 2026-10-10
 # ===================================================================================================
+
+C4:
+  title: Tenant reminder, test → not sent, Send now (smoke detector photo)
+  time: 2026-10-09 18:55
+  mode: test
+  prelude:
+  - - from: team
+      name: Edy
+      text: Vera, please send us a photo of the label on the smoke detector in the hallway
+  trigger:
+    reminder:
+      of: C4
+      kind: tenant
+  expect:
+    alert: REMINDER
+    contains:
+    - 1/2 (to tenant)
+    - 🧪 TEST
+    - NOT sent automatically
+    answer: true
+    sent_to_tenant: false
+    buttons:
+    - Send now
+    - Edit Answer
+    - Close Reminder
+  presses:
+  - button: Close Reminder
+    expect: Reminder closed
+  checks: 'In a test apartment a tenant reminder is never sent by itself: a REMINDER 1/2 (to tenant) with the text, "🧪 Test
+    mode: NOT sent automatically", Send now / Edit Answer / Close Reminder. It was asked for at 18:55, so it is due at
+    20:55 - after tenant hours - and fires Saturday 10:00. The team closes it.'
 
 A12c:
   title: 'After hours: weekend counts as after hours'

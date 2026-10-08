@@ -20,9 +20,6 @@ from django.contrib import messages
 
 def handle_post_request(request, model, form_class):
     try:
-        # Print detailed POST data for debugging
-        print("RAW POST DATA:", dict(request.POST.items()))
-        
         if 'edit' in request.POST:
             item_id = request.POST['id']
             if item_id:
@@ -34,8 +31,6 @@ def handle_post_request(request, model, form_class):
                     send_handyman_telegram_notification(saved_instance, 'edited')
                     return JsonResponse({'id': saved_instance.id, 'success': True})
                 else:
-                    # Print detailed form validation errors for debugging
-                    print("EDIT FORM VALIDATION ERRORS:", form.errors.as_json())
                     # Return specific form errors
                     errors = {}
                     for field, error_list in form.errors.items():
@@ -45,8 +40,6 @@ def handle_post_request(request, model, form_class):
                         errors['form'] = ['Form validation failed. Please check all fields.']
                     return JsonResponse({'error': errors}, status=400)
         elif 'add' in request.POST: 
-            print("PROCESSING ADD REQUEST")
-            
             # Explicitly handle time format conversion
             try:
                 # Extract and format the times properly
@@ -64,11 +57,8 @@ def handle_post_request(request, model, form_class):
                     'notes': request.POST.get('notes', '')
                 }
                 
-                print("EXTRACTED FORM DATA:", form_data)
-                
                 form = form_class(form_data)
                 if form.is_valid():
-                    print("FORM IS VALID")
                     instance = form.save(commit=False)
                     # Store the user identifier in created_by
                     instance.created_by = request.GET.get('user', 'anonymous')
@@ -76,10 +66,6 @@ def handle_post_request(request, model, form_class):
                     send_handyman_telegram_notification(instance, 'created')
                     return JsonResponse({'id': instance.id, 'success': True, 'created_by': instance.created_by})
                 else:
-                    # Print detailed form validation errors for debugging
-                    print("ADD FORM VALIDATION ERRORS:", form.errors.as_json())
-                    print("FORM DATA:", form.data)
-                    
                     # Return specific form errors
                     errors = {}
                     for field, error_list in form.errors.items():
@@ -89,7 +75,6 @@ def handle_post_request(request, model, form_class):
                         errors['form'] = ['Form validation failed. Please check all fields.']
                     return JsonResponse({'error': errors}, status=400)
             except Exception as e:
-                print(f"TIME FORMAT ERROR: {str(e)}")
                 log_exception(
                     error=e,
                     context="Handyman Calendar - Time Format Processing",
@@ -242,9 +227,6 @@ def handyman_calendar(request):
     is_manager = request.GET.get('user') == 'manager'
 
     if request.method == 'POST':
-        # Debug the POST data
-        print(f"DEBUG - POST data: {request.POST}")
-        
         # Handle manager requests to block/unblock slots
         if is_manager and any(x in request.POST for x in ['block_slot', 'unblock_slot', 'block_day', 'unblock_day']):
             return handle_block_request(request)

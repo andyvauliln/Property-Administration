@@ -1,5 +1,7 @@
 # Staff review in Telegram: nothing happens for 15 minutes
 
+> **Historical document (8 Oct 2026).** Parts of it describe old modes: the 15-minute review timer and the replies it describes were removed. Nothing is sent or done without a press on the alert. The current behaviour is in [simple_telegram_alerts.md](simple_telegram_alerts.md). See also docs/cleanup_plan.md.
+
 > **Since 2026-09-30 (client spec v4) the default is EXPLICIT APPROVAL: no timer, buttons on the card, nothing is sent
 > or done until someone approves it** - see `client_spec_v4.md`. Everything below still describes the typed replies
 > (they all keep working) and the old timer, which comes back with `AI_AGENT_APPROVAL=timer`.

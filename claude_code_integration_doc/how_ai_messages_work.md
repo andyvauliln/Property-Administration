@@ -1,5 +1,7 @@
 # How AI message handling works — simple overview
 
+> **Historical document (8 Oct 2026).** Parts of it describe old modes: the OpenRouter backend, the v4 card and the timer review were removed. The current behaviour is in [simple_telegram_alerts.md](simple_telegram_alerts.md). See also docs/cleanup_plan.md.
+
 ## The idea in one sentence
 
 A tenant writes in the group chat → the CRM saves the message → the AI reads it together with

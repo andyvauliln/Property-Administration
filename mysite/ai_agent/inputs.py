@@ -184,9 +184,6 @@ def tracking_block(conversation_sid, booking, sources=None):
             line += f" | next action: {i.next_action}"
         if i.tenant_asks > 1:
             line += f" | tenant asked {i.tenant_asks} times"
-        if i.handled_by:
-            line += (f" | HANDLED BY STAFF ({i.handled_by} pressed \"I'll handle\") - do NOT draft a tenant reply, "
-                     f"reminder, ticket change or any other action for this issue; staff do everything")
         return line
 
     tickets = [i for i in issues if i.ticket_title]

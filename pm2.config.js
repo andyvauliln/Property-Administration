@@ -20,11 +20,5 @@ module.exports = {
             env: { PYTHONUNBUFFERED: '1' },  // so `pm2 logs ai-agent` shows lines immediately
             restart_delay: 5000,
         },
-        {
-            name: 'mcp-tunnel',
-            script: '/home/superuser/site/cloudflared_start.sh',
-            cwd: '/home/superuser/site',
-            restart_delay: 5000,
-        },
     ],
 };

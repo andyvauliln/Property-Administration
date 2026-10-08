@@ -148,7 +148,6 @@ def _update_issue_state(ctx, action):
     issue.resolved_at = timezone.now() if state == AIIssue.STATE_RESOLVED else None
     if state == AIIssue.STATE_RESOLVED:
         issue.reach_stage(AIIssue.STAGE_RESOLVED)
-        issue.handled_by = issue.handled_at = issue.handled_prev_state = None
     issue.save()
     detail = f"{issue.public_id}: {old_state} -> {state}"
     if state == AIIssue.STATE_RESOLVED:
@@ -191,21 +190,23 @@ def _schedule_followup(ctx, action):
     reason = str(action.get('reason') or '').strip()
 
     if issue is not None:
-        if issue.handled_by and issue.is_open:
-            raise ActionError(f"{issue.public_id} is handled by staff ({issue.handled_by} pressed \"I'll handle\") - no AI reminders")
         if issue.followups.exclude(kind=AIFollowUp.KIND_DEADLINE_REMINDER).count() >= policy.MAX_FOLLOWUPS_PER_ISSUE:
             raise ActionError(f"{issue.public_id} reached the limit of {policy.MAX_FOLLOWUPS_PER_ISSUE} follow-ups")
-        # A reminder of an alert that became outdated before it fired does not count: the newer alert has its own
-        if config.alert_style() == 'v5' and issue.followups.exclude(kind=AIFollowUp.KIND_DEADLINE_REMINDER) \
-                .exclude(status=AIFollowUp.STATUS_CANCELLED, status_note__startswith='alert outdated') \
-                .count() >= policy.MAX_REMINDERS_PER_CASE_V5:
-            raise ActionError(f"{issue.public_id} already had its {policy.MAX_REMINDERS_PER_CASE_V5} reminders")
+        # At most 2 per case and per side (the team's reminders, the tenant's); a reminder of an alert that became
+        # outdated before it fired does not count: the newer alert has its own
+        series = issue.followups.exclude(kind=AIFollowUp.KIND_DEADLINE_REMINDER) \
+            .exclude(status=AIFollowUp.STATUS_CANCELLED, status_note__startswith='alert outdated')
+        tenant = kind in policy.TENANT_KINDS
+        series = series.filter(kind__in=policy.TENANT_KINDS) if tenant else series.exclude(kind__in=policy.TENANT_KINDS)
+        if series.count() >= policy.MAX_REMINDERS_PER_CASE_V5:
+            raise ActionError(f"{issue.public_id} already had its {policy.MAX_REMINDERS_PER_CASE_V5} "
+                              f"{'tenant' if tenant else 'team'} reminders")
         pending = issue.followups.filter(kind=kind, status=AIFollowUp.STATUS_PENDING).first()
         if pending:
             return _ok(f"{pending.public_id} ({kind}) is already pending for {issue.public_id}, due {pending.due_at:%Y-%m-%d %H:%M %Z}")
 
     due, note = policy.due_at(kind, issue.priority if issue else 'routine')
-    if config.alert_style() == 'v5' and action.get('after'):
+    if action.get('after'):
         # "after": the check only makes sense after a moment the chat names (the plumber comes 9-11am -> ask at 12:00)
         from mysite.ai_agent import service
         after = service.parse_tenant_deadline(action.get('after'))

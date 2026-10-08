@@ -70,7 +70,6 @@ SID = "CHmedia750"
 TwilioConversation.objects.bulk_create([TwilioConversation(conversation_sid=SID, friendly_name="750-201", apartment=apt,
                                                            booking=Booking.objects.get(apartment=apt))])
 conv = TwilioConversation.objects.get(conversation_sid=SID)
-AIManagement.objects.update_or_create(prompt_key="ai_backend", defaults={'name': 'b', 'entry_type': 'ai_model', 'content': 'claude_cli'})
 
 def webhook_post(message_sid, body, media):
     return {
@@ -105,12 +104,6 @@ check("failed download keeps the message and records the error", TwilioMessage.o
       and not bad.is_downloaded and 'gone' in bad.download_error)
 AIEvent.objects.filter(message__message_sid='IMbad1').delete()
 
-AIManagement.objects.filter(prompt_key="ai_backend").update(content='openrouter')
-resp = c.post('/conversation-created-webhook/', webhook_post('IMlegacy', '', [{'Sid': 'MElegacy', 'ContentType': 'image/jpeg'}]))
-check("an old 'openrouter' backend row changes nothing: the photo is stored and queued for the agent",
-      TwilioMessageMedia.objects.filter(media_sid='MElegacy').exists() and AIEvent.objects.filter(message__message_sid='IMlegacy').exists())
-AIEvent.objects.filter(message__message_sid='IMlegacy').delete()
-AIManagement.objects.filter(prompt_key="ai_backend").delete()
 
 # ---- 3. chat UI -------------------------------------------------------------------------------
 anon = Client()
@@ -128,11 +121,6 @@ svg.delete()
 evil = TwilioMessageMedia.objects.create(message=m1, media_sid='MEevil', content_type='image/jpeg', file_path='../../etc/passwd')
 check("path traversal refused", ui.get(evil.url).status_code == 404)
 evil.delete()
-js = ui.get(f'/chat/{SID}/load-more/?page=1')
-if js.status_code == 200:
-    rows = {m['id']: m for m in js.json()['messages']}
-    check("JSON messages carry media", rows[m1.id]['media'] == [{'id': media1.id, 'url': media1.url, 'content_type': 'image/jpeg',
-                                                                  'filename': 'leak.jpg', 'is_image': True}], rows.get(m1.id))
 
 # ---- 4. the agent sees the photo -----------------------------------------------------------------
 from django.urls import reverse

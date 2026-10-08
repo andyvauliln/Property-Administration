@@ -6,19 +6,8 @@ from datetime import date
 from ..models import AIManagement
 from ..forms import AIManagementForm
 from .utils import handle_post_request, get_related_fields, parse_query, get_model_fields, DateEncoder
+from .generic_view import serialize_field
 from ..decorators import user_has_role
-
-def serialize_field(value):
-    from datetime import datetime, date
-    if isinstance(value, (datetime, date)):
-        return value.strftime('%B %d %Y')
-    elif hasattr(value, 'id'):
-        return value.id
-    elif isinstance(value, list):
-        return [serialize_field(v) for v in value]
-    elif isinstance(value, dict):
-        return {k: serialize_field(v) for k, v in value.items()}
-    return value
 
 @user_has_role('Admin', 'Manager')
 def ai_management_view(request):
@@ -59,14 +48,13 @@ def ai_management_view(request):
     form = form_class(request=request)
     model_fields = get_model_fields(form)
 
-    prompt_groups, ai_backend = _prompt_cards()
+    prompt_groups = _prompt_cards()
     from ..models import Apartment
     from .messaging import get_global_knowledge_base_text
     context = {
         'prompt_groups': prompt_groups,
         'global_kb': get_global_knowledge_base_text(),
         'apartment_kbs': _apartment_kbs(),
-        'ai_backend': ai_backend,
         'preview_apartments': Apartment.objects.order_by('name').values('id', 'name'),
         'items': items_on_page,
         'items_json': items_json,
@@ -84,12 +72,11 @@ def ai_management_view(request):
 # ---------------------------------------------------------------------------
 
 def _models_in_use():
-    from mysite.ai_agent import clickup, config as ai_config
+    from mysite.ai_agent import config as ai_config
     return [
         {'label': 'Agent (tenant chats)', 'value': ai_config.get_agent_model(), 'how': "row 'ai_agent_model' below, else env AI_AGENT_MODEL"},
         {'label': 'Chat-page helpers and knowledge-base merges', 'value': ai_config.oneshot_model(), 'how': 'env AI_AGENT_ONESHOT_MODEL, else the agent model'},
         {'label': 'Telegram reply interpreter', 'value': f"{ai_config.review_model()} (effort {ai_config.review_effort()})", 'how': f'env AI_AGENT_REVIEW_MODEL / AI_AGENT_REVIEW_EFFORT, else {ai_config.DEFAULT_REVIEW_MODEL} / {ai_config.DEFAULT_REVIEW_EFFORT}'},
-        {'label': 'ClickUp delivery via Claude', 'value': clickup.DELIVERY_MODEL, 'how': 'env AI_AGENT_CLICKUP_DELIVERY_MODEL'},
     ]
 
 
@@ -128,9 +115,8 @@ def ai_knowledge_base_save(request, apartment_id=None):
 
 def _prompt_cards():
     """Registry prompts grouped for the AI Management page, with their live state."""
-    from mysite.ai_agent import config as ai_config, prompt_library as lib
+    from mysite.ai_agent import prompt_library as lib
 
-    backend = ai_config.get_ai_backend()
     rows = {e.prompt_key: e for e in AIManagement.objects.filter(prompt_key__in=list(lib.BY_KEY))}
     groups = {}
     for s in lib.SPECS:
@@ -147,7 +133,7 @@ def _prompt_cards():
             'rule_count': sum(1 for line in content.splitlines() if line.strip().startswith('-')) if s.kind == lib.KIND_RULES else None,
         }
         groups.setdefault(s.group, []).append(card)
-    return [(group, groups[group]) for group in lib.GROUP_ORDER if group in groups], backend
+    return [(group, groups[group]) for group in lib.GROUP_ORDER if group in groups]
 
 
 @user_has_role('Admin', 'Manager')

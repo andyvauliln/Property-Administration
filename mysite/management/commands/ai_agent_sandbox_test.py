@@ -21,7 +21,6 @@ header and 🧪 TEST NOTES, checked, and the verdict posted. Nothing can reach a
   --serve       stay alive when the list is done or stopped, and take commands in the test group:
                 continue · restart (cleans the chat, the story from its start) · run A5 / run A,B (from the saved
                 state before that chapter) · test-conversation CHxxxx [last 20]
-  --style v4    test the old approval card instead of the simple alerts (default: v5)
 
 While it waits (not --auto) type: next · rerun · rerun with: <text> · change test: <what> · accept · skip · stop.
 
@@ -50,7 +49,6 @@ class Command(BaseCommand):
         parser.add_argument('--from', dest='start_at', help='Start at this case of the selection (e.g. --group A --from A2)')
         parser.add_argument('--serve', action='store_true', help='Stay alive after the list: wait in the test group for continue / restart / run ... / test-conversation ...')
         parser.add_argument('--clean-chat', action='store_true', help='First delete what earlier test runs posted in the Telegram test chat')
-        parser.add_argument('--style', choices=('v5', 'v4'), default='v5', help='Alerts to test: the simple alerts (v5) or the old card (v4)')
 
     def handle(self, *args, **options):
         from mysite.ai_agent.sandbox_test import catalog, story
@@ -74,7 +72,7 @@ class Command(BaseCommand):
                 if not cases:
                     raise CommandError("No such cases (see --list)")
             runner = Runner(auto=options['auto'], real_time=options['real_time'],
-                            offline=options['offline'], use_claude=not options['no_judge'], out=out, style=options['style'])
+                            offline=options['offline'], use_claude=not options['no_judge'], out=out)
             # A stopped run (kill, pm2 stop) must still clean up after itself: nothing may be left for the live worker
             import signal
 

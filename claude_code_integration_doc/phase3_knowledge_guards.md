@@ -1,5 +1,7 @@
 # Phase 3 — knowledge base, privacy guards, staff phones
 
+> **Historical document (8 Oct 2026).** Parts of it describe old modes: the OpenRouter backend and the timer review were removed. The current behaviour is in [simple_telegram_alerts.md](simple_telegram_alerts.md). See also docs/cleanup_plan.md.
+
 Status 2026-09-21: **built and tested, switched off** (same switch: `AI Backend` = `claude_cli`).
 Needs migration `0085` in addition to `0083` + `0084`.
 

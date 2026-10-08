@@ -1,5 +1,7 @@
 # Testing plan — Claude agent for tenant group chats
 
+> **Historical document (8 Oct 2026).** Parts of it describe old modes: the OpenRouter backend, the v4 card and the timer review were removed. The tests run the simple alerts only. The current behaviour is in [simple_telegram_alerts.md](simple_telegram_alerts.md). See also docs/cleanup_plan.md.
+
 **Please read and confirm (or change) this plan. Testing starts after your OK.**
 
 ## Where we are (2026-09-21)

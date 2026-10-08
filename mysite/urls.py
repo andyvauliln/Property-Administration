@@ -20,7 +20,6 @@ urlpatterns = [
     path('notifications/', views.notifications, name='notifications'),
     path('paymentmethods/', views.payment_methods, name='paymentmethods'),
     path('paymenttypes/', views.payment_types, name='paymenttypes'),
-    path('notifications/', views.notifications, name='notifications'),
     path('docuseal-callback/', views.docuseal_callback, name='docuseal_callback'),
     path('payment-report/', views.paymentReport, name='paymentReport'),
     path('conversation-created-webhook/', views.twilio_webhook, name='twilio_webhook'),
@@ -71,8 +70,6 @@ urlpatterns = [
     path('chat/<str:conversation_sid>/messages/<int:message_id>/kb-rule/save/', views.save_kb_rule, name='save_kb_rule'),
     path('chat/<str:conversation_sid>/messages/<int:message_id>/notes/', views.update_message_notes, name='update_message_notes'),
     path('chat/<str:conversation_sid>/generate-ai-answers/', views.generate_all_customer_ai_answers_view, name='generate_all_customer_ai_answers'),
-    path('chat/<str:conversation_sid>/load-more/', views.load_more_messages, name='load_more_messages'),
-    path('chat/templates/', views.chat_template_list, name='chat_template_list'),
     path('chat/templates/create/', views.chat_template_create, name='chat_template_create'),
     # AI Management
     path('ai-management/', views.ai_management_view, name='ai_management'),

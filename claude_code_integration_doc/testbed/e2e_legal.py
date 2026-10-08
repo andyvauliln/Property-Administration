@@ -1,37 +1,65 @@
 """
-Legal / contract questions (user request 2026-09-25): the AI reads the contract (get_contract) and SUGGESTS an answer;
-it is never sent until a manager confirms it in Telegram - not even when the 15-minute review window ends.
+Legal / contract questions (user request 2026-09-25) and the press that sends an answer (simple alerts,
+simple_telegram_alerts.md). The AI reads the contract (get_contract) and SUGGESTS an answer; nothing is sent until a
+manager presses 🤖 Send Answer under the alert - there is no timer. Also here (moved from the removed e2e_client_v4.py
+and e2e_answer_review.py): the final recheck before a send, outdated alerts, a failed send retried once, an emergency
+done at once, Telegram down, and how the worker reads Telegram (offset, replies it can not place, old-format buttons).
 """
 import os, sys, django
 from datetime import date, timedelta
 os.environ["DJANGO_SETTINGS_MODULE"] = "testbed_settings"
 django.setup()
-os.environ["AI_AGENT_REVIEW_HOLD_MINUTES"] = "15"
-os.environ["AI_AGENT_APPROVAL"] = "timer"   # this file tests the 15-minute timer review (explicit approval: e2e_client_v4.py)
 os.environ["AI_AGENT_ALERT_CHAT_ID"] = "-500"
 from django.db import connection
 assert connection.vendor == "sqlite", "refusing to run outside the testbed"
 
 import json
 from django.utils import timezone
-from mysite.models import User, Apartment, Booking, TwilioConversation, TwilioMessage, AIManagement, AIEvent, AIRun, AIIssue
-from mysite.ai_agent import service, runner, config, answer_review, clickup, prompts, contract
+from mysite.models import (User, Apartment, Booking, TwilioConversation, TwilioMessage, AIManagement, AIEvent, AIRun, AIIssue,
+                           AIFollowUp, StaffMember, AIAlertCall)
+from mysite.ai_agent import (service, runner, config, answer_review, approval, alerts_v5, calls, clickup, notify, prompts,
+                             contract)
 import mysite.ai_agent.team_notify as team_notify
 import mysite.views.messaging as messaging
 from django.conf import settings as _s
 config.RUNS_DIR = _s.TESTBED_DIR / "ai_runs_legal"
 config.WORK_DIR = config.RUNS_DIR / "_cwd"
-config.is_within_notification_window = lambda now=None: True
+config.is_within_notification_window = lambda now=None: True   # this file is about the press, not the SMS hours
+config.is_office_hours = lambda now=None: True                  # ... nor about the after-hours message
 
 # ---- fakes ---------------------------------------------------------------------------------
-telegram, sms, tg_fail = [], [], [False]
-def fake_tg(text, reply_to=None):
-    telegram.append((text, reply_to))
-    return (False, "down", None) if tg_fail[0] else (True, "sent", 1000 + len(telegram))
-team_notify.send_ai_chat = fake_tg
-answer_review.send_ai_chat = fake_tg
-answer_review.report_error = service.report_error = lambda e, ctx, info=None, source='task': telegram.append((f"ERROR {ctx}: {e}", None))
-messaging.send_messsage_by_sid = lambda sid, author, message, sender, receiver: sms.append((sid, message))
+telegram, sms, tg_fail, markups, callbacks, tg_ids = [], [], [False], [], [], [600000]   # ids unlike the other files'
+def fake_tg(text, reply_to=None, reply_markup=None, silent=False):
+    if tg_fail[0]:
+        return False, "down", None
+    tg_ids[0] += 1
+    telegram.append({'id': tg_ids[0], 'text': text, 'reply_to': reply_to, 'markup': reply_markup})
+    return True, "sent", tg_ids[0]
+for module in (team_notify, answer_review, alerts_v5, notify, calls):
+    module.send_ai_chat = fake_tg
+for module in (alerts_v5, approval, notify):
+    module.edit_reply_markup = lambda message_id, markup=None: markups.append((message_id, markup))
+    module.answer_callback = lambda cid, text='', alert=False: callbacks.append((cid, text, alert))
+notify.edit_message_text = lambda message_id, text, reply_markup=None: markups.append((message_id, reply_markup))
+errors = []
+answer_review.report_error = service.report_error = calls.report_error = \
+    lambda e, ctx, info=None, source='task': errors.append(f"{ctx}: {e}")
+sms_fail = [0]
+def fake_sms(sid, author, message, sender, receiver):
+    if sms_fail[0]:
+        sms_fail[0] -= 1
+        raise Exception("twilio down")
+    sms.append((sid, message))
+messaging.send_messsage_by_sid = fake_sms
+dialled = []
+class _Call:
+    def __init__(self, sid): self.sid, self.status = sid, 'completed'
+    def fetch(self): return self
+class _Calls:
+    def create(self, to, from_, twiml, timeout): dialled.append(to); return _Call(f"CA{len(dialled)}")
+    def __call__(self, sid): return _Call(sid)
+class _Twilio: calls = _Calls()
+messaging.get_twilio_client = lambda: _Twilio()   # never a real phone call (testbed_settings)
 updates, interpreter_out = [], []
 answer_review.fetch_updates = lambda: [updates.pop(0) for _ in range(len(updates))]
 answer_review.run_interpreter = lambda prompt: interpreter_out.pop(0)
@@ -41,19 +69,21 @@ clickup.channel_for = lambda apartment: _Map()
 clickup.post_message = lambda *a, **k: None
 clickup.create_task = lambda *a, **k: ("tk1", "https://app.clickup.com/t/tk1")
 
-script = []
+script, inputs_seen = [], []
 def fake_run_claude(system_prompt, user_input, conversation_sid, run_dir, until_message_id=None, model=None):
+    inputs_seen.append(user_input)
     return {'ok': True, 'error': None, 'output': script.pop(0), 'events': [], 'result_event': {}, 'stdout': '', 'stderr': '',
             'command': 'fake', 'mcp_config': {}, 'model': 'fake', 'exit_code': 0, 'duration_ms': 5, 'timed_out': False}
 runner.run_claude = fake_run_claude
 
 checks = []
 def check(name, cond, extra=''):
-    checks.append(bool(cond)); print(("PASS " if cond else "FAIL ") + name + (f"  -> {extra}" if extra and not cond else ''))
+    checks.append(bool(cond)); print(("PASS " if cond else "FAIL ") + name + (f"  -> {str(extra)[:600]}" if extra and not cond else ''))
 
 # ---- fixtures -------------------------------------------------------------------------------
+TENANT_PHONE = "+15550007788"
 if not User.objects.filter(email="lg@example.com").exists():
-    User.objects.bulk_create([User(email="lg@example.com", full_name="Lena Legal", role="Tenant", phone="+15550007788")])
+    User.objects.bulk_create([User(email="lg@example.com", full_name="Lena Legal", role="Tenant", phone=TENANT_PHONE)])
 tenant = User.objects.get(email="lg@example.com")
 def make_apartment(name, live):
     Apartment.objects.bulk_create([Apartment(name=name, building_n="730", apartment_n=name[-3:], street="S", state="FL", city="WPB",
@@ -69,14 +99,22 @@ apt, SID = make_apartment("730-201", live=True)
 apt2, SID2 = make_apartment("730-202", live=True)
 apt3, SID3 = make_apartment("730-203", live=True)
 apt_test, SID_TEST = make_apartment("730-204", live=False)
-AIManagement.objects.update_or_create(prompt_key="ai_backend", defaults={'name': "backend", 'entry_type': "ai_model", 'content': "claude_cli"})
+apt5, SID5 = make_apartment("730-205", live=True)
+AIManagement.objects.filter(prompt_key='ai_clickup_writes').delete()   # an earlier test file may have left it off
+for name, role, phone in (("Edy", "operations", "+15612220001"), ("Farid", "owner", "+15614603904"), ("Kevin", "supervisor", None)):
+    if not StaffMember.objects.filter(ai_name=name).exists():
+        StaffMember.objects.bulk_create([StaffMember(ai_name=name, full_name=name, role=role, phone=phone)])
+StaffMember.objects.filter(ai_name="Farid").update(phone="+15614603904", is_active=True)
+# a manager writing from the CRM chat page counts as staff (Edy may have no phone in the shared test DB)
+STAFF_AUTHOR = "ASSISTANT"
 n = [0]
-def say(sid, body, author="+15550007788"):
+def say(sid, body, author=TENANT_PHONE, enqueue=True):
     n[0] += 1
     conv = TwilioConversation.objects.get(conversation_sid=sid)
     TwilioMessage.objects.bulk_create([TwilioMessage(message_sid=f"LG{n[0]:04d}", conversation=conv, conversation_sid=sid,
                                                      author=author, body=body, direction='inbound')])
-    service.enqueue_tenant_message(sid, f"LG{n[0]:04d}", body)
+    if enqueue:
+        service.enqueue_tenant_message(sid, f"LG{n[0]:04d}", body)
     return TwilioMessage.objects.get(message_sid=f"LG{n[0]:04d}")
 def drain():
     AIEvent.objects.filter(status='pending').update(created_at=timezone.now() - timedelta(minutes=5))
@@ -86,111 +124,181 @@ def drain():
         if not batch: return runs
         runs.append(service.process_events(batch))
 def run_with(sid, body, output):
-    say(sid, body); script.append(output); r = drain()[0]; r.refresh_from_db(); return r
-def reply(run, text, who="Kevin", **decision):
+    say(sid, body); script.append(output); r = drain()[-1]; r.refresh_from_db(); return r
+def alert_of(run):
+    return next(t for t in telegram if t['id'] == run.telegram_message_id)
+def buttons(markup):
+    return [b for row in (markup or {}).get('inline_keyboard', []) for b in row]
+def press(run, code, arg='', who="Kevin", message_id=None, prefix='v5', chat=-500):
+    """A button press as the worker gets it from Telegram."""
+    run.refresh_from_db()
+    updates.append({'update_id': 3000 + len(callbacks) + len(telegram), 'callback_query': {
+        'id': f"cb{len(callbacks)}", 'from': {'first_name': who}, 'data': f"{prefix}|{code}|{run.id}|{arg}",
+        'message': {'message_id': message_id or run.telegram_message_id, 'chat': {'id': chat}}}})
+    answer_review.poll_telegram(); run.refresh_from_db()
+    return callbacks[-1][1] if callbacks else ''
+def reply_to_message(run, message_id, text, who="Kevin", chat=-500, parent_is_bot=True, **decision):
     if decision:
         interpreter_out.append(dict(answer_review.EMPTY_DECISION, **decision))
-    run.refresh_from_db()
-    updates.append({'update_id': 70 + len(checks) + len(telegram), 'message': {
-        'message_id': 9500 + len(checks), 'chat': {'id': -500}, 'from': {'first_name': who}, 'text': text,
-        'date': int(timezone.now().timestamp()), 'reply_to_message': {'message_id': run.telegram_message_id}}})
+    updates.append({'update_id': 5000 + len(checks) + len(telegram), 'message': {
+        'message_id': 9500 + len(checks) + len(telegram), 'chat': {'id': chat}, 'from': {'first_name': who}, 'text': text,
+        'date': int(timezone.now().timestamp()),
+        'reply_to_message': {'message_id': message_id, 'from': {'is_bot': parent_is_bot}}}})
     answer_review.poll_telegram()
-    run.refresh_from_db()
-    return telegram[-1][0]
-def expire(run):
-    AIRun.objects.filter(id=run.id).update(hold_until=timezone.now() - timedelta(seconds=1)); answer_review.release_due(); run.refresh_from_db()
-
-# Runs left over by earlier test files (shared testbed DB): let them finish now so they do not count here
-AIRun.objects.filter(hold_until__isnull=False).update(hold_until=timezone.now() - timedelta(seconds=1))
-answer_review.release_due(); sms.clear(); telegram.clear()
+    if run:
+        run.refresh_from_db()
+    return telegram[-1]['text'] if telegram else ''
+def triage(**fields):
+    base = {'primary_type': 'LEGAL_OR_CONTRACT', 'secondary_types': [], 'priority': 'routine', 'case_status': 'ACKNOWLEDGED',
+            'issue_refs': [], 'owner': 'Kevin', 'next_action': 'Kevin: confirm the answer', 'tenant_deadline': '',
+            'verified_facts': [], 'uncertainties': [], 'no_reply_reason': ''}
+    base.update(fields); return base
 
 SUGGESTED = "Per your agreement, cancelling within 30 days of arrival means the deposit is not refunded."
 BASIS = 'CANCELLATION OF CONTRACT: "cancellations within 30 days of arrival forfeit the deposit"'
 def legal(extra_actions=(), answer=SUGGESTED):
-    return {'answer': answer, 'why': 'legal question about cancellation', 'needs_manager_confirmation': True,
-            'contract_basis': BASIS, 'actions': [
-                {'type': 'CREATE_ISSUE', 'temp_id': 'new-1', 'summary': 'Tenant asks about cancellation refund', 'owner': 'Kevin',
-                 'state': 'WAITING_FOR_KEVIN'},
-                {'type': 'INTERNAL_ALERT', 'issue_id': 'new-1', 'priority': 'routine', 'responsible': ['Kevin'],
-                 'text': 'legal question: cancellation refund'}, *extra_actions]}
+    return dict(triage(), answer=answer, why='legal question about cancellation', needs_manager_confirmation=True,
+                contract_basis=BASIS, actions=[*extra_actions])
+def plain(answer, **tri):
+    return dict(triage(primary_type='PROPERTY_FACTS', owner='Edy', **tri), answer=answer, why='kb', actions=[],
+                needs_manager_confirmation=False, contract_basis='')
 
-# ---- 1. legal question: suggested answer held, alert says it waits for a manager -------------------
+# ---- 1. legal question: the suggested answer waits for a press, with its contract basis ---------------
 r1 = run_with(SID, "If I cancel now do I get my deposit back?", legal())
-a1 = next(t for t, _ in reversed(telegram) if "deposit back" in t)
-if os.environ.get('SHOW_ALERT'): print(a1 + "\n=====")
+a1 = alert_of(r1)
+if os.environ.get('SHOW_ALERT'): print(a1['text'] + "\n=====")
 check("nothing sent at once", not sms)
 check("run is held and marked as needing a manager", r1.hold_status == 'holding' and r1.review.get('needs_confirmation') is True
       and r1.review.get('contract_basis') == BASIS, (r1.hold_status, r1.review))
-check("alert: LEGAL header right under the title, not even after the window",
-      a1.splitlines()[2].startswith("⚖️ LEGAL QUESTION - NEEDS MANAGER CONFIRMATION") and "NOT even after the 15-min review window" in a1, a1)
-check("alert: suggested answer + contract basis, plan runs by itself EXCEPT the legal answer",
-      "SUGGESTED answer based on the contract" in a1 and SUGGESTED in a1 and f"📄 Contract basis: {BASIS}" in a1
-      and "except the legal answer" in a1 and "Send this answer to the tenant" not in a1, a1)
+check("the AI's triage is stored on the run", r1.triage.get('primary_type') == 'LEGAL_OR_CONTRACT' and r1.triage.get('owner') == 'Kevin', r1.triage)
+check("alert: the suggested answer and the contract basis right under it, with Send Answer / Edit Answer",
+      f'🤖 "{SUGGESTED}" 🤖' in a1['text'] and f"⚖️ Contract: {BASIS}" in a1['text']
+      and [b['text'] for b in buttons(a1['markup'])][:2] == ['🤖 Send Answer', '✏️ Edit Answer'], a1)
 chat_why = json.dumps(TwilioMessage.objects.filter(conversation_sid=SID).order_by('-id').first().__dict__, default=str)
 check("CRM chat page marks it as a legal suggestion", "LEGAL - SUGGESTED ANSWER" in chat_why, chat_why[:400])
 
-# ---- 2. window ends: the plan runs, the answer does NOT ----------------------------------------------
-expire(r1)
-done = telegram[-1][0]
-check("window over: plan applied, answer still held, no SMS", not sms and r1.hold_status == 'holding'
-      and r1.review['plan']['status'] == 'applied' and AIIssue.objects.filter(created_by_run_id=r1.id).exists(), (sms, r1.hold_status))
-check("thread is told the legal answer still waits", "⚖️ Answer: NOT sent - legal question" in done, done)
+# ---- 2. no timer: hours later the worker still sends nothing --------------------------------------------
+AIRun.objects.filter(id=r1.id).update(created_at=timezone.now() - timedelta(hours=5))
 before = len(telegram)
-answer_review.release_due(now=timezone.now() + timedelta(hours=5))
-check("hours later: still not sent and not picked again", not sms and len(telegram) == before
-      and AIRun.objects.get(id=r1.id).hold_status == 'holding')
-check("status text for a 'test' reply says it waits for a manager",
-      "LEGAL - waits for a manager" in answer_review._answer_status(AIRun.objects.get(id=r1.id)))
+service.fire_due_followups(); drain(); answer_review.retry_failed_sends(now=timezone.now() + timedelta(hours=5))
+r1.refresh_from_db()
+check("hours later: still not sent, nothing posted again", not sms and r1.hold_status == 'holding' and len(telegram) == before)
 
-# ---- 3. manager "ok" sends it -------------------------------------------------------------------------
-t = reply(r1, "ok")
-check("'ok' sends the suggested answer", sms == [(SID, SUGGESTED)] and r1.hold_status == 'sent', (sms, t))
+# ---- 3. the manager presses Send Answer: the suggested answer goes out ------------------------------------
+t = press(r1, 'sa')
+check("Send Answer sends the suggested answer", sms == [(SID, SUGGESTED)] and r1.hold_status == 'sent', (sms, t))
+check("the button shows who sent it, the press is logged with the name",
+      buttons(markups[-1][1])[0]['text'].startswith("✅ Answer sent · Kevin") and r1.review['decisions'][-1]['by'] == 'Kevin', markups[-1:])
+t = press(r1, 'sa', who="Edy")
+check("a second press only says who did it", t.startswith("already done by Kevin") and len(sms) == 1, t)
 
-# ---- 4. manager correction sends the corrected text instead --------------------------------------------
+# ---- 4. Edit Answer: the manager's own text is shown with its own Send button, sent on the press ---------
 sms.clear()
 r2 = run_with(SID2, "Can I break my lease early?", legal(answer="Early termination costs two months of rent."))
-expire(r2)
-check("still held after the window", not sms and r2.hold_status == 'holding')
-t = reply(r2, "tell her the fee is one month rent", decision='replace', corrected_answer="The early termination fee is one month of rent.")
-check("correction is sent instead", sms == [(SID2, "The early termination fee is one month of rent.")] and r2.hold_status == 'corrected', (sms, t))
+press(r2, 'ea')
+prompt_id = r2.review['replace_prompts'][-1]
+check("Edit Answer asks for the text with a force-reply message", telegram[-1]['markup'].get('force_reply'), telegram[-1])
+FIXED = "The early termination fee is one month of rent."
+t = reply_to_message(r2, prompt_id, FIXED, decision='replace', corrected_answer=FIXED)
+proposal = r2.review['proposals'][-1]
+check("the written text is a NEW ANSWER with its own Send button - NOT sent yet",
+      "✏️ NEW ANSWER" in t and FIXED in t and not sms and r2.hold_status == 'holding'
+      and [b['text'] for b in buttons(telegram[-1]['markup'])] == ['🤖 Send Answer'], t)
+press(r2, 'ps', proposal['id'], message_id=proposal['message_id'])
+check("its Send sends the manager's text instead of the AI answer", sms == [(SID2, FIXED)] and r2.hold_status == 'corrected', sms)
 
-# ---- 5. a follow-up message can not slip the legal answer out through the normal timer ------------------
+# ---- 5. a follow-up message can not slip the legal answer out: the new answer inherits the confirmation ---
 sms.clear()
 r3 = run_with(SID3, "What is the fine for smoking?", legal(answer="The contract sets a $500 fine for smoking."))
-r4 = run_with(SID3, "hello??", {'answer': "The contract sets a $500 fine for smoking. Anything else?", 'why': 'follow-up', 'actions': []})
+r4 = run_with(SID3, "hello??", plain("The contract sets a $500 fine for smoking. Anything else?"))
 r3.refresh_from_db()
+check("the new run was told the legal draft is replaced and must be repeated (PENDING_PROPOSAL, LEGAL)",
+      "PENDING_PROPOSAL" in inputs_seen[-1] and "[LEGAL - needs_manager_confirmation]" in inputs_seen[-1], inputs_seen[-1][-600:])
 check("newer answer replaces the legal draft and inherits the manager confirmation",
-      r3.hold_status == 'superseded' and r4.hold_status == 'holding' and r4.review.get('needs_confirmation') is True, (r3.hold_status, r4.review))
-expire(r4)
-check("inherited: not sent after the window", not sms and r4.hold_status == 'holding')
-r5 = run_with(SID3, "thanks", {'answer': "You're welcome!", 'why': 'thanks', 'actions': []})
-check("pending input tells the AI the draft is LEGAL", "[LEGAL - waits for a manager to confirm]" in (answer_review.pending_block(SID3) or '')
-      and r5.review.get('needs_confirmation') is True)
-reply(r5, "don't send")
-check("\"don't send\" cancels it", not sms and AIRun.objects.get(id=r5.id).hold_status == 'cancelled')
+      r3.hold_status == 'superseded' and r3.review.get('stale') == r4.id and r4.hold_status == 'holding'
+      and r4.review.get('needs_confirmation') is True, (r3.hold_status, r4.review))
+check("the older alert says Outdated and has no buttons", r3.review.get('outdated', '').startswith("⚠️ Outdated")
+      and (r3.telegram_message_id, None) in markups, r3.review.get('outdated'))
+t = press(r3, 'sa')
+check("a press on the outdated alert is refused, nothing sent", 'Outdated' in t and not sms, t)
+t = reply_to_message(r3, r3.telegram_message_id, "is this urgent?")
+check("a typed reply to the outdated alert points to the newer one", "outdated" in t and "newer one" in t, t)
 
-# ---- 6. Telegram down: a legal answer is NOT sent without review (normal answers are) -------------------
-tg_fail[0] = True
-r6 = run_with(SID2, "Am I liable for the broken window?", legal(answer="Per the contract, damage is charged to the tenant."))
-tg_fail[0] = False
-check("Telegram down: legal answer stays held, error reported", not sms and r6.hold_status == 'holding'
-      and any("LEGAL answer waits for a manager" in t for t, _ in telegram))
+# ---- 6. final recheck: the tenant wrote again after the proposal -> Send is refused --------------------------
+r5 = run_with(SID, "Where do I put the trash?", plain("The trash room is next to the elevator."))
+say(SID, "Actually where is the recycling?", enqueue=False)
+t = press(r5, 'sa')
+check("final recheck: the tenant wrote again after the proposal -> Send is refused, nothing sent",
+      'wrote again' in t and r5.hold_status == 'holding' and len(sms) == 0, (t, sms))
+TwilioMessage.objects.filter(body="Actually where is the recycling?").delete()
 
-# ---- 7. test mode: same, and "ok" never goes to Twilio -------------------------------------------------
-r7 = run_with(SID_TEST, "Can I sublet the unit?", legal(answer="Subletting is not allowed under your agreement."))
-expire(r7)
-check("test mode: held after the window", r7.hold_status == 'holding' and not sms)
-reply(r7, "ok")
-check("test mode 'ok': final, nothing to Twilio", AIRun.objects.get(id=r7.id).hold_status == 'sent' and not sms)
+# ---- 7. a team member answered in the chat before the press -> the AI answer is not sent ---------------------
+r6 = run_with(SID5, "Is parking free?", plain("Yes, parking is free."))
+say(SID5, "Spot 12, blue sign. - Edy", author=STAFF_AUTHOR, enqueue=False)
+t = press(r6, 'sa')
+check("staff answered in the chat meanwhile -> Send does not send, the button says the team answered",
+      not sms and r6.hold_status == 'suppressed' and "team answered" in t, (r6.hold_status, t))
 
-# ---- 8. a normal (non-legal) answer still goes out when the window ends ----------------------------------
+# ---- 8. a send that fails after the press is retried once, 3 minutes later -----------------------------------
+sms_fail[0] = 1
+r7 = run_with(SID5, "What's the wifi password?", plain("It's on the fridge."))
+t = press(r7, 'sa')
+check("failed send after the press: FAILED, the group is told, a retry is scheduled",
+      r7.hold_status == 'failed' and r7.review.get('retry') and "Could not send" in telegram[-1]['text'], (r7.hold_status, t))
+answer_review.retry_failed_sends(now=timezone.now() + timedelta(minutes=4)); r7.refresh_from_db()
+check("the retry 3 minutes later sends it", r7.hold_status == 'sent' and sms[-1] == (SID5, "It's on the fridge.")
+      and 'Retry worked' in telegram[-1]['text'], (r7.hold_status, telegram[-1]['text']))
+
+# ---- 9. test apartment: same alert, marked TEST; a pressed Send really sends (rule 1.1.2) ----------------------
 sms.clear()
-r8 = run_with(SID, "What's the wifi password?", {'answer': "It's on the fridge.", 'why': 'wifi', 'actions': [],
-                                                  'needs_manager_confirmation': False, 'contract_basis': ''})
-expire(r8)
-check("non-legal answer: sent by the timer as before", sms == [(SID, "It's on the fridge.")] and not r8.review.get('needs_confirmation'))
+r8 = run_with(SID_TEST, "Can I sublet the unit?", legal(answer="Subletting is not allowed under your agreement."))
+check("test mode: held, nothing sent, the alert says TEST", r8.hold_status == 'holding' and not sms and "🧪 TEST" in alert_of(r8)['text'])
+press(r8, 'sa')
+check("test mode: Send Answer sends for real", r8.hold_status == 'sent' and sms == [(SID_TEST, "Subletting is not allowed under your agreement.")], sms)
 
-# ---- 9. contract text for the agent: bank lines and links removed ----------------------------------------
+# ---- 10. Telegram down: nobody can press, so nothing is sent; the error alert says so ------------------------------
+sms.clear(); tg_fail[0] = True
+r9 = run_with(SID2, "Am I liable for the broken window?", legal(answer="Per the contract, damage is charged to the tenant."))
+tg_fail[0] = False
+check("Telegram down: the answer stays held, nothing sent, error reported",
+      not sms and r9.hold_status == 'holding' and any("could NOT be posted for approval" in e for e in errors), errors[-1:])
+
+# ---- 11. emergency: no press needed - answer sent, actions done, plain alert, Farid phoned ----------------------------
+dialled.clear(); AIAlertCall.objects.all().delete()
+r10 = run_with(SID3, "There is smoke coming from the oven!", dict(triage(primary_type='URGENT_PROPERTY_OR_ACCESS', priority='emergency',
+               owner='Edy'), answer="Please get to safety and call 911 now. We've alerted the team.", why='emergency', actions=[
+               {'type': 'CREATE_ISSUE', 'temp_id': 'new-1', 'summary': 'Smoke from oven', 'owner': 'Edy', 'state': 'MAINTENANCE_OPEN'},
+               {'type': 'INTERNAL_ALERT', 'issue_id': 'new-1', 'priority': 'emergency', 'responsible': ['Edy', 'Kevin'], 'text': 'smoke'}]))
+alert10 = alert_of(r10)['text'] if r10.telegram_message_id else telegram[-1]['text']
+check("emergency: safety reply sent at once, issue opened at once, Farid phoned",
+      sms[-1] == (SID3, "Please get to safety and call 911 now. We've alerted the team.")
+      and AIIssue.objects.filter(summary='Smoke from oven').exists() and dialled == ['+15614603904'], (sms[-1:], dialled))
+check("emergency: no plan waits for a press; the plain alert says what was done",
+      not (r10.review or {}).get('plan') and alert10.startswith('🚨 EMERGENCY') and "sent to the tenant" in alert10, alert10[:400])
+
+# ---- 12. the worker reading Telegram: offset, replies it can not place, other chats, old-format buttons ----------------
+r11 = run_with(SID2, "Is the pool heated?", plain("Yes, it is heated all year."))
+before_calls = len(interpreter_out)
+updates.append({'update_id': 8800, 'message': {'message_id': 1, 'chat': {'id': -500}, 'from': {}, 'text': 'hello team', 'date': 0}})
+answer_review.poll_telegram()
+check("the offset is saved past the last update (a reply is never applied twice)", answer_review._read_offset() == 8801)
+n_tg = len(telegram)
+reply_to_message(r11, r11.telegram_message_id, "stop", chat=-999)
+check("replies in other chats and plain messages are ignored", len(telegram) == n_tg and r11.hold_status == 'holding'
+      and len(interpreter_out) == before_calls)
+t = reply_to_message(None, 424242, "what about this?")
+check("a reply to a bot message that belongs to no alert gets a hint, nothing else", t == answer_review.NO_RUN_HINT, t)
+n_tg = len(telegram)
+reply_to_message(None, 424243, "a reply to a person, not to the bot", parent_is_bot=False)
+check("a reply to someone else's message that belongs to no alert stays silent", len(telegram) == n_tg)
+t = press(r11, 'a', '', prefix='v4')
+check("a press on a button of the old card only says it can not be used, nothing sent",
+      'old format' in t and r11.hold_status == 'holding' and markups[-1] == (r11.telegram_message_id, None), t)
+approval._update_review(r11, style='v4')   # a run made before the simple alerts
+t = reply_to_message(r11, r11.telegram_message_id, "send it")
+check("a typed reply to an alert of the old format says so, nothing sent", "old format" in t and r11.hold_status == 'holding', t)
+
+# ---- 13. contract text for the agent: bank lines and links removed ----------------------------------------
 contract._get = lambda path: ({'status': 'completed', 'completed_at': '2026-09-24T19:22:14Z', 'template': {'id': 1, 'name': 'Occupancy'},
                                'documents': [{'url': 'https://docuseal.com/file/x'}],
                                'submitters': [{'status': 'completed', 'values': [

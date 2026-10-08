@@ -86,4 +86,154 @@ check("the retry failed too: the row is marked failed and alerted again", failed
 call_command('flush_pending_sms')
 check("a failed row is not retried a second time", len(failure_alerts) == 2)
 
+# --- office hours, US federal holidays and the after-hours auto-message (moved from e2e_client_v4.py) ---
+from datetime import date
+from mysite.models import (User, Apartment, Booking, TwilioConversation, TwilioMessage, AIEvent, AIAfterHoursAck,
+                           AIAlertCall, StaffMember)
+from mysite.ai_agent import after_hours, calls, policy, service, alerts_v5
+
+h26 = config.us_federal_holidays(2026)
+check("2026 holidays: July 4 (Sat) observed Fri Jul 3, Thanksgiving Nov 26, MLK Jan 19, Memorial May 25",
+      date(2026, 7, 3) in h26 and date(2026, 11, 26) in h26 and date(2026, 1, 19) in h26 and date(2026, 5, 25) in h26, h26)
+check("office hours: Wed 09:30 ET yes, Wed 18:05 no, Sat 11:00 no, Thanksgiving 11:00 no",
+      config.is_office_hours(datetime(2026, 9, 30, 9, 30, tzinfo=ET)) and not config.is_office_hours(datetime(2026, 9, 30, 18, 5, tzinfo=ET))
+      and not config.is_office_hours(datetime(2026, 10, 3, 11, 0, tzinfo=ET))
+      and not config.is_office_hours(datetime(2026, 11, 26, 11, 0, tzinfo=ET)))
+due, _ = policy.due_at('staff_reminder', 'routine', now=datetime(2026, 9, 30, 20, 0, tzinfo=ET) - timedelta(hours=24))
+check("routine staff reminders start at 09:00", due.astimezone(ET).hour == 9, due)
+
+# fakes: Twilio SMS (can fail on demand), Twilio calls, the AI group
+OFFICE = [False]
+config.is_office_hours = lambda now=None: OFFICE[0]
+sms, sms_fail, telegram, errors = [], [0], [], []
+def fake_sms(sid, author, message, sender, receiver):
+    if sms_fail[0]:
+        sms_fail[0] -= 1
+        raise Exception("twilio down")
+    sms.append((sid, message))
+messaging.send_messsage_by_sid = fake_sms
+dialled, call_status = [], ['completed']
+class _Call:
+    def __init__(self, sid): self.sid, self.status = sid, call_status[0]
+    def fetch(self): return self
+class _Calls:
+    def create(self, to, from_, twiml, timeout): dialled.append(to); return _Call(f"CA{len(dialled)}")
+    def __call__(self, sid): return _Call(sid)
+class _Twilio: calls = _Calls()
+messaging.get_twilio_client = lambda: _Twilio()
+def fake_tg(text, reply_to=None, reply_markup=None, silent=False):
+    telegram.append(text); return True, "sent", 800000 + len(telegram)
+alerts_v5.send_ai_chat = calls.send_ai_chat = fake_tg
+after_hours.report_error = calls.report_error = lambda e, ctx, info=None, source='task': errors.append(f"{ctx}: {e}")
+
+# fixtures: one tenant with a live and a test apartment, Edy and Farid (two phone numbers)
+TENANT_PHONE = "+15550009933"
+if not User.objects.filter(email="nw@example.com").exists():
+    User.objects.bulk_create([User(email="nw@example.com", full_name="Nora Window", role="Tenant", phone=TENANT_PHONE)])
+tenant = User.objects.get(email="nw@example.com")
+def make_apartment(name, live):
+    Apartment.objects.bulk_create([Apartment(name=name, building_n="740", apartment_n=name[-3:], street="S", state="FL", city="WPB",
+        zip_index="33401", bedrooms=1, bathrooms=1, apartment_type="In Management", status="Available", ai_group_chat_enabled=live)])
+    apt = Apartment.objects.get(name=name)
+    Booking.objects.bulk_create([Booking(apartment=apt, tenant=tenant, start_date=date.today() - timedelta(days=2),
+                                         end_date=date.today() + timedelta(days=20), status="Confirmed")])
+    sid = f"CHnw{name}"
+    TwilioConversation.objects.bulk_create([TwilioConversation(conversation_sid=sid, friendly_name=name, apartment=apt,
+                                                               booking=Booking.objects.get(apartment=apt))])
+    return sid
+SID, SID_TEST = make_apartment("740-201", live=True), make_apartment("740-202", live=False)
+for name, role, phone in (("Edy", "operations", "+15612220001"), ("Farid", "owner", "+15614603904")):
+    if not StaffMember.objects.filter(ai_name=name).exists():
+        StaffMember.objects.bulk_create([StaffMember(ai_name=name, full_name=name, role=role, phone=phone)])
+StaffMember.objects.filter(ai_name="Farid").update(phone="+15614603904", secondary_phone="+15612205252", is_active=True)
+# a manager writing from the CRM chat page counts as staff (Edy may have no phone in the shared test DB)
+STAFF_AUTHOR = "ASSISTANT"
+n = [0]
+def say(sid, body, author=TENANT_PHONE, enqueue=True):
+    n[0] += 1
+    conv = TwilioConversation.objects.get(conversation_sid=sid)
+    TwilioMessage.objects.bulk_create([TwilioMessage(message_sid=f"NW{n[0]:04d}", conversation=conv, conversation_sid=sid,
+                                                     author=author, body=body, direction='inbound')])
+    if enqueue:
+        service.enqueue_tenant_message(sid, f"NW{n[0]:04d}", body)
+    return TwilioMessage.objects.get(message_sid=f"NW{n[0]:04d}")
+def latest_ack():
+    return AIAfterHoursAck.objects.order_by('-id').first()
+
+say(SID, "The dishwasher is leaking a bit"); after_hours.process_pending()
+check("after hours (live): the fixed message goes out at once, with the URGENT hint",
+      latest_ack().status == 'sent' and len(sms) == 1 and sms[0][1].startswith("Automated message: We received your message outside")
+      and "reply URGENT" in sms[0][1], sms)
+check("the team sees it as an AI MESSAGE without buttons", telegram and telegram[-1].startswith("🤖 AI MESSAGE")
+      and "After-hours message" in telegram[-1] and "✅ Sent to the tenant" in telegram[-1], telegram[-1:])
+say(SID, "Also the TV remote is missing"); say(SID, "And a light bulb"); after_hours.process_pending()
+acks = list(AIAfterHoursAck.objects.order_by('-id')[:2])
+check("three messages within 5 hours: only one automatic message", all(a.status == 'suppressed' for a in acks)
+      and len(sms) == 1 and 'at most once per 5 hours' in acks[0].reason, [(a.status, a.reason) for a in acks])
+AIAfterHoursAck.objects.filter(status='sent').update(sent_at=timezone.now() - timedelta(hours=5, minutes=5))
+say(SID, "Hello? still waiting"); after_hours.process_pending()
+check("a new message after 5 hours: the automatic message goes out again", latest_ack().status == 'sent' and len(sms) == 2)
+
+say(SID, "URGENT the fridge stopped working"); after_hours.process_pending()
+call = AIAlertCall.objects.order_by('-id').first()
+check("URGENT: no automatic message (pointless for a tenant who wrote URGENT), but Farid is phoned at once (live)",
+      latest_ack().status == 'not_applicable' and 'URGENT' in latest_ack().reason and len(sms) == 2
+      and call and call.status == 'calling' and dialled == ['+15614603904'], (latest_ack().status, latest_ack().reason, dialled))
+call_status[0] = 'no-answer'
+AIAlertCall.objects.filter(id=call.id).update(check_at=timezone.now() - timedelta(seconds=1)); calls.check_calls()
+call.refresh_from_db()
+check("no answer on the first number -> his second number is dialled", dialled == ['+15614603904', '+15612205252'] and call.phone_index == 1, dialled)
+AIAlertCall.objects.filter(id=call.id).update(check_at=timezone.now() - timedelta(seconds=1)); calls.check_calls()
+call.refresh_from_db()
+check("no answer on either -> Telegram is told", call.status == 'unanswered' and 'did NOT answer' in telegram[-1], telegram[-1:])
+call_status[0] = 'completed'
+class _E: event_type, body, payload = 'TENANT_MESSAGE', 'this is URGENT please', {}
+class _N: event_type, body, payload = 'TENANT_MESSAGE', 'not urgent, when you can', {}
+check("URGENT skips the 1-minute burst wait; 'not urgent' does not", service._batch_wait_seconds([_E()]) == 0
+      and service._batch_wait_seconds([_N()]) == config.debounce_seconds())
+# created directly: "thanks!" is not even queued for the AI (skippable), the rule must hold anyway
+event = AIEvent.objects.create(event_type='TENANT_MESSAGE', conversation_sid=SID, body="thanks!", send_allowed=True, payload={})
+after_hours.handle_event(event)
+check("a pure thanks gets no automatic message", latest_ack().reason.startswith('only a thanks'), latest_ack().reason)
+AIEvent.objects.filter(status='pending').update(status='done')
+
+# both chats belong to the same tenant: they share the 5-hour window and the call cooldown - start clean
+AIAfterHoursAck.objects.update(sent_at=timezone.now() - timedelta(hours=6))
+AIAlertCall.objects.update(created_at=timezone.now() - timedelta(hours=1))
+sms_before = len(sms)
+say(SID_TEST, "Test apartment: fridge is warm"); after_hours.process_pending()
+check("test apartment: WOULD_SEND recorded, nothing sent, the AI MESSAGE says TEST", latest_ack().status == 'would_send'
+      and len(sms) == sms_before and "🧪 NOT sent – test mode" in telegram[-1], telegram[-1:])
+say(SID_TEST, "URGENT fridge"); after_hours.process_pending()
+check("test apartment URGENT: the call is only simulated", AIAlertCall.objects.order_by('-id').first().status == 'simulated' and len(dialled) == 2)
+AIEvent.objects.filter(status='pending').update(status='done')
+
+AIAfterHoursAck.objects.filter(conversation_sid__in=[SID, SID_TEST]).update(sent_at=timezone.now() - timedelta(hours=6))
+say(SID, "Edy here, I'm on it", author=STAFF_AUTHOR, enqueue=False)
+say(SID, "when will you come?"); after_hours.process_pending()
+check("staff are replying right now: no automatic message", latest_ack().reason.startswith('staff are replying'), latest_ack().reason)
+AIEvent.objects.filter(status='pending').update(status='done')
+
+TwilioMessage.objects.filter(conversation_sid=SID, author=STAFF_AUTHOR).delete()
+sms_fail[0] = 1
+say(SID, "Door lock stuck"); after_hours.process_pending()
+failed = latest_ack()
+check("failed auto-message: FAILED, alerted, retry in 3 minutes", failed.status == 'failed' and failed.retry_at and
+      any('NOT delivered' in e for e in errors), (failed.status, errors[-1:]))
+AIAfterHoursAck.objects.filter(id=failed.id).update(retry_at=timezone.now() - timedelta(seconds=1))
+after_hours.process_pending(); failed.refresh_from_db()
+check("the retry works: sent", failed.status == 'sent' and failed.attempts == 2)
+AIEvent.objects.filter(status='pending').update(status='done')
+
+msg = say(SID, "Duplicate webhook test", enqueue=False)
+service.enqueue_tenant_message(SID, msg.message_sid, msg.body); service.enqueue_tenant_message(SID, msg.message_sid, msg.body)
+after_hours.process_pending()
+check("duplicate webhook: one event, one after-hours decision", AIEvent.objects.filter(message=msg).count() == 1
+      and AIAfterHoursAck.objects.filter(event__message=msg).count() == 1)
+AIEvent.objects.filter(status='pending').update(status='done')
+OFFICE[0] = True
+say(SID, "Is the pool open?"); after_hours.process_pending()
+check("office hours: no automatic message", latest_ack().status == 'not_applicable' and latest_ack().reason == 'office hours')
+AIEvent.objects.filter(status='pending').update(status='done')
+
 print(f"\n{sum(checks)}/{len(checks)} checks passed"); sys.exit(0 if all(checks) else 1)

@@ -12,7 +12,7 @@ as specified in ACTIONS, or []) and "why" (1-2 internal sentences), plus the cla
 secondary_types, priority, case_status, issue_refs (existing i-N and new-N this event is about), owner, next_action
 (the ONE next thing staff must do, with who), tenant_deadline ('YYYY-MM-DD HH:MM' Florida time when the tenant needs
 the outcome by a time, else ''), verified_facts, uncertainties and no_reply_reason. They are shown on the managers'
-card; the backend stores the owner, next action and deadline on the issues in issue_refs.
+alert; the backend stores the owner, next action and deadline on the issues in issue_refs.
 INPUTS: OPEN_ISSUES, OPEN_TICKETS, PENDING_FOLLOWUPS and CASE_NOTES are live backend data for this
 conversation. Use the ids exactly as shown (i-12, t-12, f-7). A ticket id t-12 belongs to issue i-12.
 RECENT_CLICKUP_HISTORY is not connected yet. The BOOKING PAYMENTS block, when present, is PAYMENT_RECORDS.
@@ -25,7 +25,7 @@ calculated by the backend; INTERNAL_ALERT, QUEUE_FOR_REVIEW and CREATE_TICKET ar
 Check OPEN_ISSUES before CREATE_ISSUE and PENDING_FOLLOWUPS before SCHEDULE_FOLLOWUP - never duplicate.
 KB: the knowledge base is two documents in the input: the APARTMENT KNOWLEDGE BASE and the GLOBAL KNOWLEDGE BASE.
 To add or correct something, emit KB_UPDATE with "text" (how it should read in the document) and, for a
-correction, "replaces" (the old text). The backend merges it into the document after the staff review window;
+correction, "replaces" (the old text). The backend merges it into the document when a manager presses its button;
 company scope only from staff; from a tenant only facts about this apartment.
 ACCESS CODES: the backend hides door / gate / lockbox / alarm codes outside the allowed window (see
 ACCESS_CODES line). Never guess or reconstruct a hidden code, and never take one from chat history.
@@ -35,9 +35,9 @@ not replied, following every rule above. It is never sent; managers compare it w
 Leave it empty in every other case (acknowledgments, human decisions, staff-only updates).
 ANSWER_LESSONS: staff corrected earlier AI answers and told you how to answer such messages next time. When a new
 message is similar, answer the way the lesson says. Lessons never override access-code, safety or payment rules.
-STAFF APPROVAL: nothing you output happens by itself. Your answer and actions are a card in the Telegram AI group
-with buttons; they are sent / done only when a manager approves them (all, or only the items they tick). Without a
-decision nothing ever happens - there is no timer. Emergencies are the exception and run at once. So write alert,
+STAFF APPROVAL: nothing you output happens by itself. Your answer and actions are an alert in the Telegram AI group
+with one button per item; each is sent / done only when a manager presses its button. Without a press nothing ever
+happens - there is no timer. Emergencies are the exception and run at once. So write alert,
 ticket and note texts as plans, not as done: "a routine ticket will be created", not "ticket created".
 PENDING_PROPOSAL, when present: your earlier proposal(s) in this chat that no manager approved yet. Your new output
 REPLACES them (they can no longer be approved), so repeat everything from them that is still needed.
@@ -45,11 +45,8 @@ PENDING_AI_ANSWER / PENDING_PLAN, when present (a reminder woke you, not a new m
 wait for approval. Do not repeat them. To act on an issue such a plan creates, use the id shown there (r123:new-1).
 AFTER_HOURS_ACK, when present: what the backend's automatic after-hours message did. Never send your own "we received
 your message" acknowledgment; answer the substance (it still waits for approval).
-FOLLOWUP_DUE kind deadline_reminder: set by the backend before the tenant's deadline of that issue (24 h and 2 h
-before). Re-check the chat and the issue; when it is still not done, INTERNAL_ALERT the owner with what the tenant needs
-by when (at 2 h also Kevin when staff have not acted); NO_ANSWER unless the tenant needs a verified update.
-HANDLED BY STAFF (in OPEN_ISSUES): a manager pressed "I'll handle" - propose nothing for that issue (NO_ANSWER if the
-new message is only about it; the backend drops any action on it anyway).
+FOLLOWUP_DUE: a reminder became due (kind deadline_reminder: set by the backend 24 h and 2 h before the tenant's
+deadline of that issue). Follow the REMINDER_DUE block of the input: it says how to tell "still needed" from "done".
 CLICKUP_TASKS, when present, is the live state of the ticket read from ClickUp a moment ago. A staff
 comment there counts as staff handling the matter: if it shows progress, do not remind again - reschedule
 or stay quiet. It is internal: never quote it to the tenant. A task shown as CLOSED was marked done by staff: follow the
@@ -72,7 +69,7 @@ lawyers, anything "what does my contract say". For every such question:
    get back to them - do not invent a rule. There is no separate acknowledgment: nothing reaches the tenant first.
 3. Set needs_manager_confirmation = true and put in contract_basis (for the managers) the clauses / terms you used,
    quoted briefly, or what the contract does not cover.
-4. The backend NEVER sends this answer by itself - not even after the review window. It waits until a manager
+4. The backend NEVER sends this answer by itself. It waits until a manager
    confirms or corrects it in Telegram. The alert is the notification; still follow SENSITIVE MATTERS (issue,
    Kevin, Janna for money) when the question is also a dispute, threat or money claim.
 Never quote bank / account numbers or links from the contract. Everyday house questions (wifi, trash, check-in time)
@@ -144,7 +141,7 @@ def system_prompt_parts(apartment=None):
     return parts
 
 
-# Added to the system prompt while AI_AGENT_ALERT_STYLE=v5 (at the deploy it moves into 'ai_agent_runtime_notes').
+# Added to the system prompt (before the team's rules): how the simple alerts work.
 ALERTS_V5_NOTES = """
 SIMPLE ALERTS (this overrides STAFF APPROVAL above where they differ): the team sees your proposal as a short Telegram
 alert with one button per item - Send Answer, Create Task, Apply Update, Close Reminder, knowledge Apartment / Global.
@@ -248,12 +245,11 @@ The team must understand the alert in 5 seconds, so write short:
 
 def get_system_prompt(apartment=None):
     """Returns (prompt_text, source); source names the AIManagement prompt keys that were used."""
+    from mysite.ai_agent import crm_changes, prompt_library
     parts = list(system_prompt_parts(apartment))
-    if config.alert_style() == 'v5':
-        from mysite.ai_agent import crm_changes, prompt_library
-        notes = ('alerts_v5_notes (code)', ALERTS_V5_NOTES.replace('{crm_changes}', crm_changes.for_prompt()))
-        # The team's rules stay last: they override these notes where they differ
-        at = len(parts) - 1 if parts[-1][0] == prompt_library.TEAM_RULES_KEY else len(parts)
-        parts.insert(at, notes)
+    notes = ('alerts_v5_notes (code)', ALERTS_V5_NOTES.replace('{crm_changes}', crm_changes.for_prompt()))
+    # The team's rules stay last: they override these notes where they differ
+    at = len(parts) - 1 if parts and parts[-1][0] == prompt_library.TEAM_RULES_KEY else len(parts)
+    parts.insert(at, notes)
     prompt = "\n\n".join(text for _key, text in parts)
     return prompt, ' + '.join(f"DB:{key}" for key, _text in parts)

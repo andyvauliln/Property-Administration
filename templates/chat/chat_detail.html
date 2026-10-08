@@ -267,10 +267,6 @@
             <div class="mx-4 mt-3 rounded-lg border border-purple-300 bg-purple-50 px-4 py-2 text-sm text-purple-800 dark:border-purple-700 dark:bg-purple-900/30 dark:text-purple-200">
                 AI is in <strong>test mode</strong> for this apartment — replies appear below your message but are not sent to SMS. Enable real group chat AI answers on the apartment to send the next answer.
             </div>
-            {% elif not ai_assistant_enabled %}
-            <div class="mx-4 mt-3 rounded-lg border border-purple-300 bg-purple-50 px-4 py-2 text-sm text-purple-800 dark:border-purple-700 dark:bg-purple-900/30 dark:text-purple-200">
-                AI is in <strong>test mode</strong> globally — replies appear below your message but are not sent to SMS. Use “Send as Client” to simulate a tenant message.
-            </div>
             {% endif %}
             {% include "components/ai_activity_panel.html" %}
         </div>

@@ -1,5 +1,5 @@
 """
-The simple Telegram alerts (claude_code_integration_doc/simple_telegram_alerts.md), used while AI_AGENT_ALERT_STYLE=v5.
+The simple Telegram alerts (claude_code_integration_doc/simple_telegram_alerts.md).
 
     📨 TENANT MESSAGE · 6 Oct, Tue 14:34 ET
 
@@ -37,8 +37,8 @@ they are created at once, the button closes them.
 The run keeps its proposal as before (AIRun.review['plan']: the AI's actions). What is new is that each action is
 carried out on its own: a finished action gets a 'done' entry {'by', 'at', 'label', ...}.
 
-Built so far: the tenant-message alert and typed replies to it. Team messages, reminders and AI messages still use
-the old card.
+Built: tenant / team message alerts, automatic notifications, reminders that become due (C1-C8, D5, D6), the
+after-hours AI MESSAGE, typed replies. An emergency (done at once) still gets the plain alert of team_notify.
 """
 import re
 from datetime import timedelta
@@ -58,7 +58,7 @@ FOOTER = "↩ Reply to this message for questions, notes or custom actions."
 AUTO = 'automatic'   # who "did" what the backend does by itself
 
 
-NOTIFICATION = 'NOTIFICATION_DUE'   # AIEvent.event_type of an automatic notification handed to the AI (no model change needed)
+NOTIFICATION = 'NOTIFICATION_DUE'   # AIEvent.TYPE_NOTIFICATION_DUE: an automatic notification handed to the AI
 # The automatic notifications of the sms_notifications job (prompt_key of their sms_template): label on the alert,
 # and why the job planned it - told to the AI
 NOTIFICATIONS = {
@@ -76,9 +76,9 @@ NOTIFICATIONS = {
 
 
 def applies(meta):
-    """True when this run's alert is a simple alert: a tenant message, a team message in a tenant chat, or an
-    automatic notification. (Reminders that become due still use the old card - not rebuilt yet.)"""
-    return config.alert_style() == 'v5' and (meta or {}).get('event_type') in ('TENANT_MESSAGE', 'STAFF_MESSAGE', NOTIFICATION)
+    """True when this run's alert is a simple alert: a tenant message, a team message in a tenant chat, an automatic
+    notification, or a reminder that became due."""
+    return (meta or {}).get('event_type') in ('TENANT_MESSAGE', 'STAFF_MESSAGE', NOTIFICATION, REMINDER)
 
 
 def notification_of(events):
@@ -137,10 +137,10 @@ def deliver_notification(info, parsed, mode, send_to, booking):
     apartment -> it waits for a press. Returns the delivery dict of the run."""
     from mysite.ai_agent import service
     if info['held']:
-        return {'sent_to_chat': False, 'held': True, 'hold_until': None, 'send_to': send_to,
+        return {'sent_to_chat': False, 'held': True, 'send_to': send_to,
                 'note': f"automatic notification HELD by the AI: {info['reason']}"[:250]}
     if mode != 'live':
-        return {'sent_to_chat': False, 'held': True, 'hold_until': None, 'send_to': send_to,
+        return {'sent_to_chat': False, 'held': True, 'send_to': send_to,
                 'note': 'automatic notification: test apartment - not sent by itself, waits for Send now'}
     result = service.send_answer(send_to, parsed['answer'], 'Virtual Assistant', None, booking)
     result['send_to'] = send_to
@@ -151,6 +151,353 @@ def deliver_notification(info, parsed, mode, send_to, booking):
     else:
         info['failed'] = str(result.get('error'))[:200]
     return result
+
+
+# ---------------------------------------------------------------------------
+# Reminders that become due (part 5 of the document, C1-C8, D5, D6)
+# ---------------------------------------------------------------------------
+REMINDER = 'FOLLOWUP_DUE'
+TENANT_KINDS = ('tenant_nudge', 'second_tenant_nudge')
+RETRY_AFTER = timedelta(minutes=3)   # a live tenant reminder that could not be sent is tried once more (D6)
+TEST_REMINDER = "Test reminder asked by"   # the case of a 🧪 Send test reminder press (run_operation)
+# What the AI may still propose on a reminder: a real change somebody has to press for
+_REMINDER_WORK = ('CREATE_TICKET', 'TICKET_COMMENT', 'UPDATE_TICKET', 'CRM_CHANGE', 'KB_UPDATE')
+
+
+def reminder_of(events, ticket_states=None):
+    """The reminder this batch is about ({'followup_id', 'kind', 'reason', 'n', 'last', ...}), or None.
+    ticket_states: {issue id: ClickUp task state} read just before (service.check_tickets_before_reminder)."""
+    from mysite.models import AIEvent, AIFollowUp
+    ids = [(e.payload or {}).get('followup_id') for e in events if e.event_type == AIEvent.TYPE_FOLLOWUP_DUE]
+    followup = AIFollowUp.objects.filter(id__in=[i for i in ids if i]).select_related('issue').order_by('id').first()
+    if not followup:
+        return None
+    deadline = followup.kind == AIFollowUp.KIND_DEADLINE_REMINDER
+    info = {'followup_id': followup.id, 'public_id': followup.public_id, 'kind': followup.kind,
+            'reason': (followup.reason or 'Reminder').strip(), 'due': followup.due_at.isoformat(),
+            'to_tenant': followup.kind in TENANT_KINDS, 'deadline': deadline}
+    issue = followup.issue
+    if issue:
+        info.update(issue_id=issue.public_id, issue_pk=issue.id, summary=issue.summary, owner=issue.owner,
+                    priority=issue.priority)
+        if deadline and issue.tenant_deadline:
+            hours = round((issue.tenant_deadline - followup.due_at).total_seconds() / 3600)
+            info.update(deadline_at=issue.tenant_deadline.isoformat(), before='2 h' if hours <= 6 else '24 h')
+        series = issue.followups.exclude(kind=AIFollowUp.KIND_DEADLINE_REMINDER) \
+            .exclude(status=AIFollowUp.STATUS_CANCELLED, status_note__startswith='alert outdated')
+        # the team's reminders and the tenant's are two series of the case, each 1/2 and 2/2
+        series = series.filter(kind__in=TENANT_KINDS) if info['to_tenant'] else series.exclude(kind__in=TENANT_KINDS)
+        series = list(series.order_by('id').values_list('id', flat=True))
+        position = series.index(followup.id) + 1 if followup.id in series else 1
+        state = (ticket_states or {}).get(issue.id)
+        if state and not state.get('error'):
+            last = (state.get('comments') or [None])[-1]
+            info['task'] = {'title': issue.ticket_title or issue.summary, 'status': state.get('status'),
+                            'closed': bool(state.get('closed')), 'updated': state.get('updated'),
+                            'last_comment': f"{last.get('when')} {last.get('user')}".strip() if last else None}
+    else:
+        family = TENANT_KINDS if info['to_tenant'] else (followup.kind,)
+        position = AIFollowUp.objects.filter(conversation_sid=followup.conversation_sid, kind__in=family,
+                                             reason=followup.reason, id__lte=followup.id).count()
+    info.update(n=min(position, 2), last=position >= 2 and not deadline)
+    return info
+
+
+def reminder_block(info):
+    """What the AI is told about the reminder that became due (it decides: still needed, or already done)."""
+    target = ("to the TENANT (a message the team asked the tenant for)" if info['to_tenant']
+              else f"before the tenant's deadline ({info.get('before', '')} before)" if info['deadline'] else "for the TEAM")
+    return (
+        f"REMINDER_DUE: the reminder {info['public_id']} ({info['kind']}, {info['n']}/2) {target} became due now: "
+        f"\"{info['reason']}\"" + (f" - case {info['issue_id']} \"{info.get('summary')}\"" if info.get('issue_id') else '') + ".\n"
+        "Nobody wrote a new message. Re-check RECENT_CHAT_HISTORY (all chats of this tenant), OPEN_ISSUES and CLICKUP_TASKS: "
+        "is what the reminder is about still not done?\n"
+        "- ALREADY DONE or NO LONGER NEEDED (the tenant sent / did it, the team confirmed it in the chat, a ClickUp comment "
+        "shows it is handled, the plan changed) -> answer NO_ANSWER, next_action '', NO actions, and no_reply_reason = one "
+        "sentence what shows it is done (\"Vera sent the meter photo at 17:00\"). The reminder then closes quietly.\n"
+        + ("- STILL NEEDED -> \"answer\" = a short, friendly reminder to the tenant about exactly what the team asked for "
+           "(one or two sentences, the language of the chat, the tenant's first name). No new facts, promises, payment "
+           "details or questions. next_action = what the tenant still owes.\n" if info['to_tenant'] else
+           "- STILL NEEDED -> answer NO_ANSWER (the reminder is for the team) and next_action = what must be done now and "
+           "by whom, one sentence. Add an action only when something NEW must be pressed (a comment on the task, a CRM "
+           "change).\n")
+        + "Never SCHEDULE_FOLLOWUP (the backend times the next reminder) and never INTERNAL_ALERT (the reminder alert itself "
+          "tells the team). When CLICKUP_TASKS shows the task CLOSED, follow the instruction on its line."
+    )
+
+
+def settle_reminder(info, parsed, mode):
+    """After the AI decided: still needed (an alert / an automatic message) or already done (closed quietly, C5)."""
+    triage = parsed.get('triage') or {}
+    work = [a for a in parsed.get('actions') or [] if isinstance(a, dict) and a.get('type') in _REMINDER_WORK]
+    task = info.get('task') or {}
+    needed = bool(parsed.get('answer') or str(triage.get('next_action') or '').strip() or work or task.get('closed'))
+    done_note = str(triage.get('no_reply_reason') or parsed.get('why') or '').strip()
+    return dict(info, needed=needed, at=timezone.now().isoformat(), mode=mode,
+                next_action=str(triage.get('next_action') or '').strip(), done_note='' if needed else done_note)
+
+
+def deliver_reminder(info, parsed, mode, send_to, booking, deliver):
+    """A tenant reminder that is still needed: live -> sent now (D5; inside SMS hours, else at 08:00), a failed send is
+    tried again in 3 minutes (D6); test -> it waits for 🤖 Send now (C4). Anything else as every answer (deliver()).
+    Returns the delivery dict of the run."""
+    from mysite.ai_agent import service
+    if not (info['to_tenant'] and info['needed'] and parsed.get('answer')):
+        return deliver()
+    if mode != 'live':
+        return {'sent_to_chat': False, 'held': True, 'send_to': send_to,
+                'note': 'tenant reminder: test apartment - not sent by itself, waits for Send now'}
+    result = service.send_answer(send_to, parsed['answer'], 'Virtual Assistant', None, booking)
+    result['send_to'] = send_to
+    if result.get('sent_to_chat'):
+        info['sent_at'] = timezone.now().isoformat()
+    elif not result.get('error'):
+        info['waits_until'] = config.next_notification_window_start().isoformat()
+    else:
+        info.update(failed=str(result.get('error'))[:200], retry_at=(timezone.now() + RETRY_AFTER).isoformat())
+    return result
+
+
+def close_done_reminder(conversation_sid, info):
+    """The AI found the reminder already done (C5): no alert. The next reminder of the same case goes too, and the alert
+    that showed the reminder says so on its button."""
+    from mysite.models import AIFollowUp
+    note = f"done: {info.get('done_note') or 'no longer needed'}"[:255]
+    AIFollowUp.objects.filter(id=info['followup_id']).update(status_note=note, updated_at=timezone.now())
+    if info.get('issue_pk'):
+        kinds = TENANT_KINDS if info['to_tenant'] else ('staff_reminder', 'escalation_check')
+        AIFollowUp.objects.filter(issue_id=info['issue_pk'], kind__in=kinds, status=AIFollowUp.STATUS_PENDING).update(
+            status=AIFollowUp.STATUS_CANCELLED, status_note=note, updated_at=timezone.now())
+    reminder_closed_elsewhere(conversation_sid, info['followup_id'], f"done – checked {_hm()}")
+
+
+def _next_day_10(kind):
+    """When the 2/2 reminder (and "Remind again in 24 hours") fires: the next day 10:00 - for the team the next working day."""
+    from datetime import datetime, time
+    from mysite.ai_agent import policy
+    local = _local(timezone.now())
+    moment = datetime.combine(local.date() + timedelta(days=1), time(10, 0), tzinfo=local.tzinfo)
+    return moment if kind in TENANT_KINDS else policy._office_moment(moment)
+
+
+def _plan_next_reminder(ctx, info):
+    """1/2 is due and still needed: the 2/2 of the case is set for the next day (rule 1.3.2), unless one is pending."""
+    from mysite.models import AIFollowUp
+    if info['n'] != 1 or info['deadline'] or (info.get('task') or {}).get('closed') or info.get('next') \
+            or str(info.get('summary') or '').startswith(TEST_REMINDER):
+        return   # a test reminder from Telegram (run_operation) shows the alert once
+    kind = 'second_tenant_nudge' if info['to_tenant'] else 'staff_reminder'
+    pending = AIFollowUp.objects.filter(issue_id=info['issue_pk'], status=AIFollowUp.STATUS_PENDING,
+                                        kind__in=TENANT_KINDS if info['to_tenant'] else ('staff_reminder', 'escalation_check')) \
+        .order_by('due_at').first() if info.get('issue_pk') else None
+    if not pending:
+        pending = AIFollowUp.objects.create(
+            conversation_sid=ctx.conversation_sid, issue_id=info.get('issue_pk'), kind=kind, reason=info['reason'],
+            due_at=_next_day_10(kind), created_by_run=ctx.ai_run)
+    info['next'] = {'followup_id': pending.id, 'due': pending.due_at.isoformat()}
+
+
+def _when(moment):
+    """'tomorrow 10:00', 'today 16:34', 'Mon 10:00'."""
+    local, today = _local(moment), _local(timezone.now()).date()
+    if local.date() == today + timedelta(days=1):
+        return f"tomorrow {local:%H:%M}"
+    return _day_time(moment)
+
+
+def _reminder_head(info, live, priority):
+    if info['deadline']:
+        place = f"deadline in {info.get('before') or 'soon'}" + (" · @Kevin" if info.get('before') == '2 h' else '')
+    elif info['to_tenant'] and not live:
+        place = f"{info['n']}/2 (to tenant)"
+    elif info['last']:
+        place = "2/2 (last)"
+    elif info.get('next'):
+        from datetime import datetime
+        place = f"1/2 (2/2 {_when(datetime.fromisoformat(info['next']['due']))})"
+    else:
+        place = f"{info['n']}/2"
+    return [URGENCY.get(priority, URGENCY['routine']), place]
+
+
+def reminder_priority(info, triage):
+    rank = ['routine', 'urgent', 'emergency']
+    found = [p for p in (info.get('priority'), (triage or {}).get('priority')) if p in rank]
+    if info['deadline']:
+        found.append('urgent')   # something must be ready for the tenant soon
+    return max(found or ['routine'], key=rank.index)
+
+
+def compose_reminder(ctx, ai_run, parsed, delivery, actions):
+    """⏰ REMINDER (C1, C2, C4, C6, C7), or 🤖 AI MESSAGE for a live tenant reminder the AI sent by itself (D5, D6)."""
+    from datetime import datetime
+    from mysite.ai_agent import team_notify
+    from mysite.models import AIRun
+    meta = ctx.meta
+    info, live = meta['reminder'], meta.get('mode') == 'live'
+    review = ai_run.review or {}
+    done = review.get('answer_done') or {}
+    auto = info['to_tenant'] and live and parsed.get('answer')
+    priority = reminder_priority(info, parsed.get('triage'))
+    head = [f"🏠 {meta.get('apartment')}", f"👤 {meta.get('tenant') or 'Unknown'}"]
+    if auto:
+        head.append(f"⏰ Reminder {info['n']}/2 auto-sent" if info.get('sent_at') or info.get('retried') == 'sent'
+                    else f"⏰ Reminder {info['n']}/2")
+    else:
+        head += _reminder_head(info, live, priority)
+    if not live:
+        head.append("🧪 TEST")
+    title = "🤖 AI MESSAGE" if auto else "⏰ REMINDER"
+    lines = [f"{title} · {_stamp(datetime.fromisoformat(info['at']))}", "", " · ".join(head), "", LINE]
+    if not info['to_tenant']:
+        owner = info.get('owner') or (parsed.get('triage') or {}).get('owner')
+        text = str(info.get('summary') if info['deadline'] else info['reason']).rstrip('. ')
+        lines.append(f"⏰ {text}" + (f" (for {owner})" if owner else "") + " ⏰")
+        if info['deadline'] and info.get('deadline_at'):
+            when = _local(datetime.fromisoformat(info['deadline_at']))
+            lines.append(f"   tenant deadline {when:%a} {when.day} {when:%b %H:%M}")
+        task = info.get('task') or {}
+        if task and not task.get('closed'):
+            lines.append(f"   ClickUp: {task.get('status') or '?'} · "
+                         + (f"last comment {task['last_comment']}" if task.get('last_comment') else "no comment yet"))
+        lines.append(LINE)
+    task = info.get('task') or {}
+    if task.get('closed'):
+        lines += [f"🎫 Task \"{task['title']}\" was CLOSED ({task.get('status')}"
+                  + (f", {task['updated']}" if task.get('updated') else "") + ")", LINE]
+    talk = last_exchange(ai_run.conversation_sid, meta.get('tenant'), skip_text=ai_run.final_answer or parsed.get('answer'))
+    if talk:
+        lines += talk + [LINE]
+    if parsed.get('answer'):
+        lines += [f"🤖 \"{parsed['answer']}\" 🤖", LINE]
+        if auto:
+            if done:
+                status = done.get('label') or "✅ Sent"
+            elif info.get('sent_at'):
+                status = f"✅ Sent {_hm(datetime.fromisoformat(info['sent_at']))} – reminder {info['n']}/2 was due, still needed, nobody closed it"
+            elif info.get('waits_until'):
+                status = f"⏳ Will be sent {_hm(datetime.fromisoformat(info['waits_until']))} (SMS hours)"
+            elif info.get('retried') == 'sent':
+                status = f"✅ Sent on retry {_hm(datetime.fromisoformat(info['retried_at']))}"
+            elif info.get('retried') == 'failed':
+                status = f"❌ Retry failed – please send by hand ({info.get('failed')})"
+            elif info.get('failed'):
+                status = (f"❌ Could not send to {str(meta.get('tenant') or 'the tenant').split()[0]} ({info['failed']}) – "
+                          f"retry at {_hm(datetime.fromisoformat(info['retry_at']))}")
+            else:
+                status = "❌ Not sent"
+            lines.append(status)
+            if info.get('next') and not (review.get('reminder_done') or {}).get('closed'):
+                lines.append(f"⏰ Next: 2/2 {_when(datetime.fromisoformat(info['next']['due']))}")
+            lines.append(LINE)
+        elif info['to_tenant'] and not done and ai_run.hold_status != AIRun.HOLD_CANCELLED:
+            lines += ["🧪 Test mode: NOT sent automatically. Press to send for real.", LINE]
+    items = blocks(actions)
+    numbers = _numbered(items)
+    for kind, index, action in items:
+        lines += _block_lines(kind, action, numbers[index], ctx) + [LINE]
+    lines += [
+        "", FOOTER, "",
+        f"📤 AI sends to chat: {'ON (live)' if live else 'OFF (test)'} · 🎫 AI Auto ClickUp: {'ON' if clickup.writes_enabled(ctx.apartment) else 'OFF'}",
+        f"🔗 AI run: {team_notify.report_url(ai_run.id)}",
+        f"💬 CRM chat: {config.site_url()}/chat/{ai_run.conversation_sid}/",
+    ]
+    return "\n".join(lines)
+
+
+def reminder_buttons(run_id, info, state):
+    """The reminder's own row(s): ✅ Close Reminder, and on the last one ⏰ Remind again in 24 hours (C2)."""
+    state = state or {}
+    if info.get('to_tenant') and info.get('mode') == 'live' and not info.get('next'):
+        return []   # a live tenant reminder that was the last one: nothing left to stop
+    if state.get('closed'):
+        rows = [[_btn(state['closed'], 'dn', run_id, 'r')]]
+    else:
+        rows = [[_btn("✅ Close Reminder", 'rc', run_id)]]
+    if info.get('last') and not info.get('to_tenant'):
+        rows.append([_btn(state['again'], 'dn', run_id, 'g') if state.get('again') else _btn("⏰ Remind again in 24 hours", 'rg', run_id)])
+    return rows
+
+
+def close_due_reminder(run, author):
+    """✅ Close Reminder on a REMINDER alert: the reminders still pending for this case will not fire."""
+    from mysite.models import AIFollowUp
+    _, approval = _review()
+    review = run.review or {}
+    info = (review.get('meta') or {}).get('reminder') or {}
+    state = dict(review.get('reminder_done') or {})
+    if state.get('closed'):
+        return f"already done by {state.get('closed_by')} {_hm_of({'at': state.get('closed_at')})}"
+    pending = AIFollowUp.objects.filter(status=AIFollowUp.STATUS_PENDING)
+    if info.get('issue_pk'):
+        pending = pending.filter(issue_id=info['issue_pk'])
+        if not info.get('deadline'):
+            pending = pending.exclude(kind=AIFollowUp.KIND_DEADLINE_REMINDER)
+    else:
+        pending = pending.filter(id__in=[(info.get('next') or {}).get('followup_id') or 0])
+    pending.update(status=AIFollowUp.STATUS_CANCELLED, status_note=f"closed by {author} in Telegram"[:255], updated_at=timezone.now())
+    state.update(closed=f"✅ Reminder closed · {author}", closed_by=author, closed_at=timezone.now().isoformat())
+    approval._update_review(run, reminder_done=state)
+    _finish(run, None, author, 'close reminder')
+    refresh_alert(run)
+    return "Reminder closed"
+
+
+def remind_again(run, author):
+    """⏰ Remind again in 24 hours (only on the last reminder): one more reminder, the next day 10:00."""
+    from datetime import datetime
+    from mysite.models import AIFollowUp
+    _, approval = _review()
+    review = run.review or {}
+    info = (review.get('meta') or {}).get('reminder') or {}
+    state = dict(review.get('reminder_done') or {})
+    if state.get('again'):
+        return f"already done: {state['again']}"
+    if state.get('closed'):
+        return "The reminder was closed – nothing to remind again."
+    followup = AIFollowUp.objects.create(
+        conversation_sid=run.conversation_sid, issue_id=info.get('issue_pk'), kind=info.get('kind') or 'staff_reminder',
+        reason=info.get('reason') or 'Reminder', due_at=_next_day_10(info.get('kind')), created_by_run=run)
+    when = _when(followup.due_at)
+    state.update(again=f"⏰ Next: {when} · {author}", again_id=followup.id, again_due=followup.due_at.isoformat())
+    approval._update_review(run, reminder_done=state)
+    _finish(run, None, author, 'remind again', f"{followup.public_id} due {datetime.isoformat(followup.due_at)}")
+    return f"Next reminder {when}"
+
+
+def retry_due(only=None, skip_prefix=None):
+    """D6: a live tenant reminder that could not be sent is tried once more when its retry time came (worker tick).
+    only: these chats only (the sandbox runner); skip_prefix: chats the caller must not touch (the live worker skips the
+    sandbox chats). Returns how many were retried."""
+    from datetime import datetime
+    from mysite.models import AIRun
+    _, approval = _review()
+    runs = AIRun.objects.filter(event_type=REMINDER, review__style='v5', created_at__gte=timezone.now() - timedelta(days=1))
+    if only:
+        runs = runs.filter(conversation_sid__in=list(only))
+    count = 0
+    for run in runs.order_by('id'):
+        review = run.review or {}
+        meta = dict(review.get('meta') or {})
+        info = dict(meta.get('reminder') or {})
+        if (skip_prefix and run.conversation_sid.startswith(skip_prefix)) or not info.get('retry_at') or info.get('retried') \
+                or datetime.fromisoformat(info['retry_at']) > timezone.now():
+            continue
+        from mysite.ai_agent import service
+        result = service.send_answer(review.get('send_to') or run.conversation_sid, run.answer, 'Virtual Assistant', None)
+        if result.get('sent_to_chat') or not result.get('error'):
+            info.update(retried='sent', retried_at=timezone.now().isoformat())
+            AIRun.objects.filter(id=run.id).update(sent_to_chat=bool(result.get('sent_to_chat')), final_answer=run.answer,
+                                                   hold_status=AIRun.HOLD_SENT, delivery_note='sent on retry'[:255])
+        else:
+            info.update(retried='failed', retried_at=timezone.now().isoformat(), failed=str(result.get('error'))[:200])
+            # Nobody can be left without the message: it waits for 🤖 Send now (or a person sends it by hand)
+            AIRun.objects.filter(id=run.id).update(hold_status=AIRun.HOLD_HOLDING, delivery_note='retry failed - waits for Send now')
+        meta['reminder'] = info
+        approval._update_review(run, meta=meta)
+        refresh_alert(run)
+        count += 1
+    return count
 
 
 def _team(meta):
@@ -228,7 +575,8 @@ def prepare(actions, ctx, triage=None):
             action['case_owner'] = (issue.owner if issue else None) or next(
                 (a.get('owner') for a in actions if isinstance(a, dict) and a.get('type') == 'CREATE_ISSUE'
                  and str(a.get('temp_id')) == str(action.get('issue_id'))), None)
-        elif kind == 'UPDATE_ISSUE_STATE' and action.get('state') == 'RESOLVED' and issue and issue.ticket_ref:
+        elif kind == 'UPDATE_ISSUE_STATE' and action.get('state') == 'RESOLVED' and issue and issue.ticket_ref \
+                and not ((ctx.meta.get('reminder') or {}).get('task') or {}).get('closed'):   # C6: closed in ClickUp already
             action['closes_task'] = issue.ticket_title or issue.summary
             action['task_issue'] = issue.id
     # What has no block and no button is internal bookkeeping (the case itself, notes, a reminder that is no longer
@@ -236,7 +584,7 @@ def prepare(actions, ctx, triage=None):
     team = _team(ctx.meta)
     ctx.meta['v5_priority'] = (triage or {}).get('priority')
     if ctx.meta.get('event_type') == 'TENANT_MESSAGE':
-        _retire_older_reminders(ctx)
+        _retire_older_reminders(ctx, triage)
         _raise_cases(ctx, triage)
     resolving = {str(a.get('issue_id')) for a in actions if isinstance(a, dict) and a.get('closes_task')}
     closing = {a['task_issue'] for a in actions if isinstance(a, dict) and a.get('closes_task')}
@@ -295,6 +643,10 @@ def prepare(actions, ctx, triage=None):
                 action['label'] = crm_changes.check(ctx.booking, ctx.apartment, action)
             except agent_actions.ActionError as e:
                 action['removed_by'] = f"backend ({str(e)[:150]})"
+        elif kind == 'KB_UPDATE' and not str(action.get('text') or action.get('value') or '').strip():
+            action['removed_by'] = "backend (an empty fact is not shown)"
+        elif kind == 'KB_UPDATE' and _already_known(ctx, action):
+            action['removed_by'] = "backend (the knowledge base already says this)"
         elif kind == 'KB_UPDATE' and not str(action.get('source') or '').strip():
             action['removed_by'] = "backend (a fact without a source message is not shown)"
         elif kind in ('INTERNAL_ALERT', 'QUEUE_FOR_REVIEW'):
@@ -305,6 +657,15 @@ def prepare(actions, ctx, triage=None):
         for action in actions:   # the 24 h / 2 h deadline reminders follow this case up: no extra reminder next to them
             if isinstance(action, dict) and action.get('type') == 'SCHEDULE_FOLLOWUP' and not action.get('done') and not action.get('removed_by'):
                 action['removed_by'] = "backend (the deadline reminders cover this case)"
+    reminder = ctx.meta.get('reminder')
+    if reminder:
+        for action in actions:   # the backend times the reminders of a case (1/2, 2/2): the AI does not add more here
+            if isinstance(action, dict) and action.get('type') == 'SCHEDULE_FOLLOWUP' and not action.get('done'):
+                action['removed_by'] = "backend (the next reminder of the case is set by the backend)"
+        if reminder.get('needed'):
+            _plan_next_reminder(ctx, reminder)
+            reminder_closed_elsewhere(ctx.conversation_sid, reminder['followup_id'], 'the reminder alert',
+                                      label=f"⏰ Due {_hm()} – see the reminder alert")
     if ctx.meta.get('event_type') == 'TENANT_MESSAGE' and not any(isinstance(a, dict) and a.get('type') == 'DEADLINE' for a in actions):
         # Every case a tenant message opens is followed up: when the AI scheduled no reminder for it, the backend does
         # (rule 1.3.1 "created automatically when the case needs one" - the AI alone forgets it on some runs).
@@ -342,6 +703,17 @@ def prepare(actions, ctx, triage=None):
               number=f"{min(number, 2)}/2")
 
 
+def _already_known(ctx, action):
+    """The fact is already written in the apartment's or the global knowledge base (word for word, any case)."""
+    from mysite.views.messaging import get_global_knowledge_base_text
+
+    def plain(text):
+        return re.sub(r'\s+', ' ', str(text or '')).strip().lower()
+    fact = plain(action.get('text') or action.get('value'))
+    known = plain(getattr(ctx.apartment, 'knowledge_base', '')) + ' \n ' + plain(get_global_knowledge_base_text())
+    return bool(fact) and fact in known
+
+
 def _waiting_alerts(conversation_sid, before_run=None):
     """The simple alerts of this chat that still wait for a press (not outdated)."""
     from django.db.models import Q
@@ -353,14 +725,19 @@ def _waiting_alerts(conversation_sid, before_run=None):
     return [run for run in runs.order_by('id') if not (run.review or {}).get('stale')]
 
 
-def _retire_older_reminders(ctx):
-    """The tenant wrote again: the earlier alerts of this chat are outdated in a moment (A17). Their own reminders
-    that did not fire yet go with them - the new alert gets its own reminder, again 1/2."""
+def _retire_older_reminders(ctx, triage=None):
+    """The tenant wrote again about the SAME case: the earlier alerts of this chat are outdated in a moment (A17), and
+    their reminders for that case go with them - the new alert gets its own reminder, again 1/2. A reminder of another
+    case stays: "the balcony light is out" must not stop the reminder about the water meter photo."""
+    from mysite.ai_agent import cases
     from mysite.models import AIFollowUp
+    same = [i.id for i in cases.existing_issues(ctx.conversation_sid, (triage or {}).get('issue_refs'))]
+    if not same:
+        return
     for run in _waiting_alerts(ctx.conversation_sid, ctx.ai_run):
         ids = [a['done']['followup_id'] for a in ((run.review or {}).get('plan') or {}).get('actions') or []
                if isinstance(a, dict) and a.get('type') == 'SCHEDULE_FOLLOWUP' and (a.get('done') or {}).get('followup_id')]
-        AIFollowUp.objects.filter(id__in=ids, status=AIFollowUp.STATUS_PENDING).update(
+        AIFollowUp.objects.filter(id__in=ids, issue_id__in=same, status=AIFollowUp.STATUS_PENDING).update(
             status=AIFollowUp.STATUS_CANCELLED, status_note='alert outdated - the tenant wrote again, see the newer alert',
             updated_at=timezone.now())
 
@@ -379,9 +756,10 @@ def _raise_cases(ctx, triage):
             issue.save()
 
 
-def reminder_closed_elsewhere(conversation_sid, followup_id, why):
-    """A reminder shown on an earlier alert was closed by something else (the team answered, the case was solved):
-    its Close Reminder button shows that instead of pretending the reminder is still open."""
+def reminder_closed_elsewhere(conversation_sid, followup_id, why, label=None):
+    """A reminder shown on an earlier alert was closed by something else (the team answered, the case was solved), or
+    became due (label: "⏰ Due 16:34 – see the reminder alert"): its Close Reminder button shows that instead of
+    pretending the reminder is still open."""
     ar, _ = _review()
     for run in _waiting_alerts(conversation_sid):
         plan = ar._plan(run)
@@ -389,7 +767,7 @@ def reminder_closed_elsewhere(conversation_sid, followup_id, why):
         for action in plan.get('actions') or []:
             done = action.get('done') or {} if isinstance(action, dict) else {}
             if action.get('type') == 'SCHEDULE_FOLLOWUP' and done.get('followup_id') == followup_id and not done.get('closed'):
-                done.update(closed=f"✅ Reminder closed · {why}", closed_by=why, closed_at=timezone.now().isoformat())
+                done.update(closed=label or f"✅ Reminder closed · {why}", closed_by=why, closed_at=timezone.now().isoformat())
                 changed = True
         if changed:
             ar._save_plan(run, plan)
@@ -432,7 +810,7 @@ def _deadline(actions, ctx, triage):
         _ensure_issue(ctx, actions, {'issue_id': 'deadline-1'}, AUTO)
         opened()
     for issue in issues.values():
-        if issue.is_open and not issue.handled_by and issue.tenant_deadline != deadline:
+        if issue.is_open and issue.tenant_deadline != deadline:
             cases.apply_triage(issue, triage, ctx.ai_run, tenant_event=False)
     ids = list(AIFollowUp.objects.filter(issue_id__in=list(issues), kind=AIFollowUp.KIND_DEADLINE_REMINDER,
                                          status=AIFollowUp.STATUS_PENDING).values_list('id', flat=True))
@@ -531,8 +909,11 @@ def team_notes(actions):
             and not a.get('removed_by') and str(a.get('text') or '').strip()]
 
 
-def waiting(delivery, actions):
+def waiting(delivery, actions, meta=None):
     """True while something on the alert still waits for a press."""
+    reminder = (meta or {}).get('reminder') or {}
+    if reminder.get('needed') and reminder_buttons(0, reminder, None):
+        return True
     return bool((delivery or {}).get('held')) or any(
         not action.get('done') or (kind == 'reminder' and not action['done'].get('closed')) for kind, _, action in blocks(actions))
 
@@ -546,6 +927,8 @@ def closed_reminders(actions):
 def has_content(parsed, delivery, actions, meta=None):
     """An alert is posted only when the manager has something to decide or to know (rule 1.1.5). What the AI sends or
     holds by itself is always shown."""
+    if (meta or {}).get('reminder'):
+        return bool(meta['reminder'].get('needed'))   # already done: closed quietly, no alert (C5)
     return bool((meta or {}).get('notification')) or bool((parsed or {}).get('answer')) or bool(blocks(actions)) or bool(team_notes(actions))
 
 
@@ -782,6 +1165,8 @@ def compose(ctx, ai_run, parsed, delivery, actions):
 
     if ctx.meta.get('notification'):
         return compose_notification(ctx, ai_run, parsed, delivery, actions)
+    if ctx.meta.get('reminder'):
+        return compose_reminder(ctx, ai_run, parsed, delivery, actions)
     meta, triage = ctx.meta, parsed.get('triage') or {}
     live, team = meta.get('mode') == 'live', _team(meta)
     received = ai_run.message.message_timestamp if ai_run.message_id else timezone.now()
@@ -856,8 +1241,10 @@ def split_parts(text, limit=3800):
 # The buttons
 # ---------------------------------------------------------------------------
 
-def keyboard(run_id, answer_waiting, actions, answer_done=None, edit_by=None, send_label='🤖 Send Answer'):
-    """One row per kind of block; a finished button shows its result and only answers "already done"."""
+def keyboard(run_id, answer_waiting, actions, answer_done=None, edit_by=None, send_label='🤖 Send Answer', reminder=None,
+             reminder_state=None):
+    """One row per kind of block; a finished button shows its result and only answers "already done".
+    reminder: the due reminder of a REMINDER alert - its own buttons come last."""
     rows = []
     if answer_done:
         rows.append([_btn(answer_done['label'], 'dn', run_id, 'a')])
@@ -898,6 +1285,8 @@ def keyboard(run_id, answer_waiting, actions, answer_done=None, edit_by=None, se
         row += buttons
     if row:
         rows.append(row)
+    if reminder:
+        rows += reminder_buttons(run_id, reminder, reminder_state)
     return {'inline_keyboard': rows} if rows else None
 
 
@@ -909,11 +1298,18 @@ def keyboard_for(run):
     answer_done = review.get('answer_done')
     if not answer_done and run.hold_status in (AIRun.HOLD_SENT, AIRun.HOLD_CORRECTED):
         answer_done = {'label': "✅ Answer sent"}   # sent another way (the corrected text, a typed "ok")
+    meta = review.get('meta') or {}
+    reminder = meta.get('reminder')
+    if reminder and reminder.get('to_tenant') and reminder.get('mode') == 'live' and run.hold_status != AIRun.HOLD_HOLDING:
+        answer_done = None   # the AI sent it by itself (D5): the status line says so, no button
     return keyboard(run.id, run.hold_status == AIRun.HOLD_HOLDING, (review.get('plan') or {}).get('actions') or [],
-                    answer_done, review.get('edit_by'), send_label=_send_label((review.get('meta') or {}).get('notification')))
+                    answer_done, review.get('edit_by'), send_label=_send_label(meta.get('notification'), reminder),
+                    reminder=reminder, reminder_state=review.get('reminder_done'))
 
 
-def _send_label(notification):
+def _send_label(notification, reminder=None):
+    if reminder and reminder.get('to_tenant'):
+        return '🤖 Send now'
     if not notification:
         return '🤖 Send Answer'
     return '📤 Send anyway' if notification.get('held') else '🤖 Send now'
@@ -925,16 +1321,23 @@ def post(ctx, ai_run, parsed, delivery, actions):
     Returns (ok, note, message id of the part with the buttons)."""
     from mysite.ai_agent import cases
     triage = parsed.get('triage') or {}
-    note = ctx.meta.get('notification')
-    markup = keyboard(ai_run.id, bool(delivery.get('held')), actions, send_label=_send_label(note))
-    if note:
+    note, reminder = ctx.meta.get('notification'), ctx.meta.get('reminder')
+    auto = bool(reminder and reminder['to_tenant'] and ctx.meta.get('mode') == 'live' and not delivery.get('held'))
+    markup = keyboard(ai_run.id, bool(delivery.get('held')), actions, send_label=_send_label(note, reminder),
+                      reminder=reminder)
+    refs = list(triage.get('issue_refs') or [])
+    if reminder:
+        refs.append(reminder.get('issue_id'))
+        # urgent, an emergency or 2 h before a deadline: with sound; a message the AI sent by itself: none
+        loud = not auto and (reminder_priority(reminder, triage) != 'routine')
+    elif note:
         loud = bool(note.get('held'))   # held: somebody has to look; sent or test: no sound
     elif _team(ctx.meta):
         loud = any(kind == 'task' and action.get('priority') in ('urgent', 'emergency') for kind, _, action in blocks(actions))
     else:
         loud = (triage.get('priority') or 'routine') != 'routine'
     parts = split_parts(compose(ctx, ai_run, parsed, delivery, actions))
-    reply_to = cases.thread_for(ai_run.conversation_sid, triage.get('issue_refs'))
+    reply_to = cases.thread_for(ai_run.conversation_sid, [r for r in refs if r])
     result, earlier = (False, 'nothing to post', None), []
     for number, part in enumerate(parts, 1):
         last = number == len(parts)
@@ -1240,7 +1643,11 @@ def handle_callback(callback):
     if index is not None and index >= len(actions):
         return answer_callback(callback_id, 'This button is out of date')
     dialog = False
-    if code == 'dn':
+    if code == 'dn' and arg in ('r', 'g'):   # the reminder of a REMINDER alert: closed / reminded again
+        state = review.get('reminder_done') or {}
+        text = (f"already done by {state.get('closed_by')} {_hm_of({'at': state.get('closed_at')})}" if arg == 'r'
+                else f"already done: {state.get('again') or ''}").strip()
+    elif code == 'dn':
         done = review.get('answer_done') if arg == 'a' else (actions[index].get('done') or {})
         by = done.get('closed_by') or done.get('by')
         at = {'at': done.get('closed_at')} if done.get('closed_by') else done
@@ -1269,6 +1676,10 @@ def handle_callback(callback):
         text = apply_update(run, index, author)
     elif code == 'cr':
         text = close_reminder(run, index, author)
+    elif code == 'rc':
+        text = close_due_reminder(run, author)
+    elif code == 'rg':
+        text = remind_again(run, author)
     elif code in ('ka', 'kg'):
         text = save_knowledge(run, index, 'company' if code == 'kg' else 'apartment', author)
     elif code == 'cc':
@@ -1356,7 +1767,7 @@ def _plan_changes(run, plan_ops):
             continue
         if op.get('op') != 'change' or (done and kind != 'SCHEDULE_FOLLOWUP'):
             continue
-        fields = ar._changes_for(action, op)
+        fields = _changes_for(action, op)
         fields = {k: v for k, v in fields.items() if v and v != action.get(k)}
         if not fields:
             continue
@@ -1371,6 +1782,25 @@ def _plan_changes(run, plan_ops):
             lines = [f"{_block_label(action)}", f"   now:   {str(action.get(key) or '-')[:200]}", f"   after: {str(fields[key])[:200]}"]
         changes.append(("\n".join(lines), {'do': 'change', 'idx': item['idx'], 'fields': fields}))
     return changes
+
+
+def _changes_for(action, op):
+    """Fields of a plan change the reply interpreter read (plan_ops) -> the action's own field names."""
+    kind, out = action.get('type'), {}
+    value = {k: (op.get(k) or '').strip() for k in ('priority', 'title', 'text', 'value', 'state', 'owner')}
+    if value['priority'] and kind in ('CREATE_TICKET', 'INTERNAL_ALERT', 'QUEUE_FOR_REVIEW', 'CREATE_ISSUE'):
+        out['priority'] = value['priority']
+    if value['title']:
+        out['title' if kind == 'CREATE_TICKET' else 'summary'] = value['title']
+    if value['text']:
+        out[{'CREATE_TICKET': 'description', 'SCHEDULE_FOLLOWUP': 'reason'}.get(kind, 'text')] = value['text']
+    if value['value'] and kind == 'KB_UPDATE':
+        out['text'] = value['value']
+    if value['state'] and kind in ('UPDATE_ISSUE_STATE', 'CREATE_ISSUE'):
+        out['state'] = value['state']
+    if value['owner']:
+        out['responsible' if kind == 'CREATE_TICKET' else 'owner'] = [value['owner']] if kind == 'CREATE_TICKET' else value['owner']
+    return out
 
 
 def proposal_keyboard(run_id, proposal):
@@ -1390,8 +1820,40 @@ def proposal_keyboard(run_id, proposal):
             rows.append([_btn("🏠📚 Apartment" + (" ⭐" if star == 'apartment' else ""), 'pk', run_id, f"{pid}.{index}"),
                          _btn("🌍📚 Global" + (" ⭐" if star == 'global' else ""), 'pg', run_id, f"{pid}.{index}")])
     if proposal.get('changes'):
-        rows.append([_btn(done['apply'], 'pd', run_id, f"{pid}.apply") if done.get('apply') else _btn('✅ Apply Change', 'pa', run_id, pid)])
+        ops = [c.get('op') for c in proposal['changes'] if c.get('do') == 'operation']
+        label = OPERATIONS[ops[0]]['button'] if len(ops) == len(proposal['changes']) == 1 else '✅ Apply Change'
+        rows.append([_btn(done['apply'], 'pd', run_id, f"{pid}.apply") if done.get('apply') else _btn(label, 'pa', run_id, pid)])
     return {'inline_keyboard': rows} if rows else None
+
+
+# System operations a typed reply can start (AGENT_NOTE, OPERATIONS): what the bot says, the button, after the press
+OPERATIONS = {
+    'test_reminder': {
+        'line': "🧪 TEST REMINDER on the \"Sandbox Test\" apartment (test apartment: nothing reaches a tenant), due 1 minute "
+                "after the press",
+        'button': "🧪 Send test reminder",
+        'after': "After the press: in about 1 minute the ⏰ REMINDER alert comes to this group.",
+    },
+}
+
+
+def run_operation(op, author):
+    """One operation from OPERATIONS, after its press. Returns a note."""
+    from mysite.management.commands.ai_agent_sandbox import SANDBOX_SID
+    from mysite.models import AIFollowUp, AIIssue, TwilioConversation
+    if op != 'test_reminder':
+        return f"✗ unknown operation {op}"
+    conversation = TwilioConversation.objects.filter(conversation_sid=SANDBOX_SID).select_related('apartment', 'booking').first()
+    if not (conversation and conversation.apartment_id and conversation.booking_id):
+        return "✗ the Sandbox Test chat is not set up (run the sandbox story once)"
+    if conversation.apartment.ai_group_chat_enabled:
+        return "✗ the Sandbox Test apartment is in live mode - no test reminder (it could reach a tenant)"
+    issue = AIIssue.objects.create(conversation_sid=SANDBOX_SID, apartment=conversation.apartment, booking=conversation.booking,
+                                   summary=f"{TEST_REMINDER} {author} in Telegram", owner='Edy', mode='test')
+    followup = AIFollowUp.objects.create(
+        conversation_sid=SANDBOX_SID, issue=issue, kind=AIFollowUp.KIND_STAFF_REMINDER, due_at=timezone.now() + timedelta(minutes=1),
+        reason=f"Test reminder asked by {author}: show the reminder alert (always still needed)")
+    return f"test reminder {followup.public_id} due {_hm(followup.due_at)}"
 
 
 # Rules for the interpreter of every typed reply to a simple alert
@@ -1424,6 +1886,19 @@ HOW THE SYSTEM WORKS (facts for already / cannot):
   reads the chat's ClickUp tasks and their comments (EXISTING TASKS).
 - Test / live and ClickUp on / off are switched on the site, never from Telegram.
 - The AI's behaviour = its prompts in AI Management plus the ANSWER LESSONS and TEAM RULES the team adds from Telegram.
+- A reminder that becomes due is re-checked by the AI: already done -> closed quietly, no alert; still needed -> a
+  ⏰ REMINDER alert (✅ Close Reminder; the last one also ⏰ Remind again in 24 hours); a live tenant reminder is sent by
+  itself and shown as 🤖 AI MESSAGE. Alerts posted before 7 Oct 2026 16:26 ET have the old card format.
+- The worker always runs the code that is deployed: a restart does not change any alert or behaviour. Code changes are
+  made and deployed outside Telegram.
+OPERATIONS a reply can start (button under the bot's answer, done only after the press) - fill operations ONLY when the
+manager asks for one:
+- test_reminder: a test reminder on the "Sandbox Test" apartment (a test apartment: nothing reaches a tenant), due 1
+  minute after the press, so the team sees a ⏰ REMINDER alert in this group.
+A restart, a deploy or running the sandbox story is not an operation: say so in one sentence (cannot).
+HONESTY: answer questions only from the alert, the run and the facts above. When they do not show the cause, say "I do
+not know" and what you can see - never list guessed causes. Never send the manager to Andrei, Engineering, a developer
+or anybody else, in any field.
 """
 WRITTEN_NOTE = ("NOTE: the manager pressed Edit Answer and wrote this text as the exact message for the tenant: "
                 "decision = replace and corrected_answer = the text VERBATIM. When the text tells the tenant who comes or "
@@ -1474,6 +1949,8 @@ def handle_reply(run, text, author, at, reply_to=None, written=False):
     refused = str(decision.get('refused') or '').strip()
     cannot = str(decision.get('cannot') or '').strip()
     rules = [] if refused else [r for r in decision.get('agent_changes') or [] if isinstance(r, dict) and str(r.get('rule') or '').strip()]
+    for op in dict.fromkeys(o for o in decision.get('operations') or [] if o in OPERATIONS):
+        changes.append((OPERATIONS[op]['line'], {'do': 'operation', 'op': op}))
     for rule in rules:
         where = "this apartment only" if rule.get('scope') == 'apartment' else "all apartments"
         text = f"📏 AGENT RULE: \"{' '.join(str(rule['rule']).split())}\"\n   where: AI Management → Agent - team rules · {where}"
@@ -1508,6 +1985,7 @@ def handle_reply(run, text, author, at, reply_to=None, written=False):
             if kinds == {'team_rule'} else
             "After the press: the alert shows the new values. A task is still created only with 🎫 Create Task."
             if kinds <= {'change', 'remove'} else
+            OPERATIONS[changes[-1][1]['op']]['after'] if kinds == {'operation'} else
             "After the press: it is done for real."]
     if not lines:
         lines = ["🤔 I did not find anything to change in your reply, so nothing was changed.",
@@ -1667,6 +2145,8 @@ def press_proposal(run, code, arg, author):
             elif what == 'task_actions':
                 with clickup.pressed():
                     notes += ar.apply_task_actions(run, change['actions'], author, False)
+            elif what == 'operation':
+                notes.append(run_operation(change['op'], author))
             elif what == 'team_rule':
                 apartment = ar._apartment(run) if change.get('scope') == 'apartment' else None
                 detail = prompt_library.upsert_team_rule(apartment, change.get('key') or 'team_rule', change['rule'])

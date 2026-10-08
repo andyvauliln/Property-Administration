@@ -58,7 +58,6 @@ def ai_runs_view(request):
         'runs_count': runs.count(),
         'conversation_sid': conversation_sid,
         'pending_events': AIEvent.objects.filter(status__in=[AIEvent.STATUS_PENDING, AIEvent.STATUS_RUNNING]).count(),
-        'ai_backend': agent_config.get_ai_backend(),
         'agent_model': agent_config.get_agent_model(),
         'clickup_writes': agent_config.clickup_writes_enabled(),
     })
@@ -154,7 +153,6 @@ def ai_issue_resolve(request, issue_id):
         issue.state = AIIssue.STATE_RESOLVED
         issue.resolved_at = timezone.now()
         issue.reach_stage(AIIssue.STAGE_RESOLVED)
-        issue.handled_by = issue.handled_at = issue.handled_prev_state = None
         issue.save()
         issue.followups.filter(status=AIFollowUp.STATUS_PENDING).update(
             status=AIFollowUp.STATUS_CANCELLED, status_note='issue resolved by a manager', updated_at=timezone.now(),

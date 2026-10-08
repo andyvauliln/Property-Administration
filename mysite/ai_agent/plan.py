@@ -202,19 +202,3 @@ def render(items, removed_note=True):
     return lines
 
 
-def team_lines(items):
-    return [line for item in items if item['kind'] == 'team' for line in item['lines']]
-
-
-def info_lines(items):
-    return [line for item in items if item['kind'] == 'info' for line in item['lines']]
-
-
-def top_priority(items, actions):
-    rank = {'routine': 0, 'urgent': 1, 'emergency': 2}
-    best = None
-    for item in items:
-        priority = actions[item['idx']].get('priority') if isinstance(actions[item['idx']], dict) else None
-        if priority in rank and (best is None or rank[priority] > rank[best]):
-            best = priority
-    return best

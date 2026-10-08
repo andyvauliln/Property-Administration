@@ -7,7 +7,6 @@
             <div class="flex flex-wrap items-center justify-between gap-3">
                 <h2 class="text-lg font-semibold dark:text-white">AI agent runs</h2>
                 <div class="flex flex-wrap gap-2 text-xs">
-                    <span class="px-2 py-1 rounded bg-gray-100 dark:bg-gray-700 dark:text-gray-200">backend: <b>{{ ai_backend }}</b></span>
                     <span class="px-2 py-1 rounded bg-gray-100 dark:bg-gray-700 dark:text-gray-200">model: <b>{{ agent_model }}</b></span>
                     <span class="px-2 py-1 rounded {% if clickup_writes %}bg-gray-100 dark:bg-gray-700 dark:text-gray-200{% else %}bg-yellow-100 text-yellow-800{% endif %}">ClickUp writes: <b>{% if clickup_writes %}on{% else %}OFF{% endif %}</b>{% if not clickup_writes %} (test apartments still on){% endif %}</span>
                     <span class="px-2 py-1 rounded {% if pending_events %}bg-yellow-100 text-yellow-800{% else %}bg-gray-100 dark:bg-gray-700 dark:text-gray-200{% endif %}">queue: <b>{{ pending_events }}</b></span>

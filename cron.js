@@ -73,21 +73,21 @@ function executeCronCommand(commandName, command, cwd) {
 cron.schedule('0 8 * * *', function () {
     executeCronCommand(
         'Django telegram notification cron',
-        '/usr/bin/python3 /home/superuser/site/manage.py telegram_notifications',
+        '/home/superuser/site/venv/bin/python /home/superuser/site/manage.py telegram_notifications',
         '/home/superuser/site/'
     );
 }, { timezone: 'America/New_York' });
 cron.schedule('0 8 * * *', function () {
     executeCronCommand(
         'Django telegram notification cron FOR MANAGERS',
-        '/usr/bin/python3 /home/superuser/site/manage.py telegram_notifications_manager',
+        '/home/superuser/site/venv/bin/python /home/superuser/site/manage.py telegram_notifications_manager',
         '/home/superuser/site/'
     );
 }, { timezone: 'America/New_York' });
 cron.schedule('0 8 * * *', function () {
     executeCronCommand(
         'Django telegram notification cron FOR CLEANERS',
-        '/usr/bin/python3 /home/superuser/site/manage.py telegram_notifications_cleaning',
+        '/home/superuser/site/venv/bin/python /home/superuser/site/manage.py telegram_notifications_cleaning',
         '/home/superuser/site/'
     );
 }, { timezone: 'America/New_York' });
@@ -95,35 +95,35 @@ cron.schedule('0 8 * * *', function () {
 cron.schedule('0 8 * * *', function () {
     executeCronCommand(
         'Telegram Group: Cleaning',
-        '/usr/bin/python3 /home/superuser/site/manage.py telegram_group_cleaning',
+        '/home/superuser/site/venv/bin/python /home/superuser/site/manage.py telegram_group_cleaning',
         '/home/superuser/site/'
     );
 }, { timezone: 'America/New_York' });
 cron.schedule('0 8 * * *', function () {
     executeCronCommand(
         'Telegram Group: Checkout',
-        '/usr/bin/python3 /home/superuser/site/manage.py telegram_group_checkout',
+        '/home/superuser/site/venv/bin/python /home/superuser/site/manage.py telegram_group_checkout',
         '/home/superuser/site/'
     );
 }, { timezone: 'America/New_York' });
 cron.schedule('0 8 * * *', function () {
     executeCronCommand(
         'Telegram Group: Checkin',
-        '/usr/bin/python3 /home/superuser/site/manage.py telegram_group_checkin',
+        '/home/superuser/site/venv/bin/python /home/superuser/site/manage.py telegram_group_checkin',
         '/home/superuser/site/'
     );
 }, { timezone: 'America/New_York' });
 cron.schedule('0 8 * * *', function () {
     executeCronCommand(
         'Telegram Group: Payment',
-        '/usr/bin/python3 /home/superuser/site/manage.py telegram_group_payment',
+        '/home/superuser/site/venv/bin/python /home/superuser/site/manage.py telegram_group_payment',
         '/home/superuser/site/'
     );
 }, { timezone: 'America/New_York' });
 cron.schedule('0 8 * * *', function () {
     executeCronCommand(
         'Telegram Group: Tenant Reviews',
-        '/usr/bin/python3 /home/superuser/site/manage.py telegram_group_tenant_reviews',
+        '/home/superuser/site/venv/bin/python /home/superuser/site/manage.py telegram_group_tenant_reviews',
         '/home/superuser/site/'
     );
 }, { timezone: 'America/New_York' });
@@ -131,7 +131,7 @@ cron.schedule('0 8 * * *', function () {
 cron.schedule('0 8 * * *', function () {
     executeCronCommand(
         'SMS Notifications',
-        '/usr/bin/python3 /home/superuser/site/manage.py sms_notifications',
+        '/home/superuser/site/venv/bin/python /home/superuser/site/manage.py sms_notifications',
         '/home/superuser/site/'
     );
 }, { timezone: 'America/New_York' });
@@ -152,7 +152,7 @@ cron.schedule('*/5 * * * *', function () {
 cron.schedule('0 21 * * *', function () {
     executeCronCommand(
         'Data Integrity Check',
-        '/usr/bin/python3 /home/superuser/site/manage.py check_data_integrity',
+        '/home/superuser/site/venv/bin/python /home/superuser/site/manage.py check_data_integrity',
         '/home/superuser/site/'
     );
 }, { timezone: 'America/New_York' });
@@ -160,7 +160,7 @@ cron.schedule('0 21 * * *', function () {
 cron.schedule('0 9 * * *', function () {
     executeCronCommand(
         'Twilio Balance Check',
-        '/usr/bin/python3 /home/superuser/site/manage.py check_twilio_balance',
+        '/home/superuser/site/venv/bin/python /home/superuser/site/manage.py check_twilio_balance',
         '/home/superuser/site/'
     );
 }, { timezone: 'America/New_York' });
@@ -180,7 +180,7 @@ cron.schedule('*/5 * * * *', function () {
 cron.schedule('0 21 * * *', function () {
     executeCronCommand(
         'Daily Manager Activity Report',
-        '/usr/bin/python3 /home/superuser/site/manage.py telegram_manager_activity',
+        '/home/superuser/site/venv/bin/python /home/superuser/site/manage.py telegram_manager_activity',
         '/home/superuser/site/'
     );
 }, { timezone: 'America/New_York' });

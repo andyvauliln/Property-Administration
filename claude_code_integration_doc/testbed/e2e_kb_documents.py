@@ -1,6 +1,7 @@
 """
 The knowledge base is only the documents (one per apartment + the global one): the agent's KB_UPDATE merge and its
-guard, company scope, a tenant's held credential change + "approve N", chat-page "Generate" from a whole chat, and
+guard, company scope, a tenant's credential change that waits for the knowledge button of its simple alert, chat-page
+"Generate" from a whole chat, and
 no legacy AI when queueing fails. Throwaway DB; Claude, Telegram and Twilio faked.
 """
 import os, sys, django
@@ -16,7 +17,7 @@ from django.conf import settings as _s
 from django.test import Client
 from django.utils import timezone
 from mysite.models import User, Apartment, Booking, TwilioConversation, TwilioMessage, AIEvent, AIRun, StaffMember
-from mysite.ai_agent import service, runner, notify, config, inputs, kb_documents, answer_review, prompt_library
+from mysite.ai_agent import service, runner, notify, config, inputs, kb_documents, alerts_v5
 import mysite.ai_agent.team_notify as team_notify_mod
 import mysite.views.messaging as messaging
 
@@ -29,6 +30,8 @@ telegram = []
 fake_notify = lambda text: (telegram.append(text), (True, "captured"))[1]
 team_notify_mod.send_ai_chat = lambda t, reply_to=None: (*fake_notify(t), 900 + len(telegram))
 team_notify_mod.notify_ai_chat = fake_notify; notify.notify_ai_chat = fake_notify
+alerts_v5.send_ai_chat = lambda t, reply_to=None, reply_markup=None, silent=False: (*fake_notify(t), 900 + len(telegram))
+alerts_v5.edit_reply_markup = lambda *a, **k: None
 messaging.send_messsage_by_sid = lambda *a, **k: None
 script = []
 def fake_run_claude(system_prompt, user_input, conversation_sid, run_dir, until_message_id=None, model=None, images=None):
@@ -91,51 +94,56 @@ def doc():
     return Apartment.objects.get(id=apt.id).knowledge_base or ''
 def kb(text, replaces='', scope='apartment', source='Janna'):
     return {'type': 'KB_UPDATE', 'scope': scope, 'text': text, 'replaces': replaces, 'source': source}
+def press_kb(run, scope='apartment', author='Janna'):
+    """🏠📚 Apartment / 🌍📚 Global under the alert: the knowledge is saved only now. Returns (popup, done detail)."""
+    run = AIRun.objects.get(id=run.id)
+    actions = run.review['plan']['actions']
+    index = next(i for i, a in enumerate(actions) if a.get('type') == 'KB_UPDATE' and not a.get('done'))
+    popup = alerts_v5.save_knowledge(run, index, scope, author)
+    run.refresh_from_db()
+    return popup, (run.review['plan']['actions'][index].get('done') or {}).get('detail', '')
 
 # ---- 1. the merge guard ------------------------------------------------------------------------------
 m = msg("+15618438867", "the pool is now open 7-23", 'outbound'); service.enqueue_staff_message(SID, m.message_sid, m.body)
 merge_mode[0] = 'drops'
 script.append({'answer': 'NO_ANSWER', 'why': 'x', 'actions': [kb('Pool: 7-23')]})
 run = drain()[0]
+check("a staff fact waits for its knowledge button: nothing written by the run", doc() == DOC, doc())
+popup, detail = press_kb(run)
 check("a merge that drops most of the document is not trusted: the text is appended instead",
-      doc().startswith(DOC) and doc().endswith('Pool: 7-23') and 'appended' in run.actions[0]['detail'], (doc(), run.actions[0]['detail']))
+      popup == "Saved" and doc().startswith(DOC) and doc().endswith('Pool: 7-23') and 'appended' in detail, (popup, doc(), detail))
 merge_mode[0] = 'garbage'
 m = msg("+15618438867", "dishwasher tabs are under the sink", 'outbound'); service.enqueue_staff_message(SID, m.message_sid, m.body)
 script.append({'answer': 'NO_ANSWER', 'why': 'x', 'actions': [kb('Dishwasher tabs: under the sink')]})
-drain()
+press_kb(drain()[0])
 check("an unreadable merge answer also falls back to appending", doc().endswith('Dishwasher tabs: under the sink') and 'Trash room: floor 1' in doc())
 merge_mode[0] = 'good'
-check("the merge prompt got the document, the new text, who said it and the KB rules",
-      'Current document:\nWi-Fi: Net / pass1' in prompts_seen[-1] and '(from Janna)' in prompts_seen[-1] and 'Knowledge-base rules from staff' in prompts_seen[-1])
+check("the merge prompt got the document, the new text, who said it (the team message) and the KB rules",
+      'Current document:\nWi-Fi: Net / pass1' in prompts_seen[-1] and "(from Janna's message " in prompts_seen[-1] and 'Knowledge-base rules from staff' in prompts_seen[-1])
 
 # ---- 2. company scope from staff -> the global document -----------------------------------------------
 m = msg("+15618438867", "for all units: late checkout costs $20 per hour", 'outbound'); service.enqueue_staff_message(SID, m.message_sid, m.body)
 script.append({'answer': 'NO_ANSWER', 'why': 'x', 'actions': [kb('Late checkout: $20 per hour (all apartments).', scope='company')]})
-drain()
+press_kb(drain()[0], scope='company')
 check("company-wide knowledge from staff goes to the global document, not the apartment one",
       'Late checkout: $20 per hour' in messaging.get_global_knowledge_base_text() and 'Late checkout' not in doc())
 
-# ---- 3. a tenant's credential change waits for "approve N" in the Telegram review ---------------------------
-os.environ['AI_AGENT_REVIEW_HOLD_MINUTES'] = '15'
-os.environ['AI_AGENT_APPROVAL'] = 'timer'
+# ---- 3. a tenant's credential change waits for a manager's knowledge button -----------------------------------
 Apartment.objects.filter(id=apt.id).update(ai_group_chat_enabled=True)
-answer_review.run_interpreter = lambda prompt: {'decision': 'changes_only', 'corrected_answer': '', 'plan_ops': [
-    {'op': 'approve', 'n': 1, 'priority': '', 'title': '', 'text': '', 'value': '', 'state': '', 'owner': ''}],
-    'task_actions': [], 'new_facts': [], 'lesson': '', 'lesson_key': '', 'lesson_scope': 'company'}
 m = msg("+15550004411", "btw the wifi password on the router sticker is pass2")
 service.enqueue_tenant_message(SID, m.message_sid, m.body)
 script.append({'answer': 'Thanks!', 'why': 'x', 'actions': [kb('Wi-Fi: Net / pass2', replaces='Wi-Fi: Net / pass1', source='tenant')]})
 run = drain()[0]
 alert = next((t for t in reversed(telegram) if 'Wi-Fi: Net / pass2' in t), '')
-check("Telegram plan shows the knowledge update, marked FROM A TENANT and held for approval",
-      '📚 Update the 790-501 test knowledge base: Wi-Fi: Net / pass2' in alert and 'FROM A TENANT' in alert and 'approve N' in alert, alert)
-check("nothing is written before the window ends", 'pass2' not in doc())
-run = AIRun.objects.get(id=run.id)
-answer_review.handle_reply(run, "approve 1, the sticker is right", 'Kevin', timezone.now())
-AIRun.objects.filter(id=run.id).update(hold_until=timezone.now() - timedelta(seconds=1))
-answer_review.release_due()
-check("after 'approve 1' and the window, the tenant's correction is written", 'Wi-Fi: Net / pass2' in doc() and 'pass1' not in doc(), doc())
-os.environ['AI_AGENT_REVIEW_HOLD_MINUTES'] = '0'
+run.refresh_from_db()
+markup = alerts_v5.keyboard_for(run)
+labels = [b['text'] for row in (markup or {}).get('inline_keyboard', []) for b in row]
+check("the alert shows the tenant's knowledge update with its Apartment / Global buttons",
+      alert and '🏠📚 Apartment ⭐' in labels and '🌍📚 Global' in labels, (alert, labels))
+check("nothing is written before a manager presses", 'pass2' not in doc())
+popup, detail = press_kb(run, author='Kevin')
+check("after the 🏠📚 Apartment press the tenant's correction is written", popup == "Saved" and 'Wi-Fi: Net / pass2' in doc()
+      and 'pass1' not in doc(), (popup, doc()))
 
 # ---- 4. chat page "Generate": drafts from the whole chat, nothing saved ----------------------------------------
 c = Client(); c.force_login(admin)

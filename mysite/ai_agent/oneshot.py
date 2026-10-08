@@ -3,17 +3,13 @@ One-shot text completions through the Claude CLI, for the chat-page AI helpers t
 (teach-answer / KB rules, knowledge base drafts, short explanations). No tools, no MCP, no session.
 The agent itself runs through runner.py.
 
-ClaudeTextClient mimics the part of the OpenAI client those helpers use, so views/messaging.py only has to
-pick the client (_get_ai_client):
-    client.chat.completions.create(model=, messages=, temperature=, max_tokens=).choices[0].message.content
-temperature / max_tokens have no CLI flag and are ignored. `model` is used only when it is a Claude model id;
-OpenRouter slugs (openai/gpt-...) fall back to config.oneshot_model().
+complete(prompt, system=None, model=None) -> {'text', 'model', 'usage', 'cost_usd', 'duration_ms'}. `model` is used
+only when it is a Claude model id; anything else falls back to config.oneshot_model().
 """
 import json
 import os
 import subprocess
 import tempfile
-from types import SimpleNamespace
 
 from mysite.ai_agent import config
 
@@ -36,16 +32,6 @@ class ClaudeTextError(Exception):
 def _model_for(requested):
     requested = (requested or '').strip()
     return requested if requested.startswith('claude-') else config.oneshot_model()
-
-
-def _split_messages(messages):
-    """OpenAI-style messages -> (system_prompt, prompt_text)."""
-    system = "\n\n".join(m.get('content') or '' for m in messages if m.get('role') == 'system').strip()
-    rest = [m for m in messages if m.get('role') != 'system']
-    if len(rest) == 1:
-        return system, rest[0].get('content') or ''
-    prompt = "\n\n".join(f"{(m.get('role') or 'user').upper()}:\n{m.get('content') or ''}" for m in rest)
-    return system, prompt
 
 
 def complete(prompt, system=None, model=None, timeout=None):
@@ -99,23 +85,3 @@ def complete(prompt, system=None, model=None, timeout=None):
     }
 
 
-class _Completions:
-    def create(self, model=None, messages=None, temperature=None, max_tokens=None, **_ignored):
-        system, prompt = _split_messages(messages or [])
-        result = complete(prompt, system=system, model=model)
-        usage = result['usage']
-        return SimpleNamespace(
-            model=result['model'],
-            choices=[SimpleNamespace(message=SimpleNamespace(content=result['text']))],
-            usage=SimpleNamespace(
-                prompt_tokens=int(usage.get('input_tokens') or 0)
-                + int(usage.get('cache_read_input_tokens') or 0) + int(usage.get('cache_creation_input_tokens') or 0),
-                completion_tokens=int(usage.get('output_tokens') or 0),
-                cost_usd=result['cost_usd'],
-            ),
-        )
-
-
-class ClaudeTextClient:
-    def __init__(self):
-        self.chat = SimpleNamespace(completions=_Completions())

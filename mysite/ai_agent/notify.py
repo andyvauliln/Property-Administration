@@ -113,11 +113,6 @@ def report_error(error, context, info=None, source='task'):
     return notify_ai_chat("\n".join(lines))
 
 
-def activity_enabled():
-    """AI_AGENT_TELEGRAM_ACTIVITY: all (default for the test period) | off"""
-    return (os.environ.get('AI_AGENT_TELEGRAM_ACTIVITY') or 'all').strip().lower() != 'off'
-
-
 def _local_now():
     from datetime import datetime
     from zoneinfo import ZoneInfo

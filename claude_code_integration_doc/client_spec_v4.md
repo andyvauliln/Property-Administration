@@ -1,5 +1,7 @@
 # Client spec v4: how the AI works now
 
+> **Historical document (8 Oct 2026).** Parts of it describe old modes: the v4 card (Approve all, I'll handle, tick boxes, drafts) was replaced by the simple alerts and then removed. The current behaviour is in [simple_telegram_alerts.md](simple_telegram_alerts.md). See also docs/cleanup_plan.md.
+
 Built 2026-09-30 from Farid's "AI Property Manager System Prompt and Workflow" and the user's decisions
 (`client_spec_v4_plan.md`, section 4). Tests: `testbed/e2e_client_v4.py` (57 checks, in `run_tests.sh`).
 

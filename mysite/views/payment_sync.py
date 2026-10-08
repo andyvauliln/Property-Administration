@@ -10,6 +10,7 @@ import re
 import csv
 import io
 from .utils import get_model_fields
+from .payment_sync_v2 import parse_date  # same behaviour as the old local copy
 from django.core import serializers
 
 # Separator for grouping multiple payment keys
@@ -287,15 +288,10 @@ def get_payment_data(request, csv_file, payment_methods, apartments, payment_typ
         if not parts or all(not part.strip() for part in parts):
             continue  # Skip empty lines
         date, description, amount, running_bal = parts[0], parts[1], parts[2] if len(parts) > 2 else '', parts[3] if len(parts) > 3 else ''
-        # print(f'Date: {date}, Description: {description}, Amount: {float(amount.strip()) if amount.strip() else 0.0}, Running Bal: {running_bal}')
-        # print(f'Date: {datetime.strptime(date.strip(), "%m/%d/%Y")}, Description: {description}, Amount: {amount}, Running Bal: {running_bal}')
         payment_method_to_assign = None
         apartment_to_assign = None
         extracted_id = None
         payment_type = None
-
-        if 'paypal' in description.strip().lower():
-            print(f'Paypal: {description}')
 
         for payment_method in payment_methods:
             if payment_method.name.lower() in description.strip().lower():
@@ -361,34 +357,6 @@ def get_start_end_dates(request, payment_data):
     start_date = payment_data[0]['payment_date']
     end_date = payment_data[-1]['payment_date']
     return start_date, end_date
-
-def parse_date(date_str):
-    # Handle empty strings
-    if not date_str:
-        return ""
-        
-    # Try parsing with the format '2024-07-01 00:00:00'
-    try:
-        return datetime.strptime(date_str, '%Y-%m-%d %H:%M:%S').strftime('%m/%d/%Y')
-    except ValueError:
-        try:
-            return  datetime.strptime(date_str, '%B %d %Y').strftime('%m/%d/%Y')
-        except ValueError:
-            pass
-    
-    # Try parsing with the format '2024-08-01'
-    try:
-        return datetime.strptime(date_str, '%Y-%m-%d').strftime('%m/%d/%Y')
-    except ValueError:
-        pass
-    
-    # Try parsing with the format 'July 24 2024'
-    try:
-        return datetime.strptime(date_str, '%B %d %Y').strftime('%m/%d/%Y')
-    except ValueError:
-        pass
-    
-    raise ValueError(f"Date format for '{date_str}' is not supported")
 
 def find_possible_matches_db_to_file(db_payments, file_payments, amount_delta, date_delta):
     possible_matches = []
@@ -472,56 +440,9 @@ def get_matches_db_to_file(file_payment, db_payments, amount_delta, date_delta):
                 match_obj['notes'] = 'Exact Match'
                 match_obj['score'] += 1 if payment_diff == 0 else 0
 
-        if 'db_payment' not in match_obj:
-            print("No Matches")
-        else:
+        if 'db_payment' in match_obj:
             matches.append(match_obj)
 
     # Sort matches by score in descending order
     matches.sort(key=lambda x: x['score'], reverse=True)
     return matches
-
-
-
-# def find_possible_matches_file_to_db(db_payments, file_payments, amount_delta, date_delta):
-#     possible_matches = []
-    
-#     for db_payment in db_payments:
-#         matches = get_matches_file_to_db(db_payment, file_payments, amount_delta, date_delta)
-#         possible_matches.append({'db_payment': db_payment, 'matches': matches})
-        
-
-#     possible_matches.sort(key=lambda x: len(x['matches']), reverse=True)
-#     return possible_matches
-
-# def get_matches_file_to_db(db_payment, file_payments, amount_delta, date_delta):
-#     matches = []
-   
-#     for payment_from_file in file_payments:
-#         match_obj = {}
-#         if payment_from_file['id'] == db_payment.id:
-#            match_obj['file_payment'] = payment_from_file
-#            match_obj['id'] = 'Matched'
-        
-#         payment_diff = abs(float(payment_from_file['amount']) - abs(float(db_payment.amount)))        
-#         payment_date_datetime = datetime.combine(db_payment.payment_date, datetime.min.time())
-#         date_diff = payment_from_file["payment_date"] - payment_date_datetime
-        
-#         if payment_diff <= amount_delta and abs(date_diff.days) <= date_delta:
-#             match_obj['file_payment'] = payment_from_file
-#             match_obj['amount'] = 'Exact Match' if payment_diff == 0 else f'Match +-{int(payment_diff)}'
-#             match_obj['payment_date'] = 'Exact Match' if payment_diff.days == 0 else f'Match +-{abs(payment_diff.days)}d'
-            
-
-#         if db_payment.apartmentName and payment_from_file.get('apartment_name') == db_payment.apartmentName:
-#             match_obj['file_payment'] = payment_from_file
-#             match_obj['apartment'] = 'Exact Match'
-
-#         if 'file_payment' not in match_obj:
-#             #print("No Matches")
-#             d = 1
-#         else:
-#             matches.append(match_obj)
-
-#     return matches
-    

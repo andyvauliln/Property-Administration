@@ -17,7 +17,6 @@ logger = logging.getLogger(__name__)
 @csrf_exempt
 @require_http_methods(["POST", "GET"])
 def docuseal_callback(request):
-    print("LETS PROCESS IT!")
     if request.method == 'POST':
         try:
             data = json.loads(request.body).get('data', {})
@@ -221,6 +220,5 @@ def docuseal_callback(request):
             return JsonResponse({'status': 'error', 'message': 'An error occurred'}, status=500)
 
     elif request.method == 'GET':
-        print("GET", request, request.json())
         return JsonResponse({'status': 'webhook endpoint'})
     return JsonResponse({'status': 'invalid method'}, status=405)

@@ -19,7 +19,7 @@ from django.core.management import call_command, get_commands
 from mysite.ai_agent import config
 from mysite.ai_agent.sandbox_test import catalog, check, story
 from mysite.ai_agent.sandbox_test.clock import CaseClock, real_now, week_shift
-from mysite.ai_agent.sandbox_test.world import (CONTROL_ROW, IDLE_ROW, REPLAY_ROW, SANDBOX_SID, World, buttons_of, is_on,
+from mysite.ai_agent.sandbox_test.world import (CONTROL_ROW, IDLE_ROW, REPLAY_ROW, SANDBOX_SID, SANDBOX_SIDS, World, buttons_of, is_on,
                                                 parse_command, press_guide)
 
 REPORT_COMMAND = 'ai_agent_daily_report'
@@ -31,9 +31,8 @@ def _local(moment):
 
 
 class Runner:
-    def __init__(self, auto=False, real_time=False, offline=False, use_claude=True, out=print, style='v5'):
+    def __init__(self, auto=False, real_time=False, offline=False, use_claude=True, out=print):
         self.auto, self.real_time, self.use_claude, self.out = auto, real_time, use_claude, out
-        self.style, self._old_style = style, os.environ.get('AI_AGENT_ALERT_STYLE')
         self.clock = CaseClock()
         self.world = World(self.clock, offline=offline, log=out)
         self.run_name = f"{_local(real_now()):%Y-%m-%d_%H%M}"
@@ -50,12 +49,11 @@ class Runner:
         where = self.world.configure_telegram()
         if clean_chat:
             self.clean_chat()
-        os.environ['AI_AGENT_ALERT_STYLE'] = self.style   # this process only
         self.clock.install()
         self.world.install()
         self.run_dir.mkdir(parents=True, exist_ok=True)
         self.out(f"Sandbox chat {SANDBOX_SID} on {self.world.apartment.name}. {where}")
-        self.out(f"Alerts under test: {self.style}. Reports: {self.run_dir}")
+        self.out(f"Reports: {self.run_dir}")
         if not self.auto and not self.world.offline:
             self.world.start_chat_watch()   # a person may write in the sandbox chat on the site: taken before the live worker
         if not self.auto and not self.world.own_bot and not (sys.stdin and sys.stdin.isatty()):
@@ -78,10 +76,6 @@ class Runner:
         finally:
             self.world.uninstall()
             self.clock.uninstall()
-            if self._old_style is None:
-                os.environ.pop('AI_AGENT_ALERT_STYLE', None)
-            else:
-                os.environ['AI_AGENT_ALERT_STYLE'] = self._old_style
 
     def post(self, text, reply_to=None, markup=None, shown=True):
         """A message of the runner itself (failed checks, summary, notes): never part of a case's result. Posted
@@ -161,6 +155,35 @@ class Runner:
             return None
         return alert_ids[-1]
 
+    def _pick_reminder(self, which):
+        """The reminder a `reminder:` step fires. 'next': the earliest one still pending in the sandbox. {of: <chapter>,
+        kind: staff|tenant|deadline}: the earliest pending one that chapter created (between its time and the time of
+        the chapter after it) - in the story many reminders are never fired, so 'next' would often take another one."""
+        from mysite.models import AIFollowUp
+        pending = AIFollowUp.objects.filter(conversation_sid=SANDBOX_SID, status=AIFollowUp.STATUS_PENDING).order_by('due_at', 'id')
+        if str(which) == 'next':
+            return pending.first()
+        if not isinstance(which, dict):
+            return self.world.reminders.get(which)
+        kinds = {'staff': ('staff_reminder', 'escalation_check'), 'tenant': ('tenant_nudge', 'second_tenant_nudge'),
+                 'deadline': ('deadline_reminder',)}.get(str(which.get('kind') or ''), None)
+        if kinds:
+            pending = pending.filter(kind__in=kinds)
+        if which.get('of'):
+            order = catalog.story_order()
+            ids = [c['id'] for c in order]
+            chapter = str(which['of'])
+            if chapter not in ids:
+                return None
+            source = order[ids.index(chapter)]
+            # its set-up steps run 5 minutes apart before the chapter's time (run_case)
+            start = self.world.moved(source['time']) - timedelta(minutes=5 * len(source.get('prelude') or []) + 1)
+            later = [c for c in order[ids.index(chapter) + 1:] if c.get('time')]
+            pending = pending.filter(created_at__gte=start)
+            if later:
+                pending = pending.filter(created_at__lt=self.world.moved(later[0]['time']) + timedelta(minutes=1))
+        return pending.first()
+
     def do_step(self, step, header=None, notes_hook=None, control=False, control_any=False, notes_always=False):
         """Runs one step (a burst of chat messages, a due reminder, the report, a reply, a press, a wait).
         control: the step's alert gets the test controls (🧪 Next test / Rerun / Stop) as its last row of buttons."""
@@ -182,11 +205,7 @@ class Runner:
                 if events:
                     note = self._process(events)
             elif 'reminder' in step:
-                from mysite.models import AIFollowUp
-                if str(step['reminder']) == 'next':   # the story: the earliest reminder still pending in the sandbox
-                    followup = AIFollowUp.objects.filter(conversation_sid=SANDBOX_SID, status=AIFollowUp.STATUS_PENDING).order_by('due_at', 'id').first()
-                else:
-                    followup = world.reminders.get(step['reminder'])
+                followup = self._pick_reminder(step['reminder'])
                 if not followup:
                     note = f"no pending reminder to fire ('{step['reminder']}')"
                 else:
@@ -221,8 +240,12 @@ class Runner:
                     earlier = record
                     world.simulate_press(record, button, step.get('by') or 'Andy')
                     answer_review.poll_telegram()
+            elif 'close_task' in step or 'comment_task' in step:
+                note = world.team_task(step)
             elif 'wait' in step:
                 self._move_to(self.clock.now() + catalog.parse_delta(step['wait']))
+                from mysite.ai_agent import alerts_v5
+                alerts_v5.retry_due(only=SANDBOX_SIDS)   # what the worker tick does: a failed tenant reminder, once more (D6)
             else:
                 note = f"unknown step {step!r}"
         except Exception as e:

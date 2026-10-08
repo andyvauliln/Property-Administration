@@ -1,5 +1,7 @@
 # Claude Code integration for AI group chat — short migration plan
 
+> **Historical document (8 Oct 2026).** Parts of it describe old modes: the OpenRouter / inline AI backend and the backend switch were removed. The Claude agent is the only backend. The current behaviour is in [simple_telegram_alerts.md](simple_telegram_alerts.md). See also docs/cleanup_plan.md.
+
 **Files in this folder**
 - `testing_plan.md` — **current step**: system state, emergency brake, 4 test stages and the sandbox test cases
 - `how_ai_messages_work.md` — simple overview: how a tenant message is handled, step by step

@@ -58,7 +58,6 @@ TwilioMessage.objects.bulk_create([TwilioMessage(message_sid="PR0001", conversat
                                                  author="+15550006611", body="Can I check out at 2pm?", direction='inbound')])
 msg = TwilioMessage.objects.get(message_sid="PR0001")
 AIManagement.objects.filter(prompt_key__in=list(lib.BY_KEY)).delete()
-AIManagement.objects.update_or_create(prompt_key="ai_backend", defaults={'name': 'b', 'entry_type': 'ai_model', 'content': 'claude_cli'})
 
 # ---- 1. seeding -----------------------------------------------------------------------------------
 out = io.StringIO(); call_command('sync_ai_prompts', '--dry-run', stdout=out)
@@ -77,12 +76,15 @@ after = {e.prompt_key: e.updated_at for e in AIManagement.objects.filter(prompt_
 check("running sync again changes nothing", before == after)
 
 # ---- 2. the agent prompt comes from the DB and is unchanged by the move --------------------------------
+# The simple-alert notes (prompts.ALERTS_V5_NOTES, code) are always added after the DB prompts
+from mysite.ai_agent import crm_changes
 file_text = re.sub(r"\A<!--.*?-->\s*", '', config.DEFAULT_SYSTEM_PROMPT_PATH.read_text(encoding='utf-8'), flags=re.S)
-old_style = prompts._fill_placeholders(file_text).strip() + "\n\n" + prompts.RUNTIME_NOTES
+old_style = (prompts._fill_placeholders(file_text).strip() + "\n\n" + prompts.RUNTIME_NOTES + "\n\n"
+             + prompts.ALERTS_V5_NOTES.replace('{crm_changes}', crm_changes.for_prompt()))
 new_prompt, source = prompts.get_system_prompt(apt1)
-check("composed agent prompt is byte-identical to the old file + RUNTIME_NOTES", new_prompt == old_style,
+check("composed agent prompt is byte-identical to the old file + RUNTIME_NOTES + the simple-alert notes", new_prompt == old_style,
       (len(new_prompt), len(old_style)))
-check("source names the DB prompts", source == 'DB:ai_agent_system + DB:ai_agent_runtime_notes', source)
+check("source names the DB prompts and the code notes", source == 'DB:ai_agent_system + DB:ai_agent_runtime_notes + DB:alerts_v5_notes (code)', source)
 
 AIManagement.objects.filter(prompt_key='ai_agent_system').update(content="You are TestBot for {{COMPANY_NAME}}.")
 service.run_agent('TENANT_MESSAGE', SID, apt1, conv.booking, [msg], 'test')
@@ -96,16 +98,14 @@ check("a blank text prompt falls back to the default", lib.raw('ai_agent_system'
 lib.seed('ai_agent_system', force=True)
 
 # ---- 3. placeholders ---------------------------------------------------------------------------------
-filled = lib.get('ai_agent_clickup_delivery', steps="STEP 1: x", data='{"MESSAGE": "{hi}"}')
+filled = lib.fill('{"tasks": [{"name": "x"}]}\n{steps}\n{data}', steps="STEP 1: x", data='{"MESSAGE": "{hi}"}')
 check("safe fill: placeholders replaced, JSON braces and braces in values kept",
       'STEP 1: x' in filled and '{"MESSAGE": "{hi}"}' in filled and '{"tasks": [{"name"' in filled and '{steps}' not in filled)
-check("ClickUp read prompt unchanged by the move", lib.get('ai_agent_clickup_read', task_id='abc') ==
-      'Call clickup_get_task with task_id "abc". Then call clickup_get_task_comments with task_id "abc". Then reply with the single word: done.')
 merge_prompt = lib.get('ai_kb_merge', document_label='the 760-301 knowledge base', knowledge_base='Wi-Fi: A',
                        new_information='Wi-Fi: B', replaces='Wi-Fi: A', source='Janna', kb_rules='(none)')
 check("KB merge prompt fills every placeholder", 'Current document:\nWi-Fi: A' in merge_prompt and '(from Janna)' in merge_prompt
       and '{' not in merge_prompt.split('[UPDATED KB]')[0].replace('{{', ''))
-check("missing placeholder detected", lib.missing_placeholders('ai_agent_clickup_read', 'no id here') == ['task_id'])
+check("missing placeholder detected", lib.missing_placeholders('ai_kb_merge', lib.KB_MERGE_DEFAULT.replace('{source}', 'staff')) == ['source'])
 AIManagement.objects.filter(prompt_key='ai_oneshot_system').update(content='Custom helper system.')
 check("one-shot client default system prompt comes from the DB", oneshot._default_system() == 'Custom helper system.')
 
@@ -128,13 +128,15 @@ check("agent of apartment 1 gets company + its own lessons, not apartment 2's",
       'ANSWER_LESSONS' in p1 and 'free until 1pm' in p1 and 'written approval' in p1 and 'spot 12' not in p1)
 check("agent of apartment 2 gets its own lesson, not apartment 1's", 'spot 12' in p2 and 'free until 1pm' not in p2 and 'written approval' in p2)
 
-from mysite.ai_agent import answer_review
-class _Run:  # just what _lesson_scope needs
-    conversation_sid = SID; id = 1
-answer_review._apartment = lambda run: apt1
-apartment, where = answer_review._lesson_scope(_Run(), {'lesson_scope': 'company'})
-lib.upsert_lesson(apartment, 'deposit_return', 'Deposits are returned within 14 days after checkout.')
-check("a Telegram lesson lands in the same prompt", any('deposit_return' in l for l in lib.rule_lines('ai_agent_answer_lessons')))
+# A lesson from a typed Telegram reply is saved when its proposal's rule button is pressed (alerts_v5 'pr')
+from mysite.ai_agent import alerts_v5
+from mysite.models import AIRun
+lesson_run = AIRun.objects.create(conversation_sid=SID, review={'style': 'v5', 'proposals': [
+    {'id': 1, 'by': 'Andy', 'lesson': 'Deposits are returned within 14 days after checkout.', 'lesson_key': 'deposit_return',
+     'lesson_scope': 'company', 'done': {}}]})
+popup = alerts_v5.press_proposal(lesson_run, 'pr', '1', 'Andy')
+check("a Telegram lesson lands in the same prompt", popup == "Rule saved"
+      and any('deposit_return' in l and l.startswith('- [company]') for l in lib.rule_lines('ai_agent_answer_lessons')), popup)
 
 # ---- 5. Add KB rule -> agent KB rules + extract check ------------------------------------------------------
 TwilioMessage.objects.bulk_create([TwilioMessage(message_sid="PR0002", conversation=conv, conversation_sid=SID,
@@ -164,6 +166,7 @@ AIManagement.objects.update_or_create(prompt_key='ai_extract_check', defaults={'
 AIManagement.objects.update_or_create(prompt_key='ai_answer_system', defaults={'name': 'x', 'entry_type': 'prompt',
     'content': "You answer tenants.\n- If a tenant says they will respond later the same day, send a brief follow-up asking for an update."})
 AIManagement.objects.update_or_create(prompt_key='ai_conversation_model', defaults={'name': 'x', 'entry_type': 'ai_model', 'content': 'openai/x'})
+AIManagement.objects.update_or_create(prompt_key="ai_backend", defaults={'name': 'b', 'entry_type': 'ai_model', 'content': 'claude_cli'})
 mig.forwards(_Apps(), None)
 apt2.refresh_from_db()
 check("a fact row becomes a line of its apartment document", 'Pull out couch: Yes, the apartment has a pull-out couch' in (apt2.knowledge_base or ''), apt2.knowledge_base)
@@ -187,13 +190,14 @@ check("prompts panel shows every prompt with what / how / when", all(f'id="promp
       and 'What: ' in html and 'When: ' in html and 'Legacy' not in html)
 d = c.get('/ai-management/prompts/ai_agent_runtime_notes/').json()
 check("detail returns live text, default and diff", d['content'] == d['default'] and d['edited'] is False and d['diff'] == '')
-r = c.post('/ai-management/prompts/ai_agent_clickup_read/', json.dumps({'content': 'Read the task please.'}), content_type='application/json')
-check("saving from the UI works and warns about a removed placeholder", r.json().get('missing_placeholders') == ['task_id']
-      and lib.raw('ai_agent_clickup_read') == 'Read the task please.')
+edited = lib.KB_MERGE_DEFAULT.replace('{kb_rules}', '(no rules)')
+r = c.post('/ai-management/prompts/ai_kb_merge/', json.dumps({'content': edited}), content_type='application/json')
+check("saving from the UI works and warns about a removed placeholder", r.json().get('missing_placeholders') == ['kb_rules']
+      and lib.raw('ai_kb_merge') == edited.strip(), r.content[:300])
 check("an empty text prompt is refused", c.post('/ai-management/prompts/ai_agent_system/', json.dumps({'content': ' '}),
                                               content_type='application/json').status_code == 400)
-c.post('/ai-management/prompts/ai_agent_clickup_read/reset/')
-check("reset restores the default", lib.raw('ai_agent_clickup_read') == lib.CLICKUP_READ_DEFAULT.strip())
+c.post('/ai-management/prompts/ai_kb_merge/reset/')
+check("reset restores the default", lib.raw('ai_kb_merge') == lib.KB_MERGE_DEFAULT.strip())
 pv = c.get(f'/ai-management/prompts/preview/?apartment={apt2.id}').json()
 check("preview shows the parts the agent gets for that apartment", [p['key'] for p in pv['parts']] ==
       ['ai_agent_system', 'ai_agent_runtime_notes', 'ai_agent_kb_rules', 'ai_agent_answer_lessons']

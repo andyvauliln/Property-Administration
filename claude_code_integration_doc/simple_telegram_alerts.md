@@ -104,7 +104,7 @@ already says who wrote. Several team members in a row are one side (header `🧑
 
 1. Created automatically when the case needs one. The alert shows the reminder block with a **Close Reminder**
   button.
-2. **Max 2 per case**: `1/2` within 2 hours (same day), `2/2` next day. Urgent and emergency: `1/2` after 30 minutes. Plus the deadline reminders 24 h and 2 h before
+2. **Max 2 per case and side** (the team's reminders, the tenant's reminders): `1/2` within 2 hours (same day), `2/2` next day. Urgent and emergency: `1/2` after 30 minutes. Plus the deadline reminders 24 h and 2 h before
   a tenant deadline (Kevin tagged at 2 h); these don't count in the 2.
 3. Time windows stay: routine team reminders only 09:00–18:00 (else next 09:00), urgent/emergency any time; tenant SMS
   only 08:00–21:00 (else next 08:00).
@@ -118,6 +118,12 @@ already says who wrote. Several team members in a row are one side (header `🧑
   reminder stays in the database, nothing happens if nobody presses.
 7. A reminder alert shows the same two lines (with names, rule 1.2.12): the last joined message of each side, the
   older side first, so you see where the conversation stopped without opening the chat.
+8. The re-check (rule 4) is done by the AI: it reads the chat, the case and the ClickUp task and says "still needed"
+  (then the REMINDER alert, or the tenant reminder is sent) or "already done" with the reason (then no alert, C5).
+  The AI never adds reminders on a reminder alert: the backend sets the 2/2 (the next day 10:00, for the team the
+  next working day) when the 1/2 is still needed.
+9. When a reminder becomes due, the button of the alert that showed it changes to `⏰ Due 16:34 – see the reminder
+  alert`; when it closed quietly, to `✅ Reminder closed · done – checked 16:34`.
 
 
 
@@ -1006,11 +1012,11 @@ No alert. This is not knowledge: it is true only for this booking, not for the a
 ```
 ⏰ REMINDER · 6 Oct, Tue 16:34 ET
 
-🏠 720-201 · 👤 Vera Lopez · 🟢 Routine · 1/2 (2/2 tomorrow)
+🏠 720-201 · 👤 Vera Lopez · 🟢 Routine · 1/2 (2/2 tomorrow 10:00)
 
 ———
 ⏰ Check the sink task has a visit date (for Edy) ⏰
-   ClickUp: open · no comment since 14:36
+   ClickUp: to do · no comment yet
 ———
 ↪️ Vera (tenant) "Hi, the kitchen sink is dripping since yesterday" ↪️
 
@@ -1037,7 +1043,7 @@ No alert. This is not knowledge: it is true only for this booking, not for the a
 
 ———
 ⏰ Check the sink task has a visit date (for Edy) ⏰
-   ClickUp: open · no comment since yesterday 14:36
+   ClickUp: to do · last comment 2026-10-06 17:02 Edy
 ———
 ↪️ Vera (tenant) "Hi, the kitchen sink is dripping since yesterday" ↪️
 
@@ -1099,7 +1105,7 @@ no alert, listed in the report under "closed today".
 🏠 720-201 · 👤 Vera Lopez · 🟢 Routine · 2/2
 
 ———
-🎫 Task "Kitchen sink dripping – 720-201" was CLOSED by Edy 7 Oct 09:12
+🎫 Task "Kitchen sink dripping – 720-201" was CLOSED (complete, 2026-10-07 09:12)
 ———
 ↪️ Vera (tenant) "Ok, I'll leave the gate open" ↪️
 
@@ -1136,7 +1142,7 @@ the gate open" ↪️
 
 ———
 ⏰ Sam lands at 23:00 – check the lockbox code works (for Edy) ⏰
-   Nobody acted since the 24 h reminder
+   tenant deadline Wed 7 Oct 23:00
 ———
 ↪️ Sam (tenant) "I land at 11pm tomorrow, how do I get the keys?" ↪️
 
@@ -1244,7 +1250,11 @@ when you can. Thanks!" 🤖
 ⏰ Next: 2/2 tomorrow 10:00
 ———
 (footer)
+
+[✅ Close Reminder]
 ```
+
+`✅ Close Reminder` stops the 2/2. The 2/2 itself (the last one) has no button: nothing is left to stop.
 
 
 
@@ -1447,6 +1457,30 @@ Two limits, both said in words:
   code, not possible from a reply: <what>` - the rest of the request, if any, is still proposed as rules.
 
 Team rules never override the access-code, safety, emergency or payment rules of the agent.
+
+### E9. An operation from a reply (test reminder)
+
+Some requests are not rules but **operations**: something the system does once. They are a short fixed list; each
+one gets its own button and happens only after the press. Today the list has one operation.
+
+```
+↩ Andy: send a test reminder in the sandbox apartment to check
+
+🤖 I can make a test reminder on the Sandbox Test apartment.
+✏️ I WILL CHANGE
+🧪 TEST REMINDER on the "Sandbox Test" apartment (test apartment: nothing
+   reaches a tenant), due 1 minute after the press
+Why: you asked for it.
+After the press: in about 1 minute the ⏰ REMINDER alert comes to this group.
+
+[🧪 Send test reminder]
+```
+
+A restart, a deploy or a run of the sandbox story is not an operation: a restart does not change any alert (the
+worker always runs the deployed code), and code changes are made outside Telegram - the bot says so in one sentence.
+The bot answers only from what it can see (the alert, the run, how the system works). When that does not show the
+cause, it says "I do not know" and what it sees - it never lists guessed causes, and it never sends the team to a
+developer.
 
 ---
 

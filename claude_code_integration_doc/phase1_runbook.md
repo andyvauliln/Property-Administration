@@ -1,5 +1,7 @@
 # Phase 1 runbook — Claude agent for tenant group chats
 
+> **Historical document (8 Oct 2026).** Parts of it describe old modes: the OpenRouter / inline AI backend and the timer review were removed. The current behaviour is in [simple_telegram_alerts.md](simple_telegram_alerts.md). See also docs/cleanup_plan.md.
+
 Status 2026-09-21 12:25 UTC: **turned ON in test mode** — migrations applied, worker `ai-agent` running,
 site restarted, `AI Backend = claude_cli`, 0 apartments live. What to test and how: `testing_plan.md`.
 The steps below are kept as the record of how it was turned on (and how to repeat it on another server).

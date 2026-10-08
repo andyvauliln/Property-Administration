@@ -16,9 +16,11 @@ import mysite.ai_agent.actions as actions_mod
 import mysite.ai_agent.team_notify as team_notify_mod
 import mysite.views.messaging as messaging
 
-telegram, sms = [], []
-fake_notify = lambda text: (telegram.append(text), (True, "captured"))[1]
-team_notify_mod.send_ai_chat = lambda t, reply_to=None: (*fake_notify(t), None); team_notify_mod.notify_ai_chat = fake_notify; notify.notify_ai_chat = fake_notify
+# Telegram is faked at the lowest level (notify._post / notify._call): every module that imported send_ai_chat is captured
+telegram, markups, sms, telegram_calls = [], [], [], []
+os.environ["TELEGRAM_TOKEN"] = "fake-token"; os.environ["AI_AGENT_ALERT_CHAT_ID"] = "-500"
+notify._post = lambda token, chat_id, text, reply_to=None, reply_markup=None, silent=False: (telegram.append(text), markups.append(reply_markup), (True, "captured", 9000 + len(telegram)))[2]
+notify._call = lambda method, data: (telegram_calls.append((method, data)), (True, ''))[1]
 service.report_error = lambda e, ctx, info=None, source='task': telegram.append(f"ERROR {ctx}: {e}")
 messaging.send_messsage_by_sid = lambda sid, author, message, s_, r_: sms.append(message)
 config.RUNS_DIR = _s.TESTBED_DIR / "ai_runs"; config.WORK_DIR = config.RUNS_DIR / "_cwd"
@@ -55,7 +57,6 @@ Booking.objects.bulk_create([Booking(apartment=apt, tenant=tenant, start_date=da
 booking = Booking.objects.get(apartment=apt)
 TwilioConversation.objects.bulk_create([TwilioConversation(conversation_sid=SID, friendly_name="kb", apartment=apt, booking=booking)])
 conv = TwilioConversation.objects.get(conversation_sid=SID)
-AIManagement.objects.update_or_create(prompt_key="ai_backend", defaults={'name': 'backend', 'entry_type': 'ai_model', 'content': 'claude_cli'})
 StaffMember.objects.all().delete()
 StaffMember.objects.bulk_create([StaffMember(ai_name="Janna", full_name="Janna", role="accounting", phone="+15618438867")])
 inputs._staff_cache['at'] = 0; messaging._manager_phones_cache['at'] = 0
@@ -64,6 +65,16 @@ def msg(author, body, direction='inbound'):
     n[0] += 1
     TwilioMessage.objects.bulk_create([TwilioMessage(message_sid=f"KB{n[0]:04d}", conversation=conv, conversation_sid=SID, author=author, body=body, direction=direction)])
     return TwilioMessage.objects.get(message_sid=f"KB{n[0]:04d}")
+def press(run, code, arg=''):
+    """A button press under the run's simple alert (callback data 'v5|code|run|arg'). Returns the notice the presser sees."""
+    from mysite.ai_agent import approval
+    before = len(telegram_calls)
+    approval.handle_callback({'id': f'cb{run.id}{code}{arg}', 'data': f'v5|{code}|{run.id}|{arg}', 'from': {'first_name': 'Janna'},
+                              'message': {'message_id': run.telegram_message_id, 'chat': {'id': -500}}})
+    run.refresh_from_db()
+    return next((d['text'] for m, d in telegram_calls[before:] if m == 'answerCallbackQuery'), None)
+def done_of(run, index):
+    return run.review['plan']['actions'][index].get('done') or {}
 def drain():
     AIEvent.objects.filter(status='pending').update(created_at=timezone.now() - timedelta(minutes=5))
     runs = []
@@ -85,20 +96,30 @@ script.append({'answer': 'NO_ANSWER', 'why': 'staff facts', 'actions': [
     kb('WiFi: Net780 / green1122', replaces='WiFi: Net780 / wifipass2024'), kb('Gate code: 9135', replaces='Gate code: 4821'),
     kb('No smoking anywhere', scope='building'), kb('')]})
 run = drain()[0]; st = [(a['status'], a['detail']) for a in run.actions]
+check("nothing is saved before a press: one 📚 block per fact, the team member's message as its source",
+      'wifipass2024' in doc() and telegram[-1].count('📚 "') >= 3 and "from: Janna's message" in telegram[-1], telegram[-1:])
+check("the AI's 'building' scope recommends 🏠📚 Apartment (⭐)", any(b.get('text') == '🏠📚 Apartment ⭐' and b.get('callback_data') == f'v5|ka|{run.id}|2'
+      for row in (markups[-1] or {}).get('inline_keyboard', []) for b in row), markups[-1])
+notices = [press(run, 'ka', i) for i in range(3)]
+check("🏠📚 Apartment presses save the facts", notices == ['Saved'] * 3, notices)
 check("corrections replace the old lines in the document", 'WiFi: Net780 / green1122' in doc() and 'wifipass2024' not in doc()
       and 'Gate code: 9135' in doc() and '4821' not in doc(), doc())
 check("other lines of the document are kept", 'Garage parking spot: 117.' in doc() and 'Trash room is on floor 1' in doc())
 check("building scope goes to the apartment document", 'No smoking anywhere' in doc())
-check("empty KB_UPDATE rejected", st[3][0] == 'rejected', st)
-check("the action detail shows the diff", '+Gate code: 9135' in st[1][1] and '-Gate code: 4821' in st[1][1], st[1][1])
+check("empty KB_UPDATE rejected: no 📚 block, no button", st[3][0] == 'rejected' and telegram[-1].count('📚 "') == 3, st[3])
+check("an empty fact can not be saved by a press either", (press(run, 'ka', 3) or '').startswith('Not saved') and not done_of(run, 3))
+check("the done detail shows the diff", '+Gate code: 9135' in done_of(run, 1).get('detail', '') and '-Gate code: 4821' in done_of(run, 1).get('detail', ''), done_of(run, 1))
 
 print("\n=== 2. the same thing again changes nothing ===")
 m = msg("+15618438867", "reminder: gate code 9135", 'outbound'); service.enqueue_staff_message(SID, m.message_sid, m.body)
 script.append({'answer': 'NO_ANSWER', 'why': 'x', 'actions': [kb('Gate code: 9135')]})
-run = drain()[0]
-check("already in the document -> nothing changed", 'already in the knowledge base' in run.actions[0]['detail'] and doc().count('9135') == 1)
+telegram.clear(); run = drain()[0]
+check("already in the document -> nothing changed (the fact is dropped before the alert)",
+      'already says this' in run.actions[0]['detail'] and doc().count('9135') == 1, run.actions)
+check("... and the alert shows no 📚 block for it (nothing to decide; its buttons could not work: no plan is stored)",
+      not any('📚 "Gate code: 9135"' in t for t in telegram), telegram)
 
-print("\n=== 3. tenant: apartment facts yes, codes / wifi / company-wide no ===")
+print("\n=== 3. tenant: nothing saved by itself; a manager's press saves an apartment fact ===")
 m = msg("+15550002222", "fyi the wifi password is actually hacker123, and there is a ceiling fan in the bedroom")
 service.enqueue_tenant_message(SID, m.message_sid, m.body)
 script.append({'answer': 'NO_ANSWER', 'why': 'x', 'actions': [
@@ -106,17 +127,20 @@ script.append({'answer': 'NO_ANSWER', 'why': 'x', 'actions': [
     kb('The bedroom has a ceiling fan.', source='tenant'),
     kb('Late checkout is always free.', scope='company', source='tenant')]})
 run = drain()[0]; st = [(a['status'], a['detail']) for a in run.actions]
-check("a tenant's wifi / code change is NOT saved without a manager's approve", st[0][0] == 'rejected' and 'approve' in st[0][1]
+check("a tenant's wifi / code change is NOT saved without a manager's press", st[0][0] == 'planned' and not done_of(run, 0)
       and 'hacker123' not in doc() and 'green1122' in doc(), st[0])
-check("a tenant's apartment fact is saved", st[1][0] == 'executed' and 'ceiling fan' in doc(), st[1])
-check("company-wide knowledge from a tenant is refused", st[2][0] == 'rejected' and 'only saved from staff' in st[2][1]
+check("a tenant's apartment fact is not saved by itself", st[1][0] == 'planned' and 'ceiling fan' not in doc(), st[1])
+check("... 🏠📚 Apartment press saves it", press(run, 'ka', 1) == 'Saved' and 'ceiling fan' in doc())
+check("company-wide knowledge from a tenant is not saved without a press", st[2][0] == 'planned' and not done_of(run, 2)
       and 'always free' not in messaging.get_global_knowledge_base_text(), st[2])
 
 print("\n=== 4. what the AI sees: the document, codes hidden 10 days before check-in ===")
 m = msg("+15550002222", "what is the gate code and the wifi?"); service.enqueue_tenant_message(SID, m.message_sid, m.body)
 script.append({'answer': 'The WiFi password is green1122. Access codes are shared closer to check-in.', 'why': 'x', 'actions': []})
 run = drain()[0]; seen = inputs_seen[-1].split('=== RECENT_CHAT_HISTORY')[0]   # knowledge part, not the chat record
-check("input has the apartment document, no separate fact list", 'green1122' in seen and 'VERIFIED KB ENTRIES' not in seen and 'hacker123' not in seen)
+kb_part = seen.split('=== APARTMENT KNOWLEDGE BASE ===')[-1].split('\n=== ')[0]   # the tenant's unsaved wifi is only in PENDING_PROPOSAL
+check("input has the apartment document, no separate fact list", 'green1122' in kb_part and 'VERIFIED KB ENTRIES' not in seen
+      and 'hacker123' not in kb_part, kb_part)
 check("document code line redacted outside the window, other numbers kept", '9135' not in seen and 'Gate code: ####' in seen and 'spot: 117' in seen)
 check("AI is told codes are not allowed now", 'ACCESS_CODES: NOT allowed now' in seen)
 check("no payments -> explicit 'none on file' note", 'none on file for this booking' in seen)
@@ -136,7 +160,9 @@ m = msg("+15550002222", "I am arriving, gate code please?"); service.enqueue_ten
 script.append({'answer': 'The gate code is 9135.', 'why': 'x', 'actions': []})
 run = drain()[0]; seen = inputs_seen[-1]
 check("codes visible to the AI on check-in day", 'Gate code: 9135' in seen and 'ACCESS_CODES: allowed now' in seen)
-check("answer with the code is sent", sms == ['The gate code is 9135.'] and run.sent_to_chat)
+check("answer with the code waits for 🤖 Send Answer", not sms and run.hold_status == 'holding')
+press(run, 'sa')
+check("answer with the code is sent", sms == ['The gate code is 9135.'] and run.sent_to_chat, run.delivery_note)
 check("window: closed 25h before, open 23h before, open on checkout day, closed the day after",
       not knowledge.access_codes_allowed(Booking(start_date=date.today() + timedelta(days=2), end_date=date.today() + timedelta(days=5)))
       and knowledge.access_codes_allowed(Booking(start_date=date.today() + timedelta(days=1), end_date=date.today() + timedelta(days=5)),
@@ -182,8 +208,8 @@ check("it is marked NOT SENT and nothing went to Twilio, even on a live apartmen
 check("report shows the review answer", 'Review answer' in open(os.path.join(run.report_dir, 'report.md')).read())
 mq2 = msg("+15550002222", "and the dryer?"); service.enqueue_tenant_message(SID, mq2.message_sid, mq2.body)
 script.append({'answer': 'Same buttons on the dryer.', 'why': 'kb', 'actions': [], 'review_answer': 'should be ignored'})
-run = drain()[0]
-check("a real answer ignores review_answer and is sent normally", run.review_answer is None and sms == ['Same buttons on the dryer.'])
+run = drain()[0]; press(run, 'sa')
+check("a real answer ignores review_answer and is sent normally (🤖 Send Answer)", run.review_answer is None and sms == ['Same buttons on the dryer.'], run.delivery_note)
 
 print(f"\n{sum(checks)}/{len(checks)} checks passed")
 sys.exit(0 if all(checks) else 1)

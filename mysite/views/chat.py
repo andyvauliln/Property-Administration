@@ -33,7 +33,6 @@ from mysite.views.messaging import (
     get_kb_manager_message_body,
     generate_kb_rule_text,
     should_run_kb_extraction_for_message,
-    _is_ai_assistant_globally_enabled,
     _should_send_ai_to_group,
     _enqueue_for_ai_agent,
     _enqueue_staff_for_ai_agent,
@@ -41,7 +40,6 @@ from mysite.views.messaging import (
     AI_KB_RULE_GENERATE_KEY,
 )
 from mysite.unified_logger import log_error, log_info, logger
-from mysite.ai_agent.config import get_ai_backend
 from mysite.views.ai_agent_views import get_ai_activity
 from mysite.error_logger import log_exception
 from mysite import conversation_groups
@@ -346,7 +344,6 @@ def chat_detail(request, conversation_sid):
         ChatMessageTemplate.objects.order_by("name", "-created_at").values("id", "name", "body")
     )
     apartment = conversation.apartment if conversation.apartment_id else None
-    ai_assistant_enabled = _is_ai_assistant_globally_enabled()
     apartment_ai_group_chat_enabled = bool(apartment and apartment.ai_group_chat_enabled)
     ai_can_send_to_group = _should_send_ai_to_group(apartment)
 
@@ -380,9 +377,7 @@ def chat_detail(request, conversation_sid):
         'message_count': len(chat_messages),
         'merged': merged,
         'ai_ready': bool(conversation.apartment_id and conversation.booking_id),
-        'ai_assistant_enabled': ai_assistant_enabled,
         'apartment_ai_group_chat_enabled': apartment_ai_group_chat_enabled,
-        'ai_backend': get_ai_backend(),
         'ai_activity': get_ai_activity(conversation.conversation_sid),
         'ai_can_send_to_group': ai_can_send_to_group,
         'global_knowledge_base': get_global_knowledge_base_text(),
@@ -1047,13 +1042,6 @@ def delete_chat_message(request, conversation_sid, message_id):
         return redirect('chat_detail', conversation_sid=conversation_sid)
 
 
-def _media_json(message):
-    return [
-        {'id': m.id, 'url': m.url, 'content_type': m.content_type, 'filename': m.filename, 'is_image': m.is_image}
-        for m in message.media.all() if m.is_downloaded
-    ]
-
-
 @login_required
 def twilio_media_file(request, media_id):
     """A photo/file received in a Twilio chat. Staff only (login), never a public URL."""
@@ -1070,76 +1058,6 @@ def twilio_media_file(request, media_id):
     if not media.is_image:
         response['Content-Disposition'] = 'attachment'
     return response
-
-
-@login_required
-def load_more_messages(request, conversation_sid):
-    """
-    Load more messages for infinite scroll (AJAX endpoint)
-    """
-    try:
-        conversation = get_object_or_404(TwilioConversation, conversation_sid=conversation_sid)
-        
-        # Get pagination parameters
-        page = int(request.GET.get('page', 1))
-        
-        # Get messages
-        chat_messages = TwilioMessage.objects.filter(
-            conversation_id__in=conversation_groups.group_ids(conversation)
-        ).prefetch_related('media').order_by('message_timestamp', 'id')
-        paginator = Paginator(chat_messages, 50)
-        page_messages = paginator.get_page(page)
-        
-        # Prepare message data for JSON response
-        display_info = get_conversation_display_info(conversation)
-        author_display_map = _build_author_display_map(display_info.get("participants") or [])
-        messages_data = []
-        for message in page_messages:
-            raw_author = (message.author or "").strip()
-            messages_data.append({
-                'id': message.id,
-                'author': message.author,
-                'author_display': author_display_map.get(raw_author, _format_number_name(raw_author, "Unknown")),
-                'body': message.body,
-                'direction': message.direction,
-                'timestamp': message.message_timestamp.isoformat(),
-                'formatted_time': message.message_timestamp.strftime('%b %d, %Y at %I:%M %p'),
-                'notes': message.notes or '',
-                'ai_notes': message.ai_notes or '',
-                'ai_response': message.ai_response,
-                'ai_response_why': message.ai_response_why,
-                'ai_sent_to_chat': message.ai_sent_to_chat,
-                'ai_kb_updated': message.ai_kb_updated,
-                'ai_kb_changes': message.ai_kb_changes,
-                'forwarded_to_group_sid': message.forwarded_to_group_sid,
-                'other_chat_id': message.conversation_id if message.conversation_id != conversation.id else None,
-                'media': _media_json(message),
-            })
-        
-        return JsonResponse({
-            'messages': messages_data,
-            'has_next': page_messages.has_next(),
-            'has_previous': page_messages.has_previous(),
-            'current_page': page,
-            'total_pages': paginator.num_pages,
-        })
-        
-    except Exception as e:
-        log_exception(
-            error=e,
-            context="Chat - Load More Messages",
-            additional_info={'conversation_sid': conversation_sid}
-        )
-        return JsonResponse({'error': str(e)}, status=500)
-
-
-@login_required
-@require_http_methods(["GET"])
-def chat_template_list(request):
-    templates = list(
-        ChatMessageTemplate.objects.order_by("name", "-created_at").values("id", "name", "body")
-    )
-    return JsonResponse({"templates": templates})
 
 
 @login_required

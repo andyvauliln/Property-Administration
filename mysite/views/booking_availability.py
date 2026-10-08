@@ -148,8 +148,6 @@ def booking_availability(request):
             'problem_booking_days': 0,
         }
         
-        print(f"\n--- Processing {current_month.strftime('%B %Y')} ---")
-        print(f"Total apartments before filtering: {len(apartments)}")
 
         for apartment in apartments:
             apartment_data = {
@@ -165,15 +163,10 @@ def booking_availability(request):
                 'notes': apartment.notes or '',
             }
             
-            # Debug: Check if apartment has notes
-            if apartment.notes:
-                print(f"  DEBUG: Apartment {apartment.name} has notes: {apartment.notes[:50]}...")
-
             # Check if the apartment has ended before current period - always exclude these
             if apartment.end_date:
                 apartment_end_date = apartment.end_date.date() if hasattr(apartment.end_date, 'date') else apartment.end_date
                 if apartment_end_date < month_start:
-                    print(f"  SKIPPING {apartment.name}: ended before month start (end_date: {apartment_end_date})")
                     continue
 
             bookings = [b for b in apartment.all_relevant_bookings 
@@ -215,7 +208,6 @@ def booking_availability(request):
                 if (apartment.start_date and date_obj <= apartment.start_date.date()) or (apartment.end_date and date_obj >= apartment.end_date.date()):
                     apartment_data['days'][day]['status'] = 'Blocked'
                     month_data['blocked_days'] += 1
-                    print(f"  {apartment.name} - Day {day} ({date_obj}): BLOCKED (apartment availability)")
                 elif day_bookings:
                     apartment_available_days += 1  # Count this day as available for revenue calculation
                     
@@ -246,11 +238,9 @@ def booking_availability(request):
                     if 'Blocked' in statuses:
                         month_data['blocked_days'] += 1
                         apartment_available_days -= 1  # Remove from available days if blocked
-                        print(f"  {apartment.name} - Day {day} ({date_obj}): BLOCKED (booking status)")
                     else:
                         # Confirmed, Waiting*, Pending, Problem Booking - count as occupied
                         month_data['month_occupancy'] += 1
-                        print(f"  {apartment.name} - Day {day} ({date_obj}): OCCUPIED (Status: {apartment_data['days'][day]['status']}, Bookings: {len(day_bookings)})")
 
                     for booking in day_bookings:
                         if booking.status in ['Confirmed', 'Waiting Contract', 'Waiting Payment']:
@@ -284,7 +274,6 @@ def booking_availability(request):
                 elif apartment.end_date and date_obj > apartment.end_date.date():
                     apartment_data['days'][day]['status'] = 'Blocked'
                     month_data['blocked_days'] += 1
-                    print(f"  {apartment.name} - Day {day} ({date_obj}): BLOCKED (past apartment end date)")
                 elif date_obj < current_date:
                     apartment_data['days'][day]['past'] = True
                     apartment_available_days += 1  # Count past days as available for revenue calculation
@@ -324,7 +313,6 @@ def booking_availability(request):
             apartment_data['available_days'] = apartment_available_days
 
             month_data['apartments'].append(apartment_data)
-            print(f"  PROCESSED {apartment.name}: {apartment_data['booked_days']} booked days, Max Revenue: ${apartment_max_revenue}, Current Price Revenue: ${apartment_current_price_revenue}")
 
         # Sort apartments based on booked days (ascending order)
         month_data['apartments'].sort(key=lambda x: x['booked_days'])
@@ -336,21 +324,8 @@ def booking_availability(request):
         occupied_days = month_data['month_occupancy']
         month_data['available_days'] = total_days
         
-        # Debug logging
-        print(f"\n=== DEBUG OCCUPANCY CALCULATION FOR {month_data['month_name']} ===")
-        print(f"Total apartments processed: {total_apartments_in_month}")
-        print(f"Days in month: {days_in_month}")
-        print(f"Blocked days: {month_data['blocked_days']}")
-        print(f"Rented days: {month_data['rented_days']}")
-        print(f"Occupied days: {occupied_days}")
-        print(f"Total available days: {total_days}")
-        print(f"Raw occupancy calculation: {occupied_days} / {total_days} = {(occupied_days / total_days) if total_days > 0 else 0}")
-        print(f"Max Revenue: ${month_data['month_max_revenue']}")
-        print(f"Current Price Revenue: ${month_data['month_current_price_revenue']}")
         
         month_data['month_occupancy'] = (occupied_days / total_days) * 100 if total_days > 0 else 0
-        print(f"Final occupancy percentage: {month_data['month_occupancy']:.2f}%")
-        print("=" * 60)
 
         
         month_data['month_potential_profit'] = month_data['month_occupancy'] - month_data['blocked_days']

@@ -5,7 +5,7 @@ import json
 from datetime import date, timedelta
 from dateutil.relativedelta import relativedelta
 from ..decorators import user_has_role
-from .utils import calculate_unique_booked_days, aggregate_profit_by_category, calculate_total_booked_days, aggregate_data, stringify_keys
+from .utils import calculate_unique_booked_days, aggregate_profit_by_category, aggregate_data, stringify_keys
 from .booking_report import get_google_sheets_service, share_document_with_user
 import logging
 from datetime import datetime
@@ -415,19 +415,6 @@ def build_price_cache(apartment_ids, period_start, period_end):
     
     logger.info(f"Price cache built with {len(price_cache)} apartments")
     return price_cache
-
-
-def get_price_for_date_cached(price_cache, apartment_id, target_date, default_price):
-    """Get price from cache for a specific date"""
-    if apartment_id not in price_cache:
-        return float(default_price or 0)
-    
-    # Prices are already sorted by effective_date descending
-    for price_entry in price_cache[apartment_id]:
-        if price_entry['effective_date'] <= target_date:
-            return price_entry['price']
-    
-    return float(default_price or 0)
 
 
 def calculate_daily_price_optimized(price_cache, apartment_id, default_price, start_date, end_date):

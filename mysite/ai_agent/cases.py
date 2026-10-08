@@ -1,11 +1,9 @@
 """
-Case tracking of the client spec v4 (user decisions 2026-09-30), on top of AIIssue:
+Case tracking (client spec v4, user decisions 2026-09-30; kept for the simple alerts), on top of AIIssue:
 
 - stage: reported -> acknowledged -> owner_accepted -> answered -> resolved (only moves forward). "The tenant got
   a reply" is not "staff took it" is not "the tenant got the answer" is not "fixed".
 - tenant_deadline + next_action from the AI's triage; reminders 24 h and 2 h before the deadline (Kevin at 2 h).
-- "I'll handle": the AI stays out of the issue (no drafts, reminders, ClickUp changes) until "Give back to AI" or
-  the issue is closed. Enforced here, not only in the prompt.
 - One Telegram thread per issue: its first card; later cards about it reply to that card.
 - How often the tenant asked about it (repeat-question block on the card).
 """
@@ -60,79 +58,6 @@ def run_issues(run):
 
 
 # ---------------------------------------------------------------------------
-# "I'll handle"
-# ---------------------------------------------------------------------------
-
-def handled_ids(conversation_sid):
-    """{public id} of this tenant's open issues that staff took over with "I'll handle"."""
-    AIIssue = _issue_model()
-    rows = AIIssue.objects.filter(conversation_sid__in=_group_sids(conversation_sid)).exclude(
-        state=AIIssue.STATE_RESOLVED).exclude(handled_by__isnull=True).exclude(handled_by='')
-    return {i.public_id for i in rows}
-
-
-def _mentions(action, ids):
-    return any(str(action.get(k) or '').strip().replace('t-', 'i-', 1) in ids for k in ('issue_id', 'ticket_id'))
-
-
-def enforce_handled(parsed, conversation_sid):
-    """
-    Staff took some issues over: the AI's actions on them are dropped, and when the event is only about such issues
-    the answer is dropped too (the card becomes information only). Returns the list of handled ids involved (or []).
-    """
-    ids = handled_ids(conversation_sid)
-    if not (parsed and ids):
-        return []
-    actions = parsed.get('actions') or []
-    dropped = [a for a in actions if isinstance(a, dict) and _mentions(a, ids)]
-    parsed['actions'] = [a for a in actions if not (isinstance(a, dict) and _mentions(a, ids))]
-    refs = [str(r).strip().replace('t-', 'i-', 1) for r in (parsed.get('triage') or {}).get('issue_refs') or []]
-    involved = sorted({r for r in refs if r in ids} | {str(a.get('issue_id') or a.get('ticket_id')).replace('t-', 'i-', 1)
-                                                        for a in dropped})
-    only_handled = bool(refs) and all(r in ids for r in refs)
-    if only_handled and parsed.get('answer'):
-        parsed['review_answer'] = parsed['answer']   # kept for managers, never sent
-        parsed['answer'], parsed['no_answer'] = None, True
-    if dropped or only_handled:
-        parsed['handled_info'] = {'issues': involved, 'dropped_actions': len(dropped), 'answer_dropped': only_handled}
-    return involved
-
-
-def take_over(issues, author):
-    """ "I'll handle": marks the issues, stops their reminders. Returns the number of reminders stopped."""
-    from mysite.models import AICaseNote, AIFollowUp
-    AIIssue = _issue_model()
-    stopped = 0
-    for issue in issues:
-        if not issue.is_open:
-            continue
-        issue.handled_prev_state = issue.handled_prev_state or issue.state
-        issue.handled_by, issue.handled_at = author, timezone.now()
-        issue.state = AIIssue.STATE_STAFF_HANDLING
-        issue.reach_stage(AIIssue.STAGE_OWNER_ACCEPTED)
-        issue.save()
-        stopped += issue.followups.filter(status=AIFollowUp.STATUS_PENDING).update(
-            status=AIFollowUp.STATUS_CANCELLED, status_note=f"{author} handles it (I'll handle)"[:255], updated_at=timezone.now())
-        AICaseNote.objects.create(conversation_sid=issue.conversation_sid, booking=issue.booking, issue=issue,
-                                  text=f"{author} pressed \"I'll handle\" in Telegram: staff handle this issue, the AI stays out.")
-    return stopped
-
-
-def give_back(issue, author):
-    from mysite.models import AICaseNote
-    AIIssue = _issue_model()
-    if not issue.handled_by:
-        return False
-    issue.state = issue.handled_prev_state or AIIssue.STATE_WAITING_FOR_EDY
-    issue.handled_by = issue.handled_at = issue.handled_prev_state = None
-    issue.save()
-    schedule_deadline_reminders(issue)
-    AICaseNote.objects.create(conversation_sid=issue.conversation_sid, booking=issue.booking, issue=issue,
-                              text=f"{author} gave this issue back to the AI.")
-    return True
-
-
-# ---------------------------------------------------------------------------
 # Stages, deadlines, repeat questions, threads
 # ---------------------------------------------------------------------------
 
@@ -149,7 +74,7 @@ def schedule_deadline_reminders(issue, run=None):
     from mysite.models import AIFollowUp
     issue.followups.filter(kind=AIFollowUp.KIND_DEADLINE_REMINDER, status=AIFollowUp.STATUS_PENDING).update(
         status=AIFollowUp.STATUS_CANCELLED, status_note='deadline changed', updated_at=timezone.now())
-    if not (issue.tenant_deadline and issue.is_open and not issue.handled_by):
+    if not (issue.tenant_deadline and issue.is_open):
         return 0
     created = 0
     for due, label, reason in policy.deadline_reminders(issue.tenant_deadline):
@@ -186,7 +111,7 @@ def note_run(ai_run, parsed, tenant_event):
     """After a run: existing issues it is about get the triage (deadline, next action, tenant asked again)."""
     triage = (parsed or {}).get('triage') or {}
     for issue in existing_issues(ai_run.conversation_sid, triage.get('issue_refs')):
-        if issue.is_open and not issue.handled_by:
+        if issue.is_open:
             apply_triage(issue, triage, ai_run, tenant_event)
         elif tenant_event:
             issue.tenant_asks += 1

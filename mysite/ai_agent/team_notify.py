@@ -10,7 +10,7 @@ from datetime import datetime
 from zoneinfo import ZoneInfo
 
 from mysite.ai_agent import clickup, config
-from mysite.ai_agent.notify import activity_enabled, send_ai_chat
+from mysite.ai_agent.notify import send_ai_chat
 from mysite.unified_logger import log_warning
 
 RANK = {'routine': 0, 'urgent': 1, 'emergency': 2}
@@ -136,18 +136,12 @@ def _other_actions_line(action_results):
     return parts, problems
 
 
-def compose_telegram(meta, parsed, action_results, delivery, trigger_text, groups, ai_run, ticket_updates=(),
-                     plan_items=None, plan_actions=None):
-    """
-    plan_items given (staff review on): NOTHING has been done yet - the alert lists the answer and every planned
-    change with the time they happen. Otherwise (emergency / review off): what was done.
-    """
-    from mysite.ai_agent import plan as plan_mod
-
+def compose_telegram(meta, parsed, action_results, delivery, trigger_text, groups, ai_run, ticket_updates=()):
+    """The plain alert of a run whose actions were done at once (an emergency, which skips the review): what was done.
+    Every other run gets a simple alert (alerts_v5.py)."""
     live = meta.get('mode') == 'live'
     sent = bool((delivery or {}).get('sent_to_chat'))
-    top = (plan_mod.top_priority(plan_items, plan_actions) if plan_items is not None else
-           (groups[0]['priority'] if groups else None))
+    top = groups[0]['priority'] if groups else None
     header = (HEADER_ICON[top] if top else '💬') + f" {meta.get('apartment')} · {meta.get('tenant') or '-'}"
     lines = [
         header,
@@ -161,108 +155,34 @@ def compose_telegram(meta, parsed, action_results, delivery, trigger_text, group
             lines.append(meta[key])
     if not clickup.writes_enabled(meta.get('apartment')):
         lines.append("🚫 ClickUp writes OFF - ClickUp tasks/comments/closes below are only what the AI WOULD do")
-    lines += [
-        "",
-        f"▶ {(trigger_text or '').strip()[:1000]}",
-        "",
-    ]
-    held = bool((delivery or {}).get('held'))
-    # Legal / contract question: the answer is a suggestion that is sent ONLY after a manager confirms it
-    confirm = held and bool((delivery or {}).get('confirm'))
-    changes = plan_mod.render(plan_items) if plan_items is not None else []
-    automatic = plan_items is not None and (held or changes)
-    if confirm:
-        lines.insert(2, "⚖️ LEGAL QUESTION - NEEDS MANAGER CONFIRMATION. Nothing is sent to the tenant until a manager "
-                        "replies \"ok\" or a corrected answer - NOT even after the "
-                        f"{config.review_hold_minutes():g}-min review window.")
-    if automatic:
-        # First thing people see (also in the Telegram preview): it will happen by itself
-        lines.insert(3 if confirm else 2,
-                     f"⏰ AUTOMATIC at {_eta(delivery)} ({_minutes_left(delivery)}): if nobody replies to this message, "
-                     f"the AI does everything in the PLAN below by itself" + (" - except the legal answer." if confirm else "."))
-        lines.append(f"📋 PLAN - NOTHING IS DONE YET. At {_eta(delivery)} ({_minutes_left(delivery)}), unless someone replies to this message:")
-        if confirm:
-            lines.append("• ⚖️ SUGGESTED answer based on the contract - NOT sent automatically, only after a manager replies "
-                         "\"ok\" (send as written) or a corrected answer:")
-            lines.append(f"   \"{parsed['answer'][:900]}\"")
-        elif held:
-            lines.append("• 💬 " + ("Send this answer to the tenant:" if live else
-                                    "This answer becomes final (TEST: shown in the CRM chat, never sent to Twilio):"))
-            lines.append(f"   \"{parsed['answer'][:900]}\"")
-        elif parsed.get('answer'):
-            lines.append(f"• 💬 Answer to the tenant: {(delivery or {}).get('note') or ''}\n   \"{parsed['answer'][:600]}\"")
-        else:
-            lines.append("• 💬 No answer to the tenant")
-        lines += changes
-    elif confirm:
-        lines.append("⚖️ SUGGESTED answer based on the contract - NOT sent, waits for a manager to reply \"ok\" or a "
-                     f"corrected answer:\n{parsed['answer'][:900]}")
-    elif parsed.get('answer'):
+    lines += ["", f"▶ {(trigger_text or '').strip()[:1000]}", ""]
+    if parsed.get('answer'):
         how = 'sent to the tenant' if sent else 'NOT sent: ' + ((delivery or {}).get('note') or '')
         lines.append(f"🤖 AI answer ({how}):\n{parsed['answer'][:900]}")
     else:
-        lines.append("🤖 AI: no answer to the tenant" + (" - and nothing else to change" if plan_items is not None else ""))
-    if confirm:
-        lines.append(f"📄 Contract basis: {(parsed.get('contract_basis') or 'not given by the AI - check the contract')[:900]}")
+        lines.append("🤖 AI: no answer to the tenant")
     if parsed.get('review_answer'):
         lines.append(f"📝 Would have said (staff answered first, never sent):\n{parsed['review_answer'][:600]}")
     if parsed.get('why'):
         lines.append(f"💡 {parsed['why'][:500]}")
-
     cache = {}
-    if plan_items is not None:
-        team = plan_mod.team_lines(plan_items)
-        if team:
-            lines += ["", "👤 FOR THE TEAM (this message is the notification):"] + team
-        lines += plan_mod.info_lines(plan_items)
-    else:
-        if groups:
-            lines += ["", "👤 FOR THE TEAM:"] + _team_lines(groups, cache)
-        if ticket_updates:
-            lines += ["", "📌 EXISTING CLICKUP TASK:"]
-            for update in ticket_updates:
-                issue = update['issue']
-                lines.append(f"• t-{issue.id} 🎫 {issue.ticket_title or issue.summary}" + (f" → {issue.ticket_ref}" if issue.ticket_ref else ""))
-                lines.append(f"  {('💬 ' + update['text'][:400]) if update.get('text') else ''} {update.get('clickup') or ''}".rstrip())
-        parts, problems = _other_actions_line(action_results)
-        kb = [f"📚 {str(i['action'].get('text') or i['action'].get('value') or '')[:160]} - {str(i.get('detail') or '').splitlines()[0][:120]}"
-              for i in action_results if isinstance(i.get('action'), dict) and i['action'].get('type') == 'KB_UPDATE'
-              and i.get('status') != 'rejected']
-        if parts:
-            lines += ["", "⚙ Done now: " + " · ".join(parts)]
-        lines += kb + problems
+    if groups:
+        lines += ["", "👤 FOR THE TEAM:"] + _team_lines(groups, cache)
+    if ticket_updates:
+        lines += ["", "📌 EXISTING CLICKUP TASK:"]
+        for update in ticket_updates:
+            issue = update['issue']
+            lines.append(f"• t-{issue.id} 🎫 {issue.ticket_title or issue.summary}" + (f" → {issue.ticket_ref}" if issue.ticket_ref else ""))
+            lines.append(f"  {('💬 ' + update['text'][:400]) if update.get('text') else ''} {update.get('clickup') or ''}".rstrip())
+    parts, problems = _other_actions_line(action_results)
+    kb = [f"📚 {str(i['action'].get('text') or i['action'].get('value') or '')[:160]} - {str(i.get('detail') or '').splitlines()[0][:120]}"
+          for i in action_results if isinstance(i.get('action'), dict) and i['action'].get('type') == 'KB_UPDATE'
+          and i.get('status') != 'rejected']
+    if parts:
+        lines += ["", "⚙ Done now: " + " · ".join(parts)]
+    lines += kb + problems
     lines += ["", f"🔗 {report_url(ai_run.id)}"]   # cost and tokens stay in the report and on /ai-runs/
-    if confirm:
-        lines += ["", "⚖️ The legal answer is NEVER sent automatically - it waits for your \"ok\" or corrected answer, "
-                      "even after the review window."]
-    if automatic:
-        lines += ["", f"⏰ No reply by {_eta(delivery)} ({_minutes_left(delivery)}) → the whole plan above runs AUTOMATICALLY"
-                      + (" (except the legal answer)" if confirm else "") + ". \"stop\" prevents it, \"ok\" runs it now."]
-        lines += ["↩ REPLY to this message to change it: \"ok\" = do it all now · \"stop\" = do nothing · "
-                      "\"remove 3\" · \"3 urgent\" / any change in words · a corrected answer · \"done\" / \"no task needed\" "
-                      "for a ClickUp task · \"next time ...\" to teach the AI · start with \"test\" to only see what would happen."]
-    elif confirm:
-        lines += ["↩ REPLY to this message: \"ok\" = send the suggested answer now · a corrected answer = send that instead · "
-                  "\"don't send\" = the tenant gets nothing · \"next time ...\" to teach the AI."]
-    elif parsed.get('answer') or plan_items is not None:
-        lines += ["", "↩ Reply to manage ClickUp tasks (\"done\", \"no task needed\"), add knowledge, or \"next time ...\" "
-                      "to teach the AI. Start with \"test\" to only see what would happen."]
     return "\n".join(lines)
-
-
-def _minutes_left(delivery):
-    from django.utils import timezone
-    until = (delivery or {}).get('plan_until') or (delivery or {}).get('hold_until')
-    if not until:
-        return f"in {config.review_hold_minutes():g} min"
-    return f"in {max(1, round((until - timezone.now()).total_seconds() / 60))} min"
-
-
-def _eta(delivery):
-    until = (delivery or {}).get('plan_until') or (delivery or {}).get('hold_until')
-    if not until:
-        return 'the end of the review window'
-    return until.astimezone(ZoneInfo(config.TEAM_TIMEZONE)).strftime('%H:%M') + f" {config.TIMEZONE_LABEL}"
 
 
 def compose_clickup(meta, groups, trigger_text, ai_run):
@@ -345,7 +265,7 @@ def _deliver_clickup(ctx, groups, trigger_text, ai_run):
         return ''
     mode = clickup.delivery_mode()
     if mode == 'off':
-        return 'ClickUp: skipped (no CLICKUP_API_TOKEN and AI_AGENT_CLICKUP_VIA_CLAUDE=off)'
+        return 'ClickUp: skipped (no CLICKUP_API_TOKEN)'
 
     photos = _trigger_photos(ctx.meta)
     photo_lines = ''.join(f"\nPhoto #{m.id}: {config.site_url()}{m.url}" for m in photos)
@@ -374,25 +294,19 @@ def _deliver_clickup(ctx, groups, trigger_text, ai_run):
         return (f"ClickUp writes OFF: nothing changed in ClickUp (would create {len(tasks)} task(s) in {mapping.name}"
                 + (", post a channel message" if mapping.channel_id else "") + ")")
     try:
-        if mode == 'api':
-            for task in tasks:
-                task_id, task_url = clickup.create_task(
-                    mapping.list_id, task['name'], task['description'], task['priority'], task['assignees'], task['due_at'],
-                    tags=task['tags'],
-                )
-                task['group']['task_url'] = task_url or task_id
-                task['group']['task_created'] = True
-                photo_note = _attach_photos(task_id, photos, mapping.list_id)
-            if mapping.channel_id:
-                clickup.post_message(mapping.channel_id, compose_clickup(ctx.meta, groups, trigger_text, ai_run))
-            note = f"ClickUp (API): {len(tasks)} task(s)" + (", channel message" if mapping.channel_id else ", no channel id")
-            if tasks and photos:
-                note += f", {photo_note}"
-        else:
-            result = clickup.deliver_via_claude(
-                mapping, tasks, lambda: compose_clickup(ctx.meta, groups, trigger_text, ai_run),
+        for task in tasks:
+            task_id, task_url = clickup.create_task(
+                mapping.list_id, task['name'], task['description'], task['priority'], task['assignees'], task['due_at'],
+                tags=task['tags'],
             )
-            note = f"ClickUp (via Claude Code connection): {result}"
+            task['group']['task_url'] = task_url or task_id
+            task['group']['task_created'] = True
+            photo_note = _attach_photos(task_id, photos, mapping.list_id)
+        if mapping.channel_id:
+            clickup.post_message(mapping.channel_id, compose_clickup(ctx.meta, groups, trigger_text, ai_run))
+        note = f"ClickUp (API): {len(tasks)} task(s)" + (", channel message" if mapping.channel_id else ", no channel id")
+        if tasks and photos:
+            note += f", {photo_note}"
         for task in tasks:
             issue = task['group']['issue']
             if issue and task['group'].get('task_url'):
@@ -412,45 +326,24 @@ def deliver_clickup_now(ctx, trigger_text, ai_run):
 def deliver(ctx, ai_run, parsed, action_results, delivery, trigger_text, plan_items=None, plan_actions=None):
     """
     Sends the run's notifications. Returns a short note and writes it into the alert actions' details.
-    plan_items given: the staff review is on - only the Telegram alert with the plan, nothing in ClickUp yet.
+    plan_items given (the staff review): the simple alert, nothing in ClickUp yet - and no alert at all when the
+    manager has nothing to do (rule 1.1.5). Else (an emergency, done at once): ClickUp now + the plain alert.
     """
-    from mysite.ai_agent import plan as plan_mod
-
+    from mysite.ai_agent import alerts_v5
+    telegram_note = ''
     if plan_items is not None:
         groups, clickup_note = [], ''
-        waiting = bool((delivery or {}).get('held')) or plan_mod.has_changes(plan_items)
-        wanted = waiting or plan_mod.team_lines(plan_items) or activity_enabled()
-    else:
-        groups = alert_groups(ctx.alerts)
-        clickup_note = _deliver_clickup(ctx, groups, trigger_text, ai_run) if ctx.notify else ''
-        wanted = groups or activity_enabled()
-    telegram_note = ''
-    explicit_card = plan_items is not None and config.explicit_approval()
-    if explicit_card:
-        wanted = wanted or bool(parsed.get('handled_info'))
-    from mysite.ai_agent import alerts_v5
-    if explicit_card and alerts_v5.applies(ctx.meta):
-        # Simple alerts (simple_telegram_alerts.md): no alert at all when the manager has nothing to do (rule 1.1.5)
         wanted = alerts_v5.has_content(parsed, delivery, plan_actions, ctx.meta)
         if ctx.notify and wanted:
             ok, telegram_note, message_id = alerts_v5.post(ctx, ai_run, parsed, delivery, plan_actions)
-    elif ctx.notify and wanted and explicit_card:
-        # Client spec v4 card with buttons, posted in the thread of the issue it is about
-        from mysite.ai_agent import approval, cards, cases
-        refs = (parsed.get('triage') or {}).get('issue_refs')
-        markup = approval.keyboard(ai_run.id, 1, bool((delivery or {}).get('held')), plan_items,
-                                   plan_mod.has_changes(plan_items))
-        if not markup and parsed.get('handled_info'):
-            markup = approval.give_back_keyboard(ai_run.id, cases.existing_issues(ai_run.conversation_sid,
-                                                                                  parsed['handled_info']['issues']))
-        reply_to = cases.thread_for(ai_run.conversation_sid, refs)
-        ok, telegram_note, message_id = send_ai_chat(
-            cards.compose(ctx.meta, parsed, delivery, trigger_text, plan_items, plan_actions, ai_run),
-            reply_to=reply_to, reply_markup=markup)
-    elif ctx.notify and wanted:
-        ok, telegram_note, message_id = send_ai_chat(
-            compose_telegram(ctx.meta, parsed, action_results, delivery, trigger_text, groups, ai_run,
-                             getattr(ctx, 'ticket_updates', ()), plan_items=plan_items, plan_actions=plan_actions))
+    else:
+        groups = alert_groups(ctx.alerts)
+        clickup_note = _deliver_clickup(ctx, groups, trigger_text, ai_run) if ctx.notify else ''
+        wanted = True
+        if ctx.notify:
+            ok, telegram_note, message_id = send_ai_chat(
+                compose_telegram(ctx.meta, parsed, action_results, delivery, trigger_text, groups, ai_run,
+                                 getattr(ctx, 'ticket_updates', ())))
     if ctx.notify and wanted:
         telegram_note = f"Telegram: {'sent' if ok else 'FAILED - ' + telegram_note}"
         if delivery is not None and message_id:

@@ -257,14 +257,6 @@ class DateTimeFieldEx(CustomFieldMixin, forms.DateTimeField):
         kwargs['input_formats'] = [self.display_format]
         super().__init__(*args, **kwargs)
 
-    # def to_python(self, value):
-    #     # Convert the input value to a date object
-    #     date_obj = super().to_python(value)
-    #     if date_obj is not None:
-    #         # Convert the date object to the save format
-    #         return date_obj.strftime(self.save_format)
-    #     return value
-
     def prepare_value(self, value):
         # Convert the saved value to the display format
         if isinstance(value, str):
@@ -695,14 +687,6 @@ class BookingForm(forms.ModelForm):
     keywords = CharFieldEx(isColumn=False, order=10, isEdit=True,
                         isCreate=True, ui_element="textarea", initial="", required=False)
     
-
-    # assigned_cleaner = ModelChoiceFieldEx(
-    #     queryset=User.objects.all(),
-    #     order=11,
-    #     initial=None,
-    #     isColumn=False, isEdit=True, isCreate=True, required=False, ui_element="radio",
-    #     _dropdown_options=lambda: get_dropdown_options("cleaners"))
-    
     status = ChoiceFieldEx(choices=Booking.STATUS, isColumn=True, initial='Waiting Contract', isEdit=True,
                            required=False, isCreate=True, ui_element="radio", order=12,
                            _dropdown_options=lambda: get_dropdown_options("booking_status"))
@@ -1003,38 +987,6 @@ class PaymentForm(forms.ModelForm):
         
         instance.save(number_of_months=self.number_of_months or 0, updated_by=updated_by)
         return instance
-
-
-# class ContractForm(forms.ModelForm):
-#     class Meta:
-#         model = Contract
-#         fields = ['contract_id', 'sign_date', 'link', 'status', 'booking']
-
-#     def __init__(self, *args, **kwargs):
-#         self.request = kwargs.pop('request', None)
-#         action = kwargs.pop('action', 'create')
-#         super(ContractForm, self).__init__(*args, **kwargs)
-
-#     contract_id = CharFieldEx(isColumn=True, isEdit=True, required=False, isCreate=True, ui_element="input")
-#     sign_date = DateFieldEx(isColumn=True, required=False, isEdit=True, isCreate=True, ui_element="datepicker")
-#     link = URLFieldEx(isColumn=True, isEdit=True, required=False, isCreate=True, ui_element="input")
-#     status = ChoiceFieldEx(
-#         choices=Contract.STATUS, isColumn=True, required=False, initial='Pending', isEdit=True, isCreate=True,
-#         ui_element="dropdown", _dropdown_options=lambda: get_dropdown_options("contract_status"))
-#     booking = ModelChoiceFieldEx(
-#         queryset=Booking.objects.all(),
-#         isColumn=True, isEdit=True, isCreate=True, ui_element="dropdown",
-#         _dropdown_options=lambda: get_dropdown_options("bookings"),
-#         display_field="booking.apartment.name")
-
-#     def clean(self):
-#         cleaned_data = super().clean()
-#         status = cleaned_data.get('status')
-
-#         if not status:
-#             cleaned_data['status'] = 'Pending'
-
-#         return cleaned_data
 
 
 class CleaningForm(forms.ModelForm):

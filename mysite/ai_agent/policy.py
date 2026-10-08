@@ -9,14 +9,6 @@ from django.utils import timezone
 
 from mysite.ai_agent import config
 
-DELAYS = {
-    'escalation_check': timedelta(minutes=30),
-    'tenant_nudge': timedelta(hours=3),
-    'second_tenant_nudge': timedelta(hours=24),
-    ('staff_reminder', 'routine'): timedelta(hours=24),
-    ('staff_reminder', 'urgent'): timedelta(hours=1),
-    ('staff_reminder', 'emergency'): timedelta(minutes=30),
-}
 
 # Simple alerts (v5, simple_telegram_alerts.md 1.3): at most 2 reminders per case - the first within 2 hours (urgent
 # and emergency: 30 minutes, user decision 2026-10-06), the second the next day. Deadline reminders are separate and
@@ -86,8 +78,7 @@ def _office_moment(moment):
 def due_at(kind, priority='routine', now=None):
     """Returns (aware UTC-safe datetime, human note explaining the choice)."""
     now = now or timezone.now()
-    delays = DELAYS_V5 if config.alert_style() == 'v5' else DELAYS
-    delay = delays.get((kind, priority)) or delays.get(kind) or delays[('staff_reminder', 'routine')]
+    delay = DELAYS_V5.get((kind, priority)) or DELAYS_V5.get(kind) or DELAYS_V5[('staff_reminder', 'routine')]
     local = (now + delay).astimezone(_tz())
 
     if kind in TENANT_KINDS:
@@ -98,7 +89,7 @@ def due_at(kind, priority='routine', now=None):
     if priority in ('urgent', 'emergency'):
         return local, f"{kind} ({priority}): +{delay}, any hour"
 
-    moved = _office_moment(local) if config.alert_style() == 'v5' else _into_window(local, STAFF_WINDOW, STAFF_WINDOW[0])
+    moved = _office_moment(local)
     note = f"{kind}: +{delay}" + (" moved to staff hours" if moved != local else "")
     return moved, note
 

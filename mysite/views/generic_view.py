@@ -47,12 +47,6 @@ def payments(request):
     return generic_view(request, 'payment', PaymentForm, 'payments.html')
 
 
-@user_has_role('Admin', 'Manager')
-def ai_management_view(request):
-    from .ai_management import ai_management_view as ai_management_view_func
-    return ai_management_view_func(request)
-
-
 def format_dates(item):
     for key, value in item.items():
         if isinstance(value, str):

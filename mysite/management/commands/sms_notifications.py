@@ -67,12 +67,10 @@ class Command(BaseCommand):
     def hand_to_agent(self, booking, message, event_type):
         """
         True when the notification was queued for the AI agent (simple alerts, part 8a of simple_telegram_alerts.md).
-        False -> the caller sends it directly, as before: old alert style, AI_AGENT_NOTIFICATIONS=direct, no chat for
+        False -> the caller sends it directly, as before: no chat for
         this booking, or the queue failed (a notification is never lost).
         """
         from mysite.ai_agent import config, service
-        if config.alert_style() != 'v5' or (os.environ.get('AI_AGENT_NOTIFICATIONS') or 'agent').strip().lower() == 'direct':
-            return False
         conversation = self.get_existing_conversation(booking)
         if not (conversation and conversation.apartment_id and conversation.booking_id):
             return False

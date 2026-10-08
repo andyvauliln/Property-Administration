@@ -102,7 +102,7 @@ def decide(event, now=None):
         return Ack.STATUS_NOT_APPLICABLE, 'chat is not linked to an apartment', mode
     if _ONLY_THANKS.match(event.body or ''):
         return Ack.STATUS_NOT_APPLICABLE, 'only a thanks / ok - nothing to acknowledge', mode
-    if config.alert_style() == 'v5' and is_urgent(event.body):
+    if is_urgent(event.body):
         # The text says "for an urgent issue, reply URGENT": pointless for a tenant who just wrote URGENT. The urgent
         # flow (call + urgent alert) takes over (simple alerts, A13).
         return Ack.STATUS_NOT_APPLICABLE, 'the tenant wrote URGENT - handled as urgent, no after-hours text', mode
@@ -168,7 +168,7 @@ def handle_event(event, now=None):
     if sending:
         ack.reason = None
         _try_send(ack, event, now)
-    if config.alert_style() == 'v5' and ack.status in (Ack.STATUS_SENT, Ack.STATUS_WOULD_SEND):
+    if ack.status in (Ack.STATUS_SENT, Ack.STATUS_WOULD_SEND):
         # Simple alerts: what the AI sends by itself is shown to the team as an AI MESSAGE (D1 / D2)
         try:
             from mysite.ai_agent import alerts_v5

@@ -38,10 +38,10 @@ LOGIN_REDIRECT_URL = '/'
 
 # ENABLE_DYNAMIC_MODEL_FIELDS = True
 
-# FORM SUBMISSION
-# Comment out the following line and place your railway URL, and your production URL in the array.
-# CSRF_TRUSTED_ORIGINS = ["*"]
 os.makedirs(BASE_DIR / "logs", exist_ok=True)
+# Each file log rotates at 20 MB and keeps 5 old files (common.log.1 ... common.log.5).
+LOG_FILE_MAX_BYTES = 20 * 1024 * 1024
+LOG_FILE_BACKUP_COUNT = 5
 LOGGING = {
     'version': 1,
     'disable_existing_loggers': False,
@@ -64,26 +64,34 @@ LOGGING = {
        
         'common': {
             'level': 'DEBUG',
-            'class': 'logging.FileHandler',
+            'class': 'logging.handlers.RotatingFileHandler',
+            'maxBytes': LOG_FILE_MAX_BYTES,
+            'backupCount': LOG_FILE_BACKUP_COUNT,
             'filename': 'logs/common.log',
             'formatter': 'verbose',
             'filters': ['exclude_404'],
         },
         'debug': {
             'level': 'DEBUG',
-            'class': 'logging.FileHandler',
+            'class': 'logging.handlers.RotatingFileHandler',
+            'maxBytes': LOG_FILE_MAX_BYTES,
+            'backupCount': LOG_FILE_BACKUP_COUNT,
             'filename': 'logs/debug.log',
             'formatter': 'verbose',
         },
         'payment_sync_v2_trace': {
             'level': 'DEBUG',
-            'class': 'logging.FileHandler',
+            'class': 'logging.handlers.RotatingFileHandler',
+            'maxBytes': LOG_FILE_MAX_BYTES,
+            'backupCount': LOG_FILE_BACKUP_COUNT,
             'filename': str(BASE_DIR / 'logs' / 'payment_sync_v2_trace.jsonl'),
             'formatter': 'jsonl',
         },
         'group_chat_log': {
             'level': 'DEBUG',
-            'class': 'logging.FileHandler',
+            'class': 'logging.handlers.RotatingFileHandler',
+            'maxBytes': LOG_FILE_MAX_BYTES,
+            'backupCount': LOG_FILE_BACKUP_COUNT,
             'filename': str(BASE_DIR / 'logs' / 'group_chat_log.log'),
             'formatter': 'jsonl',
         },

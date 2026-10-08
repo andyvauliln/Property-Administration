@@ -7,8 +7,8 @@ from .notifications import notifications
 from .payments_report import paymentReport
 from .messaging import twilio_webhook
 from .login import CustomLogoutView, custom_login_view
-from .generic_view import apartment_prices, bookings, cleanings, payment_methods, payment_types, payments, ai_management_view
-from .ai_management import ai_prompt_detail, ai_prompt_reset, ai_prompt_preview, ai_knowledge_base_save
+from .generic_view import apartment_prices, bookings, cleanings, payment_methods, payment_types, payments
+from .ai_management import ai_management_view, ai_prompt_detail, ai_prompt_reset, ai_prompt_preview, ai_knowledge_base_save
 from .ai_agent_views import (
     ai_runs_view, ai_run_detail_view, ai_agent_message_status, ai_regenerate_status, ai_issues_view, ai_issue_resolve, ai_staff_view,
     ai_knowledge_view,
@@ -61,8 +61,6 @@ from .chat import (
     generate_kb_rule,
     save_kb_rule,
     delete_chat_message,
-    load_more_messages,
-    chat_template_list,
     chat_template_create,
 )
 from .database_activity import database_activity

@@ -4,12 +4,7 @@ import os
 from mysite.management.commands.base_command import BaseCommandWithErrorHandling
 from django.db.models import Q
 from mysite.unified_logger import log_error, log_info, log_warning, logger
-import requests
-
-def send_telegram_message(chat_id, token, message):
-    url = f"https://api.telegram.org/bot{token}/sendMessage"
-    requests.get(url, params={"chat_id": chat_id, "text": message})
-
+from mysite.telegram_utils import send_telegram_message
 
 def check_bookings_without_cleaning(chat_id, token):
     today = date.today()

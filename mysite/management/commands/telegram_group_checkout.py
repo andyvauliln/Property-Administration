@@ -1,24 +1,8 @@
-import requests
+from mysite.telegram_utils import normalize_group_chat_id, send_telegram_message
 from datetime import timedelta, date
 from mysite.models import Booking, format_date, format_telegram_links
 import os
 from mysite.management.commands.base_command import BaseCommandWithErrorHandling
-
-
-def normalize_group_chat_id(chat_id):
-    s = (chat_id or "").strip()
-    if not s or not s.lstrip("-").isdigit():
-        return s
-    return s
-
-
-def send_telegram_message(chat_id, token, message, dry_run=False, stdout=None):
-    if dry_run and stdout:
-        stdout.write(message)
-        stdout.write("\n" + "-" * 40 + "\n")
-        return
-    url = f"https://api.telegram.org/bot{token}/sendMessage"
-    requests.get(url, params={"chat_id": chat_id, "text": message})
 
 
 def my_cron_job(dry_run=False, stdout=None):
