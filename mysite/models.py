@@ -16,6 +16,9 @@ import os
 
 from mysite.audit_bulk import audit_queryset_update
 
+# PaymenType of the auto-generated payment created with every new Cleaning
+CLEANING_PAYMENT_TYPE_ID = 26
+
 
 def convert_date_format(value):
     if isinstance(value, date):
@@ -723,6 +726,10 @@ class Booking(models.Model):
     def _handle_booking_update(self, form_data, payments_data):
         """Handle updates to existing bookings"""
         orig = Booking.objects.get(pk=self.pk)
+        # Filled by the end-date sync below; create_payments uses them so the payment rows
+        # posted back by the edit form (with the dates it showed) don't undo or trip over the sync
+        self._payments_removed_by_sync = set()
+        self._payment_dates_before_sync = {}
         
         # Update notifications if dates changed
         if orig.start_date != self.start_date:
@@ -742,6 +749,7 @@ class Booking(models.Model):
 
         if apartment_changed:
             self._reassign_parking_on_apartment_change()
+            self._move_upcoming_cleanings_to_apartment()
         
         # Keep linked parking bookings in sync with booking (dates + apartment)
         if dates_changed or apartment_changed:
@@ -860,20 +868,15 @@ class Booking(models.Model):
             self.deletePayments()
         
         # Update damage deposit return date
-        audit_queryset_update(
-            Payment.objects.filter(
-                booking=self,
-                payment_type__name="Damage Deposit",
-                payment_type__type="Out",
-            ),
-            payment_date=self.end_date,
+        deposit_returns = Payment.objects.filter(
+            booking=self,
+            payment_type__name="Damage Deposit",
+            payment_type__type="Out",
         )
+        self._remember_payment_dates(deposit_returns)
+        audit_queryset_update(deposit_returns, payment_date=self.end_date)
 
-        # Update cleaning date
-        audit_queryset_update(
-            Cleaning.objects.filter(booking=self),
-            date=self.end_date,
-        )
+        self._move_checkout_cleanings(orig.end_date)
 
         # Update all related notifications
         audit_queryset_update(
@@ -882,11 +885,6 @@ class Booking(models.Model):
                 payment__payment_type__name="Damage Deposit",
                 payment__payment_type__type="Out",
             ),
-            date=self.end_date,
-        )
-
-        audit_queryset_update(
-            Notification.objects.filter(cleaning__booking=self),
             date=self.end_date,
         )
 
@@ -998,6 +996,41 @@ class Booking(models.Model):
         )
         parking_booking.save()
     
+    def _move_checkout_cleanings(self, orig_end_date):
+        """
+        Shift checkout cleanings (dated on/after the old end date) by the same number of days
+        as the end date, keeping any offset such as "day after checkout". Pre-arrival and
+        mid-stay cleanings keep their dates. The cleaning's notification and its pending
+        auto-generated cleaning payment move with it.
+        """
+        delta = self.end_date - orig_end_date
+        for cleaning in Cleaning.objects.filter(booking=self, date__gte=orig_end_date):
+            new_date = cleaning.date + delta
+            pending_payments = Payment.objects.filter(
+                booking=self,
+                payment_type_id=CLEANING_PAYMENT_TYPE_ID,
+                payment_status='Pending',
+                payment_date=cleaning.date,
+            )
+            self._remember_payment_dates(pending_payments)
+            audit_queryset_update(Cleaning.objects.filter(pk=cleaning.pk), date=new_date)
+            audit_queryset_update(Notification.objects.filter(cleaning=cleaning), date=new_date)
+            audit_queryset_update(Notification.objects.filter(payment__in=pending_payments), date=new_date)
+            audit_queryset_update(pending_payments, payment_date=new_date)
+
+    def _remember_payment_dates(self, payments):
+        if hasattr(self, '_payment_dates_before_sync'):
+            self._payment_dates_before_sync.update(payments.values_list('pk', 'payment_date'))
+
+    def _move_upcoming_cleanings_to_apartment(self):
+        """Keep today's and future cleanings in the booking's apartment; past ones stay where they happened."""
+        from django.utils import timezone
+
+        audit_queryset_update(
+            Cleaning.objects.filter(booking=self, date__gte=timezone.localdate()).exclude(apartment=self.apartment),
+            apartment=self.apartment,
+        )
+
     def _cleanup_on_cancelled_booking(self):
         """Remove related operational rows when a booking is cancelled (soft delete or status change)."""
         Notification.objects.filter(booking=self).delete()
@@ -1025,10 +1058,20 @@ class Booking(models.Model):
         payments_to_delete = Payment.objects.filter(
             booking=self,
             payment_date__gt=self.end_date,
-        ).exclude(payment_type__name="Damage Deposit", payment_type__type="Out")
+        ).exclude(
+            payment_type__name="Damage Deposit", payment_type__type="Out"
+        ).exclude(
+            # The checkout cleaning still happens; its payment moves with it in _move_checkout_cleanings
+            payment_type_id=CLEANING_PAYMENT_TYPE_ID
+        )
 
+        ids = set(payments_to_delete.values_list('pk', flat=True))
         for payment in payments_to_delete:
             payment.delete()
+
+        # Payment.delete() keeps Completed/Expected/Merged rows, so remember only what was really removed
+        if hasattr(self, '_payments_removed_by_sync'):
+            self._payments_removed_by_sync |= ids - set(Payment.objects.filter(pk__in=ids).values_list('pk', flat=True))
 
     def delete(self, using=None, keep_parents=False, hard_delete=False):
         if hard_delete:
@@ -1159,16 +1202,25 @@ class Booking(models.Model):
         payment_type_instance = PaymenType.objects.get(pk=payment_type_id)
 
         if payment_id:
-            if payment_id.endswith("_deleted"):
+            payment_id = str(payment_id)
+            is_deleted = payment_id.endswith("_deleted")
+            if is_deleted:
                 payment_id = payment_id[:-8]
-                payment = Payment.objects.get(pk=payment_id)
+            if int(payment_id) in getattr(self, '_payments_removed_by_sync', set()):
+                # Already removed because the booking now ends before it
+                return
+            payment = Payment.objects.get(pk=payment_id)
+            if is_deleted:
                 payment.delete()
             else:
-                payment = Payment.objects.get(pk=payment_id)
                 payment.payment_type = payment_type_instance
                 payment.amount = amount
                 payment.notes = payment_notes
-                payment.payment_date = payment_date
+                # The form posts the date it showed before the booking dates changed;
+                # keep the date moved by the end-date sync unless the user edited it
+                date_before_sync = getattr(self, '_payment_dates_before_sync', {}).get(payment.pk)
+                if date_before_sync is None or convert_date_format(payment_date) != date_before_sync:
+                    payment.payment_date = payment_date
                 payment.payment_status = payment_status
                 payment.save()
         else:
@@ -1771,7 +1823,7 @@ class Cleaning(models.Model):
             
             # Create payment for new cleaning
             try:
-                payment_type = PaymenType.objects.get(pk=26)
+                payment_type = PaymenType.objects.get(pk=CLEANING_PAYMENT_TYPE_ID)
                 payment_method = PaymentMethod.objects.get(pk=1)
                 bank = PaymentMethod.objects.get(pk=6)
                 
