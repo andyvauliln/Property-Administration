@@ -12,8 +12,8 @@ logger = logging.getLogger(__name__)
 
 # Calendar holds, not real guests
 PLACEHOLDER_TENANTS = {'Blocked', 'Problem Booking', 'Not Availabale', 'Pending'}
-# Apartments whose name matches this are test apartments
-TEST_APARTMENTS_REGEX = r'test|sandbox'
+# Apartments and guests whose name matches this are test data
+TEST_NAMES_REGEX = r'test|sandbox'
 # A booking of the same guest that starts within this gap after the previous one ends
 # is an extension of the same contract, also when the guest moved to another apartment
 EXTENSION_GAP = timedelta(days=9)
@@ -46,8 +46,8 @@ def contracts_report(request):
         bookings = Booking.objects.exclude(status__in=['Cancelled', 'Blocked']).filter(
             tenant__isnull=False, apartment__isnull=False,
         ).exclude(tenant__full_name__in=PLACEHOLDER_TENANTS).exclude(
-            apartment__name__iregex=TEST_APARTMENTS_REGEX
-        )
+            apartment__name__iregex=TEST_NAMES_REGEX
+        ).exclude(tenant__full_name__iregex=TEST_NAMES_REGEX)
         if request.user.role == 'Manager':
             bookings = bookings.filter(apartment__managers=request.user)
 
