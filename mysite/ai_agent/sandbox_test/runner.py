@@ -313,7 +313,7 @@ class Runner:
             if message_id in known:
                 continue
             try:
-                markup, text = alerts_v5.keyboard_for(run), alerts_v5.render_text(run)
+                markup, text = alerts_v5.keyboard_for(run), alerts_v5.to_plain(alerts_v5.render_text(run))
             except Exception:
                 markup, text = None, ''
             record = tap.messages.get(message_id) or {'id': message_id, 'text': text, 'posted': text, 'markup': markup, 'step': self.step,

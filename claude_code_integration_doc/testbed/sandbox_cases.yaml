@@ -290,7 +290,7 @@ A3:
     urgency: routine
     sound: false
     conversation:
-      before: AI (sent)
+      before: AI
       now_contains: wifi password
     answer: true
     answer_contains:
@@ -321,7 +321,7 @@ A3b:
     urgency: routine
     sound: false
     conversation:
-      before: AI (sent)
+      before: AI
       now_contains: doesn't work
     answer: true
     answer_not_contains:
@@ -430,11 +430,10 @@ B2:
     alert: TEAM MESSAGE
     sound: false
     contains:
-    - 🧑‍🔧 Edy
-    - 'from: Edy''s message'
+    - 💬 Edy
     - ✅ Reminder
     conversation:
-      before: Vera (tenant)
+      before: Vera Lopez
       now_contains: bike room
     answer: false
     tasks: 0
@@ -824,8 +823,8 @@ A1:
     - ↩ Reply to this message
     - 'AI sends to chat: ON (live)'
     - 'AI Auto ClickUp: OFF'
-    - 'AI run:'
-    - 'CRM chat:'
+    - AI run
+    - CRM chat
     conversation:
       now_contains: kitchen sink
     answer: true
@@ -865,8 +864,8 @@ E1:
   expect:
     alert: REPLY
     contains:
-    - 'AI run:'
-    - 'CRM chat:'
+    - AI run
+    - CRM chat
     tasks: 0
     sent_to_tenant: false
     buttons: []
@@ -1069,17 +1068,17 @@ B1:
     alert: TEAM MESSAGE
     sound: false
     contains:
-    - 🧑‍🔧 Edy
+    - 💬 Edy
     - Comment on task
     - ↩ Reply to this message
     - 'AI sends to chat: ON (live)'
-    - 'CRM chat:'
+    - CRM chat
     not_contains:
     - 🟢
     - 🔴
     - 🚨
     conversation:
-      before: Vera (tenant)
+      before: Vera Lopez
       now_contains: plumber comes tomorrow
     answer: false
     tasks: 0
@@ -1653,10 +1652,9 @@ B3:
     alert: TEAM MESSAGE
     sound: false
     contains:
-    - 🧑‍🔧 Janna
-    - 'from: Janna''s message'
+    - 💬 Janna
     conversation:
-      before: Vera (tenant)
+      before: Vera Lopez
       now_contains: Zelle
     answer: false
     tasks: 0
@@ -1685,7 +1683,7 @@ B5:
     alert: TEAM MESSAGE
     sound: false
     contains:
-    - 🧑‍🔧 Edy
+    - 💬 Edy
     - to tenant
     conversation:
       now_contains: water meter
@@ -1883,7 +1881,7 @@ B4:
     alert: TEAM MESSAGE
     sound: false
     contains:
-    - 🧑‍🔧 Edy
+    - 💬 Edy
     - Close task
     conversation:
       now_contains: dryer is fixed
@@ -1934,10 +1932,10 @@ B6:
     alert: TEAM MESSAGE
     sound: true
     contains:
-    - 🧑‍🔧 Kevin
+    - 💬 Kevin
     - 🔴 urgent
     conversation:
-      before: Vera (tenant)
+      before: Vera Lopez
       now_contains: electrician
     answer: false
     tasks: 1
@@ -2289,7 +2287,7 @@ H2:
     - 📅 Rent due tomorrow
     - ⏸ HELD
     - ⏸ NOT sent
-    - 💬 Vera (tenant)
+    - 💬 Vera Lopez
     - Zelle
     tasks: 0
     reminders:

@@ -260,7 +260,7 @@ def _check_conversation(want, got, add, ctx):
             add(ok, f"↪️ {want['before']}" if ok else _diff("The ↪️ line (what the other side wrote before) is different.",
                                                             f"↪️ {want['before']} \"…\"", f"↪️ {before.group(1)}" if before else "no ↪️ line"))
     if want.get('now_contains'):
-        now = re.search(r'💬[^"\n]*"(.+?)"\s*💬', text, re.S)
+        now = re.search(r'💬[^"\n]*"(.+?)"\s*(?:\n|$)', text, re.S)
         ok = bool(now) and _has(want['now_contains'], now.group(1))
         add(ok, "💬 message block" if ok else _diff("The 💬 line (the new message) is different.", f"💬 \"…{want['now_contains']}…\"",
                                                     f"💬 \"{now.group(1)[:80]}\"" if now else "no 💬 line"))

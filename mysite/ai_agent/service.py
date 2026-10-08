@@ -586,6 +586,10 @@ def process_events(events):
     run, parsed, meta = outcome['run'], outcome['parsed'], outcome['meta']
     urgent_reply = any(after_hours.is_urgent(e.body) for e in tenant_events)
     if parsed:
+        if event_type == AIEvent.TYPE_STAFF_MESSAGE and parsed.get('answer'):
+            # A team member just wrote to the tenant: the AI never adds its own message on top - it would repeat what
+            # the tenant already has (user, 2026-10-08). Kept as the review answer, never sent.
+            parsed['review_answer'], parsed['answer'], parsed['no_answer'] = parsed['answer'], None, True
         if urgent_reply and (parsed['triage'].get('priority') or 'routine') == 'routine':
             parsed['triage']['priority'] = 'urgent'      # the tenant replied URGENT: the card says so
     meta['urgent_reply'] = urgent_reply

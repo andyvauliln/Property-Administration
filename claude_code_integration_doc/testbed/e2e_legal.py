@@ -27,9 +27,11 @@ config.WORK_DIR = config.RUNS_DIR / "_cwd"
 config.is_within_notification_window = lambda now=None: True   # this file is about the press, not the SMS hours
 config.is_office_hours = lambda now=None: True                  # ... nor about the after-hours message
 
+from mysite.ai_agent.sandbox_test.world import html_to_plain as _plain_of   # an alert sent as Telegram HTML, as read
 # ---- fakes ---------------------------------------------------------------------------------
 telegram, sms, tg_fail, markups, callbacks, tg_ids = [], [], [False], [], [], [600000]   # ids unlike the other files'
-def fake_tg(text, reply_to=None, reply_markup=None, silent=False):
+def fake_tg(text, reply_to=None, reply_markup=None, silent=False, parse_mode=None):
+    text = _plain_of(text) if parse_mode == 'HTML' else text
     if tg_fail[0]:
         return False, "down", None
     tg_ids[0] += 1
@@ -40,7 +42,7 @@ for module in (team_notify, answer_review, alerts_v5, notify, calls):
 for module in (alerts_v5, approval, notify):
     module.edit_reply_markup = lambda message_id, markup=None: markups.append((message_id, markup))
     module.answer_callback = lambda cid, text='', alert=False: callbacks.append((cid, text, alert))
-notify.edit_message_text = lambda message_id, text, reply_markup=None: markups.append((message_id, reply_markup))
+notify.edit_message_text = lambda message_id, text, reply_markup=None, parse_mode=None: markups.append((message_id, reply_markup))
 errors = []
 answer_review.report_error = service.report_error = calls.report_error = \
     lambda e, ctx, info=None, source='task': errors.append(f"{ctx}: {e}")
@@ -172,7 +174,7 @@ check("run is held and marked as needing a manager", r1.hold_status == 'holding'
       and r1.review.get('contract_basis') == BASIS, (r1.hold_status, r1.review))
 check("the AI's triage is stored on the run", r1.triage.get('primary_type') == 'LEGAL_OR_CONTRACT' and r1.triage.get('owner') == 'Kevin', r1.triage)
 check("alert: the suggested answer and the contract basis right under it, with Send Answer (SMS) / Edit Answer (live apartment)",
-      f'🤖 "{SUGGESTED}" 🤖' in a1['text'] and f"⚖️ Contract: {BASIS}" in a1['text']
+      f'🤖 "{SUGGESTED}"\n⚖️ Contract: ' in a1['text'] and f"⚖️ Contract: {BASIS}" in a1['text']
       and [b['text'] for b in buttons(a1['markup'])][:2] == ['🤖 Send Answer (SMS)', '✏️ Edit Answer'], a1)
 chat_why = json.dumps(TwilioMessage.objects.filter(conversation_sid=SID).order_by('-id').first().__dict__, default=str)
 check("CRM chat page marks it as a legal suggestion", "LEGAL - SUGGESTED ANSWER" in chat_why, chat_why[:400])

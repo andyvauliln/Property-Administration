@@ -347,21 +347,19 @@ try:
 🏠 Sandbox Test · 👤 Vera Lopez · 🟢 Routine
 
 ———
-💬 "Hi, the kitchen sink is dripping since last night" 💬
+💬 Vera Lopez "Hi, the kitchen sink is dripping since last night"
 ———
-🤖 "Hi Vera, thanks for letting us know. We've logged it and our maintenance team will contact you." 🤖
+🤖 "Hi Vera, thanks for letting us know. We've logged it and our maintenance team will contact you."
 ———
-🎫 Kitchen sink dripping – Sandbox Test 🎫
+🎫 Kitchen sink dripping – Sandbox Test
    Edy · routine · due {(day + timedelta(days=3)):%a} {(day + timedelta(days=3)).day} {(day + timedelta(days=3)):%b} 09:34
 ———
-⏰ Check the sink task has a visit date – today 11:34 (1/2) ⏰
+⏰ Check the sink task has a visit date – today 11:34 (1/2)
 ———
 
 ↩ Reply to this message for questions, notes or custom actions.
-
 📤 AI sends to chat: ON (live) · 🎫 AI Auto ClickUp: OFF
-🔗 AI run: http://crm.test/ai-runs/{got['runs'][0].id}/
-💬 CRM chat: http://crm.test/chat/{SANDBOX_SID}/"""
+🔗 AI run · CRM chat"""
     check_("v5 A1: the alert text is the example, line by line", alert['text'] == expected_text, "\n" + alert['text'])
     labels = [[b['text'] for b in row] for row in alert['markup']['inline_keyboard']]
     check_("v5 A1: one button per block", labels == [['🤖 Send Answer (SMS)', '✏️ Edit Answer'], ['🤖🎫 Send + Create Task'], ['🎫 Create Task'], ['✅ Close Reminder']], labels)
@@ -416,7 +414,7 @@ try:
     alert = result['got']['alerts'][0]
     labels = [[b['text'] for b in row] for row in alert['markup']['inline_keyboard']]
     check_("v5 A2: no reminder from the AI -> the backend adds the team reminder (urgent: 30 min); the case passes",
-           "⏰ Check Mark got in – today 15:10 (1/2) ⏰" in alert['text'] and labels == [['🤖 Send Answer (SMS)', '✏️ Edit Answer'], ['✅ Close Reminder']]
+           "⏰ Check Mark got in – today 15:10 (1/2)\n" in alert['text'] and labels == [['🤖 Send Answer (SMS)', '✏️ Edit Answer'], ['✅ Close Reminder']]
            and result['verdict'] == 'PASS', (alert['text'], labels, result['reason']))
 
     # urgent: with sound, reminder after 1 h, two tasks numbered
@@ -430,8 +428,8 @@ try:
     result = v5.run_case(cases['A11'], 1, 1, first=True)
     alert = result['got']['alerts'][0]
     labels = [[b['text'] for b in row] for row in alert['markup']['inline_keyboard']]
-    check_("v5 A11: two tasks are numbered, blocks and buttons", "🎫1 Dryer doesn't start – Sandbox Test 🎫1\n   Edy · 🔴 urgent · due " in alert['text']
-           and "🎫2 Bathroom light flickering – Sandbox Test 🎫2\n   Edy · routine · due " in alert['text']
+    check_("v5 A11: two tasks are numbered, blocks and buttons", "🎫1 Dryer doesn't start – Sandbox Test\n   Edy · 🔴 urgent · due " in alert['text']
+           and "🎫2 Bathroom light flickering – Sandbox Test\n   Edy · routine · due " in alert['text']
            and labels[1] == ['🤖🎫 Send + Create Tasks'] and labels[2] == ['🎫 Create Task 1', '🎫 Create Task 2'], (alert['text'], labels))
     step = v5.do_step({'press': 'Send Answer', 'by': 'Andy'})
     labels = [[b['text'] for b in row] for row in v5.world.tap.messages[alert['id']]['markup']['inline_keyboard']]
@@ -441,7 +439,7 @@ try:
     check_("v5: after a tenant message the reminder is for the team, even when the AI asked for one to the tenant",
            AIFollowUp.objects.get(conversation_sid=SANDBOX_SID).kind == 'staff_reminder' and "to tenant" not in alert['text'])
     check_("v5: urgent -> with sound, 🔴 Urgent, reminder after 30 min; a fact without a source is not shown",
-           not alert['silent'] and "🔴 Urgent" in alert['text'] and "(1/2) ⏰" in alert['text'] and "Dryer is old" not in alert['text']
+           not alert['silent'] and "🔴 Urgent" in alert['text'] and "(1/2)\n" in alert['text'] and "Dryer is old" not in alert['text']
            and abs((AIFollowUp.objects.get(conversation_sid=SANDBOX_SID).due_at - v5.clock.now()).total_seconds() - 1800) < 120, alert['text'])
 
     # ---- the other parts of a tenant alert, and the team alert ---------------------------------------------------------------
@@ -474,7 +472,7 @@ try:
     second = AIFollowUp.objects.filter(issue=first.issue, status='pending').first()
     check_("v5 C1: a due team reminder that is still needed -> ⏰ REMINDER 1/2, the 2/2 is set for tomorrow 10:00",
            alert['text'].startswith("⏰ REMINDER · ") and "🔴 Urgent · 1/2 (2/2 tomorrow 10:00)" in alert['text']
-           and "⏰ Check Mark got in (for Edy) ⏰" in alert['text'] and "now:" not in alert['text']
+           and "⏰ Check Mark got in (for Edy)\n" in alert['text'] and "now:" not in alert['text']
            and labels_of(alert) == [['✅ Close Reminder']] and not alert['silent']
            and second and second.kind == 'staff_reminder' and _v5._local(second.due_at).strftime('%H:%M') == '10:00', (alert['text'], labels_of(alert)))
     check_("v5 C1: the AI's own reminder and team note are not shown (the backend times reminders, the alert is the note)",
@@ -550,7 +548,7 @@ try:
     step = v5.do_step({'reminder': 'next'})
     alert = step['alerts'][0] if step['alerts'] else {'text': step['note'], 'markup': None}
     check_("v5 C4: a test tenant reminder waits for a press: REMINDER 1/2 (to tenant), 🧪 TEST, nothing sent",
-           alert['text'].startswith("⏰ REMINDER · ") and "1/2 (to tenant) · 🧪 TEST" in alert['text']
+           alert['text'].startswith("⏰ REMINDER · 🧪 TEST · ") and "🟢 Routine · 1/2 (to tenant)\n" in alert['text']
            and "🧪 Test mode: NOT sent automatically. Press to send for real." in alert['text'] and not step['sent']
            and labels_of(alert) == [['🤖 Send now', '✏️ Edit Answer'], ['✅ Close Reminder']], (alert['text'], labels_of(alert)))
     step = v5.do_step({'press': 'Send now', 'by': 'Andy'})
@@ -609,10 +607,10 @@ try:
     alert = got['alerts'][-1]
     check_("v5 A12 / D1: the after-hours text is sent at once and shown as an AI MESSAGE without buttons",
            [a['type'] for a in got['alerts']] == ['AI MESSAGE', 'TENANT MESSAGE'] and "🌙 After-hours message" in ai_message['text']
-           and "✅ Sent to the tenant 22:15" in ai_message['text'] and "💬 \"Also the hallway bulb is out\" 💬" in ai_message['text']
+           and "✅ Sent to the tenant 22:15" in ai_message['text'] and "💬 Vera Lopez \"Also the hallway bulb is out\"\n" in ai_message['text']
            and not ai_message.get('markup') and len(got['sent']) == 1, (ai_message['text'], got['sent']))
     check_("v5 A12: the alert says the after-hours message was sent; a routine reminder waits for 09:00, whatever kind the AI picked",
-           "🟢 Routine · 🌙 after-hours message sent 22:15" in alert['text'] and "⏰ Check the bulb task – Wed 09:00 (1/2) ⏰" in alert['text']
+           "🟢 Routine · 🌙 after-hours message sent 22:15" in alert['text'] and "⏰ Check the bulb task – Wed 09:00 (1/2)\n" in alert['text']
            and result['verdict'] == 'PASS', (alert['text'], result['reason']))
 
     # A8: a tenant deadline -> one deadline block, its two reminders exist, no extra 1/2 reminder
@@ -627,7 +625,7 @@ try:
     result = v5.run_case(cases['A8'], 1, 1, first=True)
     alert = result['got']['alerts'][-1]
     check_("v5 A8: tenant deadline -> a deadline block with its 24 h and 2 h reminders, closable with one button; the case passes",
-           _re.search(r"⏰ Deadline \w{3} \d+ \w{3} 23:00 – reminders 24 h and 2 h before \(Kevin at 2 h\) ⏰", alert['text']) and "(1/2)" not in alert['text']
+           _re.search(r"⏰ Deadline \w{3} \d+ \w{3} 23:00 – reminders 24 h and 2 h before \(Kevin at 2 h\)\n", alert['text']) and "(1/2)" not in alert['text']
            and keyboard_now(alert) == [['🤖 Send Answer (SMS)', '✏️ Edit Answer'], ['✅ Close Reminder']]
            and AIFollowUp.objects.filter(conversation_sid=SANDBOX_SID, kind='deadline_reminder', status='pending').count() == 2
            and result['verdict'] == 'PASS', (alert['text'], keyboard_now(alert), result['reason']))
@@ -650,8 +648,8 @@ try:
     result = v5.run_case(cases['A9'], 1, 1, first=False)
     alert = result['got']['alerts'][-1]
     check_("v5 A9: asked again -> 🔁 line, an update block for the existing task, no new reminder; the case passes",
-           _re.search(r"💬\n🔁 Asked 2 times · waiting 2\d h · task open\n———", alert['text'].replace(' 💬\n', '💬\n'))
-           and "🔄 Task \"Kitchen sink dripping – Sandbox Test\": make urgent + comment \"Tenant asked again, getting worse – please schedule today\" 🔄" in alert['text']
+           _re.search(r"💬 Vera Lopez \"[^\n]*\"\n🔁 Asked 2 times · waiting 2\d h · task open\n———", alert['text'])
+           and "🔄 Task \"Kitchen sink dripping – Sandbox Test\": make urgent + comment \"Tenant asked again, getting worse – please schedule today\"\n" in alert['text']
            and keyboard_now(alert) == [['🤖 Send Answer (SMS)', '✏️ Edit Answer'], ['🔄 Apply Update']] and result['verdict'] == 'PASS',
            (alert['text'], keyboard_now(alert), result['reason']))
     v5.do_step({'press': 'Apply Update', 'by': 'Andy'})
@@ -670,7 +668,7 @@ try:
     result = v5.run_case(cases['A10'], 1, 1, first=False)
     alert = result['got']['alerts'][-1]
     check_("v5 A10: problem gone -> Close Task and the open reminder are proposed, nothing is closed yet; the case passes",
-           "🔄 Close task \"Kitchen sink dripping – Sandbox Test\" 🔄" in alert['text'] and "⏰ Open reminder \"Ask Vera if the sink is fixed (for Edy) [1/2]\" (" in alert['text']
+           "🔄 Close task \"Kitchen sink dripping – Sandbox Test\"\n" in alert['text'] and "⏰ Open reminder \"Ask Vera if the sink is fixed (for Edy) [1/2]\" (" in alert['text']
            and keyboard_now(alert) == [['🤖 Send Answer (SMS)', '✏️ Edit Answer'], ['🔄 Close Task'], ['✅ Close Reminder']]
            and AIFollowUp.objects.get(id=_pending.id).status == 'pending' and result['verdict'] == 'PASS', (alert['text'], keyboard_now(alert), result['reason']))
     v5.do_step({'press': 'Close Task', 'by': 'Andy'})
@@ -691,7 +689,7 @@ try:
            old_alert['text'].startswith("⚠️ Outdated – Vera wrote again 09:50, see the newer alert\n\n📨 TENANT MESSAGE") and not world_mod.buttons_of(old_alert['markup'])
            and not result['got']['others'], (old_alert['text'][:200], old_alert['markup'], result['got']['others']))
     check_("v5 A17: the new alert joins both messages into one 💬 line and is urgent; the case passes",
-           "💬 \"Hi, the kitchen sink is dripping since last night. Now there's water on the floor\" 💬" in alert['text'] and "🔴 Urgent" in alert['text']
+           "💬 Vera Lopez \"Hi, the kitchen sink is dripping since last night. Now there's water on the floor\"\n" in alert['text'] and "🔴 Urgent" in alert['text']
            and result['verdict'] == 'PASS', (alert['text'], result['reason']))
     step = v5.do_step({'press': 'Send Answer', 'by': 'Andy', 'on': 'first'})
     check_("v5: a press on the outdated alert does nothing", "does not exist" in (step['note'] or '') and not step['sent'], step['note'])
@@ -741,15 +739,14 @@ try:
     day = v5.clock.local()
     check_("v5 B2: the team alert, line by line", alert['text'].split("\n\n↩ Reply")[0] == f"""🧑‍🔧 TEAM MESSAGE · {day.day} {day:%b}, {day:%a} 15:50 ET
 
-🏠 Sandbox Test · 👤 Vera Lopez · 🧑‍🔧 Edy
+🏠 Sandbox Test · 👤 Vera Lopez
 
 ———
-↪️ Vera (tenant) "Thanks! Where can I leave my bike?" ↪️
+↪️ Vera Lopez "Thanks! Where can I leave my bike?"
 
-💬 "Vera, the bike room is on the 1st floor, next to the mailboxes" 💬
+💬 Edy "Vera, the bike room is on the 1st floor, next to the mailboxes"
 ———
-📚 "105 Wilson: bike room is on the 1st floor, next to the mailboxes" 📚
-   from: Edy's message {day.day} {day:%b} 15:50
+📚 "105 Wilson: bike room is on the 1st floor, next to the mailboxes"
 ———
 ✅ Reminder "tell Vera where to leave her bike" closed – answered in the chat
 ———""", "\n" + alert['text'])
@@ -785,7 +782,7 @@ try:
 🏠 Sandbox Test · 👤 Vera Lopez · 📅 Rent due tomorrow
 
 ———
-🤖 "{TEMPLATE}" 🤖
+🤖 "{TEMPLATE}"
 ———
 ✅ Sent 08:00 – still needed: rent $2,150 due 7 Oct is Pending, nothing about it in the chat
 ———""" and not world_mod.buttons_of(alert['markup']) and alert['silent'] and len(got['sent']) == 1 and got['sent'][0]['text'] == TEMPLATE
@@ -804,8 +801,8 @@ try:
     alert = got['alerts'][-1]
     check_("v5 H2: the tenant says she paid -> NOT sent, the alert says why, Send anyway + a reminder for Janna, with sound; the case passes",
            "📅 Rent due tomorrow · ⏸ HELD" in alert['text'] and "I sent November rent by Zelle this morning" in alert['text']
-           and f"🤖 \"{TEMPLATE}\" 🤖\n———\n⏸ NOT sent – Vera wrote on 5 Oct that she already paid by Zelle, but the payment is still Pending in the CRM\n———\n"
-               "⏰ Janna: check Vera's October payment – today 10:00 (1/2) ⏰" in alert['text']
+           and f"🤖 \"{TEMPLATE}\"\n———\n⏸ NOT sent – Vera wrote on 5 Oct that she already paid by Zelle, but the payment is still Pending in the CRM\n———\n"
+               "⏰ Janna: check Vera's October payment – today 10:00 (1/2)\n" in alert['text']
            and keyboard_now(alert) == [['📤 Send anyway', '✏️ Edit Answer'], ['✅ Close Reminder']] and not got['sent'] and not alert['silent']
            and result['verdict'] == 'PASS', ("\n" + alert['text'], keyboard_now(alert), result['reason']))
     step = v5.do_step({'press': 'Send anyway', 'by': 'Andy'})
@@ -818,7 +815,7 @@ try:
     result = v5.run_case(dict(cases['H1'], presses=[], mode='test'), 1, 1, first=True)
     alert = result['got']['alerts'][-1]
     check_("v5 H1 in test mode: never sent by itself, an AI MESSAGE with Send now",
-           "📅 Rent due tomorrow · 🧪 TEST" in alert['text'] and "🧪 Test mode: NOT sent automatically. Press to send for real." in alert['text']
+           alert['text'].lstrip().startswith("🤖 AI MESSAGE · 🧪 TEST · ") and "📅 Rent due tomorrow\n" in alert['text'] and "🧪 Test mode: NOT sent automatically. Press to send for real." in alert['text']
            and keyboard_now(alert) == [['🤖 Send now', '✏️ Edit Answer']] and not result['got']['sent'],
            ("\n" + alert['text'], keyboard_now(alert), result['reason']))
     step = v5.do_step({'press': 'Send now', 'by': 'Andy'})
@@ -908,8 +905,8 @@ try:
     step = v5.do_step({'reply': 'Hi Vera, Edy will come himself today at 5pm to look at it. Next time offer a same-day visit. Wifi is Sun2026!', 'by': 'Andy'})
     said = step['alerts'][-1]
     check_("v5 E3 / E4: a corrected answer, a rule and a fact are shown with their own buttons - nothing is sent or saved yet",
-           said['text'].startswith("✏️ NEW ANSWER for Vera\n🤖 \"Hi Vera, Edy will come himself today at 5pm to look at it.\" 🤖\n📏 Rule I learned: \"When a tenant")
-           and "📚 \"Wifi password: Sun2026!\" 📚\n   from: Andy's reply " in said['text']
+           said['text'].startswith("✏️ NEW ANSWER for Vera\n🤖 \"Hi Vera, Edy will come himself today at 5pm to look at it.\"\n📏 Rule I learned: \"When a tenant")
+           and "📚 \"Wifi password: Sun2026!\"\n   from: Andy's reply " in said['text']
            and rows(said) == [['🤖 Send Answer'], ['📏 Save rule'], ['🏠📚 Apartment ⭐', '🌍📚 Global']]
            and not step['sent'] and not v5.world.state['rules'] and not v5.world.state['knowledge'], (said['text'], rows(said)))
     check_("test run: a bot answer to a typed reply says what to press now, one line per button",
@@ -918,7 +915,7 @@ try:
     step = v5.do_step({'press': 'Send Answer', 'by': 'Andy'})
     check_("v5 E3: Send Answer on the new answer sends THAT text; the alert shows it and ✅ Answer sent; old + new are kept for learning",
            len(step['sent']) == 1 and step['sent'][0]['text'] == 'Hi Vera, Edy will come himself today at 5pm to look at it.'
-           and "🤖 \"Hi Vera, Edy will come himself today at 5pm to look at it.\" 🤖" in v5.world.tap.messages[alert['id']]['text']
+           and "🤖 \"Hi Vera, Edy will come himself today at 5pm to look at it.\"\n" in v5.world.tap.messages[alert['id']]['text']
            and rows(v5.world.tap.messages[alert['id']])[0][0].startswith("✅ Answer sent · Andy ") and rows(said)[0][0].startswith("✅ Answer sent · Andy ")
            and AIRun.objects.get(id=run_id).review['corrected']['old'].startswith("Hi Vera, thanks"), (step['sent'], step['note'], rows(said)))
     v5.do_step({'press': 'Save rule', 'by': 'Andy'})

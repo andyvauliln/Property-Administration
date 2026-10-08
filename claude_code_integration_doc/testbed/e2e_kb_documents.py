@@ -30,7 +30,8 @@ telegram = []
 fake_notify = lambda text: (telegram.append(text), (True, "captured"))[1]
 team_notify_mod.send_ai_chat = lambda t, reply_to=None: (*fake_notify(t), 900 + len(telegram))
 team_notify_mod.notify_ai_chat = fake_notify; notify.notify_ai_chat = fake_notify
-alerts_v5.send_ai_chat = lambda t, reply_to=None, reply_markup=None, silent=False: (*fake_notify(t), 900 + len(telegram))
+from mysite.ai_agent.sandbox_test.world import html_to_plain as _plain_of   # an alert sent as Telegram HTML, as read
+alerts_v5.send_ai_chat = lambda t, reply_to=None, reply_markup=None, silent=False, parse_mode=None: (*fake_notify(_plain_of(t) if parse_mode == 'HTML' else t), 900 + len(telegram))
 alerts_v5.edit_reply_markup = lambda *a, **k: None
 messaging.send_messsage_by_sid = lambda *a, **k: None
 script = []

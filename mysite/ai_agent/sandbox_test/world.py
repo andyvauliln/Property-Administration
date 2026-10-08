@@ -42,6 +42,20 @@ POSTED_FILE = catalog.RESULTS_DIR / '.posted_messages.jsonl'   # what test runs 
 REMINDER_KINDS = {'staff': 'staff_reminder', 'tenant': 'tenant_nudge', 'deadline': 'deadline_reminder'}
 _ALERT_LOOK = re.compile(r'TENANT MESSAGE|TEAM MESSAGE|REMINDER ·|AI MESSAGE|· TYPE ')
 FOOTER_MARK = '↩ Reply to this message'
+DETAILS_MARK = '<blockquote expandable>'   # the "read more" block of an alert sent as Telegram HTML
+
+
+def html_to_plain(text):
+    """An alert sent as Telegram HTML -> the text a person reads (what the checks look at)."""
+    import html
+    text = re.sub(r'<a href="[^"]*">(.*?)</a>', r'\1', text or '', flags=re.S)
+    return html.unescape(re.sub(r'</?blockquote[^>]*>', '', text))
+
+
+def _notes_cut(text):
+    """Where the test notes go: right before the alert's footer (its "read more" block)."""
+    at = text.find(DETAILS_MARK)
+    return at if at > 0 else text.find(FOOTER_MARK)
 # Test controls as buttons under the alert (a bot does not see plain messages typed in a group, only replies and presses)
 REPLAY_ROW = [{'text': '🧪 Next message', 'callback_data': 'sbx|next'}, {'text': '➕ Add to tests', 'callback_data': 'sbx|add test'},
               {'text': '🧪 Stop', 'callback_data': 'sbx|stop'}]
@@ -152,41 +166,48 @@ class TelegramTap:
             return handler(url, dict(data or {}), kwargs)
         return _Response(True) if self.world.offline else requests.post(url, data=data, **kwargs)
 
-    def _decorate(self, text, markup):
+    def _decorate(self, text, markup, html_mode=False):
+        import html
+        esc = (lambda s: html.escape(s, quote=False)) if html_mode else (lambda s: s)
         if self.own:
             return text
         if not self.header:
             # A bot answer to something the tester typed while the run waits: say what to press now
             guide = press_guide(markup, then_next=self.world.own_bot and self.interactive)
-            return f"{text}\n\n🧪 TEST NOTES\n{guide}"[:4096] if guide else text
+            return f"{text}\n\n{esc('🧪 TEST NOTES')}\n{esc(guide)}"[:4096] if guide else text
         notes = None
         # The alert that carries buttons is the one to try things on; a message without buttons that comes with it
         # (an AI MESSAGE about the after-hours text, a part of a long alert) stays as it is
         if self.notes_hook and not self.notes_in and (buttons_of(markup) or self.notes_always):
             notes = self.notes_hook(text, markup)
         if notes:
-            cut = text.find(FOOTER_MARK)
-            body = (f"{text[:cut].rstrip()}\n{notes}\n———\n\n{text[cut:]}" if cut > 0 else f"{text}\n\n{notes}")
+            cut = _notes_cut(text)
+            body = (f"{text[:cut].rstrip()}\n{esc(notes)}\n———\n\n{text[cut:]}" if cut > 0 else f"{text}\n\n{esc(notes)}")
             if len(self.header) + len(body) + 2 <= 4096:
                 self.notes_in = 'pending'
                 self._last_notes = notes
-                return f"{self.header}\n\n{body}"
+                return f"{esc(self.header)}\n\n{body}"
         guide = press_guide(markup)
+        if html_mode:   # never cut an HTML text: a cut could break a tag
+            return f"{esc(self.header)}\n\n{text}" + (f"\n\n{esc('🧪 TEST NOTES')}\n{esc(guide)}" if guide else "")
         return f"{self.header}\n\n{text}"[:4096] + (f"\n\n🧪 TEST NOTES\n{guide}" if guide else "")
 
-    def _redecorate(self, record, text):
+    def _redecorate(self, record, text, html_mode=False):
         """An alert written again by the code under test keeps the test header and notes it was posted with."""
+        import html
+        esc = (lambda s: html.escape(s, quote=False)) if html_mode else (lambda s: s)
         header, notes = record.get('header'), record.get('notes')
         if not header:
             return text
-        cut = text.find(FOOTER_MARK)
-        body = (f"{text[:cut].rstrip()}\n{notes}\n———\n\n{text[cut:]}" if cut > 0 else f"{text}\n\n{notes}") if notes else text
-        return f"{header}\n\n{body}"[:4096]
+        cut = _notes_cut(text)
+        body = (f"{text[:cut].rstrip()}\n{esc(notes)}\n———\n\n{text[cut:]}" if cut > 0 else f"{text}\n\n{esc(notes)}") if notes else text
+        return f"{esc(header)}\n\n{body}" if html_mode else f"{header}\n\n{body}"[:4096]
 
     def _on_sendMessage(self, url, data, kwargs):
         text = data.get('text') or ''
+        html_mode = data.get('parse_mode') == 'HTML'
         markup = json.loads(data['reply_markup']) if data.get('reply_markup') else None
-        out = dict(data, text=self._decorate(text, markup))
+        out = dict(data, text=self._decorate(text, markup, html_mode))
         took_notes = self.notes_in == 'pending'
         add_control = (self.world.own_bot and self.want_control and not self.own and self.control_step != self.step
                        and (buttons_of(markup) or self.control_any))
@@ -220,7 +241,8 @@ class TelegramTap:
         if message_id:
             self.messages[message_id] = {
                 'header': None if self.own else self.header, 'notes': getattr(self, '_last_notes', None) if took_notes else None,
-                'id': message_id, 'text': text, 'posted': out['text'], 'markup': markup, 'step': self.step, 'own': self.own,
+                'id': message_id, 'text': html_to_plain(text) if html_mode else text, 'posted': out['text'], 'markup': markup,
+                'step': self.step, 'own': self.own, 'html': html_mode,
                 'silent': str(data.get('disable_notification', '')).lower() in ('true', '1'),
                 'reply_to': int(data['reply_to_message_id']) if data.get('reply_to_message_id') else None,
             }
@@ -231,7 +253,7 @@ class TelegramTap:
         record = self.messages.get(int(data.get('message_id') or 0))
         if record is not None:
             if 'text' in data:
-                record['text'] = data['text']
+                record['text'] = html_to_plain(data['text']) if data.get('parse_mode') == 'HTML' else data['text']
             if 'reply_markup' in data or 'text' not in data:
                 record['markup'] = json.loads(data['reply_markup']) if data.get('reply_markup') else None
             record['edited_in'] = self.step
@@ -286,7 +308,7 @@ class TelegramTap:
         if self.world.offline:
             return _Response(True)
         if record is not None:
-            data = dict(data, text=self._redecorate(record, data.get('text') or ''))
+            data = dict(data, text=self._redecorate(record, data.get('text') or '', data.get('parse_mode') == 'HTML'))
             if record['id'] in self.control or record['id'] in self.busy:
                 data['reply_markup'] = json.dumps(self.with_control(record['markup'], record))
         if self.world.post_only:

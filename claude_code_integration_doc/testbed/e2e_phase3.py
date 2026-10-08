@@ -19,7 +19,8 @@ import mysite.views.messaging as messaging
 # Telegram is faked at the lowest level (notify._post / notify._call): every module that imported send_ai_chat is captured
 telegram, markups, sms, telegram_calls = [], [], [], []
 os.environ["TELEGRAM_TOKEN"] = "fake-token"; os.environ["AI_AGENT_ALERT_CHAT_ID"] = "-500"
-notify._post = lambda token, chat_id, text, reply_to=None, reply_markup=None, silent=False: (telegram.append(text), markups.append(reply_markup), (True, "captured", 9000 + len(telegram)))[2]
+from mysite.ai_agent.sandbox_test.world import html_to_plain as _plain_of   # an alert sent as Telegram HTML, as read
+notify._post = lambda token, chat_id, text, reply_to=None, reply_markup=None, silent=False, parse_mode=None: (telegram.append(_plain_of(text) if parse_mode == 'HTML' else text), markups.append(reply_markup), (True, "captured", 9000 + len(telegram)))[2]
 notify._call = lambda method, data: (telegram_calls.append((method, data)), (True, ''))[1]
 service.report_error = lambda e, ctx, info=None, source='task': telegram.append(f"ERROR {ctx}: {e}")
 messaging.send_messsage_by_sid = lambda sid, author, message, s_, r_: sms.append(message)
@@ -97,7 +98,8 @@ script.append({'answer': 'NO_ANSWER', 'why': 'staff facts', 'actions': [
     kb('No smoking anywhere', scope='building'), kb('')]})
 run = drain()[0]; st = [(a['status'], a['detail']) for a in run.actions]
 check("nothing is saved before a press: one 📚 block per fact, the team member's message as its source",
-      'wifipass2024' in doc() and telegram[-1].count('📚 "') >= 3 and "from: Janna's message" in telegram[-1], telegram[-1:])
+      'wifipass2024' in doc() and telegram[-1].count('📚 "') >= 3 and '\n💬 Janna "New wifi password' in telegram[-1]
+      and '📚 "Gate code: 9135"\n———' in telegram[-1] and "from: " not in telegram[-1], telegram[-1:])
 check("the AI's 'building' scope recommends 🏠📚 Apartment (⭐)", any(b.get('text') == '🏠📚 Apartment ⭐' and b.get('callback_data') == f'v5|ka|{run.id}|2'
       for row in (markups[-1] or {}).get('inline_keyboard', []) for b in row), markups[-1])
 notices = [press(run, 'ka', i) for i in range(3)]

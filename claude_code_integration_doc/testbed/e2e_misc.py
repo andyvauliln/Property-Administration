@@ -61,7 +61,8 @@ team_notify.deliver(actions.ActionContext('live', dict(meta, mode='live'), 'x', 
 check("live answer is shown as sent", '🟢 LIVE' in sent[0] and 'sent to the tenant' in sent[0])
 # A reviewed run (plan_items given) gets the simple alert - and none at all when the manager has nothing to do (rule 1.1.5)
 from mysite.ai_agent import alerts_v5
-alerts_v5.send_ai_chat = lambda t, reply_to=None, reply_markup=None, silent=False: (*fake(t), None)
+from mysite.ai_agent.sandbox_test.world import html_to_plain as _plain_of   # an alert sent as Telegram HTML, as read
+alerts_v5.send_ai_chat = lambda t, reply_to=None, reply_markup=None, silent=False, parse_mode=None: (*fake(_plain_of(t) if parse_mode == 'HTML' else t), None)
 sent.clear()
 team_notify.deliver(actions.ActionContext('test', dict(meta, event_type='TENANT_MESSAGE'), 'x', 'CHa'), run,
                     {'answer': None, 'why': 'nothing to do'}, [], {'sent_to_chat': False, 'note': 'NO_ANSWER'}, "x",

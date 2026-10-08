@@ -40,6 +40,7 @@ carried out on its own: a finished action gets a 'done' entry {'by', 'at', 'labe
 Built: tenant / team message alerts, automatic notifications, reminders that become due (C1-C8, D5, D6), the
 after-hours AI MESSAGE, typed replies. An emergency (done at once) still gets the plain alert of team_notify.
 """
+import html
 import re
 from datetime import timedelta
 from zoneinfo import ZoneInfo
@@ -347,14 +348,12 @@ def compose_reminder(ctx, ai_run, parsed, delivery, actions):
                     else f"⏰ Reminder {info['n']}/2")
     else:
         head += _reminder_head(info, live, priority)
-    if not live:
-        head.append("🧪 TEST")
     title = "🤖 AI MESSAGE" if auto else "⏰ REMINDER"
-    lines = [f"{title} · {_stamp(datetime.fromisoformat(info['at']))}", "", " · ".join(head), "", LINE]
+    lines = [_title(title, datetime.fromisoformat(info['at']), live), "", " · ".join(head), "", LINE]
     if not info['to_tenant']:
         owner = info.get('owner') or (parsed.get('triage') or {}).get('owner')
         text = str(info.get('summary') if info['deadline'] else info['reason']).rstrip('. ')
-        lines.append(f"⏰ {text}" + (f" (for {owner})" if owner else "") + " ⏰")
+        lines.append(f"⏰ {text}" + (f" (for {owner})" if owner else ""))
         if info['deadline'] and info.get('deadline_at'):
             when = _local(datetime.fromisoformat(info['deadline_at']))
             lines.append(f"   tenant deadline {when:%a} {when.day} {when:%b %H:%M}")
@@ -371,7 +370,7 @@ def compose_reminder(ctx, ai_run, parsed, delivery, actions):
     if talk:
         lines += talk + [LINE]
     if parsed.get('answer'):
-        lines += [f"🤖 \"{parsed['answer']}\" 🤖", LINE]
+        lines += [f"🤖 \"{parsed['answer']}\"", LINE]
         if auto:
             if done:
                 status = done.get('label') or "✅ Sent"
@@ -398,12 +397,7 @@ def compose_reminder(ctx, ai_run, parsed, delivery, actions):
     numbers = _numbered(items)
     for kind, index, action in items:
         lines += _block_lines(kind, action, numbers[index], ctx) + [LINE]
-    lines += [
-        "", FOOTER, "",
-        f"📤 AI sends to chat: {'ON (live)' if live else 'OFF (test)'} · 🎫 AI Auto ClickUp: {'ON' if clickup.writes_enabled(ctx.apartment) else 'OFF'}",
-        f"🔗 AI run: {team_notify.report_url(ai_run.id)}",
-        f"💬 CRM chat: {config.site_url()}/chat/{ai_run.conversation_sid}/",
-    ]
+    lines += _footer(ai_run.conversation_sid, ai_run.id, _mode_line(live, ctx.apartment))
     return "\n".join(lines)
 
 
@@ -504,6 +498,64 @@ def retry_due(only=None, skip_prefix=None):
 
 def _team(meta):
     return (meta or {}).get('event_type') == 'STAFF_MESSAGE'
+
+
+# ---------------------------------------------------------------------------
+# Telegram format: the alerts are sent as Telegram HTML (user notes 2026-10-08). While they are put together they are
+# plain text with markers: the "read more" block (an expandable quote) and links on a word.
+# ---------------------------------------------------------------------------
+DETAILS_OPEN, DETAILS_CLOSE = '\ue000', '\ue001'
+_LINK = re.compile('\ue002(.*?)\ue003(.*?)\ue004', re.S)
+
+
+def _link(label, url):
+    return f"\ue002{label}\ue003{url}\ue004"
+
+
+def to_html(text):
+    """Marked text -> Telegram HTML: everything escaped, the details block an expandable quote, links on their word."""
+    out = html.escape(text, quote=False)
+    out = _LINK.sub(lambda m: f'<a href="{m.group(2).replace(chr(34), "&quot;")}">{m.group(1)}</a>', out)
+    return out.replace(DETAILS_OPEN, '<blockquote expandable>').replace(DETAILS_CLOSE, '</blockquote>')
+
+
+def to_plain(text):
+    """Marked text -> what a person reads (for the tests, reports and the reply interpreter)."""
+    return _LINK.sub(lambda m: m.group(1), text).replace(DETAILS_OPEN, '').replace(DETAILS_CLOSE, '')
+
+
+def html_parts(text):
+    """A long alert in parts (split_parts), each part valid Telegram HTML: a details block cut by the split is closed
+    at the end of its part and opened again in the next one."""
+    out, open_block = [], False
+    for part in split_parts(text):
+        if open_block:
+            part = DETAILS_OPEN + part
+        opens, closes = part.count(DETAILS_OPEN), part.count(DETAILS_CLOSE)
+        open_block = opens > closes
+        if open_block:
+            part += DETAILS_CLOSE
+        out.append(to_html(part))
+    return out
+
+
+def _title(kind, moment, live):
+    """'🧑‍🔧 TEAM MESSAGE · 🧪 TEST · 8 Oct, Thu 08:09 ET' - TEST is in the title, not in the line under it."""
+    return f"{kind}{'' if live else ' · 🧪 TEST'} · {_stamp(moment)}"
+
+
+def _footer(conversation_sid, run_id=None, mode_line=None):
+    """The "read more" block at the end of every alert: how to reply, the switches, the links (on a word)."""
+    from mysite.ai_agent import team_notify
+    lines = [FOOTER] + ([mode_line] if mode_line else [])
+    links = ([_link('AI run', team_notify.report_url(run_id))] if run_id else []) + \
+        [_link('CRM chat', f"{config.site_url()}/chat/{conversation_sid}/")]
+    lines.append("🔗 " + " · ".join(links))
+    return ["", DETAILS_OPEN + "\n".join(lines) + DETAILS_CLOSE]
+
+
+def _mode_line(live, apartment):
+    return f"📤 AI sends to chat: {'ON (live)' if live else 'OFF (test)'} · 🎫 AI Auto ClickUp: {'ON' if clickup.writes_enabled(apartment) else 'OFF'}"
 
 
 # ---------------------------------------------------------------------------
@@ -962,7 +1014,7 @@ def conversation_lines(conversation_sid, until_message, tenant_name, team=False,
         messages = inputs._until(messages, until_message)
     ai_answers = inputs._ai_answers(sids)
     from mysite.ai_agent import after_hours
-    first_name = str(tenant_name or 'Tenant').split()[0]
+    full_name = str(tenant_name or 'Tenant').strip()
     automatic = after_hours.ack_text().strip()
     now, before, writers = [], [], []
     for message in messages.order_by('-message_timestamp', '-id')[:60]:
@@ -970,12 +1022,13 @@ def conversation_lines(conversation_sid, until_message, tenant_name, team=False,
         text = inputs._strip_ui_markers(message.body)
         if role != inputs.ROLE_TENANT and text.strip() == automatic:
             continue   # the automatic after-hours text is not "what the other side wrote": the tenant's messages stay one line
-        label = f"{first_name} (tenant)" if role == inputs.ROLE_TENANT else 'AI (sent)' if role == inputs.ROLE_AI else f"{name} (team)"
+        label = full_name if role == inputs.ROLE_TENANT else 'AI' if role == inputs.ROLE_AI else name
         mine = (role == inputs.ROLE_STAFF) if team else (role == inputs.ROLE_TENANT)
         if mine and not before:
             now.insert(0, text)
-            if name not in writers:
-                writers.insert(0, name)
+            writer = full_name if role == inputs.ROLE_TENANT else name
+            if writer not in writers:
+                writers.insert(0, writer)
         elif mine or not now:
             break   # an older message of this side, or the newest message is not from this side
         elif team and role == inputs.ROLE_AI:
@@ -987,8 +1040,8 @@ def conversation_lines(conversation_sid, until_message, tenant_name, team=False,
     lines = []
     if before:
         who = ", ".join(dict.fromkeys(label for label, _ in before))
-        lines += [f"↪️ {who} \"{_join([text for _, text in before])}\" ↪️", ""]
-    lines.append(f"💬 \"{_join(now)}\" 💬")
+        lines += [f"↪️ {who} \"{_join([text for _, text in before])}\"", ""]
+    lines.append(f"💬 {', '.join(writers) + ' ' if writers else ''}\"{_join(now)}\"")
     return lines, writers
 
 
@@ -1002,7 +1055,7 @@ def last_exchange(conversation_sid, tenant_name, skip_text=None):
     sids = conversation_groups.group_sids(conversation_sid, fresh=True)
     messages = TwilioMessage.objects.filter(conversation_sid__in=sids).exclude(message_sid__startswith='KB-UPDATE-')
     ai_answers = inputs._ai_answers(sids)
-    first_name = str(tenant_name or 'Tenant').split()[0]
+    full_name = str(tenant_name or 'Tenant').strip()
     automatic = after_hours.ack_text().strip()
     runs = []   # newest first: [is tenant, [labels], [texts]]
     for message in messages.order_by('-message_timestamp', '-id')[:60]:
@@ -1011,7 +1064,7 @@ def last_exchange(conversation_sid, tenant_name, skip_text=None):
         if role != inputs.ROLE_TENANT and text.strip() in (automatic, (skip_text or '').strip()):
             continue   # the automatic after-hours text, and the message this alert itself is about
         tenant = role == inputs.ROLE_TENANT
-        label = f"{first_name} (tenant)" if tenant else 'AI (sent)' if role == inputs.ROLE_AI else f"{name} (team)"
+        label = full_name if tenant else 'AI' if role == inputs.ROLE_AI else name
         if runs and runs[-1][0] == tenant:
             runs[-1][1].insert(0, label)
             runs[-1][2].insert(0, text)
@@ -1021,7 +1074,7 @@ def last_exchange(conversation_sid, tenant_name, skip_text=None):
             runs.append([tenant, [label], [text]])
     lines = []
     for mark, (_, labels, texts) in zip(('💬', '↪️'), runs):
-        lines.insert(0, f"{mark} {', '.join(dict.fromkeys(labels))} \"{_join(texts)}\" {mark}")
+        lines.insert(0, f"{mark} {', '.join(dict.fromkeys(labels))} \"{_join(texts)}\"")
     return lines[:1] + [""] + lines[1:] if len(lines) == 2 else lines
 
 
@@ -1036,13 +1089,11 @@ def compose_notification(ctx, ai_run, parsed, delivery, actions):
     head = [f"🏠 {meta.get('apartment')}", f"👤 {meta.get('tenant') or 'Unknown'}", f"📅 {info['label']}"]
     if info['held'] and not done:
         head.append("⏸ HELD")
-    if not live:
-        head.append("🧪 TEST")
-    lines = [f"🤖 AI MESSAGE · {_stamp(datetime.fromisoformat(info['at']))}", "", " · ".join(head), "", LINE]
+    lines = [_title("🤖 AI MESSAGE", datetime.fromisoformat(info['at']), live), "", " · ".join(head), "", LINE]
     talk = last_exchange(ai_run.conversation_sid, meta.get('tenant'), skip_text=ai_run.final_answer or parsed.get('answer'))
     if talk:
         lines += talk + [LINE]
-    lines += [f"🤖 \"{parsed.get('answer') or info['template']}\" 🤖", LINE]
+    lines += [f"🤖 \"{parsed.get('answer') or info['template']}\"", LINE]
     reason = info.get('reason') or ''
     if done:
         status = done.get('label') or "✅ Sent"
@@ -1063,12 +1114,7 @@ def compose_notification(ctx, ai_run, parsed, delivery, actions):
     numbers = _numbered(items)
     for kind, index, action in items:
         lines += _block_lines(kind, action, numbers[index], ctx) + [LINE]
-    lines += [
-        "", FOOTER, "",
-        f"📤 AI sends to chat: {'ON (live)' if live else 'OFF (test)'} · 🎫 AI Auto ClickUp: {'ON' if clickup.writes_enabled(ctx.apartment) else 'OFF'}",
-        f"🔗 AI run: {team_notify.report_url(ai_run.id)}",
-        f"💬 CRM chat: {config.site_url()}/chat/{ai_run.conversation_sid}/",
-    ]
+    lines += _footer(ai_run.conversation_sid, ai_run.id, _mode_line(live, ctx.apartment))
     return "\n".join(lines)
 
 
@@ -1126,40 +1172,40 @@ def _block_lines(kind, action, number, ctx):
         who = ", ".join(_names(action.get('responsible')) or _names(action.get('case_owner'))) or 'team'
         due = timezone.now() + timedelta(hours=clickup.DUE_IN_HOURS.get(priority, clickup.DUE_IN_HOURS['routine']))
         mark = f"🎫{number.strip()}"
-        return [f"{mark} {_task_title(action, ctx.meta.get('apartment'))} {mark}",
+        return [f"{mark} {_task_title(action, ctx.meta.get('apartment'))}",
                 f"   {who} · {'🔴 urgent' if priority == 'urgent' else '🚨 emergency' if priority == 'emergency' else priority}"
                 f" · due {_day_time(due, with_date=True)}"]
     if kind == 'update':
         mark = f"🔄{number.strip()}"
         if action.get('closes_task'):
-            return [f"{mark} Close task \"{action['closes_task']}\" {mark}"]
+            return [f"{mark} Close task \"{action['closes_task']}\""]
         text = str(action.get('text') or f"status → {action.get('status')}")
         if action.get('raise_to'):
-            return [f"{mark} Task \"{action['task_title']}\": make {action['raise_to']} + comment \"{text}\" {mark}"]
-        return [f"{mark} Comment on task \"{action['task_title']}\":", f"\"{text}\" {mark}"]
+            return [f"{mark} Task \"{action['task_title']}\": make {action['raise_to']} + comment \"{text}\""]
+        return [f"{mark} Comment on task \"{action['task_title']}\":", f"\"{text}\""]
     if kind == 'crm':
         mark = f"🗂{number.strip()}"
         why = str(action.get('reason') or '').strip().rstrip('.')
-        return [f"{mark} CRM: {action['label']} {mark}"] + ([f"   why: {why}"] if why else [])
+        return [f"{mark} CRM: {action['label']}"] + ([f"   why: {why}"] if why else [])
     if kind == 'reminder' and action.get('type') == 'DEADLINE':
         from datetime import datetime
         mark = f"⏰{number.strip()}"
         when = _local(datetime.fromisoformat(action['deadline']))
-        return [f"{mark} Deadline {when:%a} {when.day} {when:%b %H:%M} – reminders 24 h and 2 h before (Kevin at 2 h) {mark}"]
+        return [f"{mark} Deadline {when:%a} {when.day} {when:%b %H:%M} – reminders 24 h and 2 h before (Kevin at 2 h)"]
     if kind == 'reminder' and action.get('open_reminder'):
         from datetime import datetime
         mark = f"⏰{number.strip()}"
         info = action['open_reminder']
-        return [f"{mark} Open reminder \"{str(info['reason']).rstrip('. ')}\" ({_day_time(datetime.fromisoformat(info['due']))}) {mark}"]
+        return [f"{mark} Open reminder \"{str(info['reason']).rstrip('. ')}\" ({_day_time(datetime.fromisoformat(info['due']))})"]
     if kind == 'reminder':
         done = action['done']
         followup = AIFollowUp.objects.filter(id=done['followup_id']).first()
         due = followup.due_at if followup else timezone.now()
         mark = f"⏰{number.strip()}"
         to_tenant = ', to tenant' if action.get('kind') in ('tenant_nudge', 'second_tenant_nudge') else ''
-        return [f"{mark} {str(action.get('reason') or 'Reminder').rstrip('. ')} – {_day_time(due)} ({done.get('number', '1/2')}{to_tenant}) {mark}"]
+        return [f"{mark} {str(action.get('reason') or 'Reminder').rstrip('. ')} – {_day_time(due)} ({done.get('number', '1/2')}{to_tenant})"]
     text = str(action.get('text') or action.get('value') or '')
-    return [f"📚 \"{text}\" 📚", f"   from: {action.get('source')}"]
+    return [f"📚 \"{text}\""]
 
 
 def compose(ctx, ai_run, parsed, delivery, actions):
@@ -1174,21 +1220,21 @@ def compose(ctx, ai_run, parsed, delivery, actions):
     received = ai_run.message.message_timestamp if ai_run.message_id else timezone.now()
     talk, writers = conversation_lines(ai_run.conversation_sid, ai_run.message if ai_run.message_id else None, meta.get('tenant'), team=team)
     head = [f"🏠 {meta.get('apartment')}", f"👤 {meta.get('tenant') or 'Unknown'}"]
-    # A team message is not an alarm: no urgency, the priority of a proposed task is on its own line (rule 1.2.1)
-    head.append(f"🧑‍🔧 {', '.join(writers) or 'team'}" if team else URGENCY.get(triage.get('priority') or 'routine', URGENCY['routine']))
-    if not live:
-        head.append("🧪 TEST")
+    # A team message is not an alarm: no urgency, the priority of a proposed task is on its own line (rule 1.2.1);
+    # who wrote is on the 💬 line
+    if not team:
+        head.append(URGENCY.get(triage.get('priority') or 'routine', URGENCY['routine']))
     if 'v5_head' not in meta:
         meta['v5_head'] = head_notes(meta, ai_run.conversation_sid)
     head += meta['v5_head']
-    lines = [f"{'🧑‍🔧 TEAM MESSAGE' if team else '📨 TENANT MESSAGE'} · {_stamp(received)}", "", " · ".join(head), "", LINE] + talk
+    lines = [_title('🧑‍🔧 TEAM MESSAGE' if team else '📨 TENANT MESSAGE', received, live), "", " · ".join(head), "", LINE] + talk
     closing = any(isinstance(a, dict) and a.get('closes_task') and not a.get('removed_by') for a in actions or [])
     repeat = None if team or closing else _repeat_line(ai_run.conversation_sid, triage)   # "it is fixed" is not asking again
     if repeat:
         lines.append(repeat)
     lines.append(LINE)
     if parsed.get('answer'):
-        lines.append(f"🤖 \"{parsed['answer']}\" 🤖")
+        lines.append(f"🤖 \"{parsed['answer']}\"")
         if delivery.get('confirm') or parsed.get('needs_confirmation'):
             lines.append(f"⚖️ Contract: {parsed.get('contract_basis') or 'not given by the AI - check the contract'}")
         lines.append(LINE)
@@ -1206,13 +1252,7 @@ def compose(ctx, ai_run, parsed, delivery, actions):
         for note in team_notes(actions):
             who = ", ".join(_names(note.get('responsible') or note.get('owner'))) or 'team'
             lines += [f"❗ For {who}: {str(note.get('text')).strip()}", LINE]
-    lines += [
-        "", FOOTER, "",
-        f"📤 AI sends to chat: {'ON (live)' if live else 'OFF (test)'} · "
-        f"🎫 AI Auto ClickUp: {'ON' if clickup.writes_enabled(ctx.apartment) else 'OFF'}",
-        f"🔗 AI run: {team_notify.report_url(ai_run.id)}",
-        f"💬 CRM chat: {config.site_url()}/chat/{ai_run.conversation_sid}/",
-    ]
+    lines += _footer(ai_run.conversation_sid, ai_run.id, _mode_line(live, ctx.apartment))
     return "\n".join(lines)
 
 
@@ -1354,12 +1394,12 @@ def post(ctx, ai_run, parsed, delivery, actions):
         loud = any(kind == 'task' and action.get('priority') in ('urgent', 'emergency') for kind, _, action in blocks(actions))
     else:
         loud = (triage.get('priority') or 'routine') != 'routine'
-    parts = split_parts(compose(ctx, ai_run, parsed, delivery, actions))
+    parts = html_parts(compose(ctx, ai_run, parsed, delivery, actions))
     reply_to = cases.thread_for(ai_run.conversation_sid, [r for r in refs if r])
     result, earlier = (False, 'nothing to post', None), []
     for number, part in enumerate(parts, 1):
         last = number == len(parts)
-        result = send_ai_chat(part, reply_markup=markup if last else None, reply_to=reply_to, silent=not loud)
+        result = send_ai_chat(part, reply_markup=markup if last else None, reply_to=reply_to, silent=not loud, parse_mode='HTML')
         if not result[0]:
             break
         if not last:
@@ -1378,16 +1418,14 @@ def post_after_hours(event, ack):
     live = ack.status == Ack.STATUS_SENT
     talk, _ = conversation_lines(event.conversation_sid, event.message if event.message_id else None, tenant)
     head = [f"🏠 {getattr(getattr(conversation, 'apartment', None), 'name', '?')}", f"👤 {tenant or 'Unknown'}", "🌙 After-hours message"]
-    if not live:
-        head.append("🧪 TEST")
     when = ack.sent_at or timezone.now()
-    lines = [f"🤖 AI MESSAGE · {_stamp(when)}", "", " · ".join(head), "", LINE] + talk + [
-        LINE, f"🤖 \"{ack.text}\" 🤖", LINE,
+    lines = [_title("🤖 AI MESSAGE", when, live), "", " · ".join(head), "", LINE] + talk + [
+        LINE, f"🤖 \"{ack.text}\"", LINE,
         f"✅ Sent to the tenant {_hm(when)}" if live else "🧪 NOT sent – test mode. In live this text would go to the tenant now.", LINE,
-        "", f"📤 AI sends to chat: {'ON (live)' if live else 'OFF (test)'}", f"💬 CRM chat: {config.site_url()}/chat/{event.conversation_sid}/"]
+    ] + _footer(event.conversation_sid, mode_line=f"📤 AI sends to chat: {'ON (live)' if live else 'OFF (test)'}")
     result, reply_to = (False, 'nothing to post', None), None
-    for part in split_parts("\n".join(lines)):   # a very long tenant message: in parts, never cut
-        result = send_ai_chat(part, silent=True, reply_to=reply_to)
+    for part in html_parts("\n".join(lines)):   # a very long tenant message: in parts, never cut
+        result = send_ai_chat(part, silent=True, reply_to=reply_to, parse_mode='HTML')
         reply_to = result[2]
     return result
 
@@ -1746,7 +1784,7 @@ def refresh_alert(run):
     text = render_text(run)
     if len(split_parts(text)) > 1:
         return edit_reply_markup(run.telegram_message_id, keyboard_for(run))   # a long alert in parts: only its buttons change
-    edit_message_text(run.telegram_message_id, text, keyboard_for(run))
+    edit_message_text(run.telegram_message_id, to_html(text), keyboard_for(run), parse_mode='HTML')
 
 
 def _block_label(action):
@@ -1992,14 +2030,14 @@ def handle_reply(run, text, author, at, reply_to=None, written=False):
     if corrected:
         tenant = str((run.review or {}).get('meta', {}).get('tenant') or 'the tenant').split()[0]
         lines += [f"✉️ FOLLOW-UP MESSAGE for {tenant} (the answer was already sent {sent['at']})" if followup
-                  else f"✏️ NEW ANSWER for {tenant}", f"🤖 \"{corrected}\" 🤖"]
+                  else f"✏️ NEW ANSWER for {tenant}", f"🤖 \"{corrected}\""]
     if lesson:
         lines.append(f"📏 Rule I learned: \"{lesson}\"")
     for fact in facts:
         key, value = str(fact.get('key') or '').replace('_', ' ').strip(), str(fact['value']).strip()
         named = key and not value.lower().startswith(key.lower())   # "WiFi password: Sun2026" already names the topic
         fact['text'] = f"{key[:1].upper()}{key[1:]}: {value}" if named else value
-        lines += [f"📚 \"{fact['text']}\" 📚", f"   from: {author}'s reply {_short_stamp(at)}"]
+        lines += [f"📚 \"{fact['text']}\"", f"   from: {author}'s reply {_short_stamp(at)}"]
     shown = [c[0] for c in changes if c[0]]
     if shown:
         kinds = {(c[1] or {}).get('do') for c in changes if c[1]}

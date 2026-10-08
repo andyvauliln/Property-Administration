@@ -121,8 +121,9 @@ class _Calls:
     def __call__(self, sid): return _Call(sid)
 class _Twilio: calls = _Calls()
 messaging.get_twilio_client = lambda: _Twilio()
-def fake_tg(text, reply_to=None, reply_markup=None, silent=False):
-    telegram.append(text); return True, "sent", 800000 + len(telegram)
+from mysite.ai_agent.sandbox_test.world import html_to_plain as _plain_of   # an alert sent as Telegram HTML, as read
+def fake_tg(text, reply_to=None, reply_markup=None, silent=False, parse_mode=None):
+    telegram.append(_plain_of(text) if parse_mode == 'HTML' else text); return True, "sent", 800000 + len(telegram)
 alerts_v5.send_ai_chat = calls.send_ai_chat = fake_tg
 after_hours.report_error = calls.report_error = lambda e, ctx, info=None, source='task': errors.append(f"{ctx}: {e}")
 

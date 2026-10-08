@@ -72,11 +72,10 @@ become a test in `testbed/`
 11. **Footer on every alert** (also reminders, AI messages and the bot's answers about one chat):
 
 ```
-↩ Reply to this message for questions, notes or custom actions.
+┃ ↩ Reply to this message for questions, notes or custom actions.   ← read more: hidden until tapped
+┃ 📤 AI sends to chat: ON (live) · 🎫 AI Auto ClickUp: OFF
+┃ 🔗 AI run · CRM chat
 
-📤 AI sends to chat: ON (live) · 🎫 AI Auto ClickUp: OFF
-🔗 AI run: http://68.183.124.79/ai-runs/627/
-💬 CRM chat: http://68.183.124.79/chat/CH5f2e…/
 ```
 
    In the examples the footer is written in full in A1, B1, C1 and D2; elsewhere it is shown as `(footer)`.
@@ -85,19 +84,24 @@ become a test in `testbed/`
 
 ```
 ———
-↪️ Edy (team) "Hi Vera, welcome! The wifi details are on the fridge." ↪️
+↪️ Edy "Hi Vera, welcome! The wifi details are on the fridge."
 
-💬 "Hello? Hi, the kitchen sink is dripping since yesterday" 💬
+💬 "Hello? Hi, the kitchen sink is dripping since yesterday"
 ———
 ```
 
-- `↪️ Name (side) "…" ↪️` = **before**: the last messages from the other side, joined into one text. For a tenant
+- `↪️ Name "…"` = **before**: the last messages from the other side, joined into one text. For a tenant
 alert that is the team (or the AI answer that was sent); for a team alert, the tenant. Not shown if the other
 side never wrote in this chat.
-- Empty line, then `💬 "…" 💬` = **now**: all messages of this side written after that, joined into one text: the
-new message(s) plus the earlier ones in a row, also when an older alert already showed them. No name: the header
-already says who wrote. Several team members in a row are one side (header `🧑‍🔧 Edy, Janna`).
-- Reminder alerts have no author in the header, so there the `💬` line also has the name: `💬 AI (sent) "…" 💬`.
+- Empty line, then `💬 Name "…"` = **now**: all messages of this side written after that, joined into one text: the
+new message(s) plus the earlier ones in a row, also when an older alert already showed them. Several team members in
+a row are one side (`💬 Edy, Janna "…"`).
+- Names (user notes 2026-10-08): the tenant with the full name, a team member with the name, the AI as `AI` - no
+"(tenant)" / "(team)". No closing icon at the end of any line (`🤖 "…"`, not `🤖 "…" 🤖`). `🧪 TEST` is in the
+title line. A knowledge block shows only the fact (`📚 "Door code: 9090"`), not where it came from.
+- **Read more:** the last part of every alert - how to reply, the AI mode / ClickUp switch and the links (`AI run`,
+`CRM chat` as words) - is a Telegram expandable quote (`┃` in the examples): one line shows, a tap opens the rest.
+- A team member's message never gets an answer proposal from the AI: the tenant already has what the team wrote.
 - Nothing is cut; a very long block makes the alert split into parts (rule 10).
 - Today's card shows only the new messages: this rule is new (the AI itself already reads the whole history).
 
@@ -235,23 +239,21 @@ Tenant Vera, 720-201, Tue 6 Oct 14:34 (office hours). Kitchen sink is dripping.
 🏠 720-201 · 👤 Vera Lopez · 🟢 Routine
 
 ———
-↪️ Edy (team) "Hi Vera, welcome! The wifi details are on the fridge." ↪️
+↪️ Edy "Hi Vera, welcome! The wifi details are on the fridge."
 
-💬 "Hi, the kitchen sink is dripping since yesterday" 💬
+💬 Vera Lopez "Hi, the kitchen sink is dripping since yesterday"
 ———
-🤖 "Hello Vera, thank you for letting us know. I've logged the dripping kitchen sink, and our maintenance team will follow up to schedule a visit." 🤖
+🤖 "Hello Vera, thank you for letting us know. I've logged the dripping kitchen sink, and our maintenance team will follow up to schedule a visit."
 ———
-🎫 Kitchen sink dripping – 720-201 🎫
+🎫 Kitchen sink dripping – 720-201
    Edy · routine · due Fri 9 Oct 14:34
 ———
-⏰ Check the sink task has a visit date – today 16:34 (1/2) ⏰
+⏰ Check the sink task has a visit date – today 16:34 (1/2)
 ———
 
-↩ Reply to this message for questions, notes or custom actions.
-
-📤 AI sends to chat: ON (live) · 🎫 AI Auto ClickUp: OFF
-🔗 AI run: http://68.183.124.79/ai-runs/627/
-💬 CRM chat: http://68.183.124.79/chat/CH5f2e…/
+┃ ↩ Reply to this message for questions, notes or custom actions.   ← read more: hidden until tapped
+┃ 📤 AI sends to chat: ON (live) · 🎫 AI Auto ClickUp: OFF
+┃ 🔗 AI run · CRM chat
 
 [🤖 Send Answer (SMS)] [✏️ Edit Answer]
 [🤖🎫 Send + Create Task]
@@ -278,15 +280,15 @@ Test: the answer says it is logged and that the maintenance team will follow up 
 🏠 630-214 · 👤 Mark Chen · 🔴 Urgent
 
 ———
-↪️ Edy (team) "Hi Mark, welcome! Check-in is from 3pm, the door code
-is in your booking email." ↪️
+↪️ Edy "Hi Mark, welcome! Check-in is from 3pm, the door code
+is in your booking email."
 
-💬 "The door code doesn't work, I'm standing outside with my kids" 💬
+💬 Mark Chen "The door code doesn't work, I'm standing outside with my kids"
 ———
 🤖 "Hi Mark, sorry! Please try 4521# – the code was changed on Monday.
-If it still doesn't open, reply here and we'll call you right away." 🤖
+If it still doesn't open, reply here and we'll call you right away."
 ———
-⏰ Check Mark got in – today 15:40 (1/2) ⏰
+⏰ Check Mark got in – today 15:40 (1/2)
 ———
 (footer)
 
@@ -304,12 +306,12 @@ Posted **with sound**. An urgent team reminder may fire at any hour.
 🏠 630-214 · 👤 Mark Chen · 🟢 Routine
 
 ———
-↪️ AI (sent) "Hi Mark, sorry! Please try 4521# – the code was changed
-on Monday." ↪️
+↪️ AI "Hi Mark, sorry! Please try 4521# – the code was changed
+on Monday."
 
-💬 "We're in, thanks! What's the wifi password?" 💬
+💬 Mark Chen "We're in, thanks! What's the wifi password?"
 ———
-🤖 "Great! The wifi is MyHome-5G, password B123H4689." 🤖
+🤖 "Great! The wifi is MyHome-5G, password B123H4689."
 ———
 (footer)
 
@@ -329,14 +331,14 @@ Mark got the wifi password from the knowledge base (A3) and writes that it does 
 🏠 630-214 · 👤 Mark Chen · 🟢 Routine
 
 ———
-↪️ AI (sent) "Great! The wifi is MyHome-5G, password B123H4689." ↪️
+↪️ AI "Great! The wifi is MyHome-5G, password B123H4689."
 
-💬 "The wifi password doesn't work" 💬
+💬 Mark Chen "The wifi password doesn't work"
 ———
 🤖 "Sorry about that, Mark! The team will check the correct wifi
-password and send it to you." 🤖
+password and send it to you."
 ———
-⏰ Edy: check the wifi password for Mark – today 17:30 (1/2) ⏰
+⏰ Edy: check the wifi password for Mark – today 17:30 (1/2)
 ———
 (footer)
 
@@ -356,15 +358,15 @@ The normal next step is a reply under this alert with the right value – see E4
 🏠 105 Wilson · 👤 Ana Ruiz · 🟢 Routine
 
 ———
-↪️ Edy (team) "Welcome Ana! Let us know if you need anything." ↪️
+↪️ Edy "Welcome Ana! Let us know if you need anything."
 
-💬 "Thanks! Where can I leave my bike?" 💬
+💬 Ana Ruiz "Thanks! Where can I leave my bike?"
 ———
-🤖 "Hi Ana, let me check with the team and get back to you today." 🤖
+🤖 "Hi Ana, let me check with the team and get back to you today."
 ———
 ❓ Not in the knowledge base: bike storage for 105 Wilson
 ———
-⏰ Edy: tell Ana where to leave her bike – today 17:20 (1/2) ⏰
+⏰ Edy: tell Ana where to leave her bike – today 17:20 (1/2)
 ———
 (footer)
 
@@ -385,12 +387,12 @@ this booking (Parking page of the site) and the apartment's own spot. It is neve
 🏠 105 Wilson · 👤 Ana Ruiz · 🟢 Routine
 
 ———
-↪️ Edy (team) "Welcome Ana! Let us know if you need anything." ↪️
+↪️ Edy "Welcome Ana! Let us know if you need anything."
 
-💬 "Thanks! Which parking spot is mine?" 💬
+💬 Ana Ruiz "Thanks! Which parking spot is mine?"
 ———
 🤖 "Hi Ana, your parking spot is #14, in the garage next to the
-mailboxes." 🤖
+mailboxes."
 ———
 (footer)
 
@@ -410,14 +412,14 @@ The AI answers with the spot **and proposes the missing record**:
 🏠 105 Wilson · 👤 Ana Ruiz · 🟢 Routine
 
 ———
-↪️ Edy (team) "Welcome Ana! Let us know if you need anything." ↪️
+↪️ Edy "Welcome Ana! Let us know if you need anything."
 
-💬 "Thanks! Which parking spot is mine?" 💬
+💬 Ana Ruiz "Thanks! Which parking spot is mine?"
 ———
 🤖 "Hi Ana, your parking spot is #14, in the garage next to the
-mailboxes." 🤖
+mailboxes."
 ———
-🗂 CRM: book parking spot #14 for this booking (6 Oct – 30 Oct 2026) 🗂
+🗂 CRM: book parking spot #14 for this booking (6 Oct – 30 Oct 2026)
    why: the apartment's own spot is free, nothing is booked for this booking
 ———
 (footer)
@@ -453,16 +455,16 @@ A reply "remove the CRM change" takes the block off the alert (with ✅ Apply Ch
 🏠 720-514 · 👤 Rita Gomez · 🟢 Routine
 
 ———
-↪️ Janna (team) "Hi Rita, your October invoice is ready: $2,150, due
-Oct 5." ↪️
+↪️ Janna "Hi Rita, your October invoice is ready: $2,150, due
+Oct 5."
 
-💬 "Can I pay October rent on the 10th instead of the 5th?" 💬
+💬 Rita Gomez "Can I pay October rent on the 10th instead of the 5th?"
 ———
 🤖 "Hi Rita, I'll check with our accounting team and get back to you
-by tomorrow." 🤖
+by tomorrow."
 ⚖️ Contract: section 4 – rent due on the 5th, $50 late fee after the 7th
 ———
-⏰ Janna: decide on Rita's late rent request – Wed 09:00 (1/2) ⏰
+⏰ Janna: decide on Rita's late rent request – Wed 09:00 (1/2)
 ———
 (footer)
 
@@ -480,14 +482,14 @@ Branches: owner is Janna (payments); 16:00 + 2 h = 18:00 is after office hours �
 🏠 720-201 · 👤 Vera Lopez · 🟢 Routine
 
 ———
-↪️ AI (sent) "Great to hear, Vera! Thanks for letting us know." ↪️
+↪️ AI "Great to hear, Vera! Thanks for letting us know."
 
-💬 "Also, can I stay 2 more weeks, until Nov 3?" 💬
+💬 Vera Lopez "Also, can I stay 2 more weeks, until Nov 3?"
 ———
 🤖 "Hi Vera, great to hear you'd like to stay longer! I'm checking
-availability and will confirm by tomorrow." 🤖
+availability and will confirm by tomorrow."
 ———
-⏰ Edy: check 720-201 availability Oct 20 – Nov 3 – today 17:50 (1/2) ⏰
+⏰ Edy: check 720-201 availability Oct 20 – Nov 3 – today 17:50 (1/2)
 ———
 (footer)
 
@@ -505,18 +507,18 @@ availability and will confirm by tomorrow." 🤖
 🏠 651-402 · 👤 Joe Park · 🔴 Urgent
 
 ———
-↪️ Janna (team) "Hi Joe, your deposit refund of $900 was sent today
-($300 kept for cleaning)." ↪️
+↪️ Janna "Hi Joe, your deposit refund of $900 was sent today
+($300 kept for cleaning)."
 
-💬 "You kept $300 of my deposit for cleaning, the place was clean.
-I want it back or I'll leave a review" 💬
+💬 Joe Park "You kept $300 of my deposit for cleaning, the place was clean.
+I want it back or I'll leave a review"
 ———
 🤖 "Hi Joe, I'm sorry you're unhappy with this. I've passed it to our
-manager, who will review the deposit details and reply to you." 🤖
+manager, who will review the deposit details and reply to you."
 ⚖️ Contract: section 9 – cleaning fee may be deducted if the checkout
 checklist was not done; checkout photos on file
 ———
-⏰ Farid: review Joe's deposit dispute – today 17:00 (1/2) ⏰
+⏰ Farid: review Joe's deposit dispute – today 17:00 (1/2)
 ———
 (footer)
 
@@ -534,13 +536,13 @@ Branch: the AI never promises money in a dispute; owner Farid; urgent, so the re
 🏠 317 10th St · 👤 Sam Lee · 🔴 Urgent
 
 ———
-↪️ Edy (team) "Hi Sam, your booking from Oct 7 is confirmed!" ↪️
+↪️ Edy "Hi Sam, your booking from Oct 7 is confirmed!"
 
-💬 "I land at 11pm tomorrow, how do I get the keys?" 💬
+💬 Sam Lee "I land at 11pm tomorrow, how do I get the keys?"
 ———
-🤖 "Hi Sam, the lockbox is at the front door, code 7788. Safe travels!" 🤖
+🤖 "Hi Sam, the lockbox is at the front door, code 7788. Safe travels!"
 ———
-⏰ Deadline Wed 7 Oct 23:00 – reminders 24 h and 2 h before (Kevin at 2 h) ⏰
+⏰ Deadline Wed 7 Oct 23:00 – reminders 24 h and 2 h before (Kevin at 2 h)
 ———
 (footer)
 
@@ -558,16 +560,16 @@ Branch: tenant deadline → deadline reminders (C7); they don't count in the 2.
 🏠 720-201 · 👤 Vera Lopez · 🔴 Urgent
 
 ———
-↪️ AI (sent) "Hello Vera, thank you for letting us know. I've logged the dripping kitchen sink, and our maintenance team will follow up to schedule a visit." ↪️
+↪️ AI "Hello Vera, thank you for letting us know. I've logged the dripping kitchen sink, and our maintenance team will follow up to schedule a visit."
 
-💬 "Any news about the sink? It's getting worse" 💬
+💬 Vera Lopez "Any news about the sink? It's getting worse"
 🔁 Asked 2 times · waiting 20 h · task open, no visit date yet
 ———
 🤖 "Hi Vera, sorry for the wait. I've pushed it to the team as urgent
-and we'll confirm a visit time today." 🤖
+and we'll confirm a visit time today."
 ———
 🔄 Task "Kitchen sink dripping – 720-201": make urgent + comment
-"Tenant asked again, getting worse – please schedule today" 🔄
+"Tenant asked again, getting worse – please schedule today"
 ———
 (footer)
 
@@ -585,16 +587,16 @@ Branch: the case already has a reminder → no new one (max 2).
 🏠 720-201 · 👤 Vera Lopez · 🟢 Routine
 
 ———
-↪️ Edy (team) "Vera, the plumber comes tomorrow 9–11am, please leave
-the gate open" ↪️
+↪️ Edy "Vera, the plumber comes tomorrow 9–11am, please leave
+the gate open"
 
-💬 "The sink stopped dripping, the plumber fixed it. Thanks!" 💬
+💬 Vera Lopez "The sink stopped dripping, the plumber fixed it. Thanks!"
 ———
-🤖 "Great to hear, Vera! Thanks for letting us know." 🤖
+🤖 "Great to hear, Vera! Thanks for letting us know."
 ———
-🔄 Close task "Kitchen sink dripping – 720-201" 🔄
+🔄 Close task "Kitchen sink dripping – 720-201"
 ———
-⏰ Open reminder "Ask Vera if the sink is fixed" (Wed 12:00) ⏰
+⏰ Open reminder "Ask Vera if the sink is fixed" (Wed 12:00)
 ———
 (footer)
 
@@ -613,19 +615,19 @@ Branch: the chat shows the issue is gone → the AI proposes closing the task an
 🏠 630-214 · 👤 Mark Chen · 🟢 Routine
 
 ———
-↪️ AI (sent) "Great! The wifi is MyHome-5G, password B123H4689." ↪️
+↪️ AI "Great! The wifi is MyHome-5G, password B123H4689."
 
-💬 "The dryer doesn't start and the bathroom light is flickering" 💬
+💬 Mark Chen "The dryer doesn't start and the bathroom light is flickering"
 ———
-🤖 "Thanks Mark, we've logged both and will schedule a visit." 🤖
+🤖 "Thanks Mark, we've logged both and will schedule a visit."
 ———
-🎫1 Dryer doesn't start – 630-214 🎫1
+🎫1 Dryer doesn't start – 630-214
    Edy · routine · due Fri 9 Oct
 ———
-🎫2 Bathroom light flickering – 630-214 🎫2
+🎫2 Bathroom light flickering – 630-214
    Edy · routine · due Fri 9 Oct
 ———
-⏰ Check both tasks have a visit date – today 17:30 (1/2) ⏰
+⏰ Check both tasks have a visit date – today 17:30 (1/2)
 ———
 (footer)
 
@@ -647,16 +649,16 @@ Tue 22:15. First the AI MESSAGE about the after-hours text is posted (as in D2, 
 🏠 720-201 · 👤 Vera Lopez · 🟢 Routine · 🌙 after-hours message sent 22:15
 
 ———
-↪️ AI (sent) "Hello Vera, thank you for letting us know. I've logged the dripping kitchen sink, and our maintenance team will follow up to schedule a visit." ↪️
+↪️ AI "Hello Vera, thank you for letting us know. I've logged the dripping kitchen sink, and our maintenance team will follow up to schedule a visit."
 
-💬 "Also the hallway bulb is out" 💬
+💬 Vera Lopez "Also the hallway bulb is out"
 ———
-🤖 "Thanks Vera, we've noted it and will replace the bulb tomorrow." 🤖
+🤖 "Thanks Vera, we've noted it and will replace the bulb tomorrow."
 ———
-🎫 Hallway bulb out – 720-201 🎫
+🎫 Hallway bulb out – 720-201
    Edy · routine · due Fri 9 Oct
 ———
-⏰ Check the bulb task – Wed 09:00 (1/2) ⏰
+⏰ Check the bulb task – Wed 09:00 (1/2)
 ———
 (footer)
 
@@ -678,18 +680,18 @@ button shows `⏳ Answer will be sent 08:00 · Andy`.
 🏠 630-214 · 👤 Mark Chen · 🔴 Urgent · 📞 Farid called 23:40 – answered
 
 ———
-↪️ AI (sent) "Thanks Mark, we've logged both and will schedule a
-visit." ↪️
+↪️ AI "Thanks Mark, we've logged both and will schedule a
+visit."
 
-💬 "URGENT the fridge stopped, all food is going bad" 💬
+💬 Mark Chen "URGENT the fridge stopped, all food is going bad"
 ———
 🤖 "Hi Mark, we got your urgent message and are on it. We'll call you
-shortly." 🤖
+shortly."
 ———
-🎫 Fridge not working – 630-214 🎫
+🎫 Fridge not working – 630-214
    Edy · 🔴 urgent · due Wed 7 Oct 23:40
 ———
-⏰ Check the fridge task – Wed 00:10 (1/2) ⏰
+⏰ Check the fridge task – Wed 00:10 (1/2)
 ———
 (footer)
 
@@ -710,7 +712,7 @@ The tenant writes "ok thanks 👍" → no alert at all.
 Same as A1, but:
 
 ```
-🏠 Test_Apart2 · 👤 Vera Lopez · 🟢 Routine · 🧪 TEST
+🏠 Test_Apart2 · 👤 Vera Lopez · 🟢 Routine
 …
 📤 AI sends to chat: OFF (test) · 🎫 AI Auto ClickUp: OFF
 ```
@@ -739,18 +741,18 @@ The new alert joins both of Vera's messages into one and is 🔴 urgent now:
 🏠 720-201 · 👤 Vera Lopez · 🔴 Urgent
 
 ———
-↪️ Edy (team) "Hi Vera, welcome! The wifi details are on the fridge." ↪️
+↪️ Edy "Hi Vera, welcome! The wifi details are on the fridge."
 
-💬 "Hi, the kitchen sink is dripping since yesterday. Now there's water
-on the floor" 💬
+💬 Vera Lopez "Hi, the kitchen sink is dripping since yesterday. Now there's water
+on the floor"
 ———
 🤖 "Hi Vera, sorry! Please close the valve under the sink for now – we're
-sending a plumber today and will confirm the time within the hour." 🤖
+sending a plumber today and will confirm the time within the hour."
 ———
-🎫 Kitchen sink leaking, water on the floor – 720-201 🎫
+🎫 Kitchen sink leaking, water on the floor – 720-201
    Edy · 🔴 urgent · due Wed 7 Oct 14:50
 ———
-⏰ Check the plumber is booked – today 15:20 (1/2) ⏰
+⏰ Check the plumber is booked – today 15:20 (1/2)
 ———
 (footer)
 
@@ -784,10 +786,10 @@ Tue 19:05 is after office hours: first the AI MESSAGE about the after-hours text
 🏠 720-514 · 👤 Rita Gomez · 🟢 Routine · 🌙 after-hours message sent 19:05
 
 ———
-↪️ Janna (team) "Hi Rita, the 10th is fine this time, no late fee" ↪️
+↪️ Janna "Hi Rita, the 10th is fine this time, no late fee"
 
-💬 "Hi, so a few things: first the AC makes a noise at night … (the whole
-message, 3 900 characters)" 💬
+💬 Rita Gomez "Hi, so a few things: first the AC makes a noise at night … (the whole
+message, 3 900 characters)"
 ———
 ```
 
@@ -795,12 +797,12 @@ message, 3 900 characters)" 💬
 (2/2)
 🤖 "Hi Rita, thanks for the details! We've logged the AC noise, the
 balcony door and the parking question, and will come back to you
-tomorrow." 🤖
+tomorrow."
 ———
-🎫1 … 🎫1
-🎫2 … 🎫2
+🎫1 …
+🎫2 …
 ———
-⏰ Check both tasks have a visit date – Wed 09:00 (1/2) ⏰
+⏰ Check both tasks have a visit date – Wed 09:00 (1/2)
 ———
 (footer)
 
@@ -823,17 +825,17 @@ she writes again. The new alert:
 🏠 720-201 · 👤 Vera Lopez · 🔴 Urgent
 
 ———
-↪️ AI (sent) "Hello Vera, thank you for letting us know. I've logged the dripping kitchen sink, and our maintenance team will follow up to schedule a visit." ↪️
+↪️ AI "Hello Vera, thank you for letting us know. I've logged the dripping kitchen sink, and our maintenance team will follow up to schedule a visit."
 
-💬 "Hi, any news? The plumber didn't come yesterday. Hello?? I've been
-waiting 2 days, this is unacceptable" 💬
+💬 Vera Lopez "Hi, any news? The plumber didn't come yesterday. Hello?? I've been
+waiting 2 days, this is unacceptable"
 🔁 Asked 3 times · waiting 22 h
 ———
 🤖 "Hi Vera, I'm really sorry for the wait. I'm escalating it now and
-you'll get a visit time within the hour." 🤖
+you'll get a visit time within the hour."
 ———
 🔄 Task "Kitchen sink dripping – 720-201": make urgent + comment
-"Tenant waiting 2 days, upset – schedule today" 🔄
+"Tenant waiting 2 days, upset – schedule today"
 ———
 (footer)
 
@@ -841,7 +843,7 @@ you'll get a visit time within the hour." 🤖
 [🔄 Apply Update]
 ```
 
-Branches to test: the other side's last message is the **AI answer that was sent** (`↪️ AI (sent)`); four messages
+Branches to test: the other side's last message is the **AI answer that was sent** (`↪️ AI`); four messages
 over 4 hours become one `💬` line; messages already shown in an older alert are shown again.
 
 ### A21. The other side never wrote
@@ -861,25 +863,23 @@ No urgency in the header (1.2.1). Posted without sound unless a proposed task is
 ```
 🧑‍🔧 TEAM MESSAGE · 6 Oct, Tue 16:10 ET
 
-🏠 720-201 · 👤 Vera Lopez · 🧑‍🔧 Edy
+🏠 720-201 · 👤 Vera Lopez
 
 ———
-↪️ Vera (tenant) "Hi, the kitchen sink is dripping since yesterday" ↪️
+↪️ Vera Lopez "Hi, the kitchen sink is dripping since yesterday"
 
-💬 "Vera, the plumber comes tomorrow 9–11am, please leave the
-gate open" 💬
+💬 Edy "Vera, the plumber comes tomorrow 9–11am, please leave the
+gate open"
 ———
 🔄 Comment on task "Kitchen sink dripping – 720-201":
-"Plumber visit Wed 7 Oct 9–11am" 🔄
+"Plumber visit Wed 7 Oct 9–11am"
 ———
-⏰ Ask Vera if the sink is fixed – Wed 12:00 (1/2) ⏰
+⏰ Ask Vera if the sink is fixed – Wed 12:00 (1/2)
 ———
 
-↩ Reply to this message for questions, notes or custom actions.
-
-📤 AI sends to chat: ON (live) · 🎫 AI Auto ClickUp: OFF
-🔗 AI run: http://68.183.124.79/ai-runs/633/
-💬 CRM chat: http://68.183.124.79/chat/CH5f2e…/
+┃ ↩ Reply to this message for questions, notes or custom actions.   ← read more: hidden until tapped
+┃ 📤 AI sends to chat: ON (live) · 🎫 AI Auto ClickUp: OFF
+┃ 🔗 AI run · CRM chat
 
 [🔄 Apply Update]
 [✅ Close Reminder]
@@ -892,15 +892,14 @@ gate open" 💬
 ```
 🧑‍🔧 TEAM MESSAGE · 6 Oct, Tue 16:20 ET
 
-🏠 105 Wilson · 👤 Ana Ruiz · 🧑‍🔧 Edy
+🏠 105 Wilson · 👤 Ana Ruiz
 
 ———
-↪️ Ana (tenant) "Thanks! Where can I leave my bike?" ↪️
+↪️ Ana Ruiz "Thanks! Where can I leave my bike?"
 
-💬 "Ana, the bike room is on the 1st floor, next to the mailboxes" 💬
+💬 Edy "Ana, the bike room is on the 1st floor, next to the mailboxes"
 ———
-📚 "105 Wilson: bike room is on the 1st floor, next to the mailboxes" 📚
-   from: Edy's message 6 Oct 16:20
+📚 "105 Wilson: bike room is on the 1st floor, next to the mailboxes"
 ———
 ✅ Reminder "tell Ana where to leave her bike" closed – answered in the chat
 ———
@@ -916,15 +915,14 @@ gate open" 💬
 ```
 🧑‍🔧 TEAM MESSAGE · 6 Oct, Tue 16:45 ET
 
-🏠 720-514 · 👤 Rita Gomez · 🧑‍🔧 Janna
+🏠 720-514 · 👤 Rita Gomez
 
 ———
-↪️ Rita (tenant) "How can I pay the rent, do you take Zelle?" ↪️
+↪️ Rita Gomez "How can I pay the rent, do you take Zelle?"
 
-💬 "Rita, yes – you can pay by Zelle to pay@ourcompany.com" 💬
+💬 Janna "Rita, yes – you can pay by Zelle to pay@ourcompany.com"
 ———
-📚 "Rent can be paid by Zelle to pay@ourcompany.com" 📚
-   from: Janna's message 6 Oct 16:45
+📚 "Rent can be paid by Zelle to pay@ourcompany.com"
 ———
 (footer)
 
@@ -938,16 +936,16 @@ gate open" 💬
 ```
 🧑‍🔧 TEAM MESSAGE · 7 Oct, Wed 11:15 ET
 
-🏠 720-201 · 👤 Vera Lopez · 🧑‍🔧 Edy
+🏠 720-201 · 👤 Vera Lopez
 
 ———
-↪️ Vera (tenant) "Ok, I'll leave the gate open" ↪️
+↪️ Vera Lopez "Ok, I'll leave the gate open"
 
-💬 "Vera, the plumber fixed the sink 👍" 💬
+💬 Edy "Vera, the plumber fixed the sink 👍"
 ———
-🔄 Close task "Kitchen sink dripping – 720-201" 🔄
+🔄 Close task "Kitchen sink dripping – 720-201"
 ———
-⏰ Ask Vera to confirm the sink works – today 13:15 (1/2, to tenant) ⏰
+⏰ Ask Vera to confirm the sink works – today 13:15 (1/2, to tenant)
 ———
 (footer)
 
@@ -962,14 +960,14 @@ gate open" 💬
 ```
 🧑‍🔧 TEAM MESSAGE · 6 Oct, Tue 16:30 ET
 
-🏠 651-402 · 👤 Joe Park · 🧑‍🔧 Edy
+🏠 651-402 · 👤 Joe Park
 
 ———
-↪️ Joe (tenant) "Ok, what do you need from me for the water bill?" ↪️
+↪️ Joe Park "Ok, what do you need from me for the water bill?"
 
-💬 "Joe, please send us a photo of the water meter" 💬
+💬 Edy "Joe, please send us a photo of the water meter"
 ———
-⏰ Remind Joe about the meter photo – today 18:30 (1/2, to tenant) ⏰
+⏰ Remind Joe about the meter photo – today 18:30 (1/2, to tenant)
 ———
 (footer)
 
@@ -983,15 +981,15 @@ When it fires → C3 (live) / C4 (test).
 ```
 🧑‍🔧 TEAM MESSAGE · 6 Oct, Tue 17:00 ET
 
-🏠 630-214 · 👤 Mark Chen · 🧑‍🔧 Kevin
+🏠 630-214 · 👤 Mark Chen
 
 ———
-↪️ Mark (tenant) "The kitchen outlet makes a buzzing sound when I plug
-in the kettle" ↪️
+↪️ Mark Chen "The kitchen outlet makes a buzzing sound when I plug
+in the kettle"
 
-💬 "Mark, I'll send an electrician, don't use that outlet" 💬
+💬 Kevin "Mark, I'll send an electrician, don't use that outlet"
 ———
-🎫 Kitchen outlet buzzing – 630-214 🎫
+🎫 Kitchen outlet buzzing – 630-214
    Kevin · 🔴 urgent · due Wed 7 Oct 17:00
 ———
 (footer)
@@ -1025,19 +1023,17 @@ No alert. This is not knowledge: it is true only for this booking, not for the a
 🏠 720-201 · 👤 Vera Lopez · 🟢 Routine · 1/2 (2/2 tomorrow 10:00)
 
 ———
-⏰ Check the sink task has a visit date (for Edy) ⏰
+⏰ Check the sink task has a visit date (for Edy)
    ClickUp: to do · no comment yet
 ———
-↪️ Vera (tenant) "Hi, the kitchen sink is dripping since yesterday" ↪️
+↪️ Vera Lopez "Hi, the kitchen sink is dripping since yesterday"
 
-💬 AI (sent) "Hello Vera, thank you for letting us know. I've logged the dripping kitchen sink, and our maintenance team will follow up to schedule a visit." 💬
+💬 AI "Hello Vera, thank you for letting us know. I've logged the dripping kitchen sink, and our maintenance team will follow up to schedule a visit."
 ———
 
-↩ Reply to this message for questions, notes or custom actions.
-
-📤 AI sends to chat: ON (live) · 🎫 AI Auto ClickUp: OFF
-🔗 AI run: http://68.183.124.79/ai-runs/640/
-💬 CRM chat: http://68.183.124.79/chat/CH5f2e…/
+┃ ↩ Reply to this message for questions, notes or custom actions.   ← read more: hidden until tapped
+┃ 📤 AI sends to chat: ON (live) · 🎫 AI Auto ClickUp: OFF
+┃ 🔗 AI run · CRM chat
 
 [✅ Close Reminder]
 ```
@@ -1052,12 +1048,12 @@ No alert. This is not knowledge: it is true only for this booking, not for the a
 🏠 720-201 · 👤 Vera Lopez · 🟢 Routine · 2/2 (last)
 
 ———
-⏰ Check the sink task has a visit date (for Edy) ⏰
+⏰ Check the sink task has a visit date (for Edy)
    ClickUp: to do · last comment 2026-10-06 17:02 Edy
 ———
-↪️ Vera (tenant) "Hi, the kitchen sink is dripping since yesterday" ↪️
+↪️ Vera Lopez "Hi, the kitchen sink is dripping since yesterday"
 
-💬 AI (sent) "Hello Vera, thank you for letting us know. I've logged the dripping kitchen sink, and our maintenance team will follow up to schedule a visit." 💬
+💬 AI "Hello Vera, thank you for letting us know. I've logged the dripping kitchen sink, and our maintenance team will follow up to schedule a visit."
 ———
 (footer)
 
@@ -1080,17 +1076,17 @@ No REMINDER alert. At 18:30 (2 h after Edy's request in B5) the re-check runs:
 ### C4. Tenant reminder, test
 
 ```
-⏰ REMINDER · 6 Oct, Tue 18:30 ET
+⏰ REMINDER · 🧪 TEST · 6 Oct, Tue 18:30 ET
 
-🏠 Test_Apart2 · 👤 Joe Park · 🟢 Routine · 1/2 (to tenant) · 🧪 TEST
+🏠 Test_Apart2 · 👤 Joe Park · 🟢 Routine · 1/2 (to tenant)
 
 ———
-↪️ Joe (tenant) "Ok, what do you need from me for the water bill?" ↪️
+↪️ Joe Park "Ok, what do you need from me for the water bill?"
 
-💬 Edy (team) "Joe, please send us a photo of the water meter" 💬
+💬 Edy "Joe, please send us a photo of the water meter"
 ———
 🤖 "Hi Joe, just a reminder to send us the photo of the water meter
-when you can. Thanks!" 🤖
+when you can. Thanks!"
 ———
 🧪 Test mode: NOT sent automatically. Press to send for real.
 ———
@@ -1117,13 +1113,13 @@ no alert, listed in the report under "closed today".
 ———
 🎫 Task "Kitchen sink dripping – 720-201" was CLOSED (complete, 2026-10-07 09:12)
 ———
-↪️ Vera (tenant) "Ok, I'll leave the gate open" ↪️
+↪️ Vera Lopez "Ok, I'll leave the gate open"
 
-💬 Edy (team) "Vera, the plumber comes tomorrow 9–11am, please leave
-the gate open" 💬
+💬 Edy "Vera, the plumber comes tomorrow 9–11am, please leave
+the gate open"
 ———
 🤖 "Hi Vera, our team marked the sink repair as done. If you still have
-any problem, just let us know." 🤖
+any problem, just let us know."
 ———
 (footer)
 
@@ -1135,10 +1131,10 @@ Here the tenant wrote last, so the tenant is the `💬` line and the team is the
 older side first (rule 1.3.7). Edy wrote 16:10, Vera answered 16:15 → `↪️ Edy` would be older. Correct order:
 
 ```
-↪️ Edy (team) "Vera, the plumber comes tomorrow 9–11am, please leave
-the gate open" ↪️
+↪️ Edy "Vera, the plumber comes tomorrow 9–11am, please leave
+the gate open"
 
-💬 Vera (tenant) "Ok, I'll leave the gate open" 💬
+💬 Vera Lopez "Ok, I'll leave the gate open"
 ```
 
 (Test: the order of the two lines always follows the time of the last message of each side.)
@@ -1151,13 +1147,13 @@ the gate open" ↪️
 🏠 317 10th St · 👤 Sam Lee · 🔴 Urgent · deadline in 2 h · @Kevin
 
 ———
-⏰ Sam lands at 23:00 – check the lockbox code works (for Edy) ⏰
+⏰ Sam lands at 23:00 – check the lockbox code works (for Edy)
    tenant deadline Wed 7 Oct 23:00
 ———
-↪️ Sam (tenant) "I land at 11pm tomorrow, how do I get the keys?" ↪️
+↪️ Sam Lee "I land at 11pm tomorrow, how do I get the keys?"
 
-💬 AI (sent) "Hi Sam, the lockbox is at the front door, code 7788.
-Safe travels!" 💬
+💬 AI "Hi Sam, the lockbox is at the front door, code 7788.
+Safe travels!"
 ———
 (footer)
 
@@ -1183,16 +1179,16 @@ The 24 h one is the same without `@Kevin`.
 ### D2. After-hours message, test
 
 ```
-🤖 AI MESSAGE · 6 Oct, Tue 22:15 ET
+🤖 AI MESSAGE · 🧪 TEST · 6 Oct, Tue 22:15 ET
 
-🏠 Test_Apart2 · 👤 Vera Lopez · 🌙 After-hours message · 🧪 TEST
+🏠 Test_Apart2 · 👤 Vera Lopez · 🌙 After-hours message
 
 ———
-↪️ AI (sent) "Hi Vera, thanks for letting us know…" ↪️
+↪️ AI "Hi Vera, thanks for letting us know…"
 
-💬 "Also the hallway bulb is out" 💬
+💬 Vera Lopez "Also the hallway bulb is out"
 ———
-🤖 "Thanks for your message. Our office is open Mon–Fri 9am–6pm …" 🤖
+🤖 "Thanks for your message. Our office is open Mon–Fri 9am–6pm …"
 ———
 🧪 NOT sent – test mode. In live this text would go to the tenant now.
 ———
@@ -1209,20 +1205,20 @@ The 24 h one is the same without `@Kevin`.
 🏠 630-429 · 👤 Tom Reyes · 🚨 Emergency
 
 ———
-↪️ Edy (team) "Hi Tom, welcome! Let us know if you need anything." ↪️
+↪️ Edy "Hi Tom, welcome! Let us know if you need anything."
 
-💬 "Water is coming from the ceiling, a lot!!" 💬
+💬 Tom Reyes "Water is coming from the ceiling, a lot!!"
 ———
 🤖 "Please turn off the main water valve under the kitchen sink and call
-911 if water touches electric outlets. We are calling our team now." 🤖
+911 if water touches electric outlets. We are calling our team now."
 ✅ Sent 23:02
 ———
 📞 Farid called 23:02 – answered
 ———
-🎫 Ceiling leak – 630-429 🎫
+🎫 Ceiling leak – 630-429
    Edy · 🚨 emergency · due Wed 03:02 · ✅ created 23:02 (no wait)
 ———
-⏰ Check the leak is stopped – 23:32 (1/2) ⏰
+⏰ Check the leak is stopped – 23:32 (1/2)
 ———
 (footer)
 
@@ -1249,12 +1245,12 @@ test → `🧪 NOT sent`, `📞 call simulated`, task button instead of auto-cre
 🏠 651-402 · 👤 Joe Park · ⏰ Reminder 1/2 auto-sent
 
 ———
-↪️ Joe (tenant) "Ok, what do you need from me for the water bill?" ↪️
+↪️ Joe Park "Ok, what do you need from me for the water bill?"
 
-💬 Edy (team) "Joe, please send us a photo of the water meter" 💬
+💬 Edy "Joe, please send us a photo of the water meter"
 ———
 🤖 "Hi Joe, just a reminder to send us the photo of the water meter
-when you can. Thanks!" 🤖
+when you can. Thanks!"
 ———
 ✅ Sent 18:30 – reminder 1/2 was due, still needed, nobody closed it
 ⏰ Next: 2/2 tomorrow 10:00
@@ -1333,7 +1329,7 @@ After the press: `[✅ Changed · Andy 14:40]`, and the task block on the alert 
 
 ```
 ✏️ NEW ANSWER for Vera
-🤖 "Hi Vera, Edy will come himself today at 5pm to look at it." 🤖
+🤖 "Hi Vera, Edy will come himself today at 5pm to look at it."
 ✏️ I WILL CHANGE
 🔄 add a COMMENT to "Kitchen sink dripping": Edy visits today at 17:00
 Why: your answer says it.
@@ -1361,8 +1357,8 @@ Under the A3b alert ("The wifi password doesn't work"), before the answer was se
 
 ✏️ NEW ANSWER for Mark
 🤖 "Sorry about that! The wifi password has changed. Please use
-network MyHome-5G, password Sun2026." 🤖
-📚 "WiFi password: Sun2026" 📚
+network MyHome-5G, password Sun2026."
+📚 "WiFi password: Sun2026"
    from: Andy's reply 6 Oct 15:40
 
 [🤖 Send Answer]
@@ -1381,8 +1377,8 @@ Under the A3 alert, after `🤖 Send Answer` was pressed (Mark already got the o
 
 ✉️ FOLLOW-UP MESSAGE for Mark (the answer was already sent 15:45)
 🤖 "Sorry, my mistake – the wifi password has changed. The correct
-password is Sun2026." 🤖
-📚 "WiFi password: Sun2026" 📚
+password is Sun2026."
+📚 "WiFi password: Sun2026"
    from: Andy's reply 6 Oct 15:50
 
 [🤖 Send Message]
@@ -1656,11 +1652,11 @@ Vera, 720-201. Rent $2,150 is due Wed 7 Oct and is Pending. Nothing in the chat 
 🏠 720-201 · 👤 Vera Lopez · 📅 Rent due tomorrow
 
 ———
-↪️ Vera (tenant) "Thanks, got it!" ↪️
+↪️ Vera Lopez "Thanks, got it!"
 
-💬 Janna (team) "You're welcome, Vera!" 💬
+💬 Janna "You're welcome, Vera!"
 ———
-🤖 "How are you? Gentle reminder that tomorrow is a due date for the payment. Please, let me know when you send it." 🤖
+🤖 "How are you? Gentle reminder that tomorrow is a due date for the payment. Please, let me know when you send it."
 ———
 ✅ Sent 08:00 – still needed: rent $2,150 due 7 Oct is Pending, nothing about it in the chat
 ———
@@ -1680,15 +1676,15 @@ payment as Pending.
 🏠 720-201 · 👤 Vera Lopez · 📅 Rent due tomorrow · ⏸ HELD
 
 ———
-↪️ Janna (team) "Hi Vera, your October invoice is ready: $2,150, due Oct 7." ↪️
+↪️ Janna "Hi Vera, your October invoice is ready: $2,150, due Oct 7."
 
-💬 Vera (tenant) "Hi Janna, I already paid October rent yesterday by Zelle" 💬
+💬 Vera Lopez "Hi Janna, I already paid October rent yesterday by Zelle"
 ———
-🤖 "How are you? Gentle reminder that tomorrow is a due date for the payment. Please, let me know when you send it." 🤖
+🤖 "How are you? Gentle reminder that tomorrow is a due date for the payment. Please, let me know when you send it."
 ———
 ⏸ NOT sent – Vera wrote on 5 Oct that she already paid by Zelle, but the payment is still Pending in the CRM
 ———
-⏰ Janna: check Vera's October payment – today 10:00 (1/2) ⏰
+⏰ Janna: check Vera's October payment – today 10:00 (1/2)
 ———
 (footer)
 
@@ -1709,11 +1705,11 @@ and should be at the apartment around 3:30pm tomorrow".
 🏠 317 10th St · 👤 Sam Lee · 📅 Move-in tomorrow · ⏸ HELD
 
 ———
-↪️ Edy (team) "Hi Sam, your booking from Oct 7 is confirmed!" ↪️
+↪️ Edy "Hi Sam, your booking from Oct 7 is confirmed!"
 
-💬 Sam (tenant) "We land at 2pm and should be at the apartment around 3:30pm tomorrow" 💬
+💬 Sam Lee "We land at 2pm and should be at the apartment around 3:30pm tomorrow"
 ———
-🤖 "Hey! How are you? What time are you planning to be here tomorrow?" 🤖
+🤖 "Hey! How are you? What time are you planning to be here tomorrow?"
 ———
 ⏸ NOT sent – Sam already wrote on 5 Oct that they arrive around 3:30pm tomorrow
 ———
@@ -1735,11 +1731,11 @@ is fine". The template asks what time he leaves; the AI keeps the meaning and fi
 🏠 651-402 · 👤 Joe Park · 📅 Move-out tomorrow
 
 ———
-↪️ Joe (tenant) "Can I leave the keys in the lockbox when I go?" ↪️
+↪️ Joe Park "Can I leave the keys in the lockbox when I go?"
 
-💬 Edy (team) "Yes, lockbox is fine" 💬
+💬 Edy "Yes, lockbox is fine"
 ———
-🤖 "Hi Joe! What time do you think you will be leaving tomorrow? I need to arrange the cleaners – standard check-out is 10am. And yes, the keys can go in the lockbox." 🤖
+🤖 "Hi Joe! What time do you think you will be leaving tomorrow? I need to arrange the cleaners – standard check-out is 10am. And yes, the keys can go in the lockbox."
 ———
 ✅ Sent 08:00 – still needed: Joe has not said when he leaves
 ———
@@ -1757,15 +1753,15 @@ October rent this morning". The AI reads both chats as one history.
 🏠 720-201 · 👤 Vera Lopez · 📅 Rent due tomorrow · ⏸ HELD
 
 ———
-↪️ Janna (team) "Hi Vera, your October invoice is ready: $2,150, due Oct 7." ↪️
+↪️ Janna "Hi Vera, your October invoice is ready: $2,150, due Oct 7."
 
-💬 Vera (tenant) "I sent the October rent this morning" 💬
+💬 Vera Lopez "I sent the October rent this morning"
 ———
-🤖 "How are you? Gentle reminder that tomorrow is a due date for the payment. Please, let me know when you send it." 🤖
+🤖 "How are you? Gentle reminder that tomorrow is a due date for the payment. Please, let me know when you send it."
 ———
 ⏸ NOT sent – Vera wrote on 5 Oct (in her other chat) that she sent the October rent; it is still Pending in the CRM
 ———
-⏰ Janna: check Vera's October payment – today 10:00 (1/2) ⏰
+⏰ Janna: check Vera's October payment – today 10:00 (1/2)
 ———
 (footer)
 
@@ -1934,21 +1930,21 @@ at the end, before the footer.
 ```
 🧪 SANDBOX TEST · case A1 · 1 of 21
 
-📨 TENANT MESSAGE · 6 Oct, Tue 14:34 ET
+📨 TENANT MESSAGE · 🧪 TEST · 6 Oct, Tue 14:34 ET
 
-🏠 Test_Apart2 · 👤 Vera Lopez · 🟢 Routine · 🧪 TEST
+🏠 Test_Apart2 · 👤 Vera Lopez · 🟢 Routine
 
 ———
-↪️ Edy (team) "Hi Vera, welcome! The wifi details are on the fridge." ↪️
+↪️ Edy "Hi Vera, welcome! The wifi details are on the fridge."
 
-💬 "Hi, the kitchen sink is dripping since yesterday" 💬
+💬 Vera Lopez "Hi, the kitchen sink is dripping since yesterday"
 ———
-🤖 "Hello Vera, thank you for letting us know. I've logged the dripping kitchen sink, and our maintenance team will follow up to schedule a visit." 🤖
+🤖 "Hello Vera, thank you for letting us know. I've logged the dripping kitchen sink, and our maintenance team will follow up to schedule a visit."
 ———
-🎫 Kitchen sink dripping – Test_Apart2 🎫
+🎫 Kitchen sink dripping – Test_Apart2
    Edy · routine · due Fri 9 Oct 14:34
 ———
-⏰ Check the sink task has a visit date – today 16:34 (1/2) ⏰
+⏰ Check the sink task has a visit date – today 16:34 (1/2)
 ———
 🧪 TEST NOTES
 Checks: routine maintenance → answer + 1 task + reminder 1/2 in 2 h,
@@ -1962,11 +1958,9 @@ Try:
 Then write "next".
 ———
 
-↩ Reply to this message for questions, notes or custom actions.
-
-📤 AI sends to chat: OFF (test) · 🎫 AI Auto ClickUp: ON (test list)
-🔗 AI run: http://68.183.124.79/ai-runs/701/
-💬 CRM chat: http://68.183.124.79/chat/CHSANDBOXAIAGENT00000000000000001/
+┃ ↩ Reply to this message for questions, notes or custom actions.   ← read more: hidden until tapped
+┃ 📤 AI sends to chat: OFF (test) · 🎫 AI Auto ClickUp: ON (test list)
+┃ 🔗 AI run · CRM chat
 
 [🤖 Send Answer (SMS)] [✏️ Edit Answer]
 [🤖🎫 Send + Create Task]
@@ -2005,7 +1999,7 @@ A1:
     alert: TENANT MESSAGE
     urgency: routine
     sound: false
-    conversation: {before: "Edy (team)", now_contains: "kitchen sink"}
+    conversation: {before: "Edy", now_contains: "kitchen sink"}
     answer: true
     tasks: 1
     updates: 0
@@ -2028,7 +2022,7 @@ The verdict, posted as a reply under the alert:
 🧪 RESULT · A1 · ✅ PASS
 
 ✅ alert type, urgency routine, no sound
-✅ ↪️ Edy (team) + 💬 tenant message
+✅ ↪️ Edy + 💬 tenant message
 ✅ answer – same meaning as the example
 ✅ 1 task (Edy, routine, due +3 days)
 ✅ reminder 1/2 for Edy in 2 h
@@ -2097,7 +2091,7 @@ unit and codes instead of the real ones) and its example for this document, as `
 - The messages are copied with their real sender roles (tenant / team member names) and real times; messages
   within 1 minute are one burst, like in production.
 - The agent runs at **every tenant and team message**, with all earlier messages of that chat as history.
-- The real AI answers of that time are in the history as `AI (sent)` only if they were really sent to the tenant.
+- The real AI answers of that time are in the history as `AI` only if they were really sent to the tenant.
 - The agent reads the **real apartment's knowledge base** (read only), so its answers are realistic; anything it
   saves goes to the sandbox, never to the real apartment.
 - Every alert gets `🧪 REPLAY · CH…a91f · message 3 of 12` in the header, and the test notes show what the team really

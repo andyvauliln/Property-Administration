@@ -17,11 +17,12 @@ import mysite.views.messaging as messaging
 # ---- capture every outward side effect -------------------------------------------------
 # Telegram is faked at the lowest level (notify._post / notify._call), so every module that imported send_ai_chat,
 # edit_reply_markup or answer_callback is captured too: telegram = the posted texts, markups = their buttons.
-telegram, markups, sms = [], [], []
+telegram, markups, sms, telegram_html = [], [], [], []   # telegram: as read (plain); telegram_html: as sent
 os.environ["TELEGRAM_TOKEN"] = "fake-token"
 os.environ["AI_AGENT_ALERT_CHAT_ID"] = "-500"
-def fake_post(token, chat_id, text, reply_to=None, reply_markup=None, silent=False):
-    telegram.append(text); markups.append(reply_markup); return True, "captured", 9000 + len(telegram)
+from mysite.ai_agent.sandbox_test.world import html_to_plain as _plain_of   # an alert sent as Telegram HTML, as read
+def fake_post(token, chat_id, text, reply_to=None, reply_markup=None, silent=False, parse_mode=None):
+    telegram_html.append(text); telegram.append(_plain_of(text) if parse_mode == 'HTML' else text); markups.append(reply_markup); return True, "captured", 9000 + len(telegram)
 notify._post = fake_post
 telegram_calls = []   # editMessageReplyMarkup / answerCallbackQuery ...
 notify._call = lambda method, data: (telegram_calls.append((method, data)), (True, ''))[1]
@@ -115,9 +116,10 @@ check("foreign/unknown issue id rejected", st.get('UPDATE_ISSUE_STATE') == 'reje
 check("KB_UPDATE from a tenant is not proposed and nothing is written", st.get('KB_UPDATE') == 'rejected'
       and 'X: y' not in (Apartment.objects.get(id=apt.id).knowledge_base or ''))
 check("ONE simple alert for the run: TEST mark, staff name, ticket block, reminder, tenant text once, full report link",
-      len(telegram) == 1 and '🧪 TEST' in telegram[0] and 'Edy · routine' in telegram[0]
-      and '🎫 Kitchen sink dripping - 630-999 🎫' in telegram[0] and '⏰ recheck sink' in telegram[0]
-      and telegram[0].count('The kitchen sink is dripping') == 1 and 'http://crm.test/ai-runs/' in telegram[0], telegram)
+      len(telegram) == 1 and telegram[0].startswith('📨 TENANT MESSAGE · 🧪 TEST · ') and 'Edy · routine' in telegram[0]
+      and '🎫 Kitchen sink dripping - 630-999\n' in telegram[0] and '⏰ recheck sink' in telegram[0]
+      and telegram[0].count('The kitchen sink is dripping') == 1 and telegram[0].endswith('\n🔗 AI run · CRM chat')
+      and '<a href="http://crm.test/ai-runs/' in telegram_html[0], telegram)
 run1.refresh_from_db()
 st_detail = {a['action'].get('type'): (a['status'], a['detail']) for a in run1.actions}
 check("the team note is done with the alert; the task waits for its button", 'Telegram: sent' in st_detail['INTERNAL_ALERT'][1]

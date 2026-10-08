@@ -18,9 +18,12 @@ def ai_chat_id():
     return configured or (os.environ.get('TELEGRAM_ERROR_CHAT_ID') or '').strip()
 
 
-def _post(token, chat_id, text, reply_to=None, reply_markup=None, silent=False):
-    """Returns (ok, note, message_id). The note never contains the bot token. silent: posted without sound."""
-    data = {'chat_id': chat_id, 'text': text[:3900]}
+def _post(token, chat_id, text, reply_to=None, reply_markup=None, silent=False, parse_mode=None):
+    """Returns (ok, note, message_id). The note never contains the bot token. silent: posted without sound.
+    parse_mode 'HTML': the text is Telegram HTML (the simple alerts) - never cut, a cut could break a tag."""
+    data = {'chat_id': chat_id, 'text': text if parse_mode else text[:3900]}
+    if parse_mode:
+        data['parse_mode'] = parse_mode
     if silent:
         data['disable_notification'] = 'true'
     if reply_to:
@@ -38,13 +41,13 @@ def _post(token, chat_id, text, reply_to=None, reply_markup=None, silent=False):
         if new_id and str(new_id) != str(chat_id):
             # The group became a supergroup (happens e.g. when the bot is made admin): its id changed
             logger.error(f"Telegram chat {chat_id} is now {new_id} - update AI_AGENT_ALERT_CHAT_ID in .env")
-            ok, note, message_id = _post(token, new_id, text, reply_to, reply_markup, silent)
+            ok, note, message_id = _post(token, new_id, text, reply_to, reply_markup, silent, parse_mode)
             return ok, f"{note} (group was upgraded: set AI_AGENT_ALERT_CHAT_ID={new_id} in .env)", message_id
         return False, f"Telegram refused ({response.status_code}): {body.get('description') or 'no reason given'}", None
     return True, f"sent to Telegram chat {chat_id}", (body.get('result') or {}).get('message_id')
 
 
-def send_ai_chat(text, reply_to=None, reply_markup=None, silent=False):
+def send_ai_chat(text, reply_to=None, reply_markup=None, silent=False, parse_mode=None):
     """
     Returns (ok, note, telegram_message_id). When the AI group refuses the message (e.g. members may not
     send messages there), it goes to the error chat (TELEGRAM_ERROR_CHAT_ID) instead so it is not lost;
@@ -54,13 +57,17 @@ def send_ai_chat(text, reply_to=None, reply_markup=None, silent=False):
     chat_id = ai_chat_id()
     if not token or not chat_id:
         return False, "no Telegram chat configured (TELEGRAM_TOKEN + AI_AGENT_ALERT_CHAT_ID)", None
-    ok, note, message_id = _post(token, chat_id, text, reply_to, reply_markup, silent)
+    ok, note, message_id = _post(token, chat_id, text, reply_to, reply_markup, silent, parse_mode)
     if ok:
         return ok, note, message_id
     logger.error(f"AI agent Telegram notification failed: {note}")
     fallback = (os.environ.get('TELEGRAM_ERROR_CHAT_ID') or '').strip()
     if fallback and fallback != str(chat_id):
-        copied, _, _ = _post(token, fallback, f"⚠ Could not post to the AI group ({note}). Message:\n\n{text}")
+        warning = f"⚠ Could not post to the AI group ({note}). Message:\n\n"
+        if parse_mode == 'HTML':
+            import html
+            warning = html.escape(warning, quote=False)
+        copied, _, _ = _post(token, fallback, warning + text, parse_mode=parse_mode)
         if copied:
             note += f"; copy sent to the error chat {fallback}"
     return False, note, None
@@ -85,10 +92,13 @@ def edit_reply_markup(message_id, reply_markup=None):
                                             'reply_markup': json.dumps(reply_markup or {'inline_keyboard': []})})
 
 
-def edit_message_text(message_id, text, reply_markup=None):
-    """Replaces the text (and the buttons) of one of the bot's messages in the AI chat."""
-    return _call('editMessageText', {'chat_id': ai_chat_id(), 'message_id': message_id, 'text': text[:4096],
-                                     'reply_markup': json.dumps(reply_markup or {'inline_keyboard': []})})
+def edit_message_text(message_id, text, reply_markup=None, parse_mode=None):
+    """Replaces the text (and the buttons) of one of the bot's messages in the AI chat (parse_mode 'HTML': not cut)."""
+    data = {'chat_id': ai_chat_id(), 'message_id': message_id, 'text': text if parse_mode else text[:4096],
+            'reply_markup': json.dumps(reply_markup or {'inline_keyboard': []})}
+    if parse_mode:
+        data['parse_mode'] = parse_mode
+    return _call('editMessageText', data)
 
 
 def answer_callback(callback_id, text='', alert=False):
