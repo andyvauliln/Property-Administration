@@ -970,10 +970,11 @@ E7:
     alert: REPLY
     reply_contains:
     - This alert is outdated
-    - reply to the newer one
+    - reply to the newer alert
     sent_to_tenant: false
     buttons: []
-  checks: 'A reply to an alert that was replaced by a newer one: the bot only points to the newer alert, nothing is changed.'
+  checks: 'A change asked under an alert that was replaced by a newer one: the bot prepares no change and points to the
+    newer alert. (A question there gets its answer; a 📚 fact keeps its buttons.)'
 
 E2b:
   title: 'Reply: change a task – Apply Change pressed'

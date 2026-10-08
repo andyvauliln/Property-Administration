@@ -195,6 +195,12 @@ def _team_time(value):
     return value.astimezone(ZoneInfo(config.TEAM_TIMEZONE)).strftime('%H:%M')
 
 
+def _team_stamp(value):
+    """'Wed 07 Oct 15:24': an earlier draft's day words ("tomorrow") count from this date (inputs.DATES_RULE)."""
+    from zoneinfo import ZoneInfo
+    return value.astimezone(ZoneInfo(config.TEAM_TIMEZONE)).strftime('%a %d %b %H:%M')
+
+
 def _at(when):
     """'12:23 ET, Florida (in 7 min)' - the moment something happens by itself, with the time left."""
     minutes = max(0, round((when - timezone.now()).total_seconds() / 60))
@@ -233,7 +239,7 @@ def pending_block(conversation_sid, event_type=None):
     held = list(AIRun.objects.filter(conversation_sid=conversation_sid, hold_status=AIRun.HOLD_HOLDING).order_by('id'))
     if held:
         lines.append("PENDING_AI_ANSWER (your earlier answer in this chat, NOT sent to the tenant yet - it waits for staff review):")
-        lines += [f"- drafted {_team_time(r.created_at)}{' [LEGAL - waits for a manager to confirm]' if _needs_confirmation(r) else ''}: "
+        lines += [f"- drafted {_team_stamp(r.created_at)}{' [LEGAL - waits for a manager to confirm]' if _needs_confirmation(r) else ''}: "
                   f"{r.answer}" for r in held]
         lines.append("If you answer now, your new answer REPLACES this draft (it will never be sent), so include whatever "
                      "from it is still needed. If you return NO_ANSWER, the draft stays as it is and still waits for a manager.")
@@ -263,7 +269,7 @@ def _still_valid_block(conversation_sid):
                 lines.append(f"- run #{run.id} ({state}): {item['lines'][0]}{ref}")
     held = AIRun.objects.filter(conversation_sid=conversation_sid, hold_status=AIRun.HOLD_HOLDING).order_by('id')
     for run in held:
-        lines.append(f"- run #{run.id} answer draft, NOT sent ({_team_time(run.created_at)}): {run.answer}")
+        lines.append(f"- run #{run.id} answer draft, NOT sent ({_team_stamp(run.created_at)}): {run.answer}")
     if not lines:
         return None
     return ("EARLIER_ALERTS of this chat that the team already has in Telegram. They stay valid with their own buttons: do NOT "
@@ -281,13 +287,16 @@ def _replaced_block(conversation_sid):
     if not runs:
         return None
     lines = ["PENDING_PROPOSAL - your earlier proposal(s) in this chat that NO manager has approved yet. Nothing of them "
-             "was sent or done. Your new output REPLACES them completely: they can no longer be approved. So include "
-             "in your new answer and actions everything from them that is still needed after the new message (repeat "
-             "unchanged answer text and actions as they are); leave out what the new message made unnecessary."]
+             "was sent or done. When you answer or propose any action, your new output REPLACES them completely: they "
+             "can no longer be approved. So include in your new answer and actions everything from them that is still "
+             "needed after the new message (repeat unchanged what is still true now; a day word like \"tomorrow\" or "
+             "\"today\" counts from the date of that draft - rewrite it for today); leave out what the new message made "
+             "unnecessary. Only when the new message changes nothing (a like, a thanks: NO_REPLY, NO_ANSWER and no "
+             "actions), the earlier proposals stay as they are and keep waiting for their buttons."]
     for run in runs:
         if run.hold_status == AIRun.HOLD_HOLDING and run.answer:
             legal = ' [LEGAL - needs_manager_confirmation]' if _needs_confirmation(run) else ''
-            lines.append(f"- run #{run.id} answer draft{legal} ({_team_time(run.created_at)}): {run.answer}")
+            lines.append(f"- run #{run.id} answer draft{legal} ({_team_stamp(run.created_at)}): {run.answer}")
         plan = (run.review or {}).get('plan') or {}
         if plan.get('status') == 'pending':
             for item in plan.get('items') or []:
@@ -301,7 +310,10 @@ def start(ai_run, parsed, delivery, payload, booking=None, has_tenant_message=Fa
     """After a run's notifications: records the review state (held answer + plan). Never raises."""
     AIRun = _models()
     try:
-        if ai_run.event_type in ('TENANT_MESSAGE', 'STAFF_MESSAGE'):
+        from mysite.ai_agent import alerts_v5
+        if ai_run.event_type == 'STAFF_MESSAGE' or (ai_run.event_type == 'TENANT_MESSAGE' and not alerts_v5.changes_nothing(
+                (parsed or {}).get('answer'), plan_actions if plan_actions is not None else (parsed or {}).get('actions'),
+                (parsed or {}).get('triage'))):
             from mysite.ai_agent import approval
             approval.supersede_older(ai_run)
         fields = {
@@ -713,10 +725,11 @@ def poll_telegram():
                 handled += 1
                 continue
             if (run.review or {}).get('stale'):
-                # Simple alerts (E7): an outdated alert is not worked on any more - the newer one is
-                newer = approval.newest_proposal(run)
-                link = f" ({ai_chat_link(newer.telegram_message_id)})" if newer.telegram_message_id and newer.id != run.id else ""
-                _say(run, f"⚠️ This alert is outdated – please reply to the newer one{link}.", reply_to=message.get('message_id'))
+                # Simple alerts (E7): an outdated alert is not worked on any more - the newer one is. A question about
+                # it still gets its answer ("why did you write tomorrow?"); a change is asked under the newer alert.
+                from mysite.ai_agent import alerts_v5
+                alerts_v5.handle_reply(run, message['text'], _author(message.get('from') or {}), at,
+                                       message.get('message_id'), outdated=approval.newest_proposal(run))
                 handled += 1
                 continue
             run = approval.newest_proposal(run)   # a reply to a stale card goes to the proposal that replaced it

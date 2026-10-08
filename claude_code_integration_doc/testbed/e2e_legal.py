@@ -1,3 +1,4 @@
+import re
 """
 Legal / contract questions (user request 2026-09-25) and the press that sends an answer (simple alerts,
 simple_telegram_alerts.md). The AI reads the contract (get_contract) and SUGGESTS an answer; nothing is sent until a
@@ -64,7 +65,8 @@ class _Twilio: calls = _Calls()
 messaging.get_twilio_client = lambda: _Twilio()   # never a real phone call (testbed_settings)
 updates, interpreter_out = [], []
 answer_review.fetch_updates = lambda: [updates.pop(0) for _ in range(len(updates))]
-answer_review.run_interpreter = lambda prompt: interpreter_out.pop(0)
+interpreter_prompts = []
+answer_review.run_interpreter = lambda prompt: (interpreter_prompts.append(prompt), interpreter_out.pop(0))[1]
 class _Map: list_id, channel_id, name = 'L1', None, 'list 730'
 clickup.delivery_mode = lambda: 'api'
 clickup.channel_for = lambda apartment: _Map()
@@ -223,8 +225,25 @@ check("the older alert says Outdated and has no buttons", r3.review.get('outdate
       and (r3.telegram_message_id, None) in markups, r3.review.get('outdated'))
 t = press(r3, 'sa')
 check("a press on the outdated alert is refused, nothing sent", 'Outdated' in t and not sms, t)
-t = reply_to_message(r3, r3.telegram_message_id, "is this urgent?")
-check("a typed reply to the outdated alert points to the newer one", "outdated" in t and "newer one" in t, t)
+t = reply_to_message(r3, r3.telegram_message_id, "why did you say $500?", staff_answer="The contract says $500 for smoking.")
+check("a question on the outdated alert gets its answer, no proposal, no buttons",
+      "🤖 The contract says $500" in t and "outdated" not in t and not telegram[-1]['markup'] and not r3.review.get('proposals'), t)
+check("the interpreter is told the alert is outdated and how to write the answer (short lines, real days)",
+      "this alert is OUTDATED" in interpreter_prompts[-1] and "STAFF_ANSWER STYLE" in interpreter_prompts[-1], interpreter_prompts[-1][-400:])
+t = reply_to_message(r3, r3.telegram_message_id, "tell him $300", decision='replace', corrected_answer="The fine is $300.")
+check("a change on the outdated alert is not prepared: it points to the newer alert",
+      "prepared no change" in t and "newer alert" in t and "$300" not in t and not telegram[-1]['markup'], t)
+
+# ---- 5b. a like changes nothing: the waiting alert stays, the day words get their dates ------------------
+r4b = run_with(SID3, 'Loved "The contract sets a $500 fine"', dict(triage(primary_type='NO_REPLY'), answer='NO_ANSWER',
+               why='a reaction', actions=[], needs_manager_confirmation=False, contract_basis=''))
+r4.refresh_from_db()
+check("a like (NO_REPLY, no answer, no action) does not make the waiting alert outdated",
+      r4.hold_status == 'holding' and not r4.review.get('stale') and not r4.review.get('outdated'), (r4.hold_status, r4.review.get('stale')))
+check("the input has the DATES rule and the weekday on every chat line",
+      "DATES: a relative day" in inputs_seen[-1] and re.search(r"\[\w{3} \d{4}-\d\d-\d\d \d\d:\d\d\] ", inputs_seen[-1]), inputs_seen[-1][-900:])
+check("an earlier draft shows its day and date, so 'tomorrow' in it can be counted",
+      re.search(r"answer draft[^(]*\(\w{3} \d\d \w{3} \d\d:\d\d\)", inputs_seen[-1]), inputs_seen[-1][-900:])
 
 # ---- 6. final recheck: the tenant wrote again after the proposal -> Send is refused --------------------------
 r5 = run_with(SID, "Where do I put the trash?", plain("The trash room is next to the elevator."))
@@ -345,6 +364,51 @@ check("tool allowed + prompt + schema describe the legal flow",
       'mcp__crm__get_contract' in config.ALLOWED_MCP_TOOLS and "LEGAL QUESTIONS" in prompts.get_system_prompt()[0]
       and 'needs_manager_confirmation' in json.loads(config.SCHEMA_PATH.read_text())['properties']
       and 'def get_contract' in config.MCP_TOOLS_PATH.read_text())
+
+# ---- 5c. an outdated alert keeps what is still right: done labels and 📚 knowledge buttons --------------------
+from mysite.ai_agent import alerts_v5
+apt7, SID7 = make_apartment("730-207", live=False)
+WIFI = {'type': 'KB_UPDATE', 'scope': 'apartment', 'text': 'WiFi password: Sun2026', 'source': 'tenant'}
+k1 = run_with(SID7, "The wifi password is Sun2026 btw", dict(plain("Thanks, noted!"), actions=[WIFI]))
+k2 = run_with(SID7, "Also the AC is loud", plain("Sorry about that, we will check the AC."))
+k1.refresh_from_db()
+labels = [b['text'] for b in buttons(alerts_v5.keyboard_for(k1))]
+check("outdated alert: the 📚 knowledge buttons stay, the answer buttons go",
+      k1.review.get('stale') == k2.id and "🏠📚 Apartment ⭐" in labels and not [l for l in labels if 'Send' in l or 'Edit' in l], labels)
+t = press(k1, 'sa')
+check("outdated alert: Send is refused", 'Outdated' in t, t)
+kb_index = next(i for i, a in enumerate(k1.review['plan']['actions']) if a.get('type') == 'KB_UPDATE')
+t = press(k1, 'ka', kb_index)
+k1.refresh_from_db()
+labels = [b['text'] for b in buttons(alerts_v5.keyboard_for(k1))]
+check("outdated alert: 📚 Apartment still saves the fact, and the button shows it is done",
+      'Outdated' not in t and k1.review['plan']['actions'][kb_index].get('done') and len(labels) == 1 and '📚' not in labels[0][:2], (t, labels))
+
+t = reply_to_message(k1, k1.telegram_message_id, "the lockbox code is 4545, and tell him we come at 3",
+                     decision='replace', corrected_answer="We come at 3.", new_facts=[{'key': 'lockbox code', 'value': '4545'}])
+labels = [b['text'] for b in buttons(telegram[-1]['markup'])]
+check("reply on an outdated alert: the 📚 fact keeps its buttons, the new answer is not prepared",
+      '📚 "Lockbox code: 4545"' in t and "We come at 3" not in t and "prepared no change" in t
+      and "🏠📚 Apartment ⭐" in labels and not [l for l in labels if 'Send' in l], (t, labels))
+
+# ---- the 🔁 "Asked N times" counter counts only real repeat asks (cases.asks_again) ---------------------------
+from types import SimpleNamespace
+from mysite.ai_agent import cases
+apt6, SID6 = make_apartment("730-206", live=False)
+now = timezone.now()
+first = say(SID6, "My cats will be in the unit, careful with the door", enqueue=False)
+edy = say(SID6, "Will you leave the door unlocked?", author=STAFF_AUTHOR, enqueue=False)
+answer = say(SID6, "I locked it and left", enqueue=False)
+for m, minutes in ((first, 100), (edy, 6), (answer, 0)):
+    TwilioMessage.objects.filter(id=m.id).update(message_timestamp=now - timedelta(minutes=minutes))
+answer.refresh_from_db()
+ran = SimpleNamespace(message_id=answer.id, message=answer, conversation_sid=SID6)
+check("an answer to the team's question 6 min earlier is not 'asked again'",
+      cases.asks_again(ran, {'primary_type': 'TIME_SENSITIVE_LOGISTICS'}) is False)
+check("a like or a thanks (NO_REPLY) is never 'asked again'", cases.asks_again(ran, {'primary_type': 'NO_REPLY'}) is False)
+TwilioMessage.objects.filter(id=edy.id).update(message_timestamp=now - timedelta(hours=3))
+check("no team message in the 2 hours before: the tenant asks again",
+      cases.asks_again(ran, {'primary_type': 'TIME_SENSITIVE_LOGISTICS'}) is True)
 
 print(f"{sum(checks)}/{len(checks)} checks passed")
 sys.exit(0 if all(checks) else 1)

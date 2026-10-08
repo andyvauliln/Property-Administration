@@ -93,12 +93,21 @@ def _ai_answers(conversation_sids):
     )
 
 
+# Brittany, 8 Oct 2026: "4 pm tomorrow" written on Wed 7 Oct became "tomorrow's showing" in an answer on Thu 8 Oct
+DATES_RULE = (
+    "DATES: a relative day (today, tomorrow, tonight, this Friday, next week) in a chat message, case note, issue or "
+    "earlier draft counts from the date of THAT line, not from CURRENT_TIME. Work out the real date before you use it: "
+    "\"4 pm tomorrow\" written Wed 7 Oct means Thu 8 Oct 4 PM - and on Thu 8 Oct that is \"today at 4 PM\". In case notes, "
+    "issues, tasks, reminders and alerts always write the real day and date (\"Thu 8 Oct 4 PM\"), never tomorrow / "
+    "tonight / today: they are read again on later days.")
+
+
 def format_message_line(message, ai_answers=frozenset(), tenant_name=None, other_chats=None):
     """other_chats: {conversation_sid: chat id} of the tenant's OTHER chats - their lines get an [other chat #N] mark."""
     role, sender = classify_sender(message, ai_answers)
     if role == ROLE_TENANT and tenant_name and sender == 'Tenant':
         sender = tenant_name
-    ts = message.message_timestamp.astimezone(_team_tz()).strftime('%Y-%m-%d %H:%M')
+    ts = message.message_timestamp.astimezone(_team_tz()).strftime('%a %Y-%m-%d %H:%M')
     where = (other_chats or {}).get(message.conversation_sid)
     mark = f"[other chat #{where}] " if where else ''
     photos = ''.join(f" [photo #{m.id}]" for m in message.media.all())
@@ -175,7 +184,7 @@ def tracking_block(conversation_sid, booking, sources=None):
         sources.update({'open_issues': len(issues), 'pending_followups': len(followups), 'case_notes': len(notes)})
 
     def issue_line(i):
-        opened = i.created_at.astimezone(tz).strftime('%Y-%m-%d %H:%M')
+        opened = i.created_at.astimezone(tz).strftime('%a %Y-%m-%d %H:%M')
         line = (f"- issue_id: {i.public_id} | state: {i.state} | stage: {i.stage} | owner: {i.owner or '-'} | "
                 f"priority: {i.priority} | opened: {opened} | {i.summary}")
         if i.tenant_deadline:
@@ -195,11 +204,11 @@ def tracking_block(conversation_sid, booking, sources=None):
         "PENDING_FOLLOWUPS:" + ("" if followups else " []"),
         *[
             f"- followup_id: {f.public_id} | kind: {f.kind} | issue_id: {f.issue.public_id if f.issue else '-'} | "
-            f"due: {f.due_at.astimezone(tz).strftime('%Y-%m-%d %H:%M')} | reason: {f.reason or '-'}"
+            f"due: {f.due_at.astimezone(tz).strftime('%a %Y-%m-%d %H:%M')} | reason: {f.reason or '-'}"
             for f in followups
         ],
         "CASE_NOTES (one-off arrangements for this tenant/stay):" + ("" if notes else " []"),
-        *[f"- [{n.created_at.astimezone(tz).strftime('%Y-%m-%d %H:%M')}] {n.text}" for n in notes],
+        *[f"- [{n.created_at.astimezone(tz).strftime('%a %Y-%m-%d %H:%M')}] {n.text}" for n in notes],
     ])
 
 
@@ -267,6 +276,7 @@ def build_agent_input(event_type, conversation_sid, apartment, booking, trigger_
     parts = [
         f"EVENT: {event_type}",
         f"CURRENT_TIME: {now.strftime('%A %Y-%m-%d %H:%M')} ({config.TEAM_TIMEZONE} = US Eastern Time, Florida)",
+        DATES_RULE,
         f"TEAM_TIMEZONE: {config.TEAM_TIMEZONE}",
         f"TENANT_TIMEZONE: {config.PROPERTY_TIMEZONE} (the property is in Florida; all times in this input are in this zone)",
         f"IS_HOLIDAY: {('yes - ' + config.holiday_name(now.date())) if config.holiday_name(now.date()) else 'no'} (US federal holidays)",

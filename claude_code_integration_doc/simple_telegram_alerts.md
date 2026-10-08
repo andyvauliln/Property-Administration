@@ -63,8 +63,11 @@ become a test in `testbed/`
 7. **Urgency, 3 levels**: 🟢 routine (posted **without sound**), 🔴 urgent (with sound), 🚨 emergency (with sound).
   Team message alerts are always without sound, unless they propose an urgent task.
 8. One thread per case: a newer alert about the same case is posted as a reply to the first one.
-9. When the tenant writes again, older alerts of that chat lose their buttons and get `⚠️ Outdated – see the newer
-  alert`. The new alert covers all unanswered messages.
+9. When the tenant writes again, older alerts of that chat get `⚠️ Outdated – see the newer alert`. The new alert
+  covers all unanswered messages. The old alert is never deleted: it is the history of the case. It keeps the buttons
+  that are still right - what was done (`✅ Sent · Farid 09:52`) and the 📚 knowledge buttons (a fact stays true when the
+  tenant writes again). The answer, task, update and reminder buttons go: they wait in the newer alert. Exception: a message that changes nothing (a like, a thanks:
+  `NO_REPLY`, no answer, no action) posts no alert, so the older alerts stay as they are, with their buttons and reminders.
 10. **Long texts are never cut.** Button labels are always short (a few words). A Telegram bot message can hold at most
   4096 characters (Telegram does not split it for the bot, the send just fails), so a longer alert is sent as
     **several messages in a row**, marked `(1/2)`, `(2/2)`. The buttons are on the last part. A reply to any part
@@ -1418,8 +1421,12 @@ After the press: the AI proposes the "marked as done" message to Vera (C6).
 
 ### E7. Reply on an outdated alert
 
+A question gets its answer, from what that alert's AI run saw ("why did you write tomorrow?"). A 📚 fact or a 📏 rule
+in the reply gets its buttons as usual. A new answer, a task or another change is not prepared:
+
 ```
-⚠️ This alert is outdated – please reply to the newer one (link).
+🤖 <the answer to the question>
+⚠️ This alert is outdated, so I prepared no change here. For a change, reply to the newer alert (link).
 ```
 
 ### E8. A change request about the agent itself

@@ -637,7 +637,7 @@ def prepare(actions, ctx, triage=None):
     # needed, a state change that touches nothing in ClickUp): done at once, or nobody could ever make it happen.
     team = _team(ctx.meta)
     ctx.meta['v5_priority'] = (triage or {}).get('priority')
-    if ctx.meta.get('event_type') == 'TENANT_MESSAGE':
+    if ctx.meta.get('event_type') == 'TENANT_MESSAGE' and not changes_nothing(None, actions, triage):
         _retire_older_reminders(ctx, triage)
         _raise_cases(ctx, triage)
     resolving = {str(a.get('issue_id')) for a in actions if isinstance(a, dict) and a.get('closes_task')}
@@ -777,6 +777,14 @@ def _waiting_alerts(conversation_sid, before_run=None):
     if before_run is not None:
         runs = runs.filter(id__lt=before_run.id)
     return [run for run in runs.order_by('id') if not (run.review or {}).get('stale')]
+
+
+def changes_nothing(answer, actions, triage):
+    """A like or a thanks ("Loved ..."): NO_ANSWER, no action, triage NO_REPLY. Such a message posts no alert, so the
+    earlier alerts of the chat stay valid with their buttons and reminders (Brittany, 8 Oct 2026: a "Loved" reaction
+    made the cats alert outdated and its task for Edy was never created)."""
+    return not answer and not [a for a in actions or [] if isinstance(a, dict)] \
+        and (triage or {}).get('primary_type') == 'NO_REPLY'
 
 
 def _retire_older_reminders(ctx, triage=None):
@@ -1293,10 +1301,14 @@ def send_kind(mode, conversation_sid):
 
 
 def keyboard(run_id, answer_waiting, actions, answer_done=None, edit_by=None, send_label=SEND_SMS, reminder=None,
-             reminder_state=None, kind='live'):
+             reminder_state=None, kind='live', outdated=False):
     """One row per kind of block; a finished button shows its result and only answers "already done".
-    reminder: the due reminder of a REMINDER alert - its own buttons come last. kind: send_kind()."""
+    reminder: the due reminder of a REMINDER alert - its own buttons come last. kind: send_kind().
+    outdated: the tenant wrote again - what was done still shows, and 📚 knowledge can still be saved (a fact stays
+    true); the answer, tasks, updates and reminders wait in the newer alert, so their buttons go."""
     rows = []
+    if outdated:
+        answer_waiting, reminder = False, None
     edit = _btn(f"✏️ Waiting for text · {edit_by}" if edit_by else '✏️ Edit Answer', 'ea', run_id)
     if answer_done:
         rows.append([_btn(answer_done['label'], 'dn', run_id, 'a')])
@@ -1318,6 +1330,8 @@ def keyboard(run_id, answer_waiting, actions, answer_done=None, edit_by=None, se
         done = action.get('done') or {}
         if kind == 'reminder':
             closed = done.get('closed') or (action.get('open_reminder') and done.get('label'))
+            if outdated and not closed:
+                continue
             buttons = [_btn(closed, 'dn', run_id, index) if closed else _btn(f"✅ Close Reminder{numbers[index]}", 'cr', run_id, index)]
         elif kind == 'knowledge':
             star = 'global' if action.get('scope') == 'company' else 'apartment'
@@ -1328,6 +1342,8 @@ def keyboard(run_id, answer_waiting, actions, answer_done=None, edit_by=None, se
             buttons = [_btn(done['label'], 'dn', run_id, index)]
             if done.get('url'):
                 buttons.append({'text': '↗ Open in ClickUp', 'url': done['url']})
+        elif outdated:
+            continue
         elif kind == 'task':
             buttons = [_btn(action.get('failed') or f"🎫 Create Task{numbers[index]}", 'ct', run_id, index)]
         elif kind == 'crm':
@@ -1350,8 +1366,6 @@ def keyboard(run_id, answer_waiting, actions, answer_done=None, edit_by=None, se
 def keyboard_for(run):
     from mysite.models import AIRun
     review = run.review or {}
-    if review.get('stale'):
-        return None
     answer_done = review.get('answer_done')
     if not answer_done and run.hold_status in (AIRun.HOLD_SENT, AIRun.HOLD_CORRECTED):
         answer_done = {'label': "✅ Answer sent"}   # sent another way (the corrected text, a typed "ok")
@@ -1362,7 +1376,7 @@ def keyboard_for(run):
     return keyboard(run.id, run.hold_status == AIRun.HOLD_HOLDING, (review.get('plan') or {}).get('actions') or [],
                     answer_done, review.get('edit_by'), send_label=_send_label(meta.get('notification'), reminder),
                     reminder=reminder, reminder_state=review.get('reminder_done'),
-                    kind=send_kind(meta.get('mode') or run.mode, run.conversation_sid))
+                    kind=send_kind(meta.get('mode') or run.mode, run.conversation_sid), outdated=bool(review.get('stale')))
 
 
 def _send_label(notification, reminder=None):
@@ -1466,7 +1480,8 @@ def mark_outdated(run, newer_run):
     refresh_alert(run)
     for proposal in (run.review or {}).get('proposals') or []:
         if proposal.get('message_id') and proposal.get('report') and not all((proposal.get('done') or {}).values() or [False]):
-            edit_message_text(proposal['message_id'], f"{proposal['report']}\n\n⚠️ Outdated – {who} wrote again {at}", None)
+            edit_message_text(proposal['message_id'], f"{proposal['report']}\n\n⚠️ Outdated – {who} wrote again {at}",
+                              proposal_keyboard(run.id, proposal, outdated=True))
 
 
 def after_post(run, tenant_event):
@@ -1677,6 +1692,11 @@ def apply_crm(run, index, author):
     return "Done in the CRM"
 
 
+# The buttons that still work on an outdated alert: "already done", 📚 knowledge and 📏 rules - they stay right when
+# the tenant writes again; the answer, tasks, updates and reminders are the newer alert's.
+OUTDATED_CODES = ('dn', 'ka', 'kg', 'pd', 'pk', 'pg', 'pr')
+
+
 def handle_callback(callback):
     """One press on a simple alert. Always answers the callback (else the button keeps spinning)."""
     from mysite.models import AIRun
@@ -1691,9 +1711,8 @@ def handle_callback(callback):
     if not run:
         return answer_callback(callback_id, 'This alert no longer exists', alert=True)
     review = run.review or {}
-    if review.get('stale'):
-        answer_callback(callback_id, "⚠️ Outdated – see the newer alert.", alert=True)
-        return edit_reply_markup(message.get('message_id'), None)
+    if review.get('stale') and code not in OUTDATED_CODES:
+        return answer_callback(callback_id, "⚠️ Outdated – see the newer alert.", alert=True)
     if code in ('pa', 'ps', 'pr', 'pk', 'pg', 'pd'):   # a proposal made after a typed reply
         text = press_proposal(run, code, arg, author)
         log_info(f"AI alert run #{run.id}: {code} {arg} by {author}: {text}", category='sms')
@@ -1865,10 +1884,11 @@ def _changes_for(action, op):
     return out
 
 
-def proposal_keyboard(run_id, proposal):
+def proposal_keyboard(run_id, proposal, outdated=False):
+    """outdated: the alert is outdated - done labels, 📚 facts and 📏 rules stay; the answer and Apply Change go."""
     pid, done = proposal['id'], proposal.get('done') or {}
     rows = []
-    if proposal.get('corrected'):
+    if proposal.get('corrected') and (done.get('answer') or not outdated):
         rows.append([_btn(done['answer'], 'pd', run_id, f"{pid}.answer") if done.get('answer')
                      else _btn('🤖 Send Message' if proposal.get('followup') else '🤖 Send Answer', 'ps', run_id, pid)])
     if proposal.get('lesson'):
@@ -1881,7 +1901,7 @@ def proposal_keyboard(run_id, proposal):
             star = 'global' if fact.get('scope') == 'company' else 'apartment'
             rows.append([_btn("🏠📚 Apartment" + (" ⭐" if star == 'apartment' else ""), 'pk', run_id, f"{pid}.{index}"),
                          _btn("🌍📚 Global" + (" ⭐" if star == 'global' else ""), 'pg', run_id, f"{pid}.{index}")])
-    if proposal.get('changes'):
+    if proposal.get('changes') and (done.get('apply') or not outdated):
         ops = [c.get('op') for c in proposal['changes'] if c.get('do') == 'operation']
         label = OPERATIONS[ops[0]]['button'] if len(ops) == len(proposal['changes']) == 1 else '✅ Apply Change'
         rows.append([_btn(done['apply'], 'pd', run_id, f"{pid}.apply") if done.get('apply') else _btn(label, 'pa', run_id, pid)])
@@ -1919,6 +1939,20 @@ def run_operation(op, author):
 
 
 # Rules for the interpreter of every typed reply to a simple alert
+# How the bot answers a question in the group: a manager reads it on a phone (8 Oct 2026: a 120-word paragraph that
+# listed everything the alert is NOT about was hard to read). Simplified Technical English, as in ASD-STE100.
+STYLE_NOTE = """STAFF_ANSWER STYLE: the manager reads staff_answer on a phone. Write it in ASD-STE100 Simplified Technical English:
+- Line 1: the direct answer in one short sentence - yes / no / the cause / "I do not know".
+- Then at most 4 lines that start with "• ": one fact per line, only the facts that prove line 1 or that the manager
+  needs next. Leave out what is not related (other issues, other reminders, general knowledge-base rules).
+- At most 20 words per sentence (25 in a description), one statement per sentence. Active voice, simple tenses, no
+  -ing verb forms, the same word for the same thing. No filler, no apology, do not repeat the question.
+- Steps for the manager: numbered, one action per step, imperative ("Reply under Brittany's alert.").
+- Use names and real days ("Tom", "Thu 8 Oct 10:00"), not ids alone; an id (i-378, f-566) only in brackets after the name.
+- When the question is about another chat or alert, say so in line 1 and tell where to ask - in one line.
+Example: "This alert is not about a showing. It is about Tom's Netflix question.\n• You replied \"sorry it's not
+included\" at 08:50.\n• The AI sent nothing to Tom.\n• For Brittany's showing, reply under her alert." (end of the example)"""
+
 REPLY_NOTE = ("NOTE: use plan_ops remove only when the manager says in words that an item is not needed (\"no reminder\", "
               "\"remove 2\", \"no task\"). A fact or a new answer in the reply is NOT a request to remove a reminder or a task.")
 # A reply about the agent itself ("ClickUp off means ...", "never create a task for ...") is a change request for the
@@ -1968,9 +2002,10 @@ WRITTEN_NOTE = ("NOTE: the manager pressed Edit Answer and wrote this text as th
                 "with that fact (\"Edy visits today 17:00\").")
 
 
-def handle_reply(run, text, author, at, reply_to=None, written=False):
+def handle_reply(run, text, author, at, reply_to=None, written=False, outdated=None):
     """A typed reply to a simple alert: answers a question, or explains the change and waits for the press.
-    written: the text is the answer itself, typed after ✏️ Edit Answer."""
+    written: the text is the answer itself, typed after ✏️ Edit Answer.
+    outdated: the alert is outdated (the run of the newer alert): a question is answered, a change is not prepared."""
     from mysite.models import AIRun
     ar, approval = _review()
     run.refresh_from_db()
@@ -1981,7 +2016,8 @@ def handle_reply(run, text, author, at, reply_to=None, written=False):
     sent = _sent_answer(run)
     decision = ar.interpret(run, body, author, run.hold_status == AIRun.HOLD_HOLDING,
                             sent_note=SENT_NOTE.format(at=sent['at'], text=sent['text']) if sent else None,
-                            extra_note=REPLY_NOTE + "\n" + AGENT_NOTE + ("\n" + WRITTEN_NOTE if written else "")) \
+                            extra_note=REPLY_NOTE + "\n" + AGENT_NOTE + "\n" + STYLE_NOTE + ("\n" + WRITTEN_NOTE if written else "")
+                            + ("\n" + OUTDATED_NOTE if outdated is not None else "")) \
         if body else dict(ar.EMPTY_DECISION, decision='unclear')
     kind = decision.get('decision') or 'unclear'
     corrected = (decision.get('corrected_answer') or '').strip() if kind == 'replace' else ''
@@ -2022,6 +2058,14 @@ def handle_reply(run, text, author, at, reply_to=None, written=False):
                                'scope': 'apartment' if rule.get('scope') == 'apartment' else 'company'}))
 
     lines = [f"🤖 {question}"] if question else []
+    dropped = False
+    if outdated is not None:
+        # An outdated alert: a question gets its answer; a 📚 fact or a 📏 rule stays right and keeps its buttons;
+        # a new answer, a task or another change belongs to the newer alert
+        dropped = bool(corrected or changes or refused or cannot)
+        if not (lesson or facts):
+            return _answer_outdated(run, lines, dropped, outdated, reply_to)
+        corrected, changes, refused, cannot = '', [], '', ''
     if refused:
         lines.append(f"⛔ NOT APPLIED: {refused}\nNothing was changed.")
     if cannot:
@@ -2054,6 +2098,8 @@ def handle_reply(run, text, author, at, reply_to=None, written=False):
                  "Write it as an order (\"task for Kevin\", \"no task needed\", \"tell her the plumber comes at 10\") or ask a question."]
     elif not (corrected or lesson or facts or shown):
         pass   # only a question: an answer, nothing else
+    if dropped:
+        lines.append(_outdated_line(run, outdated))
     # Every bot answer ends with the links of the alert it belongs to (part 7 of the document)
     from mysite.ai_agent import team_notify
     lines += ["", f"🔗 AI run: {team_notify.report_url(run.id)}", f"💬 CRM chat: {config.site_url()}/chat/{run.conversation_sid}/"]
@@ -2065,7 +2111,7 @@ def handle_reply(run, text, author, at, reply_to=None, written=False):
                 'corrected': corrected, 'followup': followup, 'lesson': lesson, 'lesson_key': decision.get('lesson_key') or 'answer_lesson',
                 'lesson_scope': decision.get('lesson_scope') or 'company', 'facts': facts,
                 'changes': [c[1] for c in changes if c[1]], 'done': {}}
-    markup = proposal_keyboard(run.id, proposal)
+    markup = proposal_keyboard(run.id, proposal, outdated=outdated is not None)
     report = "\n".join(lines)
     ok, note, message_id = send_ai_chat(report, reply_to=reply_to, reply_markup=markup)
     if message_id:
@@ -2073,6 +2119,31 @@ def handle_reply(run, text, author, at, reply_to=None, written=False):
     if markup:
         proposal.update(message_id=message_id, report=report)
         approval._append(run, 'proposals', proposal)
+    return report
+
+
+OUTDATED_NOTE = """NOTE: this alert is OUTDATED - the tenant wrote again and a newer alert replaced it; its buttons do not
+work any more. Answer the manager's questions about it (what the AI saw, why it wrote what it wrote, what was sent) in
+staff_answer, honestly from the input above. Nothing can be changed here: when the manager asks for a change, say in
+staff_answer that it must be asked under the newer alert."""
+
+
+def _outdated_line(run, newer):
+    ar, _ = _review()
+    link = ar.ai_chat_link(newer.telegram_message_id) if newer.telegram_message_id and newer.id != run.id else ''
+    where = f"the newer alert ({link})" if link else "the newest alert of this chat"
+    return f"⚠️ This alert is outdated, so I prepared no change here. For a change, reply to {where}."
+
+
+def _answer_outdated(run, lines, wants_change, newer, reply_to):
+    """The bot's answer to a reply under an outdated alert: the answer to the question, never a change proposal."""
+    from mysite.ai_agent import team_notify
+    ar, _ = _review()
+    if wants_change or not lines:
+        lines.append(_outdated_line(run, newer))
+    lines += ["", f"🔗 AI run: {team_notify.report_url(run.id)}", f"💬 CRM chat: {config.site_url()}/chat/{run.conversation_sid}/"]
+    report = "\n".join(lines)
+    ar._say(run, report, reply_to=reply_to)
     return report
 
 
@@ -2123,7 +2194,7 @@ def _save_proposal(run, proposal):
     proposals = [proposal if p.get('id') == proposal['id'] else p for p in (run.review or {}).get('proposals') or []]
     approval._update_review(run, proposals=proposals)
     if proposal.get('message_id'):
-        edit_reply_markup(proposal['message_id'], proposal_keyboard(run.id, proposal))
+        edit_reply_markup(proposal['message_id'], proposal_keyboard(run.id, proposal, outdated=bool((run.review or {}).get('stale'))))
 
 
 def press_proposal(run, code, arg, author):

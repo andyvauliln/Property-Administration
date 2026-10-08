@@ -107,9 +107,33 @@ def apply_triage(issue, triage, run=None, tenant_event=False, save=True):
     return changed_deadline
 
 
+ANSWER_WINDOW_HOURS = 2
+
+
+def asks_again(ai_run, triage):
+    """The tenant's message counts as asking again (the 🔁 line) only when it is not a like or a thanks and the team did
+    not write to the tenant in the 2 hours before it - else she answers the team (Brittany, 8 Oct 2026: "Loved ..." and
+    "I locked it and left" after Edy's question made "Asked 3 times")."""
+    from datetime import timedelta
+    from mysite import conversation_groups
+    from mysite.ai_agent import inputs
+    from mysite.models import TwilioMessage
+    if (triage or {}).get('primary_type') == 'NO_REPLY':
+        return False
+    if not ai_run.message_id:
+        return True
+    at = ai_run.message.message_timestamp
+    sids = conversation_groups.group_sids(ai_run.conversation_sid)
+    recent = TwilioMessage.objects.filter(conversation_sid__in=sids, message_timestamp__lt=at,
+                                          message_timestamp__gte=at - timedelta(hours=ANSWER_WINDOW_HOURS))
+    ai_answers = inputs._ai_answers(sids)
+    return not any(inputs.classify_sender(m, ai_answers)[0] in (inputs.ROLE_STAFF, inputs.ROLE_AI) for m in recent)
+
+
 def note_run(ai_run, parsed, tenant_event):
     """After a run: existing issues it is about get the triage (deadline, next action, tenant asked again)."""
     triage = (parsed or {}).get('triage') or {}
+    tenant_event = tenant_event and asks_again(ai_run, triage)
     for issue in existing_issues(ai_run.conversation_sid, triage.get('issue_refs')):
         if issue.is_open:
             apply_triage(issue, triage, ai_run, tenant_event)
