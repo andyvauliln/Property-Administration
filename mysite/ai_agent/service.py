@@ -335,12 +335,18 @@ def _is_emergency(parsed, last_message):
     return bool(_EMERGENCY.search(getattr(last_message, 'body', '') or ''))
 
 
-def send_answer(conversation_sid, answer, reply_author, sender_phone, booking=None, any_hour=False):
+def send_answer(conversation_sid, answer, reply_author, sender_phone, booking=None, any_hour=False, crm_only=False):
     """Sends one answer to the tenant group chat. Returns {'sent_to_chat', 'note'}. Held for the 08:00-21:00 SMS hours,
-    except any_hour: the safety answer of a real emergency goes out at once, day or night (user decision 2026-10-08)."""
+    except any_hour: the safety answer of a real emergency goes out at once, day or night (user decision 2026-10-08).
+    crm_only (📝 Send Answer (CRM)): written into the CRM chat only, no SMS."""
     from mysite.group_chat_logger import log_ai_customer_sent
-    from mysite.views.messaging import TWILIO_ASSISTANT_PHONE, send_messsage_by_sid, send_tenant_sms_gated
+    from mysite.views.messaging import TWILIO_ASSISTANT_PHONE, send_messsage_by_sid, send_tenant_sms_gated, write_to_crm_chat
 
+    if crm_only:
+        if write_to_crm_chat(conversation_sid, reply_author or 'Virtual Assistant', answer) is None:
+            return {'sent_to_chat': False, 'note': 'could not write the answer into the CRM chat',
+                    'error': 'CRM chat write failed'}
+        return {'sent_to_chat': True, 'note': 'written into the CRM chat only (no SMS)'}
     try:
         if any_hour:
             send_messsage_by_sid(conversation_sid, reply_author or 'Virtual Assistant', answer,

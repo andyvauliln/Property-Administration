@@ -171,9 +171,9 @@ check("nothing sent at once", not sms)
 check("run is held and marked as needing a manager", r1.hold_status == 'holding' and r1.review.get('needs_confirmation') is True
       and r1.review.get('contract_basis') == BASIS, (r1.hold_status, r1.review))
 check("the AI's triage is stored on the run", r1.triage.get('primary_type') == 'LEGAL_OR_CONTRACT' and r1.triage.get('owner') == 'Kevin', r1.triage)
-check("alert: the suggested answer and the contract basis right under it, with Send Answer / Edit Answer",
+check("alert: the suggested answer and the contract basis right under it, with Send Answer (SMS) / Edit Answer (live apartment)",
       f'🤖 "{SUGGESTED}" 🤖' in a1['text'] and f"⚖️ Contract: {BASIS}" in a1['text']
-      and [b['text'] for b in buttons(a1['markup'])][:2] == ['🤖 Send Answer', '✏️ Edit Answer'], a1)
+      and [b['text'] for b in buttons(a1['markup'])][:2] == ['🤖 Send Answer (SMS)', '✏️ Edit Answer'], a1)
 chat_why = json.dumps(TwilioMessage.objects.filter(conversation_sid=SID).order_by('-id').first().__dict__, default=str)
 check("CRM chat page marks it as a legal suggestion", "LEGAL - SUGGESTED ANSWER" in chat_why, chat_why[:400])
 
@@ -314,6 +314,31 @@ check("get_contract: status, terms, clauses; no bank numbers, links or signature
       and "[bank / payment account details removed" in text, text)
 b = Booking.objects.get(apartment=apt); b.contract_id = None
 check("no contract on file -> says so", "No contract on file" in contract.contract_for_booking(b))
+# ---- Send Answer (SMS) / Send Answer (CRM) (user decision 2026-10-08) --------------------------------------------------
+from mysite.ai_agent import alerts_v5
+def rows_of(markup):
+    return [[b['text'] for b in row] for row in (markup or {}).get('inline_keyboard', [])]
+SMS_B, CRM_B, EDIT_B = '🤖 Send Answer (SMS)', '📝 Send Answer (CRM)', '✏️ Edit Answer'
+check("buttons: live -> Send Answer (SMS); test apartment -> (SMS) and (CRM), Edit Answer below; CRM-only chat -> (CRM)",
+      rows_of(alerts_v5.keyboard(1, True, [], kind='live')) == [[SMS_B, EDIT_B]]
+      and rows_of(alerts_v5.keyboard(1, True, [], kind='test')) == [[SMS_B, CRM_B], [EDIT_B]]
+      and rows_of(alerts_v5.keyboard(1, True, [], kind='crm')) == [[CRM_B, EDIT_B]])
+check("which chat is CRM-only: CHSANDBOX... / CHTEST... yes, a real Twilio chat no; a test apartment's real chat is 'test'",
+      messaging.is_crm_only_chat('CHTEST0001') and messaging.is_crm_only_chat('CHSANDBOXAIAGENT00000000000000001')
+      and not messaging.is_crm_only_chat(SID) and alerts_v5.send_kind('test', 'CHTEST0001') == 'crm'
+      and alerts_v5.send_kind('test', SID) == 'test' and alerts_v5.send_kind('live', SID) == 'live')
+apt9, SID9 = make_apartment("730-209", live=False)
+r9 = run_with(SID9, "Is there a gym in the building?", {'answer': "Yes, the gym is on the 2nd floor, open 6am-10pm.", 'why': 'kb',
+                                                         'primary_type': 'PROPERTY_FACTS', 'priority': 'routine', 'actions': []})
+check("test apartment: the alert has Send Answer (SMS) and (CRM), Edit Answer below", rows_of(alert_of(r9)['markup'])[:2] == [[SMS_B, CRM_B], [EDIT_B]],
+      rows_of(alert_of(r9)['markup']))
+sms.clear()
+popup = press(r9, 'sm')
+local = TwilioMessage.objects.filter(conversation_sid=SID9, message_sid__startswith='LOCAL-', body__startswith='Yes, the gym').first()
+check("Send Answer (CRM): the answer is written into the CRM chat only - no SMS; the button says so",
+      not sms and local and local.direction == 'outbound' and r9.hold_status == 'sent'
+      and rows_of(alerts_v5.keyboard_for(r9))[0][0].startswith('✅ Sent to CRM · Kevin'), (sms, local, r9.hold_status, rows_of(alerts_v5.keyboard_for(r9)), popup))
+
 check("tool allowed + prompt + schema describe the legal flow",
       'mcp__crm__get_contract' in config.ALLOWED_MCP_TOOLS and "LEGAL QUESTIONS" in prompts.get_system_prompt()[0]
       and 'needs_manager_confirmation' in json.loads(config.SCHEMA_PATH.read_text())['properties']

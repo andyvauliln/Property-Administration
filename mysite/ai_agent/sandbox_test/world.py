@@ -428,6 +428,10 @@ class World:
                     lambda apartment: bool(apartment) and apartment.id == self.apartment.id and self.mode == 'live')
         self._patch(messaging, 'send_messsage_by_sid', self._send)
         self._patch(messaging, 'send_tenant_sms_gated', self._send_gated)
+        # In the runner the sandbox chat plays a real tenant chat (SMS buttons); its sends are caught here, and a
+        # 📝 Send Answer (CRM) press lands in the sandbox chat like any send
+        self._patch(messaging, 'is_crm_only_chat', lambda conversation_sid: False)
+        self._patch(messaging, 'write_to_crm_chat', lambda conversation_sid, author, message: self._send(conversation_sid, author, message))
         self._patch(messaging, 'get_twilio_client', self._no_twilio)
         global_kb = messaging.get_global_knowledge_base_text
         self._patch(messaging, 'get_global_knowledge_base_text', lambda: self._global_kb(global_kb()))

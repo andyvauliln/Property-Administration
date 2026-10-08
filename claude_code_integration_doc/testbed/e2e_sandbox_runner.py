@@ -364,7 +364,7 @@ try:
 💬 CRM chat: http://crm.test/chat/{SANDBOX_SID}/"""
     check_("v5 A1: the alert text is the example, line by line", alert['text'] == expected_text, "\n" + alert['text'])
     labels = [[b['text'] for b in row] for row in alert['markup']['inline_keyboard']]
-    check_("v5 A1: one button per block", labels == [['🤖 Send Answer', '✏️ Edit Answer'], ['🤖🎫 Send + Create Task'], ['🎫 Create Task'], ['✅ Close Reminder']], labels)
+    check_("v5 A1: one button per block", labels == [['🤖 Send Answer (SMS)', '✏️ Edit Answer'], ['🤖🎫 Send + Create Task'], ['🎫 Create Task'], ['✅ Close Reminder']], labels)
     check_("v5 A1: PASS - every structured expectation of the case holds", result['verdict'] == 'PASS', result['reason'])
     note_id = v5.post("🧪 a message of the test run under the alert", reply_to=alert['id'], shown=False)
     check_("v5: a reply to a test-run message under the alert reaches that alert's run",
@@ -416,7 +416,7 @@ try:
     alert = result['got']['alerts'][0]
     labels = [[b['text'] for b in row] for row in alert['markup']['inline_keyboard']]
     check_("v5 A2: no reminder from the AI -> the backend adds the team reminder (urgent: 30 min); the case passes",
-           "⏰ Check Mark got in – today 15:10 (1/2) ⏰" in alert['text'] and labels == [['🤖 Send Answer', '✏️ Edit Answer'], ['✅ Close Reminder']]
+           "⏰ Check Mark got in – today 15:10 (1/2) ⏰" in alert['text'] and labels == [['🤖 Send Answer (SMS)', '✏️ Edit Answer'], ['✅ Close Reminder']]
            and result['verdict'] == 'PASS', (alert['text'], labels, result['reason']))
 
     # urgent: with sound, reminder after 1 h, two tasks numbered
@@ -570,7 +570,7 @@ try:
     closed_case.issue.refresh_from_db()
     check_("v5 C6: a closed ClickUp task -> REMINDER with the CLOSED line and the proposed message; the case is resolved at once",
            "🎫 Task \"Kitchen sink dripping\" was CLOSED (complete" in alert['text'] and "our team marked the sink repair as done" in alert['text']
-           and labels_of(alert) == [['🤖 Send Answer', '✏️ Edit Answer'], ['✅ Close Reminder']] and closed_case.issue.state == 'RESOLVED',
+           and labels_of(alert) == [['🤖 Send Answer (SMS)', '✏️ Edit Answer'], ['✅ Close Reminder']] and closed_case.issue.state == 'RESOLVED',
            (alert['text'], labels_of(alert), closed_case.issue.state))
 
     # E9: a reply asks for a test reminder -> 🧪 Send test reminder -> a reminder on the Sandbox Test chat, due in 1 minute,
@@ -628,7 +628,7 @@ try:
     alert = result['got']['alerts'][-1]
     check_("v5 A8: tenant deadline -> a deadline block with its 24 h and 2 h reminders, closable with one button; the case passes",
            _re.search(r"⏰ Deadline \w{3} \d+ \w{3} 23:00 – reminders 24 h and 2 h before \(Kevin at 2 h\) ⏰", alert['text']) and "(1/2)" not in alert['text']
-           and keyboard_now(alert) == [['🤖 Send Answer', '✏️ Edit Answer'], ['✅ Close Reminder']]
+           and keyboard_now(alert) == [['🤖 Send Answer (SMS)', '✏️ Edit Answer'], ['✅ Close Reminder']]
            and AIFollowUp.objects.filter(conversation_sid=SANDBOX_SID, kind='deadline_reminder', status='pending').count() == 2
            and result['verdict'] == 'PASS', (alert['text'], keyboard_now(alert), result['reason']))
     v5.do_step({'press': 'Close Reminder', 'by': 'Andy'})
@@ -652,7 +652,7 @@ try:
     check_("v5 A9: asked again -> 🔁 line, an update block for the existing task, no new reminder; the case passes",
            _re.search(r"💬\n🔁 Asked 2 times · waiting 2\d h · task open\n———", alert['text'].replace(' 💬\n', '💬\n'))
            and "🔄 Task \"Kitchen sink dripping – Sandbox Test\": make urgent + comment \"Tenant asked again, getting worse – please schedule today\" 🔄" in alert['text']
-           and keyboard_now(alert) == [['🤖 Send Answer', '✏️ Edit Answer'], ['🔄 Apply Update']] and result['verdict'] == 'PASS',
+           and keyboard_now(alert) == [['🤖 Send Answer (SMS)', '✏️ Edit Answer'], ['🔄 Apply Update']] and result['verdict'] == 'PASS',
            (alert['text'], keyboard_now(alert), result['reason']))
     v5.do_step({'press': 'Apply Update', 'by': 'Andy'})
     task = next(iter(v5.world.fake_tasks.values()))
@@ -671,7 +671,7 @@ try:
     alert = result['got']['alerts'][-1]
     check_("v5 A10: problem gone -> Close Task and the open reminder are proposed, nothing is closed yet; the case passes",
            "🔄 Close task \"Kitchen sink dripping – Sandbox Test\" 🔄" in alert['text'] and "⏰ Open reminder \"Ask Vera if the sink is fixed (for Edy) [1/2]\" (" in alert['text']
-           and keyboard_now(alert) == [['🤖 Send Answer', '✏️ Edit Answer'], ['🔄 Close Task'], ['✅ Close Reminder']]
+           and keyboard_now(alert) == [['🤖 Send Answer (SMS)', '✏️ Edit Answer'], ['🔄 Close Task'], ['✅ Close Reminder']]
            and AIFollowUp.objects.get(id=_pending.id).status == 'pending' and result['verdict'] == 'PASS', (alert['text'], keyboard_now(alert), result['reason']))
     v5.do_step({'press': 'Close Task', 'by': 'Andy'})
     check_("v5 A10: Close Task closes the task and with it the reminder of that case",
@@ -892,7 +892,7 @@ try:
     check_("v5 E2: after the press the task has the new values, on the alert too; the button shows who changed it",
            task_action().get('responsible') == ['Kevin'] and task_action().get('priority') == 'urgent'
            and "   Kevin · 🔴 urgent · due " in v5.world.tap.messages[alert['id']]['text'] and rows(said)[0][0].startswith("✅ Changed · Andy ")
-           and rows(v5.world.tap.messages[alert['id']])[0] == ['🤖 Send Answer', '✏️ Edit Answer'], (task_action(), rows(said), v5.world.tap.messages[alert['id']]['text']))
+           and rows(v5.world.tap.messages[alert['id']])[0] == ['🤖 Send Answer (SMS)', '✏️ Edit Answer'], (task_action(), rows(said), v5.world.tap.messages[alert['id']]['text']))
     step = v5.do_step({'press': 'Changed', 'by': 'Edy'})
     check_("v5: a second press on Apply Change does nothing twice", any(p.startswith("already done: ✅ Changed · Andy") for p in step['popups']), step['popups'])
 
@@ -1009,11 +1009,11 @@ try:
     check_("CRM chat: Manager = a team member (\"Kevin: ...\" names him, else Edy); handled as a step with the test controls",
            stepped and stepped[0][0] == [{'from': 'team', 'name': 'Kevin', 'text': 'I will check it today'}]
            and stepped[0][1]['control'] and "Kevin wrote in the CRM chat" in stepped[0][1]['header'] and not live.world.typed, stepped)
-    typed_notes = stepped[0][1]['notes_hook']("alert", {'inline_keyboard': [[{'text': '🤖 Send Answer', 'callback_data': 'v5|sa|1|'},
+    typed_notes = stepped[0][1]['notes_hook']("alert", {'inline_keyboard': [[{'text': '🤖 Send Answer (SMS)', 'callback_data': 'v5|sa|1|'},
                                                                               {'text': '✅ Close Reminder', 'callback_data': 'v5|cr|1|0'}]]}) if stepped else ''
     check_("CRM chat: the alert gets test notes that say what each button does and how to go on (no expected result)",
            stepped[0][1].get('notes_always') and typed_notes.startswith('🧪 TEST NOTES') and 'as Kevin' in typed_notes
-           and '1. 🤖 Send Answer →' in typed_notes and '2. ✅ Close Reminder →' in typed_notes and 'Next test' in typed_notes, typed_notes)
+           and '1. 🤖 Send Answer (SMS) →' in typed_notes and '2. ✅ Close Reminder →' in typed_notes and 'Next test' in typed_notes, typed_notes)
 finally:
     live.finish()
     answer_review.fetch_updates = real_fetch
@@ -1106,13 +1106,13 @@ try:
     view.post_only = True
     view.tap.step, view.tap.header = 1, "🧪 SANDBOX TEST · case A1 · 1 of 21"
     view.tap.notes_hook = lambda text, markup: "🧪 TEST NOTES\nChecks: something"
-    keyboard = {'inline_keyboard': [[{'text': '🤖 Send Answer', 'callback_data': 'v5|send|1'}, {'text': '✏️ Edit Answer', 'callback_data': 'v5|edit|1'}]]}
+    keyboard = {'inline_keyboard': [[{'text': '🤖 Send Answer (SMS)', 'callback_data': 'v5|send|1'}, {'text': '✏️ Edit Answer', 'callback_data': 'v5|edit|1'}]]}
     alert_text = "📨 TENANT MESSAGE · 6 Oct, Tue 14:34 ET\n\n———\n🤖 \"Hi\" 🤖\n———\n\n↩ Reply to this message for questions, notes or custom actions.\n\n🔗 AI run: x"
     view.tap.post("https://api.telegram.org/botX/sendMessage", data={'chat_id': '-1', 'text': alert_text, 'reply_markup': json.dumps(keyboard),
                                                                      'disable_notification': 'true'})
     url, data = posted[-1]
     check_("view-only: the buttons are NOT attached (a press would go to the live worker), they are written as text",
-           'reply_markup' not in data and "[🤖 Send Answer] [✏️ Edit Answer]" in data['text'], data)
+           'reply_markup' not in data and "[🤖 Send Answer (SMS)] [✏️ Edit Answer]" in data['text'], data)
     check_("view-only: header first, notes right before the footer",
            data['text'].startswith("🧪 SANDBOX TEST · case A1 · 1 of 21\n\n📨 TENANT MESSAGE")
            and "🤖 \"Hi\" 🤖\n———\n🧪 TEST NOTES\nChecks: something\n———\n\n↩ Reply to this message" in data['text'], data['text'])
@@ -1210,14 +1210,14 @@ try:
     claude_says = ["Sorry, I can not"]
     judged = check.judge(cases['A1'], sections['A1'], got, [], 0)
     check_("judge: an unreadable answer does not fail the case, it is shown as not judged", judged['verdict'] is None and judged['lines'][0][0] is None)
-    _markup = {'inline_keyboard': [[{'text': '🤖 Send Answer', 'callback_data': 'v5|sa|1|'}, {'text': '✏️ Edit Answer', 'callback_data': 'v5|ea|1|'}],
+    _markup = {'inline_keyboard': [[{'text': '🤖 Send Answer (SMS)', 'callback_data': 'v5|sa|1|'}, {'text': '✏️ Edit Answer', 'callback_data': 'v5|ea|1|'}],
                                    [{'text': '🎫 Create Task', 'callback_data': 'v5|ct|1|0'}]]}
     _case = dict(cases['A1'], presses=[{'button': 'Send Answer', 'expect': 'Sent'}, {'button': 'Create Task | Apply Update'},
                                         {'button': 'Close Reminder', 'optional': True}])
     notes = check.test_notes(_case, sections['A1'], "alert", _markup)[0]
     check_("notes: what we test (the title) + ONE list of exact presses (the chapter's presses, as in --auto) + Next; the same on every run",
            notes == ("🧪 TEST NOTES\nWhat we test: Routine maintenance, live (the full alert)\nDo this:\n"
-                     "1. Press 🤖 Send Answer → the answer goes to the tenant (see the CRM chat); the button becomes ✅ Answer sent.\n"
+                     "1. Press 🤖 Send Answer (SMS) → the answer goes to the tenant (see the CRM chat); the button becomes ✅ Answer sent.\n"
                      "2. Press 🎫 Create Task → a [SANDBOX] task appears in the ClickUp TEST list; the button becomes ✅ Task created.\n"
                      "3. Press 🧪 Next test.")
            and notes == check.test_notes(_case, sections['A1'], "other alert text", _markup)[0], notes)

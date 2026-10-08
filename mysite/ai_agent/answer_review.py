@@ -460,7 +460,7 @@ def issue_from_earlier_plan(run_id, temp_id, conversation_sid):
     return AIIssue.objects.filter(id=issue_id).first() if issue_id else None
 
 
-def _claim_and_release(run, text, status, how, announce=True):
+def _claim_and_release(run, text, status, how, announce=True, crm_only=False):
     """HOLDING -> status, then sends text to the tenant. Returns (status, note) or None when already taken."""
     AIRun = _models()
     if run.hold_status == AIRun.HOLD_HOLDING:
@@ -472,10 +472,10 @@ def _claim_and_release(run, text, status, how, announce=True):
                                         f"after this proposal; an updated proposal follows")
     if not AIRun.objects.filter(id=run.id, hold_status=AIRun.HOLD_HOLDING).update(hold_status=status):
         return None
-    return _release(run, text, status, how, announce)
+    return _release(run, text, status, how, announce, crm_only)
 
 
-def _release(run, text, status, how, announce=True):
+def _release(run, text, status, how, announce=True, crm_only=False):
     from mysite.ai_agent import service
     from mysite.views.messaging import _persist_customer_ai_result
 
@@ -488,7 +488,7 @@ def _release(run, text, status, how, announce=True):
         # A pressed Send Answer really sends, also in a test apartment (rule 1.1.2)
         try:
             result = service.send_answer(review.get('send_to') or run.conversation_sid, text,
-                                         review.get('reply_author'), review.get('sender_phone'))
+                                         review.get('reply_author'), review.get('sender_phone'), crm_only=crm_only)
         except Exception as e:   # send_answer reports Twilio errors itself; this is anything else
             result = {'sent_to_chat': False, 'note': f'send failed: {e}', 'error': str(e)}
         sent, note = result['sent_to_chat'], result['note']

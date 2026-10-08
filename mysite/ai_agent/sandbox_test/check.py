@@ -796,6 +796,8 @@ def _run_judge(prompt):
 # What a press does, in the tester's words (user, 2026-10-07: the notes are ONE list of exact actions, no options)
 PRESS_RESULT = {
     'send answer': "the answer goes to the tenant (see the CRM chat); the button becomes ✅ Answer sent",
+    'send answer sms': "the answer goes to the tenant (see the CRM chat); the button becomes ✅ Answer sent",
+    'send answer crm': "the answer is written into the CRM chat only (no SMS); the button becomes ✅ Sent to CRM",
     'send + create task': "the answer goes to the tenant AND the task is created; ✅ Answer sent, ✅ Task created",
     'send + create tasks': "the answer goes to the tenant AND the tasks are created",
     'create task': "a [SANDBOX] task appears in the ClickUp TEST list; the button becomes ✅ Task created",
@@ -816,7 +818,7 @@ PRESS_RESULT = {
 
 def _press_result(label):
     key = button_label(label.split('|')[0])
-    for name, text in PRESS_RESULT.items():
+    for name, text in sorted(PRESS_RESULT.items(), key=lambda item: -len(item[0])):   # the longest name first
         if key.startswith(name):
             return text
     return "see what the button does"

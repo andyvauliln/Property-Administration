@@ -1738,7 +1738,27 @@ def _fallback_author_for_50513(author):
     return None
 
 
+CRM_ONLY_PREFIXES = ('CHSANDBOX', 'CHTEST')   # chats made only in the CRM for tests: no Twilio conversation behind them
+
+
+def is_crm_only_chat(conversation_sid):
+    """True for a test chat that exists only in the CRM: nothing can be sent to it through Twilio."""
+    return str(conversation_sid or '').startswith(CRM_ONLY_PREFIXES)
+
+
+def write_to_crm_chat(conversation_sid, author, message):
+    """The message goes into the CRM chat only, no SMS (📝 Send Answer (CRM), and every send to a CRM-only chat).
+    Same as an unticked "send to group chat" on the chat page. Returns the TwilioMessage or None."""
+    import uuid
+    return save_message_to_db(message_sid=f"LOCAL-{uuid.uuid4().hex}", conversation_sid=conversation_sid, author=author,
+                              body=message, direction='outbound')
+
+
 def send_messsage_by_sid(conversation_sid, author, message, sender_phone, receiver_phone):
+    if is_crm_only_chat(conversation_sid):
+        if write_to_crm_chat(conversation_sid, author, message) is None:
+            raise Exception(f"could not save the message in the CRM-only chat {conversation_sid}")
+        return
     try:
         global client
         if client is None:
@@ -1818,7 +1838,7 @@ def send_tenant_sms_gated(conversation_sid, author, message, sender_phone, recei
     send_messsage_by_sid directly - they are not gated. Returns True if sent now, False if held.
     """
     from mysite.ai_agent import config
-    if config.is_within_notification_window():
+    if config.is_within_notification_window() or is_crm_only_chat(conversation_sid):
         send_messsage_by_sid(conversation_sid, author, message, sender_phone, receiver_phone)
         return True
     from mysite.models import PendingOutboundMessage

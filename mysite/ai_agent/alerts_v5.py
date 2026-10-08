@@ -55,6 +55,8 @@ PREFIX = 'v5'
 LINE = '———'
 URGENCY = {'routine': '🟢 Routine', 'urgent': '🔴 Urgent', 'emergency': '🚨 Emergency'}
 FOOTER = "↩ Reply to this message for questions, notes or custom actions."
+SEND_SMS = '🤖 Send Answer (SMS)'   # the answer goes to the tenant's group chat (Twilio)
+SEND_CRM = '📝 Send Answer (CRM)'   # the answer is only written into the CRM chat, no SMS (test chats)
 AUTO = 'automatic'   # who "did" what the backend does by itself
 
 
@@ -1241,16 +1243,31 @@ def split_parts(text, limit=3800):
 # The buttons
 # ---------------------------------------------------------------------------
 
-def keyboard(run_id, answer_waiting, actions, answer_done=None, edit_by=None, send_label='🤖 Send Answer', reminder=None,
-             reminder_state=None):
+def send_kind(mode, conversation_sid):
+    """Which send buttons an answer gets: 'live' -> SMS; 'test' (test apartment, real Twilio chat) -> SMS and CRM;
+    'crm' (a chat that exists only in the CRM) -> CRM."""
+    from mysite.views import messaging
+    if messaging.is_crm_only_chat(conversation_sid):
+        return 'crm'
+    return 'live' if mode == 'live' else 'test'
+
+
+def keyboard(run_id, answer_waiting, actions, answer_done=None, edit_by=None, send_label=SEND_SMS, reminder=None,
+             reminder_state=None, kind='live'):
     """One row per kind of block; a finished button shows its result and only answers "already done".
-    reminder: the due reminder of a REMINDER alert - its own buttons come last."""
+    reminder: the due reminder of a REMINDER alert - its own buttons come last. kind: send_kind()."""
     rows = []
+    edit = _btn(f"✏️ Waiting for text · {edit_by}" if edit_by else '✏️ Edit Answer', 'ea', run_id)
     if answer_done:
         rows.append([_btn(answer_done['label'], 'dn', run_id, 'a')])
+    elif answer_waiting and send_label != SEND_SMS:
+        rows.append([_btn(send_label, 'sa', run_id), edit])   # Send now / Send anyway (a CRM-only chat writes it in the CRM)
+    elif answer_waiting and kind == 'crm':
+        rows.append([_btn(SEND_CRM, 'sm', run_id), edit])
+    elif answer_waiting and kind == 'test':
+        rows += [[_btn(SEND_SMS, 'sa', run_id), _btn(SEND_CRM, 'sm', run_id)], [edit]]
     elif answer_waiting:
-        rows.append([_btn(send_label, 'sa', run_id),
-                     _btn(f"✏️ Waiting for text · {edit_by}" if edit_by else '✏️ Edit Answer', 'ea', run_id)])
+        rows.append([_btn(SEND_SMS, 'sa', run_id), edit])
     items = blocks(actions)
     numbers = _numbered(items)
     open_tasks = [action for kind, _, action in items if kind == 'task' and not action.get('done')]
@@ -1304,14 +1321,15 @@ def keyboard_for(run):
         answer_done = None   # the AI sent it by itself (D5): the status line says so, no button
     return keyboard(run.id, run.hold_status == AIRun.HOLD_HOLDING, (review.get('plan') or {}).get('actions') or [],
                     answer_done, review.get('edit_by'), send_label=_send_label(meta.get('notification'), reminder),
-                    reminder=reminder, reminder_state=review.get('reminder_done'))
+                    reminder=reminder, reminder_state=review.get('reminder_done'),
+                    kind=send_kind(meta.get('mode') or run.mode, run.conversation_sid))
 
 
 def _send_label(notification, reminder=None):
     if reminder and reminder.get('to_tenant'):
         return '🤖 Send now'
     if not notification:
-        return '🤖 Send Answer'
+        return SEND_SMS
     return '📤 Send anyway' if notification.get('held') else '🤖 Send now'
 
 
@@ -1324,7 +1342,7 @@ def post(ctx, ai_run, parsed, delivery, actions):
     note, reminder = ctx.meta.get('notification'), ctx.meta.get('reminder')
     auto = bool(reminder and reminder['to_tenant'] and ctx.meta.get('mode') == 'live' and not delivery.get('held'))
     markup = keyboard(ai_run.id, bool(delivery.get('held')), actions, send_label=_send_label(note, reminder),
-                      reminder=reminder)
+                      reminder=reminder, kind=send_kind(ctx.meta.get('mode'), ai_run.conversation_sid))
     refs = list(triage.get('issue_refs') or [])
     if reminder:
         refs.append(reminder.get('issue_id'))
@@ -1456,9 +1474,10 @@ def _finish(run, plan, author, what, detail=''):
         edit_reply_markup(run.telegram_message_id, keyboard_for(run))
 
 
-def send_answer(run, author):
-    """🤖 Send Answer: sends it, nothing else and no question (user, 2026-10-06: no confirmations anywhere - who wants the
-    task too presses 🤖🎫 Send + Create Task). Returns (popup text, show it as a dialog)."""
+def send_answer(run, author, crm=False):
+    """🤖 Send Answer (SMS): sends it, nothing else and no question (user, 2026-10-06: no confirmations anywhere - who wants
+    the task too presses 🤖🎫 Send + Create Task). crm (📝 Send Answer (CRM)): written into the CRM chat only, no SMS.
+    Returns (popup text, show it as a dialog)."""
     from mysite.models import AIRun
     ar, approval = _review()
     review = run.review or {}
@@ -1469,7 +1488,8 @@ def send_answer(run, author):
     if newer:
         first = (ar._plan(run).get('meta') or {}).get('tenant') or 'the tenant'
         return f"⛔ Not sent – {str(first).split()[0]} wrote again at {_hm(newer.message_timestamp)}. See the newer alert.", True
-    result = ar._claim_and_release(run, run.answer, AIRun.HOLD_SENT, f"Send Answer pressed by {author}", announce=False)
+    result = ar._claim_and_release(run, run.answer, AIRun.HOLD_SENT,
+                                   f"Send Answer ({'CRM' if crm else 'SMS'}) pressed by {author}", announce=False, crm_only=crm)
     run.refresh_from_db()
     if result is None:
         return "The answer was already handled.", False
@@ -1483,6 +1503,8 @@ def send_answer(run, author):
         approval._say(run, f"❌ Could not send to {(ar._plan(run).get('meta') or {}).get('tenant') or 'the tenant'} ({note})")
     elif str(note).startswith('held'):
         label = f"⏳ Answer will be sent {_hm(config.next_notification_window_start())} · {author}"
+    elif crm:
+        label = f"✅ Sent to CRM · {author} {_hm()}"
     else:
         label = f"✅ Answer sent · {author} {_hm()}"
     notification = ((run.review or {}).get('meta') or {}).get('notification')
@@ -1654,6 +1676,8 @@ def handle_callback(callback):
         text = f"already done by {by} {_hm_of(at)}".strip()
     elif code == 'sa':
         text, dialog = send_answer(run, author)
+    elif code == 'sm':
+        text, dialog = send_answer(run, author, crm=True)
     elif code == 'sc':   # 🤖🎫 Send + Create Task: both, in one press
         failed = False
         for kind, i, action in blocks(actions):

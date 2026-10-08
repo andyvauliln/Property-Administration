@@ -138,10 +138,10 @@ A21:
     - '4'
     tasks: 0
     buttons:
-    - Send Answer
+    - Send Answer (SMS)
     - Edit Answer
   presses:
-  - button: Send Answer
+  - button: Send Answer (SMS)
     expect: Sent
   checks: 'The first message of the story: nobody wrote before, so the alert has no ↪️ line. Check-in time from the knowledge
     page.'
@@ -250,11 +250,11 @@ A2:
       n: 1/2
     knowledge: []
     buttons:
-    - Send Answer
+    - Send Answer (SMS)
     - Edit Answer
     - Close Reminder
   presses:
-  - button: Send Answer
+  - button: Send Answer (SMS)
     expect: Sent
   checks: Locked-out tenant = urgent, posted with sound; answer gives the known code; no task; reminder 1/2 in 30 min (urgent,
     any hour).
@@ -301,10 +301,10 @@ A3:
     reminders: []
     knowledge: []
     buttons:
-    - Send Answer
+    - Send Answer (SMS)
     - Edit Answer
   presses:
-  - button: Send Answer
+  - button: Send Answer (SMS)
     expect: Sent
   checks: 'Fact from the knowledge base: answer only, no task / reminder blocks or buttons; the open "Check Mark got in"
     reminder closes quietly (he said "we''re in").'
@@ -335,7 +335,7 @@ A3b:
       n: 1/2
     knowledge: []
     buttons:
-    - Send Answer
+    - Send Answer (SMS)
     - Edit Answer
     - Close Reminder
   checks: 'The password from the knowledge base does not work for the tenant: the AI does not invent another one. It answers
@@ -358,11 +358,11 @@ E4:
     - B123H4689
     sent_to_tenant: false
     buttons:
-    - Send Answer
+    - Send Answer (SMS)
     - Apartment
     - Global
   presses:
-  - button: Send Answer
+  - button: Send Answer (SMS)
     expect: Sent
   - button: Apartment
     expect: Saved
@@ -410,11 +410,11 @@ A4:
       n: 1/2
     knowledge: []
     buttons:
-    - Send Answer
+    - Send Answer (SMS)
     - Edit Answer
     - Close Reminder
   presses:
-  - button: Send Answer
+  - button: Send Answer (SMS)
     expect: Sent
   checks: 'Fact the AI does not know: holding answer ("let me check"), the ❓ line, no task, reminder 1/2 for Edy in 2 h.
     The AI must not invent a place.'
@@ -480,11 +480,11 @@ A4c:
     - change: book_parking
       spot: '14'
     buttons:
-    - Send Answer
+    - Send Answer (SMS)
     - Edit Answer
     - Apply in CRM
   presses:
-  - button: Send Answer
+  - button: Send Answer (SMS)
     expect: Sent
   - button: Apply in CRM
     expect: Done in the CRM
@@ -675,7 +675,7 @@ A12:
     sent_contains:
     - office hours
     buttons:
-    - Send Answer
+    - Send Answer (SMS)
     - Edit Answer
     - Send + Create Task
     - Create Task
@@ -691,7 +691,7 @@ A12d:
   doc: A12
   time: 2026-10-06 22:20
   trigger:
-    press: Send Answer
+    press: Send Answer (SMS)
     by: Andy
   expect:
     sent_to_tenant: false
@@ -719,7 +719,7 @@ A12b:
     answer: true
     sent_to_tenant: false
   presses:
-  - button: Send Answer
+  - button: Send Answer (SMS)
     expect: Sent
   - button: Create Task
     expect: Task created
@@ -755,13 +755,13 @@ A13:
     knowledge: []
     call: true
     buttons:
-    - Send Answer
+    - Send Answer (SMS)
     - Edit Answer
     - Send + Create Task
     - Create Task
     - Close Reminder
   presses:
-  - button: Send Answer
+  - button: Send Answer (SMS)
     expect: Sent
   - button: Create Task
     expect: Task created
@@ -782,7 +782,7 @@ A13b:
     - 📞
     call: false
   presses:
-  - button: Send Answer
+  - button: Send Answer (SMS)
     expect: Sent
   - button: Create Task | Apply Update
   checks: 'The words "not urgent" are not an URGENT reply: nobody is called (the alert may still be urgent: the freezer belongs to the open, urgent fridge case).'
@@ -847,7 +847,7 @@ A1:
     knowledge: []
     sent_to_tenant: false
     buttons:
-    - Send Answer
+    - Send Answer (SMS)
     - Edit Answer
     - Send + Create Task
     - Create Task
@@ -940,7 +940,7 @@ A17:
       contains: Outdated – Vera wrote again 09:50
       buttons: []
     buttons:
-    - Send Answer
+    - Send Answer (SMS)
     - Edit Answer
     - Send + Create Task
     - Create Task
@@ -1049,11 +1049,11 @@ A20:
     tasks: 0
     knowledge: []
     buttons:
-    - Send Answer
+    - Send Answer (SMS)
     - Edit Answer
     - Close Reminder?
   presses:
-  - button: Send Answer
+  - button: Send Answer (SMS)
     expect: Sent
   checks: 'Two messages in a row are one alert (both shown in the 💬 block). The sink was already reported twice this morning:
     the 🔁 line counts the asks. No new task: the sink task exists (an update on it at most).'
@@ -1131,7 +1131,7 @@ A11:
       n: 1/2
     knowledge: []
     buttons:
-    - Send Answer
+    - Send Answer (SMS)
     - Edit Answer
     - Send + Create Tasks
     - Create Task 1
@@ -1191,11 +1191,11 @@ A5:
     knowledge: []
     legal: true
     buttons:
-    - Send Answer
+    - Send Answer (SMS)
     - Edit Answer
     - Close Reminder
   presses:
-  - button: Send Answer
+  - button: Send Answer (SMS)
     expect: Sent
   checks: 'A payment-date question is a contract question: the AI reads the story contract (section 5: due on the 5th, $50
     late fee after 5 days) and shows the ⚖️ contract basis; no promise, a reminder for Janna at the start of the next office
@@ -1253,7 +1253,7 @@ A8:
       at: 2026-10-08 21:00
     knowledge: []
     buttons:
-    - Send Answer
+    - Send Answer (SMS)
     - Edit Answer
     - Close Reminder
   checks: 'A tenant deadline (tomorrow 23:00): the AI answers from the knowledge page (lockbox 7788) and the alert shows
@@ -1293,7 +1293,7 @@ E3:
     - Send this
     sent_to_tenant: false
     buttons:
-    - Send Answer
+    - Send Answer (SMS)
     - Save rule?
     - Apply Change?
     - Apply Update?
@@ -1305,7 +1305,7 @@ E3b:
   doc: E3
   time: 2026-10-07 17:14
   trigger:
-    press: Send Answer
+    press: Send Answer (SMS)
     by: Andy
   expect:
     sent_to_tenant: true
@@ -1393,7 +1393,7 @@ A19:
     updates: 0
     knowledge: []
     buttons:
-    - Send Answer
+    - Send Answer (SMS)
     - Edit Answer
     - Send + Create Tasks
     - Create Task 1
@@ -1516,7 +1516,8 @@ A16:
       n: 1/2
     sent_to_tenant: false
     buttons:
-    - Send Answer
+    - Send Answer (SMS)
+    - Send Answer (CRM)
     - Edit Answer
     - Send + Create Task
     - Create Task
@@ -1548,11 +1549,11 @@ A9:
     reminders: []
     knowledge: []
     buttons:
-    - Send Answer
+    - Send Answer (SMS)
     - Edit Answer
     - Apply Update
   presses:
-  - button: Send Answer
+  - button: Send Answer (SMS)
     expect: Sent
   checks: 'Repeat ask on an open task: urgent, 🔁 line (asked 2 times, waiting 20 h), 🔄 update of the existing task (urgent
     + comment) instead of a new task; the case already has its reminders → no new one.'
@@ -1577,12 +1578,12 @@ A10:
     updates: 1
     knowledge: []
     buttons:
-    - Send Answer
+    - Send Answer (SMS)
     - Edit Answer
     - Close Task
     - Close Reminder?
   presses:
-  - button: Send Answer
+  - button: Send Answer (SMS)
     expect: Sent
   - button: Close Task
     expect: Closed
@@ -1632,11 +1633,11 @@ A22:
       in: 2h
       n: 1/2
     buttons:
-    - Send Answer
+    - Send Answer (SMS)
     - Edit Answer
     - Close Reminder
   presses:
-  - button: Send Answer
+  - button: Send Answer (SMS)
     expect: Sent
   checks: 'How to pay is not on the knowledge page: a holding answer, the ❓ line, a reminder for Janna (payments). No ⚖️:
     the contract says when, not how.'
@@ -1864,7 +1865,7 @@ C6:
     answer: true
     sent_to_tenant: false
     buttons:
-    - Send Answer
+    - Send Answer (SMS)
     - Edit Answer
     - Close Reminder
   checks: 'The team closed the dishwasher task in ClickUp (not in the chat). When its reminder is due, the REMINDER says the
@@ -1918,7 +1919,7 @@ A13c:
     call: false
     sent_to_tenant: false
   presses:
-  - button: Send Answer
+  - button: Send Answer (SMS)
     expect: Sent
   checks: 'URGENT in office hours: 🔴 alert with sound and an urgent task, but no phone call and no after-hours message.'
 
@@ -1989,10 +1990,10 @@ A4b:
     reminders: []
     knowledge: []
     buttons:
-    - Send Answer
+    - Send Answer (SMS)
     - Edit Answer
   presses:
-  - button: Send Answer
+  - button: Send Answer (SMS)
     expect: Sent
   checks: 'Spot #14 is booked for the booking in the CRM since the press on Tuesday: the answer comes from the CRM rows,
     no ❓ line, no CRM change proposed.'
@@ -2139,7 +2140,7 @@ A12c:
       n: 1/2
     sent_to_tenant: true
   presses:
-  - button: Send Answer
+  - button: Send Answer (SMS)
     expect: Sent
   - button: Create Task
     expect: Task created
@@ -2195,7 +2196,7 @@ A12e:
       n: 1/2
     sent_to_tenant: true
   presses:
-  - button: Send Answer
+  - button: Send Answer (SMS)
     expect: Sent
   - button: Create Task
     expect: Task created
@@ -2229,11 +2230,11 @@ A6:
       n: 1/2
     knowledge: []
     buttons:
-    - Send Answer
+    - Send Answer (SMS)
     - Edit Answer
     - Close Reminder
   presses:
-  - button: Send Answer
+  - button: Send Answer (SMS)
     expect: Sent
   checks: 'Extension request: holding answer (availability is not confirmed by the AI), no task, reminder 1/2 for Edy in
     2 h (17:50).'
@@ -2262,11 +2263,11 @@ A23:
       in: 2h
       n: 1/2
     buttons:
-    - Send Answer
+    - Send Answer (SMS)
     - Edit Answer
     - Close Reminder
   presses:
-  - button: Send Answer
+  - button: Send Answer (SMS)
     expect: Sent
   checks: 'The November rent is still Pending in the CRM: the AI thanks her, promises nothing about the record, and leaves
     a reminder for Janna to check the payment.'
@@ -2341,11 +2342,11 @@ A23b:
       in: 2h
       n: 1/2
     buttons:
-    - Send Answer
+    - Send Answer (SMS)
     - Edit Answer
     - Close Reminder
   presses:
-  - button: Send Answer
+  - button: Send Answer (SMS)
     expect: Sent
   checks: 'The team extended the booking to Dec 19 and added the December rent (Pending, due Dec 5). Vera writes about it
     in a second chat of hers: the AI reads all her chats as one history.'
@@ -2440,11 +2441,11 @@ A7:
     knowledge: []
     legal: true
     buttons:
-    - Send Answer
+    - Send Answer (SMS)
     - Edit Answer
     - Close Reminder
   presses:
-  - button: Send Answer
+  - button: Send Answer (SMS)
     expect: Sent
   checks: 'After the stay: a complaint about the deposit is a contract question (section 9 - cleaning fee up to $300) and
     a dispute: ⚖️ basis shown, urgent, no promise of money, a reminder for Farid in 30 minutes.'

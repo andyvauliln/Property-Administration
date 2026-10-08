@@ -32,7 +32,10 @@ become a test in `testbed/`
   - 📅 an **automatic notification** (move-in, rent due, contract not signed, …) is sent in live mode when the AI finds it
   is still needed (part 8a); when it is not sure, it holds it and asks
 2. **A button press always does the real action**, in live and in test, even when the AI's own ClickUp writing is
-  OFF. Pressing is the confirmation. `🤖 Send Answer` **really sends to the tenant also in a test apartment**.
+  OFF. Pressing is the confirmation. `🤖 Send Answer (SMS)` **really sends to the tenant also in a test apartment**.
+  A test apartment also gets `📝 Send Answer (CRM)`: the answer is only written into the CRM chat, no SMS. A chat that
+  exists only in the CRM (test chats, ids `CHSANDBOX…` / `CHTEST…`) gets only `📝 Send Answer (CRM)` - nothing can be
+  sent through Twilio there (user decision 2026-10-08). Live alerts never show the CRM button.
 3. **A typed reply never changes anything by itself.** The bot first explains what it will change and shows a button;
   the change happens only after the press (part 7).
 4. **Modes are switched on the site only, never in Telegram.** The alert shows them as status:
@@ -56,7 +59,7 @@ become a test in `testbed/`
 3. Empty blocks are not shown. No task → no task block and no task button.
 4. Several of the same kind are numbered: `🎫1`, `🎫2`, buttons `Create Task 1`, `Create Task 2`.
 5. Every task block has a second line *who · priority · due*. Every knowledge block has a second line *from where*.
-6. After a press, the button turns into the result: `🤖 Send Answer` → `✅ Answer sent · Andy 14:36`.
+6. After a press, the button turns into the result: `🤖 Send Answer (SMS)` → `✅ Answer sent · Andy 14:36`.
 7. **Urgency, 3 levels**: 🟢 routine (posted **without sound**), 🔴 urgent (with sound), 🚨 emergency (with sound).
   Team message alerts are always without sound, unless they propose an urgent task.
 8. One thread per case: a newer alert about the same case is posted as a reply to the first one.
@@ -198,7 +201,8 @@ already says who wrote. Several team members in a row are one side (header `🧑
 
 | Button                         | What it does                                                          | Becomes                      |
 | ------------------------------ | --------------------------------------------------------------------- | ---------------------------- |
-| 🤖 Send Answer                 | sends the answer to the tenant chat, marks it approved                | ✅ Answer sent · who · time   |
+| 🤖 Send Answer (SMS)           | sends the answer to the tenant chat, marks it approved                | ✅ Answer sent · who · time   |
+| 📝 Send Answer (CRM)           | test apartments / CRM-only chats: writes it into the CRM chat, no SMS | ✅ Sent to CRM · who · time   |
 | 🤖🎫 Send + Create Task        | answer + new task(s) in one press (shown when the alert has both)     | ✅ Answer sent + ✅ Task created |
 | ✏️ Edit Answer                 | the bot asks for the correct text (E3)                                | ✏️ Waiting for text · who    |
 | 🎫 Create Task N               | creates the ClickUp task (also creates the case if there is none yet) | ✅ Task created · link        |
@@ -249,7 +253,7 @@ Tenant Vera, 720-201, Tue 6 Oct 14:34 (office hours). Kitchen sink is dripping.
 🔗 AI run: http://68.183.124.79/ai-runs/627/
 💬 CRM chat: http://68.183.124.79/chat/CH5f2e…/
 
-[🤖 Send Answer] [✏️ Edit Answer]
+[🤖 Send Answer (SMS)] [✏️ Edit Answer]
 [🤖🎫 Send + Create Task]
 [🎫 Create Task]
 [✅ Close Reminder]
@@ -286,7 +290,7 @@ If it still doesn't open, reply here and we'll call you right away." 🤖
 ———
 (footer)
 
-[🤖 Send Answer] [✏️ Edit Answer]
+[🤖 Send Answer (SMS)] [✏️ Edit Answer]
 [✅ Close Reminder]
 ```
 
@@ -309,7 +313,7 @@ on Monday." ↪️
 ———
 (footer)
 
-[🤖 Send Answer] [✏️ Edit Answer]
+[🤖 Send Answer (SMS)] [✏️ Edit Answer]
 ```
 
 No task, no reminder → no blocks and no buttons for them. The open "Check Mark got in" reminder closes quietly
@@ -336,7 +340,7 @@ password and send it to you." 🤖
 ———
 (footer)
 
-[🤖 Send Answer] [✏️ Edit Answer]
+[🤖 Send Answer (SMS)] [✏️ Edit Answer]
 [✅ Close Reminder]
 ```
 
@@ -364,7 +368,7 @@ The normal next step is a reply under this alert with the right value – see E4
 ———
 (footer)
 
-[🤖 Send Answer] [✏️ Edit Answer]
+[🤖 Send Answer (SMS)] [✏️ Edit Answer]
 [✅ Close Reminder]
 ```
 
@@ -390,7 +394,7 @@ mailboxes." 🤖
 ———
 (footer)
 
-[🤖 Send Answer] [✏️ Edit Answer]
+[🤖 Send Answer (SMS)] [✏️ Edit Answer]
 ```
 
 No ❓ line, no reminder, no task.
@@ -418,7 +422,7 @@ mailboxes." 🤖
 ———
 (footer)
 
-[🤖 Send Answer] [✏️ Edit Answer]
+[🤖 Send Answer (SMS)] [✏️ Edit Answer]
 [🗂 Apply in CRM]
 ```
 
@@ -462,7 +466,7 @@ by tomorrow." 🤖
 ———
 (footer)
 
-[🤖 Send Answer] [✏️ Edit Answer]
+[🤖 Send Answer (SMS)] [✏️ Edit Answer]
 [✅ Close Reminder]
 ```
 
@@ -487,7 +491,7 @@ availability and will confirm by tomorrow." 🤖
 ———
 (footer)
 
-[🤖 Send Answer] [✏️ Edit Answer]
+[🤖 Send Answer (SMS)] [✏️ Edit Answer]
 [✅ Close Reminder]
 ```
 
@@ -516,7 +520,7 @@ checklist was not done; checkout photos on file
 ———
 (footer)
 
-[🤖 Send Answer] [✏️ Edit Answer]
+[🤖 Send Answer (SMS)] [✏️ Edit Answer]
 [✅ Close Reminder]
 ```
 
@@ -540,7 +544,7 @@ Branch: the AI never promises money in a dispute; owner Farid; urgent, so the re
 ———
 (footer)
 
-[🤖 Send Answer] [✏️ Edit Answer]
+[🤖 Send Answer (SMS)] [✏️ Edit Answer]
 [✅ Close Reminder]
 ```
 
@@ -567,7 +571,7 @@ and we'll confirm a visit time today." 🤖
 ———
 (footer)
 
-[🤖 Send Answer] [✏️ Edit Answer]
+[🤖 Send Answer (SMS)] [✏️ Edit Answer]
 [🔄 Apply Update]
 ```
 
@@ -594,7 +598,7 @@ the gate open" ↪️
 ———
 (footer)
 
-[🤖 Send Answer] [✏️ Edit Answer]
+[🤖 Send Answer (SMS)] [✏️ Edit Answer]
 [🔄 Close Task]
 [✅ Close Reminder]
 ```
@@ -625,7 +629,7 @@ Branch: the chat shows the issue is gone → the AI proposes closing the task an
 ———
 (footer)
 
-[🤖 Send Answer] [✏️ Edit Answer]
+[🤖 Send Answer (SMS)] [✏️ Edit Answer]
 [🤖🎫 Send + Create Tasks]
 [🎫 Create Task 1] [🎫 Create Task 2]
 [✅ Close Reminder]
@@ -656,7 +660,7 @@ Tue 22:15. First the AI MESSAGE about the after-hours text is posted (as in D2, 
 ———
 (footer)
 
-[🤖 Send Answer] [✏️ Edit Answer]
+[🤖 Send Answer (SMS)] [✏️ Edit Answer]
 [🤖🎫 Send + Create Task]
 [🎫 Create Task]
 [✅ Close Reminder]
@@ -689,7 +693,7 @@ shortly." 🤖
 ———
 (footer)
 
-[🤖 Send Answer] [✏️ Edit Answer]
+[🤖 Send Answer (SMS)] [✏️ Edit Answer]
 [🤖🎫 Send + Create Task]
 [🎫 Create Task]
 [✅ Close Reminder]
@@ -711,7 +715,13 @@ Same as A1, but:
 📤 AI sends to chat: OFF (test) · 🎫 AI Auto ClickUp: OFF
 ```
 
-Buttons work for real (rule 1.1.2): `🤖 Send Answer` really sends to the tenant. Nothing is sent by the AI by itself.
+Buttons work for real (rule 1.1.2): `🤖 Send Answer (SMS)` really sends to the tenant; `📝 Send Answer (CRM)` only
+writes the answer into the CRM chat. Nothing is sent by the AI by itself.
+
+```
+[🤖 Send Answer (SMS)] [📝 Send Answer (CRM)]
+[✏️ Edit Answer]
+```
 
 ### A17. Tenant writes again before anyone pressed
 
@@ -744,7 +754,7 @@ sending a plumber today and will confirm the time within the hour." 🤖
 ———
 (footer)
 
-[🤖 Send Answer] [✏️ Edit Answer]
+[🤖 Send Answer (SMS)] [✏️ Edit Answer]
 [🤖🎫 Send + Create Task]
 [🎫 Create Task]
 [✅ Close Reminder]
@@ -794,7 +804,7 @@ tomorrow." 🤖
 ———
 (footer)
 
-[🤖 Send Answer] [✏️ Edit Answer]
+[🤖 Send Answer (SMS)] [✏️ Edit Answer]
 [🤖🎫 Send + Create Tasks]
 [🎫 Create Task 1] [🎫 Create Task 2]
 [✅ Close Reminder]
@@ -827,7 +837,7 @@ you'll get a visit time within the hour." 🤖
 ———
 (footer)
 
-[🤖 Send Answer] [✏️ Edit Answer]
+[🤖 Send Answer (SMS)] [✏️ Edit Answer]
 [🔄 Apply Update]
 ```
 
@@ -1117,7 +1127,7 @@ any problem, just let us know." 🤖
 ———
 (footer)
 
-[🤖 Send Answer] [✏️ Edit Answer]
+[🤖 Send Answer (SMS)] [✏️ Edit Answer]
 [✅ Close Reminder]
 ```
 
@@ -1496,7 +1506,7 @@ The bot never asks "are you sure?" or "create it too?" - one press, one action. 
 new task gets one more button that does both:
 
 ```
-[🤖 Send Answer] [✏️ Edit Answer]
+[🤖 Send Answer (SMS)] [✏️ Edit Answer]
 [🤖🎫 Send + Create Task]
 [🎫 Create Task]
 ```
@@ -1958,7 +1968,7 @@ Then write "next".
 🔗 AI run: http://68.183.124.79/ai-runs/701/
 💬 CRM chat: http://68.183.124.79/chat/CHSANDBOXAIAGENT00000000000000001/
 
-[🤖 Send Answer] [✏️ Edit Answer]
+[🤖 Send Answer (SMS)] [✏️ Edit Answer]
 [🤖🎫 Send + Create Task]
 [🎫 Create Task]
 [✅ Close Reminder]
