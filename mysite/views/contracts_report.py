@@ -14,14 +14,17 @@ logger = logging.getLogger(__name__)
 PLACEHOLDER_TENANTS = {'Blocked', 'Problem Booking', 'Not Availabale'}
 # A booking that starts within this gap after the previous one of the same guest
 # in the same apartment is an extension of the same contract
-EXTENSION_GAP = timedelta(days=1)
+EXTENSION_GAP = timedelta(days=9)
 # Out payments that give guest money back (the rest of the Out rows on a booking are our expenses)
 DEPOSIT_REFUND_TYPES = ('Damage Deposit', 'Hold Deposit')
 
 HEADERS = [
-    'Apartment', 'Apartment Type', 'Contract Start', 'Contract End', 'Days', 'Months',
-    'Guest', 'Source', 'Total Paid', 'Bookings', 'Booking IDs',
+    'Row', 'Apartment', 'Apartment Type', 'Start', 'End', 'Days', 'Months',
+    'Guest', 'Source', 'Total Paid', 'Bookings', 'Booking ID', 'Extension',
 ]
+TOTAL_PAID_COLUMN = HEADERS.index('Total Paid')
+# Combined contract rows (a contract with extensions)
+COMBINED_ROW_COLOR = {'red': 1.0, 'green': 0.95, 'blue': 0.7}
 
 
 @user_has_role('Admin', 'Manager')
@@ -102,11 +105,51 @@ def add_paid_totals(contracts):
         paid_by_booking[booking_id] += amount if direction == 'In' else -amount
 
     for contract in contracts:
-        contract['total_paid'] = sum((paid_by_booking[b.id] for b in contract['bookings']), Decimal('0'))
+        for booking in contract['bookings']:
+            booking.total_paid = paid_by_booking[booking.id]
+        contract['total_paid'] = sum((b.total_paid for b in contract['bookings']), Decimal('0'))
 
 
 def apartment_type_label(apartment):
     return f"{apartment.bedrooms}BR" if apartment.bedrooms else ''
+
+
+def report_row(row_type, apartment, start, end, guest, source, paid, bookings, booking_id, extension):
+    days = (end - start).days
+    return [
+        row_type, apartment.name, apartment_type_label(apartment), start.isoformat(), end.isoformat(),
+        days, round(days / 30.44, 1), guest.full_name, source, float(paid), bookings, booking_id, extension,
+    ]
+
+
+def contract_rows(contract):
+    """One Contract row; a contract with extensions also gets one Booking row per booking under it."""
+    bookings = contract['bookings']
+    first = bookings[0]
+    source = next((b.source for b in bookings if b.source), '')
+    if len(bookings) == 1:
+        return [report_row('Contract', contract['apartment'], contract['start_date'], contract['end_date'],
+                           contract['tenant'], source, contract['total_paid'], 1, f'#{first.id}', '')], False
+
+    rows = [report_row(
+        'Contract', contract['apartment'], contract['start_date'], contract['end_date'], contract['tenant'],
+        source, contract['total_paid'], len(bookings), ', '.join(f'#{b.id}' for b in bookings),
+        f'Combined: {len(bookings)} bookings',
+    )]
+    covered_until = first.end_date
+    for previous, booking in zip([None] + bookings, bookings):
+        if previous is None:
+            extension = 'First booking'
+        else:
+            gap = (booking.start_date - covered_until).days
+            gap_text = f'overlap {-gap} days' if gap < 0 else f"gap {gap} day{'' if gap == 1 else 's'}"
+            extension = f'Extension of #{previous.id} ({gap_text})'
+            covered_until = max(covered_until, booking.end_date)
+        rows.append(report_row(
+            'Booking', contract['apartment'], booking.start_date, booking.end_date, contract['tenant'],
+            booking.source, booking.total_paid, '', f'#{booking.id}', extension,
+        ))
+    return rows, True
 
 
 def generate_contracts_excel(contracts, start_date, end_date):
@@ -120,21 +163,12 @@ def generate_contracts_excel(contracts, start_date, end_date):
     sheet_id = spreadsheet['sheets'][0]['properties']['sheetId']
 
     values = [HEADERS]
+    combined_row_indexes = []
     for contract in contracts:
-        days = (contract['end_date'] - contract['start_date']).days
-        values.append([
-            contract['apartment'].name,
-            apartment_type_label(contract['apartment']),
-            contract['start_date'].isoformat(),
-            contract['end_date'].isoformat(),
-            days,
-            round(days / 30.44, 1),
-            contract['tenant'].full_name,
-            contract['bookings'][0].source,
-            float(contract['total_paid']),
-            len(contract['bookings']),
-            ', '.join(str(b.id) for b in contract['bookings']),
-        ])
+        rows, combined = contract_rows(contract)
+        if combined:
+            combined_row_indexes.append(len(values))
+        values.extend(rows)
 
     sheets_service.values().update(
         spreadsheetId=spreadsheet_id,
@@ -143,7 +177,19 @@ def generate_contracts_excel(contracts, start_date, end_date):
         body={'values': values},
     ).execute()
 
-    sheets_service.batchUpdate(spreadsheetId=spreadsheet_id, body={'requests': [
+    combined_formats = [
+        {
+            'repeatCell': {
+                'range': {'sheetId': sheet_id, 'startRowIndex': index, 'endRowIndex': index + 1,
+                          'startColumnIndex': 0, 'endColumnIndex': len(HEADERS)},
+                'cell': {'userEnteredFormat': {'textFormat': {'bold': True}, 'backgroundColor': COMBINED_ROW_COLOR}},
+                'fields': 'userEnteredFormat(textFormat,backgroundColor)',
+            }
+        }
+        for index in combined_row_indexes
+    ]
+
+    sheets_service.batchUpdate(spreadsheetId=spreadsheet_id, body={'requests': combined_formats + [
         {
             'repeatCell': {
                 'range': {'sheetId': sheet_id, 'startRowIndex': 0, 'endRowIndex': 1},
@@ -156,7 +202,8 @@ def generate_contracts_excel(contracts, start_date, end_date):
         },
         {
             'repeatCell': {
-                'range': {'sheetId': sheet_id, 'startRowIndex': 1, 'startColumnIndex': 8, 'endColumnIndex': 9},
+                'range': {'sheetId': sheet_id, 'startRowIndex': 1,
+                          'startColumnIndex': TOTAL_PAID_COLUMN, 'endColumnIndex': TOTAL_PAID_COLUMN + 1},
                 'cell': {'userEnteredFormat': {'numberFormat': {'type': 'CURRENCY', 'pattern': '$#,##0.00'}}},
                 'fields': 'userEnteredFormat.numberFormat',
             }
