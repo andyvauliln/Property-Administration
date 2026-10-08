@@ -1792,10 +1792,6 @@ input:checked + .toggle-bg {
   min-width: 100%;
 }
 
-.max-w-2xl {
-  max-width: 42rem;
-}
-
 .max-w-3xl {
   max-width: 48rem;
 }
@@ -2114,6 +2110,18 @@ input:checked + .toggle-bg {
   --tw-space-x-reverse: 0;
   margin-right: calc(1rem * var(--tw-space-x-reverse));
   margin-left: calc(1rem * calc(1 - var(--tw-space-x-reverse)));
+}
+
+.space-y-0 > :not([hidden]) ~ :not([hidden]) {
+  --tw-space-y-reverse: 0;
+  margin-top: calc(0px * calc(1 - var(--tw-space-y-reverse)));
+  margin-bottom: calc(0px * var(--tw-space-y-reverse));
+}
+
+.space-y-0\.5 > :not([hidden]) ~ :not([hidden]) {
+  --tw-space-y-reverse: 0;
+  margin-top: calc(0.125rem * calc(1 - var(--tw-space-y-reverse)));
+  margin-bottom: calc(0.125rem * var(--tw-space-y-reverse));
 }
 
 .space-y-1 > :not([hidden]) ~ :not([hidden]) {
@@ -2588,11 +2596,6 @@ input:checked + .toggle-bg {
 .bg-blue-700 {
   --tw-bg-opacity: 1;
   background-color: rgb(26 86 219 / var(--tw-bg-opacity));
-}
-
-.bg-emerald-50 {
-  --tw-bg-opacity: 1;
-  background-color: rgb(236 253 245 / var(--tw-bg-opacity));
 }
 
 .bg-fuchsia-600 {
@@ -4627,11 +4630,6 @@ label[textContent="Problem Booking"] {
   border-color: rgb(30 66 159 / var(--tw-border-opacity));
 }
 
-:is(.dark .dark\:border-emerald-600) {
-  --tw-border-opacity: 1;
-  border-color: rgb(5 150 105 / var(--tw-border-opacity));
-}
-
 :is(.dark .dark\:border-gray-500) {
   --tw-border-opacity: 1;
   border-color: rgb(107 114 128 / var(--tw-border-opacity));
@@ -4751,10 +4749,6 @@ label[textContent="Problem Booking"] {
   background-color: rgb(35 56 118 / 0.3);
 }
 
-:is(.dark .dark\:bg-emerald-900\/20) {
-  background-color: rgb(6 78 59 / 0.2);
-}
-
 :is(.dark .dark\:bg-gray-500) {
   --tw-bg-opacity: 1;
   background-color: rgb(107 114 128 / var(--tw-bg-opacity));
@@ -4800,10 +4794,6 @@ label[textContent="Problem Booking"] {
 :is(.dark .dark\:bg-green-900) {
   --tw-bg-opacity: 1;
   background-color: rgb(1 71 55 / var(--tw-bg-opacity));
-}
-
-:is(.dark .dark\:bg-green-900\/20) {
-  background-color: rgb(1 71 55 / 0.2);
 }
 
 :is(.dark .dark\:bg-green-900\/30) {
@@ -4877,10 +4867,6 @@ label[textContent="Problem Booking"] {
 
 :is(.dark .dark\:bg-red-900\/30) {
   background-color: rgb(119 29 29 / 0.3);
-}
-
-:is(.dark .dark\:bg-teal-900\/20) {
-  background-color: rgb(1 68 81 / 0.2);
 }
 
 :is(.dark .dark\:bg-teal-900\/30) {

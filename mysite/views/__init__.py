@@ -3,6 +3,7 @@ from .apartments_report import apartments_analytics, apartment_report
 from .dashboard import index
 from .generate_invoice import generate_invoice
 from .booking_report import booking_report
+from .contracts_report import contracts_report
 from .notifications import notifications
 from .payments_report import paymentReport
 from .messaging import twilio_webhook

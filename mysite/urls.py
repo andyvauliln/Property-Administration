@@ -26,6 +26,7 @@ urlpatterns = [
     path('generate-invoice/', views.generate_invoice, name='generateInvoice'),
     path('booking-report/', views.booking_report, name='booking_report'),
     path('apartment-report/', views.apartment_report, name='apartment_report'),
+    path('contracts-report/', views.contracts_report, name='contracts_report'),
     path('payments-sync/', views.sync_payments, name='sync_payments'),
     path('payments-sync-v2/', views.sync_payments_v2, name='sync_payments_v2'),
     path('payments-sync-v2/fetch-db-payments/', views.fetch_db_payments_for_matching, name='fetch_db_payments_for_matching'),
